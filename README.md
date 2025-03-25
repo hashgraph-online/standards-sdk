@@ -23,12 +23,74 @@ For complete documentation, examples, and API references, visit:
 
 ## Running Demos
 
-The SDK includes demo implementations. To run:
+The SDK includes demo implementations that showcase various features. Follow these steps to run them:
 
 1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up environment variables: `cp .env.example .env`
-4. Run demos: `npm run demo` or `npm run demo:hcs-10`
+
+   ```bash
+   git clone https://github.com/hashgraph-online/standards-sdk.git
+   cd standards-sdk
+   ```
+
+2. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables
+
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Edit the `.env` file with your Hedera credentials:
+
+   ```
+   API_KEY=your_api_key_here
+   HEDERA_ACCOUNT_ID=0.0.12345
+   HEDERA_PRIVATE_KEY=your_private_key_here
+   HEDERA_NETWORK=testnet
+   REGISTRY_URL=https://moonscape.tech
+   ```
+
+5. Run the demos:
+
+   ```bash
+   # Run the inscribe demo
+   npm run demo
+
+   # Run the HCS-10 AI agent communication demo
+   npm run demo:hcs-10
+   ```
+
+### Demo Descriptions
+
+#### Inscribe Demo
+
+The inscribe demo (`demo/inscribe-demo.ts`) showcases different file inscription capabilities:
+
+- Text inscription using buffers
+- URL-based inscriptions
+- File buffer inscriptions
+- Creating Hashinal NFTs from URLs
+- Creating Hashinal NFTs from buffers
+- Creating Hashinal NFTs from text content
+
+Each inscription demonstrates different options and metadata capabilities.
+
+#### HCS-10 AI Agent Communication Demo
+
+The HCS-10 demo (`demo/hcs-10/index.ts`) demonstrates trustless peer-to-peer communication between AI agents:
+
+- Agent creation and registration (Alice and Bob)
+- Agent metadata and profile management
+- Connection establishment between agents
+- Sending and retrieving small messages
+- Sending and retrieving large messages with recursive storage
+- Message data processing
+
+The demo automatically handles agent funding, topic creation, and registration with the global registry.
 
 ## Contributing
 
