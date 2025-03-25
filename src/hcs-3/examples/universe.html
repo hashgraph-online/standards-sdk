@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hashinal Universe</title>
+
+    <script
+      data-hcs-config
+      data-hcs-cdn-url="https://kiloscribe.com/api/inscription-cdn/"
+      data-hcs-network="mainnet"
+      data-hcs-debug="true"
+      data-hcs-retry-attempts="5"
+      data-hcs-retry-backoff="500"
+    ></script>
+
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        background: black;
+        color: #ffffff;
+      }
+      .header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h1 {
+        font-size: 2em;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: white;
+        text-align: center;
+      }
+      p {
+        font-size: 1em;
+        margin-bottom: 1rem;
+        max-width: 700px;
+        line-height: 1.4;
+        text-align: center;
+      }
+      .button-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+      button {
+        background-color: transparent;
+        color: rgb(87, 209, 117);
+        border: 2px solid rgb(87, 209, 117);
+        padding: 8px 16px;
+        font-size: 0.9em;
+        cursor: pointer;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+        z-index: 100;
+      }
+      button:hover {
+        background-color: rgb(87, 209, 117);
+        color: #000000;
+      }
+      #canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 0;
+      }
+      #card-details {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        padding: 20px;
+        border-radius: 10px;
+        z-index: 200;
+        max-width: 80%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      #card-details img {
+        max-width: 100%;
+        height: auto;
+      }
+      #card-details a {
+        color: rgb(87, 209, 117);
+        text-decoration: none;
+      }
+      #card-details a:hover {
+        text-decoration: underline;
+      }
+      .toggle-button {
+        background-color: rgb(87, 209, 117);
+        color: #000000;
+        border: none;
+      }
+      .toggle-button:hover {
+        background-color: rgb(26, 77, 40);
+      }
+      .toggle-button.active {
+        background-color: rgb(26, 77, 40);
+        color: #ffffff;
+      }
+      .loader {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+      }
+      .loader:after {
+        content: ' ';
+        display: block;
+        width: 64px;
+        height: 64px;
+        margin: 8px;
+        border-radius: 50%;
+        border: 6px solid rgb(87, 209, 117);
+        border-color: rgb(87, 209, 117) transparent rgb(87, 209, 117)
+          transparent;
+        animation: loader 1.2s linear infinite;
+      }
+      @keyframes loader {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Mobile responsiveness */
+      @media (max-width: 768px) {
+        .header {
+          padding: 0.5rem;
+        }
+        h1 {
+          font-size: 1.5em;
+        }
+        p {
+          font-size: 0.9em;
+          margin-bottom: 0.5rem;
+        }
+        button {
+          font-size: 0.8em;
+          padding: 6px 12px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        h1 {
+          font-size: 1.2em;
+        }
+        p {
+          font-size: 0.8em;
+        }
+        .button-container {
+          flex-direction: column;
+          align-items: center;
+        }
+        button {
+          width: 100%;
+          margin-bottom: 0.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div class="header">
+      <h1>Explore the Hashinal Universe</h1>
+      <p>
+        Each byte of these NFTs is recorded on the Hedera Consensus Service and
+        rendered live. This HTML is also entirely inscribed on the Hedera
+        Consensus Service and available as a Hashinal. New inscriptions are
+        randomly selected and displayed on this canvas.
+      </p>
+      <div class="button-container">
+        <button id="inscribeButton" data-umami-event="click--inscribe-universe">
+          Create Your Own Hashinal
+        </button>
+        <button
+          onclick="window.open('https://link.hashpack.app/eyJ0eXBlIjoibGF1bmNocGFkIiwibGluayI6Ik5GVGllci9oYXNoaW5hbHMtdW5pdmVyc2UifQ==', '_blank')"
+          data-umami-event="click--mint-universe"
+        >
+          Mint this Hashinal for 1 HBAR
+        </button>
+        <button
+          id="toggleButton"
+          class="toggle-button active"
+          data-umami-event="click--random"
+        >
+          Random Hashinals
+        </button>
+      </div>
+    </div>
+    <div id="card-details"></div>
+
+    <div class="loader" id="loader"></div>
+
+    <script
+      data-src="hcs://1/0.0.6614307"
+      data-load-order="2"
+      data-script-id="threejs"
+    ></script>
+
+    <script>
+      window.HCSReady = function () {
+        if (typeof THREE === 'undefined') {
+          console.error('Three.js is not loaded');
+          return;
+        }
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({
+          canvas: document.getElementById('canvas'),
+          antialias: true,
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Initialize stars
+        const starGeometry = new THREE.BufferGeometry();
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff });
+        const starVertices = [];
+        for (let i = 0; i < 10000; i++) {
+          starVertices.push(
+            (Math.random() - 0.5) * 2000,
+            (Math.random() - 0.5) * 2000,
+            (Math.random() - 0.5) * 2000
+          );
+        }
+        starGeometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(starVertices, 3)
+        );
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        const hashinalGroup = new THREE.Group();
+        scene.add(hashinalGroup);
+
+        const linesMaterial = new THREE.LineBasicMaterial({
+          color: 0xffffff,
+          opacity: 0.5,
+          transparent: true,
+        });
+        const linesGeometry = new THREE.BufferGeometry();
+        const lines = new THREE.LineSegments(linesGeometry, linesMaterial);
+        scene.add(lines);
+
+        function createTextTexture(text, size = 128) {
+          const canvas = document.createElement('canvas');
+          canvas.width = size * 4;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = 'white';
+          ctx.font = `${size / 2}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+          return new THREE.CanvasTexture(canvas);
+        }
+
+        function createHashinalCard(data, position) {
+          const group = new THREE.Group();
+          group.position.set(...position);
+          group.userData = data;
+
+          const cardGeometry = new THREE.PlaneGeometry(6, 6);
+
+          // Create a loader with custom settings
+          const loader = new THREE.TextureLoader();
+          loader.crossOrigin = 'Anonymous';
+          loader.load(
+            `https://kiloscribe.com/api/inscription-cdn/${data.image}?network=mainnet`,
+            (texture) => {
+              if (!texture || !texture.image.complete) {
+                console.error(
+                  `Texture not loaded successfully: https://kiloscribe.com/api/inscription-cdn/${data.image}?network=mainnet`
+                );
+                // Optionally, load a default texture
+                loader.load(
+                  'https://kiloscribe.com/api/inscription-cdn/0.0.4994481?network=mainnet',
+                  (defaultTexture) => {
+                    const cardMaterial = new THREE.MeshBasicMaterial({
+                      map: defaultTexture,
+                      transparent: true,
+                      side: THREE.DoubleSide,
+                    });
+                    const card = new THREE.Mesh(cardGeometry, cardMaterial);
+                    group.add(card);
+                  },
+                  undefined,
+                  (error) => {
+                    console.error(
+                      'An error occurred loading the default texture:',
+                      error
+                    );
+                  }
+                );
+                return;
+              }
+
+              // Set texture properties to stretch the image
+              texture.minFilter = THREE.LinearFilter;
+              texture.magFilter = THREE.LinearFilter;
+              texture.format = THREE.RGBAFormat;
+
+              // Adjust texture wrapping and repeat
+              texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+              texture.repeat.set(1, 1);
+
+              const cardMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+                side: THREE.DoubleSide,
+              });
+
+              const card = new THREE.Mesh(cardGeometry, cardMaterial);
+              group.add(card);
+            },
+            undefined,
+            (error) => {
+              console.error('An error occurred loading the texture:', error);
+              // Optionally, load a default texture in case of error
+              loader.load(
+                'https://kiloscribe.com/api/inscription-cdn/0.0.4994481?network=mainnet',
+                (defaultTexture) => {
+                  const cardMaterial = new THREE.MeshBasicMaterial({
+                    map: defaultTexture,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                  });
+                  const card = new THREE.Mesh(cardGeometry, cardMaterial);
+                  group.add(card);
+                },
+                undefined,
+                (error) => {
+                  console.error(
+                    'An error occurred loading the default texture:',
+                    error
+                  );
+                }
+              );
+            }
+          );
+
+          const textBackgroundGeometry = new THREE.PlaneGeometry(6, 1.5);
+          const textBackgroundMaterial = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            opacity: 0.7,
+            transparent: true,
+          });
+          const textBackground = new THREE.Mesh(
+            textBackgroundGeometry,
+            textBackgroundMaterial
+          );
+          textBackground.position.set(0, -3.75, 0.01);
+          group.add(textBackground);
+
+          const inscriptionTexture = createTextTexture(
+            `#${data.inscription_number}`
+          );
+          const inscriptionGeometry = new THREE.PlaneGeometry(5.5, 0.7);
+          const inscriptionMaterial = new THREE.MeshBasicMaterial({
+            map: inscriptionTexture,
+            transparent: true,
+          });
+          const inscriptionMesh = new THREE.Mesh(
+            inscriptionGeometry,
+            inscriptionMaterial
+          );
+          inscriptionMesh.position.set(0, -3.4, 0.02);
+          group.add(inscriptionMesh);
+
+          const dateTexture = createTextTexture(
+            new Date(data.created).toLocaleDateString()
+          );
+          const dateGeometry = new THREE.PlaneGeometry(5.5, 0.7);
+          const dateMaterial = new THREE.MeshBasicMaterial({
+            map: dateTexture,
+            transparent: true,
+          });
+          const dateMesh = new THREE.Mesh(dateGeometry, dateMaterial);
+          dateMesh.position.set(0, -4.1, 0.02);
+          group.add(dateMesh);
+
+          return group;
+        }
+
+        let isRandomMode = true;
+
+        async function fetchHashinalData() {
+          const loader = document.getElementById('loader');
+          loader.style.display = 'block';
+
+          try {
+            const url = isRandomMode
+              ? 'https://tier.bot/api/inscriptions/numbers?random=true'
+              : 'https://tier.bot/api/inscriptions/numbers?sort=desc';
+
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+
+            // Clean up previous Hashinals to prevent memory leaks
+            hashinalGroup.children.forEach((child) => {
+              if (child.geometry) child.geometry.dispose();
+              if (child.material) child.material.dispose();
+            });
+            hashinalGroup.clear();
+
+            const positions = data.map(() => [
+              (Math.random() - 0.5) * 80,
+              (Math.random() - 0.5) * 80,
+              (Math.random() - 0.5) * 80,
+            ]);
+
+            data.forEach((hashinal, index) => {
+              const card = createHashinalCard(hashinal, positions[index]);
+              hashinalGroup.add(card);
+            });
+
+            const linePositions = [];
+            for (let i = 0; i < positions.length - 1; i++) {
+              linePositions.push(...positions[i], ...positions[i + 1]);
+            }
+
+            // Dispose previous lines geometry to prevent memory leaks
+            if (linesGeometry.attributes.position) {
+              linesGeometry.attributes.position.dispose();
+            }
+
+            linesGeometry.setAttribute(
+              'position',
+              new THREE.Float32BufferAttribute(linePositions, 3)
+            );
+          } catch (error) {
+            console.error('Error fetching Hashinal data:', error);
+          } finally {
+            loader.style.display = 'none';
+          }
+        }
+
+        fetchHashinalData();
+
+        camera.position.z = 40;
+
+        let angle = 0;
+        function animate() {
+          requestAnimationFrame(animate);
+
+          angle += 0.001;
+          camera.position.x = Math.sin(angle) * 40;
+          camera.position.z = Math.cos(angle) * 40;
+          camera.lookAt(scene.position);
+
+          stars.rotation.y += 0.0002;
+
+          hashinalGroup.children.forEach((card, index) => {
+            card.position.y += Math.sin(Date.now() * 0.001 + index) * 0.02;
+            card.lookAt(camera.position);
+          });
+
+          renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+          if (event.target.closest('.header')) {
+            return;
+          }
+
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObjects(
+            hashinalGroup.children,
+            true
+          );
+
+          if (intersects.length > 0) {
+            const selectedCard = intersects[0].object.parent;
+            showCardDetails(selectedCard.userData);
+          }
+        });
+
+        function showCardDetails(data) {
+          const detailsElement = document.getElementById('card-details');
+          detailsElement.innerHTML = `
+                  <h2>${
+                    data.json?.name || `Hashinal #${data.inscription_number}`
+                  }</h2>
+                 <div style="width: 100%; max-width: 300px; aspect-ratio: 1 / 1; display: flex; justify-content: center; align-items: center; overflow: hidden; margin-bottom: 15px;">
+        <img src="https://kiloscribe.com/api/inscription-cdn/${
+          data.image
+        }?network=mainnet"
+             alt="Hashinal Image"
+             style="width: 100%; height: 100%; object-fit: contain;">
+      </div>
+                  <p>Inscription Number: ${data.inscription_number.toLocaleString(
+                    'en-US'
+                  )}</p>
+                  <p>Serial Number: ${data.sn.toLocaleString('en-US')}</p>
+                  <p>Created: ${new Date(data.created).toLocaleString()}</p>
+                  <p><a href="https://hashscan.io/mainnet/token/${data.ht_id}/${
+            data.sn
+          }" target="_blank">View on Hashscan</a></p>
+                  <p><a href="https://tier.bot/inscription/${
+                    data.t_id
+                  }" target="_blank">View on TierBot</a></p>
+                  <button onclick="document.getElementById('card-details').style.display='none'">Close</button>
+              `;
+          detailsElement.style.display = 'block';
+
+          // Remove existing event listeners to prevent multiple bindings
+          const closeButton = detailsElement.querySelector('button');
+          if (closeButton) {
+            closeButton.onclick = () => {
+              detailsElement.style.display = 'none';
+            };
+          }
+
+          detailsElement.addEventListener('click', function (event) {
+            event.stopPropagation();
+          });
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const customInscribeUrl = urlParams.get('inscribeUrl');
+        const inscribeButton = document.getElementById('inscribeButton');
+        inscribeButton.onclick = () => {
+          const inscribeUrl = customInscribeUrl || 'https://tier.bot/inscribe';
+          if (
+            inscribeUrl.startsWith('http://') ||
+            inscribeUrl.startsWith('https://')
+          ) {
+            window.open(inscribeUrl, '_blank');
+          } else {
+            window.open(`/${inscribeUrl}`, '_blank');
+          }
+        };
+
+        const toggleButton = document.getElementById('toggleButton');
+        toggleButton.addEventListener('click', () => {
+          isRandomMode = !isRandomMode;
+          toggleButton.textContent = isRandomMode
+            ? 'Random Hashinals'
+            : 'Latest Hashinals';
+          toggleButton.classList.toggle('active');
+          fetchHashinalData();
+        });
+
+        // Original Three.js Code Ends Here
+
+        console.log('Three.js initialized successfully via HCS.');
+      };
+
+      if (window.HCSLoaded) {
+        window.HCSReady();
+      }
+    </script>
+
+    <script>
+      document.addEventListener('HCSLoaded', function () {
+        if (typeof window.HCSReady === 'function') {
+          window.HCSReady();
+        }
+      });
+    </script>
+
+    <script>
+      document.querySelector('.header').addEventListener('click', (event) => {
+        event.stopPropagation();
+      });
+      document
+        .getElementById('card-details')
+        .addEventListener('click', function (event) {
+          event.stopPropagation();
+        });
+    </script>
+  </body>
+</html>

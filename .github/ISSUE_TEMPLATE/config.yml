@@ -1,0 +1,13 @@
+name: Hashgraph Online Standards SDK Issue Templates
+description: Choose from the following templates to report bugs or request features
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://hashgraphonline.com/docs/libraries/standards-sdk/
+    about: Check the documentation before submitting an issue
+  - name: Telegram Community
+    url: https://t.me/hashinals
+    about: Ask questions and engage with the community
+  - name: Security Issues
+    url: https://github.com/hashgraph-online/standards-sdk/blob/main/SECURITY.md
+    about: Please report security vulnerabilities as described in our security policy 

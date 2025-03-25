@@ -1,0 +1,4367 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HashiNova</title>
+    <link
+      data-src="hcs://1/0.0.6762200"
+      data-load-order="1"
+      data-required="true"
+      data-script-id="nes-css"
+      type="css"
+    />
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        font-family: 'Arial', Arial, sans-serif !important;
+        background-color: black;
+        color: white;
+      }
+      #game-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      #hud {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        font-size: 18px;
+      }
+      #minimap {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        width: 200px;
+        height: 200px;
+        background-color: rgba(0, 0, 0, 0.5);
+        border: 2px solid #fff;
+      }
+      #start-screen,
+      #game-over-screen {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        padding: 20px;
+        color: #fff;
+      }
+      button {
+        background-color: #4caf50;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+      #wallet-section {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        font-size: 16px;
+        text-align: right;
+      }
+
+      #wallet-section button {
+        pointer-events: auto;
+      }
+
+      #account-id,
+      #account-balance {
+        margin-top: 10px;
+      }
+      #ability-bar {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      #ability-bar button {
+        height: 50px;
+        font-size: 24px;
+        font-weight: bold;
+      }
+
+      #ability-bar .nes-btn.is-success {
+        animation: pulse 5s infinite;
+      }
+      .nes-table {
+        background: black;
+      }
+
+      #leaderboard-modal,
+      #nickname-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 600px;
+        background-color: rgba(0, 0, 0, 0.9) !important;
+        border: 4px solid #fff;
+        padding: 20px;
+        border-radius: 10px;
+        display: none;
+        z-index: 5000;
+        pointer-events: auto;
+      }
+      #leaderboard-modal h3 {
+        text-align: center;
+        color: #fff;
+      }
+      #leaderboard-modal table {
+        width: 100%;
+        margin: 20px 0;
+      }
+      #leaderboard-modal table th,
+      #leaderboard-modal table td {
+        padding: 10px;
+        border: 1px solid #fff;
+        text-align: center;
+      }
+      #leaderboard-modal table th {
+        background-color: #1a1a1a;
+        color: #57d175;
+      }
+      #close-leaderboard-btn {
+        position: absolute;
+        z-index: 500;
+        top: 10px;
+        right: 10px;
+        background-color: transparent;
+        border: none;
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+      }
+
+      #nickname-modal .title {
+        color: #fff;
+        margin-bottom: 20px;
+      }
+
+      #nickname-modal .nes-field label {
+        color: #fff;
+      }
+
+      #pagination-controls {
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      #pagination-controls button {
+        min-width: 100px;
+      }
+
+      #pagination-controls span {
+        font-size: 14px;
+      }
+
+      #hashinal-info-modal {
+        background-color: #212529;
+        border: 4px solid #fff;
+        color: #fff;
+        display: none;
+      }
+
+      #close-hashinal-info-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+      }
+
+      #hashinal-name {
+        margin-bottom: 20px;
+      }
+
+      #hashinal-image-container {
+        width: 100%;
+        height: 200px; /* Adjust this value as needed */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        background-color: #000; /* Add a background color to make small images more visible */
+      }
+
+      #hashinal-image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* This will maintain the aspect ratio while fitting the image within the container */
+        image-rendering: pixelated; /* This will keep pixel art crisp when scaled up */
+      }
+
+      #hashinal-description {
+        margin: 20px 0;
+      }
+
+      #hashinal-view-link {
+        display: inline-block;
+        margin-top: 20px;
+      }
+      #hashinal-purchase-link {
+        display: inline-block;
+        margin-top: 20px;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+    </style>
+    <script
+      data-src="hcs://1/0.0.6614307"
+      data-load-order="2"
+      data-script-id="threejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6627067"
+      data-load-order="3"
+      data-script-id="animejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6743172"
+      data-load-order="4"
+      data-script-id="tweenjs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6743157"
+      data-load-order="5"
+      data-script-id="howlerjs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6743198"
+      data-load-order="6"
+      data-script-id="cannonjs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.7337015"
+      data-script-id="wallet-connect"
+      data-load-order="7"
+    ></script>
+  </head>
+  <body>
+    <div id="game-container">
+      <div id="hud" class="nes-container is-dark is-rounded">
+        <div id="score">Score: 0</div>
+        <div id="size">Size: 3.00</div>
+        <button id="view-leaderboard-btn" class="nes-btn">
+          View Leaderboard
+        </button>
+        <button id="pause-btn" class="nes-btn">Pause</button>
+        <button id="mint-btn" class="nes-btn is-success">Mint Game</button>
+      </div>
+      <canvas id="minimap" class="is-dark is-rounded"></canvas>
+      <div id="ability-bar" class="nes-container is-rounded is-dark with-title">
+        <h2 class="title">Abilities</h2>
+        <button id="ability-pulse" class="nes-btn">Pulse</button>
+        <button id="ability-shield" class="nes-btn">Shield</button>
+        <button id="ability-boost" class="nes-btn">Boost</button>
+        <button id="ability-size" class="nes-btn">Size</button>
+      </div>
+      <div id="leaderboard-modal" class="nes-container is-rounded is-dark">
+        <button id="close-leaderboard-btn" class="nes-btn">X</button>
+        <h3>Leaderboard</h3>
+        <table class="nes-table is-bordered is-centered is-dark">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Score</th>
+              <th>Nickname</th>
+              <th>Account Id</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-list" class="is-dark"></tbody>
+        </table>
+        <div
+          id="pagination-controls"
+          class="nes-container is-rounded is-centered"
+        >
+          <!-- Pagination controls will be dynamically inserted here -->
+        </div>
+      </div>
+      <div
+        id="hashinal-info-modal"
+        class="nes-container is-rounded is-dark"
+        style="
+          display: none;
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 2000;
+          padding: 20px;
+          max-width: 80%;
+          max-height: 80%;
+          overflow-y: auto;
+        "
+      >
+        <button id="close-hashinal-info-btn" class="nes-btn">X</button>
+        <h3 id="hashinal-name" class="title"></h3>
+        <div id="hashinal-image-container">
+          <img id="hashinal-image" src="" alt="Hashinal Image" />
+        </div>
+        <p id="hashinal-description"></p>
+        <a
+          id="hashinal-view-link"
+          href=""
+          target="_blank"
+          class="nes-btn is-primary"
+          >View on KiloScribe</a
+        >
+        <a
+          id="hashinal-purchase-link"
+          href=""
+          target="_blank"
+          class="nes-btn is-success"
+          >Purchase on SentX</a
+        >
+      </div>
+      <div id="nickname-modal" class="nes-container is-rounded is-dark
+      is-bordered style="display: none; position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); z-index: 1000; padding: 20px;">
+      <h3 class="title">Enter Your Nickname</h3>
+      <div class="nes-field">
+        <label for="nickname-input">Nickname:</label>
+        <input
+          type="text"
+          id="nickname-input"
+          class="nes-input"
+          maxlength="20"
+          placeholder="Enter nickname (max 20 chars)"
+        />
+      </div>
+      <div style="margin-top: 20px; text-align: right">
+        <button id="submit-nickname-btn" class="nes-btn is-primary">
+          Submit
+        </button>
+        <button id="cancel-nickname-btn" class="nes-btn is-error">
+          Cancel
+        </button>
+      </div>
+    </div>
+    <div
+      id="start-screen"
+      class="nes-container with-title is-rounded is-dark is-centered"
+    >
+      <h1 class="title">HashiNova (Beta)</h1>
+      <p>Use the mouse to aim your entity across the screen.</p>
+      <p>
+        Absorb smaller celestial bodies to grow. Avoid larger ones and
+        obstacles!
+      </p>
+      <p>
+        Click on Hashinals to learn more about them and purchase them on SentX.
+      </p>
+      <p>Press space to pause the game.</p>
+      <p>Collect power ups for boosts.</p>
+      <button id="start-button" class="nes-btn is-success" disabled>
+        Loading...
+      </button>
+    </div>
+    <div
+      id="game-over-screen"
+      class="nes-container is-rounded is-dark"
+      style="display: none"
+    >
+      <h1>Game Over</h1>
+      <p>Your final score: <span id="final-score"></span></p>
+      <button id="restart-button" class="nes-btn is-primary">Play Again</button>
+      <button id="submit-score-btn" class="nes-btn is-primary">
+        Submit Score
+      </button>
+    </div>
+
+    <div id="wallet-section" class="nes-container is-rounded is-dark">
+      <button
+        id="connect-wallet-btn"
+        class="nes-btn is-primary connect-wallet-btn"
+      >
+        Connect Wallet
+      </button>
+      <button
+        id="disconnect-wallet-btn"
+        style="display: none"
+        class="nes-btn is-warning disconnect-wallet-btn"
+      >
+        Disconnect
+      </button>
+      <div id="account-id"></div>
+      <div id="account-balance"></div>
+    </div>
+    <script>
+      window.HCSReady = async function () {
+        while (!window?.CANNON) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        const mintGame = async () => {
+          window.open(
+            'https://link.hashpack.app/eyJ0eXBlIjoibGF1bmNocGFkIiwibGluayI6Ik5GVGllci9oYXNoaW5vdmEifQ==',
+            '_blank'
+          );
+        };
+        document.getElementById('mint-btn').addEventListener('click', mintGame);
+
+        await window.HCS.preloadAudio('0.0.6770997');
+        await window.HCS.preloadAudio('0.0.6771003');
+        console.log('All resources loaded, initializing game');
+
+        const APP_METADATA = {
+          name: 'KiloScribe',
+          description: 'KiloScribe.',
+          url: 'https://kiloscribe.com',
+          icons: ['https://tier.bot/NFTiers.logo.svg'],
+        };
+
+        const PROJECT_ID = 'bfd9ad3ea26e2c73eb21e8f9c750c166';
+        const SUBMIT_TOPIC_ID = '0.0.6791034';
+
+        const sdk = window?.HederaWalletConnectSDK;
+        let isLoggedIn = false;
+        initWalletConnect();
+
+        function initWalletConnect() {
+          document
+            .getElementById('connect-wallet-btn')
+            .addEventListener('click', () => connectWallet());
+          document
+            .getElementById('disconnect-wallet-btn')
+            .addEventListener('click', () => disconnectWallet());
+          initAccount();
+        }
+
+        async function initAccount() {
+          const accountResponse = await sdk.initAccount(
+            PROJECT_ID,
+            APP_METADATA
+          );
+
+          if (accountResponse.accountId) {
+            updateAccountInfo(
+              accountResponse.accountId,
+              accountResponse.balance
+            );
+          }
+        }
+
+        async function connectWallet() {
+          try {
+            const { balance, accountId } = await sdk.connectWallet(
+              PROJECT_ID,
+              APP_METADATA
+            );
+            updateAccountInfo(accountId, balance);
+          } catch (error) {
+            console.error('Failed to connect wallet:', error);
+          }
+        }
+
+        async function disconnectWallet() {
+          try {
+            await sdk.disconnectWallet(PROJECT_ID, APP_METADATA);
+            updateAccountInfo(undefined);
+          } catch (error) {
+            console.error('Failed to disconnect wallet:', error);
+          }
+        }
+
+        function updateAccountInfo(accountId, balance) {
+          if (!accountId) {
+            isLoggedIn = false;
+            document.getElementById('connect-wallet-btn').style.display =
+              'block';
+            document.getElementById('disconnect-wallet-btn').style.display =
+              'none';
+            document.getElementById('account-id').textContent = '';
+            document.getElementById('account-balance').textContent = '';
+            return;
+          }
+          isLoggedIn = true;
+          document.getElementById(
+            'account-id'
+          ).textContent = `Connected: ${accountId}`;
+          document.getElementById(
+            'account-balance'
+          ).textContent = `Balance: ${balance}`;
+          document.getElementById('connect-wallet-btn').style.display = 'none';
+          document.getElementById('disconnect-wallet-btn').style.display =
+            'block';
+
+          // Update submit score button visibility
+          const submitScoreBtn = document.getElementById('submit-score-btn');
+          if (submitScoreBtn) {
+            submitScoreBtn.style.display = 'inline-block';
+          }
+        }
+        class Component {}
+
+        class PositionComponent extends Component {
+          constructor(x, y, z) {
+            super();
+            this.x = x;
+            this.y = y;
+            this.z = z;
+          }
+        }
+
+        class RenderComponent extends Component {
+          constructor(mesh) {
+            super();
+            this.mesh = mesh;
+          }
+        }
+
+        class PhysicsComponent extends Component {
+          constructor(body) {
+            super();
+            this.body = body;
+          }
+        }
+
+        class SizeComponent extends Component {
+          constructor(size) {
+            super();
+            this.size = size;
+          }
+        }
+
+        class PlayerControlledComponent extends Component {
+          constructor() {
+            super();
+            this.abilities = {
+              pulse: { cooldown: 0, maxCooldown: 10, active: false },
+              shield: { cooldown: 0, maxCooldown: 15, active: false },
+              boost: { cooldown: 0, maxCooldown: 5, active: false },
+              size: { cooldown: 0, maxCooldown: 5, active: false },
+            };
+            this.powerUpTimers = {
+              pulse: null,
+              shield: null,
+              boost: null,
+            };
+          }
+        }
+
+        class AIControlledComponent extends Component {}
+
+        class AbsorbableComponent extends Component {}
+
+        class PowerUpComponent extends Component {
+          constructor(type) {
+            super();
+            this.type = type;
+          }
+        }
+
+        class ObstacleComponent extends Component {
+          constructor(type) {
+            super();
+            this.type = type;
+          }
+        }
+
+        class SpaceDustComponent extends Component {}
+
+        class GravityFieldComponent extends Component {
+          constructor(strength, radius) {
+            super();
+            this.strength = strength;
+            this.radius = radius;
+          }
+        }
+
+        class Entity {
+          constructor() {
+            this.components = new Map();
+          }
+
+          addComponent(component) {
+            this.components.set(component.constructor, component);
+          }
+
+          removeComponent(componentClass) {
+            this.components.delete(componentClass);
+          }
+
+          getComponent(componentClass) {
+            return this.components.get(componentClass);
+          }
+
+          hasComponent(componentClass) {
+            return this.components.has(componentClass);
+          }
+        }
+
+        class System {
+          constructor(world) {
+            this.world = world;
+          }
+
+          update(deltaTime) {}
+        }
+
+        class PhysicsSystem extends System {
+          constructor(world) {
+            super(world);
+            this.physicsWorld = new CANNON.World();
+            this.physicsWorld.gravity.set(0, 0, 0);
+            this.physicsWorld.broadphase = new CANNON.NaiveBroadphase();
+            this.physicsWorld.solver.iterations = 20; // Increased solver iterations
+
+            this.wallMaterial = new CANNON.Material('wallMaterial');
+            this.entityMaterial = new CANNON.Material('entityMaterial');
+
+            // Add contact material to handle bouncing between AI entities
+            const contactMaterial = new CANNON.ContactMaterial(
+              this.entityMaterial,
+              this.entityMaterial,
+              {
+                friction: 0.3, // Adjust friction as necessary
+                restitution: 0.9, // Adjust restitution to control bounciness
+              }
+            );
+
+            this.physicsWorld.addContactMaterial(contactMaterial);
+          }
+
+          update(deltaTime) {
+            this.physicsWorld.step(1 / 60);
+
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(PhysicsComponent) &&
+                entity.hasComponent(PositionComponent) &&
+                entity.hasComponent(SizeComponent)
+              ) {
+                const physicsBody = entity.getComponent(PhysicsComponent).body;
+                const position = entity.getComponent(PositionComponent);
+                const size = entity.getComponent(SizeComponent);
+
+                // Update position
+                position.x = physicsBody.position.x;
+                position.y = physicsBody.position.y;
+                position.z = physicsBody.position.z;
+
+                // Update size of physics body
+                if (physicsBody.shapes[0] instanceof CANNON.Sphere) {
+                  const currentRadius = physicsBody.shapes[0].radius;
+                  const targetRadius = size.size / 2;
+                  if (Math.abs(currentRadius - targetRadius) > 0.01) {
+                    physicsBody.shapes[0].radius = targetRadius;
+                    physicsBody.updateBoundingRadius();
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        class RenderSystem extends System {
+          update() {
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(PositionComponent) &&
+                entity.hasComponent(RenderComponent) &&
+                entity.hasComponent(SizeComponent)
+              ) {
+                const position = entity.getComponent(PositionComponent);
+                const render = entity.getComponent(RenderComponent);
+                const size = entity.getComponent(SizeComponent);
+
+                requestAnimationFrame(() => {
+                  render.mesh.position.set(position.x, position.y, 0);
+                  render.mesh.scale.set(size.size, size.size, 1);
+                });
+              }
+            }
+          }
+        }
+        class PlayerControlSystem extends System {
+          constructor(world, camera) {
+            super(world);
+            this.camera = camera;
+            this.mouse = new THREE.Vector2();
+            this.raycaster = new THREE.Raycaster();
+            this.keys = {};
+            this.mouseForce = new CANNON.Vec3(0, 0, 0);
+            this.isTouchActive = false;
+            this.touchStartPosition = new THREE.Vector2();
+
+            this.targetPosition = new THREE.Vector3();
+            this.currentPosition = new THREE.Vector3();
+            this.initialZoom = 10;
+            this.targetZoom = this.initialZoom;
+            this.currentZoom = this.initialZoom;
+            this.smoothingFactor = 0.1;
+            this.zoomFactor = 20;
+            this.maxZoomMultiplier = 50; // Maximum zoom out multiplier
+            this.maxZoomLimit = 5000; // Maximum allowed zoom distance
+            this.baseSpeed = 20000;
+            this.speedScalingFactor = 0.5;
+
+            window.addEventListener('mousemove', (event) =>
+              this.handleMouseMove(event)
+            );
+            window.addEventListener('touchstart', (event) =>
+              this.handleTouchStart(event)
+            );
+            window.addEventListener('touchmove', (event) =>
+              this.handleTouchMove(event)
+            );
+            window.addEventListener('touchend', () => {
+              this.isTouchActive = false;
+            });
+            window.addEventListener('keydown', (event) => {
+              this.keys[event.key.toLowerCase()] = true;
+              if (event.key === '1') this.useAbility('pulse');
+              if (event.key === '2') this.useAbility('shield');
+              if (event.key === '3') this.useAbility('boost');
+              if (event.key === ' ') {
+                this.world.pauseGame();
+              }
+            });
+            window.addEventListener('keyup', (event) => {
+              this.keys[event.key.toLowerCase()] = false;
+            });
+            document
+              .getElementById('pause-btn')
+              .addEventListener('click', () => {
+                if (this.world.isPaused) {
+                  this.world.resumeGame();
+                } else {
+                  this.world.pauseGame();
+                }
+              });
+          }
+
+          handleMouseMove(event) {
+            this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+          }
+
+          handleTouchStart(event) {
+            if (event.touches.length === 1) {
+              this.isTouchActive = true;
+              this.handleTouchMove(event);
+            }
+          }
+
+          handleTouchMove(event) {
+            if (this.isTouchActive && event.touches.length === 1) {
+              const touch = event.touches[0];
+              this.mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+              this.mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+            }
+          }
+
+          useAbility(abilityName) {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (player) {
+              const playerControl = player.getComponent(
+                PlayerControlledComponent
+              );
+              const ability = playerControl.abilities[abilityName];
+
+              if (ability && ability.cooldown <= 0) {
+                this.world.applyPowerUp(abilityName);
+                ability.cooldown = ability.maxCooldown;
+              }
+            }
+          }
+          update(deltaTime) {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+            const physics = player.getComponent(PhysicsComponent);
+            const position = player.getComponent(PositionComponent);
+            const size = player.getComponent(SizeComponent);
+
+            for (let ability in playerControl.abilities) {
+              if (playerControl.abilities[ability].cooldown > 0) {
+                playerControl.abilities[ability].cooldown -= deltaTime;
+              }
+            }
+
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const planeNormal = new THREE.Vector3(0, 0, 1);
+            const planeConstant = 0;
+            const plane = new THREE.Plane(planeNormal, planeConstant);
+            const target = new THREE.Vector3();
+            this.raycaster.ray.intersectPlane(plane, target);
+
+            this.mouseForce.set(
+              target.x - position.x,
+              target.y - position.y,
+              0
+            );
+
+            if (this.mouseForce.length() > 0.001) {
+              this.mouseForce.normalize();
+
+              const currentSpeed = this.baseSpeed * size.size * 1.5;
+              const speed = playerControl.abilities.boost.active
+                ? this.baseSpeed * 1.5
+                : this.baseSpeed;
+              this.mouseForce.scale(speed, this.mouseForce);
+
+              if (physics && physics.body) {
+                physics.body.applyForce(this.mouseForce, physics.body.position);
+
+                const maxVelocity = 50 / Math.sqrt(size.size);
+                if (physics.body.velocity.length() > maxVelocity) {
+                  physics.body.velocity.normalize();
+                  physics.body.velocity.scale(
+                    maxVelocity,
+                    physics.body.velocity
+                  );
+                }
+
+                const damping = 0.98;
+                physics.body.velocity.scale(damping, physics.body.velocity);
+
+                position.x = physics.body.position.x;
+                position.y = physics.body.position.y;
+                position.z = physics.body.position.z;
+              }
+            }
+
+            // Update camera position and zoom
+            this.targetPosition.set(
+              position.x,
+              position.y,
+              this.camera.position.z
+            );
+
+            // Calculate target zoom based on player size, with a maximum limit
+            this.targetZoom = Math.min(
+              this.initialZoom + Math.pow(size.size, 1.5) * this.zoomFactor,
+              this.maxZoomLimit
+            );
+
+            // Smooth camera movement
+            this.currentPosition.lerp(
+              this.targetPosition,
+              this.smoothingFactor
+            );
+            this.currentZoom +=
+              (this.targetZoom - this.currentZoom) * this.smoothingFactor;
+
+            this.camera.position.set(
+              this.currentPosition.x,
+              this.currentPosition.y,
+              this.currentZoom
+            );
+            this.camera.lookAt(position.x, position.y, 0);
+
+            // Adjust the plane size based on the zoom level
+            const planeSize = this.currentZoom * 4;
+            this.world.updatePlaneSize(planeSize);
+          }
+        }
+        class CollisionSystem extends System {
+          update(deltaTime) {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerBoundingBox = this.calculateCoreBoundingBox(player);
+
+            for (let entity of this.world.entities) {
+              if (entity === player) continue;
+
+              const entityBoundingBox = this.calculateCoreBoundingBox(entity);
+
+              // Core-to-core collision detection
+              if (
+                this.boundingBoxesIntersect(
+                  playerBoundingBox,
+                  entityBoundingBox
+                )
+              ) {
+                this.handleCollision(player, entity);
+              }
+            }
+          }
+
+          calculateCoreBoundingBox(entity) {
+            const renderComponent = entity.getComponent(RenderComponent);
+            const positionComponent = entity.getComponent(PositionComponent);
+
+            if (renderComponent && positionComponent) {
+              const boundingBox = new THREE.Box3().setFromObject(
+                renderComponent.mesh
+              );
+              boundingBox.translate(positionComponent);
+              return boundingBox;
+            }
+
+            return null;
+          }
+
+          boundingBoxesIntersect(bbox1, bbox2) {
+            if (!bbox1 || !bbox2) return false;
+            return (
+              bbox1.min.x <= bbox2.max.x &&
+              bbox1.max.x >= bbox2.min.x &&
+              bbox1.min.y <= bbox2.max.y &&
+              bbox1.max.y >= bbox2.min.y
+            );
+          }
+
+          handleCollision(player, entity) {
+            if (entity.hasComponent(SpikeyComponent)) {
+              this.handleSpikeyCollision(player, entity);
+            } else if (entity.hasComponent(AbsorbableComponent)) {
+              const playerSize = player.getComponent(SizeComponent).size;
+              const entitySize = entity.getComponent(SizeComponent).size;
+
+              if (playerSize * 1.01 > entitySize) {
+                this.absorbEntity(player, entity);
+              } else if (entitySize > playerSize) {
+                this.playerAbsorbed(player);
+              }
+            } else if (entity.hasComponent(PowerUpComponent)) {
+              this.handlePowerUpCollision(player, entity);
+            } else if (entity.hasComponent(ObstacleComponent)) {
+              this.handleObstacleCollision(player, entity);
+            }
+          }
+
+          handleSpikeyCollision(player, spikeyEntity) {
+            console.log('Spikey collision detected!');
+            const playerSize = player.getComponent(SizeComponent);
+            const playerPosition = player.getComponent(PositionComponent);
+
+            const sizeReductionFactor = 0.9;
+            const newPlayerSize = playerSize.size * sizeReductionFactor;
+            playerSize.size = newPlayerSize;
+            this.world.updateEntityVisual(player, true);
+
+            for (let i = 0; i < 2; i++) {
+              const splitSize = newPlayerSize * 0.5;
+              const angle = Math.random() * Math.PI * 2;
+              const distance = newPlayerSize + splitSize;
+              const x = playerPosition.x + Math.cos(angle) * distance;
+              const y = playerPosition.y + Math.sin(angle) * distance;
+
+              const splitEntity = this.world.createPlayerSplitEntity(
+                x,
+                y,
+                splitSize
+              );
+              this.world.addEntity(splitEntity);
+            }
+
+            this.world.removeEntity(spikeyEntity);
+            this.world.createSplitEffect(playerPosition);
+          }
+
+          absorbEntity(player, entity) {
+            console.log('Absorbing entity');
+            window.HCS.playAudio('0.0.6771003');
+            const playerSize = player.getComponent(SizeComponent);
+            const entitySize = entity.getComponent(SizeComponent).size;
+            const sizeIncrease = entitySize * 0.05;
+            playerSize.size += sizeIncrease;
+
+            this.world.updateEntityVisual(player, true);
+            this.world.createAbsorptionEffect(entity);
+            this.world.removeEntity(entity);
+            this.world.score += Math.floor(entitySize * 10);
+
+            this.checkEvolution(player);
+            // now respawn
+            this.world.createAIEntity(Math.random < 0.5);
+          }
+
+          playerAbsorbed(player) {
+            console.log('Player absorbed by larger entity.');
+            this.world.createAbsorptionEffect(player);
+            this.world.gameOver();
+          }
+
+          handlePowerUpCollision(player, powerUpEntity) {
+            const powerUp = powerUpEntity.getComponent(PowerUpComponent);
+            this.world.applyPowerUp(powerUp.type);
+            this.world.removeEntity(powerUpEntity);
+          }
+
+          handleObstacleCollision(player, obstacleEntity) {
+            const obstacle = obstacleEntity.getComponent(ObstacleComponent);
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+
+            if (!playerControl.abilities.shield.active) {
+              switch (obstacle.type) {
+                case 'blackhole':
+                  this.world.gameOver();
+                  break;
+                case 'asteroid':
+                  player.getComponent(SizeComponent).size *= 0.9;
+                  this.world.updateEntityVisual(player, true);
+                  this.world.removeEntity(obstacleEntity);
+                  break;
+                case 'nebula':
+                  const playerPhysics = player.getComponent(PhysicsComponent);
+                  if (playerPhysics && playerPhysics.body) {
+                    playerPhysics.body.velocity.scale(
+                      0.5,
+                      playerPhysics.body.velocity
+                    );
+                  }
+                  break;
+              }
+            }
+          }
+
+          checkEvolution(player) {
+            const playerEvolution = player.getComponent(
+              EvolutionaryStageComponent
+            );
+            const playerSize = player.getComponent(SizeComponent);
+            const currentStageIndex = playerEvolution.stages.indexOf(
+              playerEvolution.stage
+            );
+            const nextStageIndex = currentStageIndex + 1;
+            if (nextStageIndex < playerEvolution.stages.length) {
+              const nextStageThreshold = EvolutionSystem.getStageThreshold(
+                playerEvolution.stages[nextStageIndex]
+              );
+              if (playerSize.size >= nextStageThreshold) {
+                playerEvolution.stage = playerEvolution.stages[nextStageIndex];
+                this.world.updateEntityVisual(player, true);
+                this.world.createEvolutionEffect(player);
+              }
+            }
+          }
+        }
+
+        class SpikeyComponent extends Component {
+          constructor() {
+            super();
+          }
+        }
+        class AISystem extends System {
+          constructor(world) {
+            super(world);
+            this.maxChasers = 5;
+            this.enemySpeedMultiplier = 0.4; // Balanced initial speed
+            this.chaseThreshold = 1000;
+            this.aggressiveChaseThreshold = 500;
+            this.wanderStrength = 0.7;
+            this.attractionStrength = 0.1;
+            this.aggressiveStrength = 2; // Adjusted for better scaling
+            this.sizeDifferenceThreshold = 1.05;
+            this.baseSpeed = 120; // Moderate start speed
+            this.playerSizeInfluence = 1.4; // Increase influence of player size
+            this.enemySizeInfluence = 1.2; // Increase influence of enemy size
+            this.separationRadius = 100;
+            this.separationStrength = 4.0;
+            this.maxStackingForce = 2000;
+          }
+
+          update(deltaTime) {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerPosition = player.getComponent(PositionComponent);
+            const playerSize = player.getComponent(SizeComponent).size;
+
+            const chasers = [];
+            const maxChasers = this.maxChasers;
+
+            const aiEntities = this.world.entities.filter(
+              (e) =>
+                e.hasComponent(AIControlledComponent) &&
+                e.hasComponent(PhysicsComponent)
+            );
+
+            for (let entity of aiEntities) {
+              const aiPosition = entity.getComponent(PositionComponent);
+              const aiSize = entity.getComponent(SizeComponent).size;
+              const aiPhysics = entity.getComponent(PhysicsComponent);
+              const isSpikey = entity.hasComponent(SpikeyComponent);
+
+              const directionToPlayer = new CANNON.Vec3(
+                playerPosition.x - aiPosition.x,
+                playerPosition.y - aiPosition.y,
+                playerPosition.z - aiPosition.z
+              );
+
+              const distanceToPlayer = directionToPlayer.length();
+              directionToPlayer.normalize();
+
+              let behavior;
+
+              const sizeRatio = aiSize / playerSize;
+              const isLarger = sizeRatio > this.sizeDifferenceThreshold;
+              const isAggressive =
+                isLarger && distanceToPlayer < this.aggressiveChaseThreshold;
+              const shouldChase =
+                (chasers.length < maxChasers &&
+                  distanceToPlayer < this.chaseThreshold &&
+                  isLarger) ||
+                isAggressive;
+              const shouldFlee =
+                sizeRatio < this.sizeDifferenceThreshold &&
+                distanceToPlayer < this.chaseThreshold;
+              const shouldRandomChase = Math.random() > 0.9 && shouldFlee;
+              const shouldRandomWander = shouldFlee && Math.random() > 0.5;
+              const shouldRandomSpikeyChase = Math.random() > 0.8 && isSpikey;
+              const enemyShouldChase =
+                shouldChase || shouldRandomChase || shouldRandomSpikeyChase;
+
+              if (isAggressive) {
+                behavior = 'aggressive';
+              } else if (enemyShouldChase) {
+                behavior = 'chase';
+                chasers.push(entity);
+              } else if (shouldFlee) {
+                behavior = 'flee';
+              } else {
+                behavior = 'wander';
+              }
+
+              if (shouldRandomWander) {
+                behavior = 'wander';
+              }
+
+              const desiredVelocity = this.calculateDesiredVelocity(
+                entity,
+                behavior,
+                directionToPlayer,
+                aiSize,
+                playerSize,
+                distanceToPlayer
+              );
+
+              entity.desiredVelocity = desiredVelocity;
+            }
+
+            for (let entity of aiEntities) {
+              const separationForce = this.calculateSeparationForce(
+                entity,
+                aiEntities
+              );
+              const aiPhysics = entity.getComponent(PhysicsComponent);
+
+              const combinedForce = new CANNON.Vec3();
+              combinedForce.copy(entity.desiredVelocity);
+              combinedForce.vadd(separationForce, combinedForce);
+
+              const maxForce = this.maxStackingForce;
+              if (combinedForce.length() > maxForce) {
+                combinedForce.normalize();
+                combinedForce.scale(maxForce, combinedForce);
+              }
+
+              aiPhysics.body.applyForce(combinedForce, aiPhysics.body.position);
+
+              aiPhysics.body.velocity.scale(0.95, aiPhysics.body.velocity);
+
+              this.keepEntityInBounds(entity);
+            }
+          }
+
+          calculateDesiredVelocity(
+            entity,
+            behavior,
+            directionToPlayer,
+            aiSize,
+            playerSize,
+            distanceToPlayer
+          ) {
+            const speedMultiplier =
+              this.enemySizeInfluence * aiSize +
+              this.playerSizeInfluence * playerSize;
+            const adjustedSpeed =
+              this.baseSpeed * speedMultiplier * this.enemySpeedMultiplier;
+
+            let desiredVelocity = new CANNON.Vec3();
+
+            switch (behavior) {
+              case 'aggressive':
+                desiredVelocity = directionToPlayer.scale(
+                  adjustedSpeed * this.aggressiveStrength
+                );
+                break;
+              case 'chase':
+                desiredVelocity = directionToPlayer.scale(adjustedSpeed);
+                break;
+              case 'flee':
+                desiredVelocity = directionToPlayer.scale(-adjustedSpeed * 1.3);
+                break;
+              case 'wander':
+                const wanderAngle = Math.random() * Math.PI * 2;
+                desiredVelocity.x =
+                  Math.cos(wanderAngle) * adjustedSpeed * this.wanderStrength;
+                desiredVelocity.y =
+                  Math.sin(wanderAngle) * adjustedSpeed * this.wanderStrength;
+                break;
+            }
+
+            const attractionForce = directionToPlayer.scale(
+              adjustedSpeed * this.attractionStrength
+            );
+            desiredVelocity.vadd(attractionForce, desiredVelocity);
+
+            return desiredVelocity;
+          }
+
+          calculateSeparationForce(entity, aiEntities) {
+            const aiPosition = entity.getComponent(PositionComponent);
+            const separationForce = new CANNON.Vec3(0, 0, 0);
+
+            for (let other of aiEntities) {
+              if (other !== entity) {
+                const otherPosition = other.getComponent(PositionComponent);
+                const dx = aiPosition.x - otherPosition.x;
+                const dy = aiPosition.y - otherPosition.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < this.separationRadius) {
+                  const awayFromOther = new CANNON.Vec3(dx, dy, 0);
+                  awayFromOther.normalize();
+                  const strength = Math.pow(
+                    (this.separationRadius - distance) / this.separationRadius,
+                    2
+                  );
+                  awayFromOther.scale(
+                    strength * this.separationStrength,
+                    awayFromOther
+                  );
+                  separationForce.vadd(awayFromOther, separationForce);
+                }
+              }
+            }
+
+            return separationForce;
+          }
+
+          keepEntityInBounds(entity) {
+            const position = entity.getComponent(PositionComponent);
+            const physics = entity.getComponent(PhysicsComponent);
+            const size = entity.getComponent(SizeComponent).size;
+            const worldBoundary = this.world.boundary;
+
+            const maxX = worldBoundary - size;
+            const maxY = worldBoundary - size;
+
+            let isBounced = false;
+
+            if (Math.abs(position.x) > maxX) {
+              position.x = Math.sign(position.x) * maxX;
+              physics.body.position.x = position.x;
+              physics.body.velocity.x *= -0.5;
+              isBounced = true;
+            }
+
+            if (Math.abs(position.y) > maxY) {
+              position.y = Math.sign(position.y) * maxY;
+              physics.body.position.y = position.y;
+              physics.body.velocity.y *= -0.5;
+              isBounced = true;
+            }
+          }
+        }
+
+        class EvolutionaryStageComponent extends Component {
+          constructor() {
+            super();
+            this.stages = [
+              'asteroid',
+              'moon',
+              'planet',
+              'star',
+              'neutron star',
+              'black hole',
+            ];
+            this.stage = this.stages[0];
+          }
+        }
+
+        class EvolutionSystem extends System {
+          static getStageThreshold(stage) {
+            switch (stage) {
+              case 'asteroid':
+                return 0;
+              case 'moon':
+                return 5;
+              case 'planet':
+                return 10;
+              case 'star':
+                return 20;
+              case 'neutron star':
+                return 50;
+              case 'black hole':
+                return 100;
+              default:
+                return Infinity;
+            }
+          }
+
+          update(deltaTime) {
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(EvolutionaryStageComponent) &&
+                entity.hasComponent(SizeComponent)
+              ) {
+                const evolution = entity.getComponent(
+                  EvolutionaryStageComponent
+                );
+                const size = entity.getComponent(SizeComponent);
+
+                const currentStageIndex = evolution.stages.indexOf(
+                  evolution.stage
+                );
+                const nextStageIndex = currentStageIndex + 1;
+
+                const isPlayerControlled = entity.hasComponent(
+                  PlayerControlledComponent
+                );
+                if (nextStageIndex < evolution.stages.length) {
+                  const nextStageThreshold = EvolutionSystem.getStageThreshold(
+                    evolution.stages[nextStageIndex]
+                  );
+                  if (size.size >= nextStageThreshold) {
+                    evolution.stage = evolution.stages[nextStageIndex];
+                    this.world.updateEntityVisual(entity, isPlayerControlled);
+                    if (isPlayerControlled) {
+                      this.world.createEvolutionEffect(entity);
+                    }
+                  }
+                }
+
+                if (isPlayerControlled) {
+                  this.world.updateHUD();
+                }
+              }
+            }
+          }
+        }
+        class GridSystem extends System {
+          constructor(world) {
+            super(world);
+            this.grid = null;
+            this.createHashgraphGrid();
+          }
+
+          createHashgraphGrid() {
+            if (this.grid) {
+              this.world.scene.remove(this.grid);
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            const material = new THREE.LineBasicMaterial({
+              color: 0x0fffff,
+              transparent: true,
+              opacity: 0.2,
+              depthWrite: false, // Disable depth writing
+            });
+
+            const vertices = [];
+            const size = this.world.boundary * 2;
+            const nodeCount = 500;
+
+            for (let i = 0; i < nodeCount; i++) {
+              const x = (Math.random() - 0.5) * size;
+              const y = (i / nodeCount) * size - size / 2;
+
+              vertices.push(x, y, -10); // Push the grid back in z-space
+
+              for (let j = Math.max(0, i - 3); j < i; j++) {
+                const prevX = vertices[j * 3];
+                const prevY = vertices[j * 3 + 1];
+
+                vertices.push(x, y, -10);
+                vertices.push(prevX, prevY, -10);
+              }
+            }
+
+            geometry.setAttribute(
+              'position',
+              new THREE.Float32BufferAttribute(vertices, 3)
+            );
+            this.grid = new THREE.LineSegments(geometry, material);
+            this.grid.renderOrder = -1;
+            this.world.scene.add(this.grid);
+          }
+        }
+        class GravitySystem extends System {
+          update(deltaTime) {
+            const gravityEntities = this.world.entities.filter((e) =>
+              e.hasComponent(GravityFieldComponent)
+            );
+
+            for (let entity of this.world.entities) {
+              if (entity.hasComponent(PhysicsComponent)) {
+                const physics = entity.getComponent(PhysicsComponent);
+                const position = entity.getComponent(PositionComponent);
+
+                for (let gravityEntity of gravityEntities) {
+                  const gravityField = gravityEntity.getComponent(
+                    GravityFieldComponent
+                  );
+                  const gravityPosition =
+                    gravityEntity.getComponent(PositionComponent);
+
+                  const distance = new CANNON.Vec3(
+                    gravityPosition.x - position.x,
+                    gravityPosition.y - position.y,
+                    gravityPosition.z - position.z
+                  );
+
+                  const distanceLength = distance.length();
+
+                  if (distanceLength < gravityField.radius) {
+                    const forceMagnitude =
+                      gravityField.strength / (distanceLength * distanceLength);
+                    const force = distance.scale(
+                      forceMagnitude / distanceLength
+                    );
+                    physics.body.applyForce(force, physics.body.position);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        class SpaceDustSystem extends System {
+          update(deltaTime) {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerPosition = player.getComponent(PositionComponent);
+            const playerSize = player.getComponent(SizeComponent).size;
+
+            for (let dust of this.world.entities) {
+              if (dust.hasComponent(SpaceDustComponent)) {
+                const dustPosition = dust.getComponent(PositionComponent);
+
+                const dx = playerPosition.x - dustPosition.x;
+                const dy = playerPosition.y - dustPosition.y;
+                const dz = playerPosition.z - dustPosition.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                if (distance < playerSize * 2) {
+                  player.getComponent(SizeComponent).size += 0.01;
+                  this.world.updateEntityVisual(player, true);
+                  this.world.removeEntity(dust);
+                  this.world.createSpaceDustEffect(dustPosition);
+                }
+              }
+            }
+          }
+        }
+        class World {
+          constructor() {
+            this.entities = [];
+            this.systems = [];
+            this.score = 0;
+            this.initialPlayerSize = 3;
+            this.initialEnemyCount = 400;
+            this.gameActive = false;
+            this.boundary = 3000;
+            this.level = 1;
+            this.enemyCount = 600;
+            this.minEnemySize = 2;
+            this.maxEnemySize = 15;
+            this.leaderboardPage = 1;
+            this.leaderboardPageSize = 20;
+            this.backgroundParticles = [];
+            this.hashinalData = [];
+            this.hashinalTextures = new Map();
+            this.lastTime = 0;
+            this.animationTime = 0;
+            this.powerUpButtons = {
+              pulse: document.getElementById('ability-pulse'),
+              shield: document.getElementById('ability-shield'),
+              boost: document.getElementById('ability-boost'),
+              size: document.getElementById('ability-size'),
+            };
+            this.fixedTimeStep = 1 / 60; // 60 FPS
+            this.accumulator = 0;
+
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(0x000000);
+            this.camera = new THREE.PerspectiveCamera(
+              75,
+              window.innerWidth / window.innerHeight,
+              0.1,
+              10000
+            );
+
+            this.isPaused = false;
+            this.setupHashinalInfoModal();
+            this.setupClickDetection();
+
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            this.renderer.setClearColor(0x000000);
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            document
+              .getElementById('game-container')
+              .appendChild(this.renderer.domElement);
+
+            this.createBackgroundPlane();
+
+            this.camera.position.set(0, 0, 300);
+            this.camera.lookAt(0, 0, 0);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+            this.scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            this.scene.add(directionalLight);
+
+            this.physicsSystem = new PhysicsSystem(this);
+            this.addSystem(this.physicsSystem);
+
+            this.wallMaterial = new CANNON.Material('wallMaterial');
+            this.entityMaterial = new CANNON.Material('entityMaterial');
+            this.createTextures();
+            this.defineShaders();
+            this.createStarfield();
+            this.createBackgroundEffect();
+            this.createNebulae();
+
+            this.addSystem(new GridSystem(this));
+            this.addSystem(new RenderSystem(this));
+            this.addSystem(new PlayerControlSystem(this, this.camera));
+            this.addSystem(new CollisionSystem(this));
+            this.addSystem(new AISystem(this));
+            this.addSystem(new EvolutionSystem(this));
+            this.addSystem(new GravitySystem(this));
+            this.addSystem(new SpaceDustSystem(this));
+
+            let hashinalsCompleted = false;
+
+            this.fetchHashinalData().then((a) => {
+              hashinalsCompleted = true;
+            });
+
+            window.addEventListener('resize', () => this.onWindowResize());
+            document
+              .getElementById('start-button')
+              .addEventListener('click', () => this.startGame());
+            document
+              .getElementById('restart-button')
+              .addEventListener('click', () => this.startGame());
+
+            this.updateHUD();
+            this.createBoundaries();
+            this.createVisibleWalls();
+            this.setupLeaderboard();
+          }
+
+          setupHashinalInfoModal() {
+            const modal = document.getElementById('hashinal-info-modal');
+            const closeBtn = document.getElementById('close-hashinal-info-btn');
+            closeBtn.addEventListener('click', () => {
+              modal.style.display = 'none';
+              this.resumeGame();
+            });
+          }
+
+          setupClickDetection() {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            window.addEventListener('click', (event) => {
+              mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+              mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+              raycaster.setFromCamera(mouse, this.camera);
+
+              const intersects = raycaster.intersectObjects(
+                this.scene.children,
+                true
+              );
+
+              for (let intersect of intersects) {
+                const entity = this.entities.find(
+                  (e) =>
+                    e.getComponent(RenderComponent)?.mesh === intersect.object
+                );
+                if (entity && entity.hasComponent(AIControlledComponent)) {
+                  this.showHashinalInfo(entity);
+                  break;
+                }
+              }
+            });
+          }
+
+          showHashinalInfo(entity) {
+            const renderComponent = entity.getComponent(RenderComponent);
+            if (renderComponent && renderComponent.mesh.material.map) {
+              const hashinalData = this.getHashinalDataFromTexture(
+                renderComponent.mesh.material.map
+              );
+              if (hashinalData) {
+                this.pauseGame();
+                this.displayHashinalInfo(hashinalData);
+              }
+            }
+          }
+
+          getHashinalDataFromTexture(texture) {
+            const hashinalEntry = Array.from(
+              this.hashinalTextures.entries()
+            ).find(([key, value]) => value === texture);
+            if (hashinalEntry) {
+              return this.hashinalData.find(
+                (data) => data.image === hashinalEntry[0]
+              );
+            }
+            return null;
+          }
+
+          displayHashinalInfo(hashinalData) {
+            const modal = document.getElementById('hashinal-info-modal');
+            document.getElementById(
+              'hashinal-name'
+            ).textContent = `${hashinalData?.json?.name}`;
+            document.getElementById(
+              'hashinal-image'
+            ).src = `https://kiloscribe.com/api/inscription-cdn/${hashinalData.image}?network=mainnet`;
+            document.getElementById('hashinal-description').textContent =
+              hashinalData?.json?.description;
+            document.getElementById(
+              'hashinal-view-link'
+            ).href = `https://kiloscribe.com/inscription/${hashinalData.t_id}`;
+            document.getElementById(
+              'hashinal-purchase-link'
+            ).href = `https://sentx.io/nft-marketplace/${hashinalData.ht_id}/${hashinalData.sn}`;
+            modal.style.display = 'block';
+          }
+
+          setupLeaderboard() {
+            document
+              .getElementById('view-leaderboard-btn')
+              .addEventListener('click', () => {
+                this.leaderboardPage = 1; // Reset to first page when opening leaderboard
+                this.displayLeaderboard();
+              });
+            document
+              .getElementById('close-leaderboard-btn')
+              .addEventListener('click', () => {
+                document.getElementById('leaderboard-modal').style.display =
+                  'none';
+              });
+            document
+              .getElementById('submit-score-btn')
+              .addEventListener('click', () => this.submitScore());
+          }
+
+          pauseGame() {
+            this.isPaused = true;
+            document.getElementById('pause-btn').textContent = 'Resume';
+            // Pause any ongoing animations or physics simulations here
+          }
+
+          resumeGame() {
+            this.isPaused = false;
+            document.getElementById('pause-btn').textContent = 'Pause';
+            // Resume animations and physics simulations here
+          }
+
+          groupBy(array, key) {
+            return array.reduce((result, currentValue) => {
+              const groupKey = currentValue[key];
+              if (!result[groupKey]) {
+                result[groupKey] = [];
+              }
+              result[groupKey].push(currentValue);
+              return result;
+            }, {});
+          }
+
+          async getLeaderboardMessages() {
+            const sdk = window?.HederaWalletConnectSDK;
+            const messages = await sdk.getMessages(
+              SUBMIT_TOPIC_ID,
+              [],
+              undefined,
+              undefined
+            );
+
+            const filteredMessages = messages?.messages
+              ?.filter((msg) => Boolean(msg.p === 'hcs-2'))
+              ?.map((a) => {
+                return {
+                  ...a,
+                  id: a.consensus_timestamp,
+                  score: a.metadata.score,
+                  nickname: a.metadata.nickname,
+                };
+              });
+
+            const groupedMessages = this.groupBy(filteredMessages, 'payer');
+            const uniqueMessages = Object.values(groupedMessages).map(
+              (msgs) => {
+                return msgs.reduce(
+                  (maxMsg, msg) => (msg.score > maxMsg.score ? msg : maxMsg),
+                  msgs[0]
+                );
+              }
+            );
+
+            const sortedMessages = uniqueMessages.sort(
+              (a, b) => b.score - a.score
+            );
+
+            return sortedMessages;
+          }
+
+          async displayLeaderboard() {
+            console.log('Opening leaderboard...');
+            const leaderboard = await this.getLeaderboardMessages();
+            const leaderboardList = document.getElementById('leaderboard-list');
+            leaderboardList.innerHTML = '';
+
+            const startIndex =
+              (this.leaderboardPage - 1) * this.leaderboardPageSize;
+            const endIndex = startIndex + this.leaderboardPageSize;
+            const pageEntries = leaderboard.slice(startIndex, endIndex);
+
+            pageEntries.forEach((entry, index) => {
+              const row = document.createElement('tr');
+              row.innerHTML = `
+      <td>${startIndex + index + 1}</td>
+      <td>${entry.score}</td>
+      <td>${entry.nickname || 'Anonymous'}</td>
+      <td>${entry.payer}</td>
+    `;
+              leaderboardList.appendChild(row);
+            });
+
+            document.getElementById('leaderboard-modal').style.display =
+              'block';
+            this.updatePaginationControls(leaderboard.length);
+          }
+          updatePaginationControls(totalEntries) {
+            const totalPages = Math.ceil(
+              totalEntries / this.leaderboardPageSize
+            );
+            const paginationControls = document.getElementById(
+              'pagination-controls'
+            );
+            paginationControls.innerHTML = `
+    <button id="prev-page" class="nes-btn" ${
+      this.leaderboardPage === 1 ? 'disabled' : ''
+    }>Previous</button>
+    <span>Page ${this.leaderboardPage} of ${totalPages}</span>
+    <button id="next-page" class="nes-btn" ${
+      this.leaderboardPage === totalPages ? 'disabled' : ''
+    }>Next</button>
+  `;
+
+            document
+              .getElementById('prev-page')
+              .addEventListener('click', () => {
+                if (this.leaderboardPage > 1) {
+                  this.leaderboardPage--;
+                  this.displayLeaderboard();
+                }
+              });
+
+            document
+              .getElementById('next-page')
+              .addEventListener('click', () => {
+                if (this.leaderboardPage < totalPages) {
+                  this.leaderboardPage++;
+                  this.displayLeaderboard();
+                }
+              });
+          }
+          async submitScore() {
+            const sdk = window?.HederaWalletConnectSDK;
+            if (!isLoggedIn) {
+              alert(
+                'You need to connect your wallet in order to submit a score.'
+              );
+              return;
+            }
+
+            // Show the nickname modal
+            const nicknameModal = document.getElementById('nickname-modal');
+            nicknameModal.style.display = 'block';
+
+            // Handle submit button click
+            document.getElementById('submit-nickname-btn').onclick =
+              async () => {
+                const nicknameInput = document.getElementById('nickname-input');
+                let nickname = nicknameInput.value.trim().substring(0, 20); // Trim and limit to 20 characters
+
+                if (nickname) {
+                  nicknameModal.style.display = 'none';
+
+                  await sdk.submitMessageToTopic(
+                    SUBMIT_TOPIC_ID,
+                    JSON.stringify({
+                      t_id: SUBMIT_TOPIC_ID,
+                      op: 'register',
+                      m: 'Submitting score',
+                      metadata: {
+                        score: this.score,
+                        nickname: nickname,
+                      },
+                      p: 'hcs-2',
+                    })
+                  );
+                  alert('Score submitted successfully!');
+                } else {
+                  alert('Please enter a valid nickname.');
+                }
+              };
+
+            // Handle cancel button click
+            document.getElementById('cancel-nickname-btn').onclick = () => {
+              nicknameModal.style.display = 'none';
+            };
+          }
+          createBackgroundPlane() {
+            const planeGeometry = new THREE.PlaneGeometry(
+              this.boundary * 2,
+              this.boundary * 2
+            );
+            const planeMaterial = new THREE.MeshBasicMaterial({
+              color: 0x000000,
+              transparent: false,
+              opacity: 1,
+              depthWrite: false,
+            });
+            this.backgroundPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+            this.backgroundPlane.position.z = -20; // Place it behind the grid
+            this.backgroundPlane.renderOrder = -2; // Render it before the grid
+            this.scene.add(this.backgroundPlane);
+          }
+
+          updatePlaneSize(size) {
+            if (this.backgroundPlane) {
+              this.backgroundPlane.scale.set(
+                size / (this.boundary * 2),
+                size / (this.boundary * 2),
+                1
+              );
+            }
+          }
+          async fetchHashinalData() {
+            try {
+              const url =
+                'https://tier.bot/api/inscriptions/numbers?random=true&limit=400';
+              const response = await fetch(url);
+              const responseTwo = await fetch(url);
+              const responseThree = await fetch(url);
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+              const data1 = await response.json();
+              const data2 = await responseTwo.json();
+              this.hashinalData = [...data1, ...data2].filter((a) =>
+                a?.json?.type?.includes('image')
+              );
+              await this.preloadHashinalTextures();
+              console.log('Hashinals loaded:', this.hashinalData.length);
+            } catch (error) {
+              console.error('Error fetching Hashinal data:', error);
+            }
+          }
+          async preloadHashinalTextures() {
+            const textureLoader = new THREE.TextureLoader();
+            const loadTexture = (url) =>
+              new Promise((resolve) => textureLoader.load(url, resolve));
+
+            const chunkSize = 10;
+            const timeout = 10000; // 10 seconds
+
+            const withTimeout = (promise, ms) =>
+              new Promise((resolve) => {
+                const timer = setTimeout(() => {
+                  console.warn('Fetch timed out');
+                  resolve(null); // Resolve as null to indicate a timeout
+                }, ms);
+
+                promise
+                  .then((result) => {
+                    clearTimeout(timer);
+                    resolve(result);
+                  })
+                  .catch(() => {
+                    clearTimeout(timer);
+                    resolve(null); // Resolve as null to handle any errors
+                  });
+              });
+
+            for (let i = 0; i < this.hashinalData.length; i += chunkSize) {
+              const chunk = this.hashinalData.slice(i, i + chunkSize);
+              const promises = chunk.map(async (hashinal) => {
+                const texture = await withTimeout(
+                  loadTexture(
+                    `https://kiloscribe.com/api/inscription-cdn/${hashinal.image}?network=mainnet`
+                  ),
+                  timeout
+                );
+                if (texture) {
+                  this.hashinalTextures.set(hashinal.image, texture); // Directly update the array
+                } else {
+                  console.warn(
+                    `Skipping texture for ${hashinal.image} due to timeout`
+                  );
+                }
+              });
+
+              await Promise.all(promises);
+
+              // Check if we have loaded at least 50 textures
+              if (this.hashinalTextures.size >= 50) {
+                document.getElementById('start-button').disabled = false;
+                document.getElementById('start-button').innerText =
+                  'Start Game';
+              }
+            }
+          }
+
+          createBackgroundEffect() {
+            const particleCount = 10000;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+
+            for (let i = 0; i < particleCount; i++) {
+              positions[i * 3] = (Math.random() - 0.5) * this.boundary * 2;
+              positions[i * 3 + 1] = (Math.random() - 0.5) * this.boundary * 2;
+              positions[i * 3 + 2] = (Math.random() - 0.5) * 1000;
+
+              const color = new THREE.Color();
+              color.setHSL(Math.random(), 1, 0.5 + Math.random() * 0.5);
+              colors[i * 3] = color.r;
+              colors[i * 3 + 1] = color.g;
+              colors[i * 3 + 2] = color.b;
+
+              sizes[i] = Math.random() * 2 + 1;
+            }
+
+            geometry.setAttribute(
+              'position',
+              new THREE.BufferAttribute(positions, 3)
+            );
+            geometry.setAttribute(
+              'customColor',
+              new THREE.BufferAttribute(colors, 3)
+            );
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+                scale: { value: 1.0 },
+              },
+              vertexShader: this.shaders.particleVertex,
+              fragmentShader: this.shaders.particleFragment,
+              blending: THREE.AdditiveBlending,
+              depthTest: false,
+              transparent: false,
+            });
+
+            this.backgroundParticles = new THREE.Points(geometry, material);
+            this.scene.add(this.backgroundParticles);
+          }
+          createNebulae() {
+            for (let i = 0; i < 5; i++) {
+              const geometry = new THREE.BufferGeometry();
+              const positions = new Float32Array(10000 * 3);
+              const colors = new Float32Array(10000 * 3);
+              const sizes = new Float32Array(10000);
+
+              const centerX = (Math.random() - 0.5) * this.boundary;
+              const centerY = (Math.random() - 0.5) * this.boundary;
+              const centerZ = (Math.random() - 0.5) * 500;
+              const radius = Math.random() * 300 + 100;
+
+              for (let j = 0; j < 10000; j++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI * 2;
+                const r = Math.random() * radius;
+
+                positions[j * 3] =
+                  centerX + r * Math.sin(phi) * Math.cos(theta);
+                positions[j * 3 + 1] =
+                  centerY + r * Math.sin(phi) * Math.sin(theta);
+                positions[j * 3 + 2] = centerZ + r * Math.cos(phi);
+
+                const color = new THREE.Color();
+                color.setHSL(
+                  Math.random() * 0.1 + 0.55, // Subtle blue to very light purple
+                  0.5, // Less saturation
+                  0.7 + Math.random() * 0.3 // Brighter, more faint
+                );
+                colors[j * 3] = color.r;
+                colors[j * 3 + 1] = color.g;
+                colors[j * 3 + 2] = color.b;
+
+                sizes[j] = Math.random() * 3 + 1; // Smaller particles
+              }
+
+              geometry.setAttribute(
+                'position',
+                new THREE.BufferAttribute(positions, 3)
+              );
+              geometry.setAttribute(
+                'color',
+                new THREE.BufferAttribute(colors, 3)
+              );
+              geometry.setAttribute(
+                'size',
+                new THREE.BufferAttribute(sizes, 1)
+              );
+
+              const material = new THREE.ShaderMaterial({
+                uniforms: {
+                  time: { value: 0 },
+                  scale: { value: 1.0 },
+                },
+                vertexShader: this.shaders.nebulaVertex,
+                fragmentShader: this.shaders.nebulaFragment,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+              });
+
+              const nebula = new THREE.Points(geometry, material);
+              this.scene.add(nebula);
+            }
+          }
+
+          createStarfield() {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({
+              color: 0xffffff,
+              size: 0.5,
+              transparent: true,
+              blending: THREE.AdditiveBlending,
+            });
+            const starsVertices = [];
+            for (let i = 0; i < 20000; i++) {
+              const x = (Math.random() - 0.5) * this.boundary * 2;
+              const y = (Math.random() - 0.5) * this.boundary * 2;
+              const z = (Math.random() - 0.5) * 2000;
+              starsVertices.push(x, y, z);
+            }
+            starsGeometry.setAttribute(
+              'position',
+              new THREE.Float32BufferAttribute(starsVertices, 3)
+            );
+            const starField = new THREE.Points(starsGeometry, starsMaterial);
+            this.scene.add(starField);
+          }
+
+          addBlackHoleEffects(blackHoleMesh, size) {
+            // Add a pulsating ring
+            const ringGeometry = new THREE.RingGeometry(
+              size * 0.6,
+              size * 0.7,
+              64
+            );
+            const ringMaterial = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+                color: { value: new THREE.Color(0xffffff) },
+              },
+              vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+              fragmentShader: `
+            uniform float time;
+            uniform vec3 color;
+            varying vec2 vUv;
+            void main() {
+              float pulse = (sin(time * 3.0) * 0.5 + 0.5) * 0.5 + 0.5;
+              gl_FragColor = vec4(color, pulse);
+            }
+          `,
+              transparent: false,
+              side: THREE.DoubleSide,
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            blackHoleMesh.add(ring);
+
+            // Add swirling particles
+            const particleCount = 1000;
+            const particleGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const radius = (Math.random() * 0.4 + 0.1) * size;
+              positions[i * 3] = Math.cos(angle) * radius;
+              positions[i * 3 + 1] = Math.sin(angle) * radius;
+              positions[i * 3 + 2] = 0;
+
+              colors[i * 3] = 0.5 + Math.random() * 0.5;
+              colors[i * 3 + 1] = Math.random() * 0.5;
+              colors[i * 3 + 2] = 0.5 + Math.random() * 0.5;
+            }
+
+            particleGeometry.setAttribute(
+              'position',
+              new THREE.BufferAttribute(positions, 3)
+            );
+            particleGeometry.setAttribute(
+              'color',
+              new THREE.BufferAttribute(colors, 3)
+            );
+
+            const particleMaterial = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+                size: { value: size },
+              },
+              vertexShader: `
+            uniform float time;
+            uniform float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            void main() {
+              vColor = color;
+              vec3 pos = position;
+              float angle = atan(pos.y, pos.x) + time * (0.1 + 0.5 / length(pos.xy));
+              float radius = length(pos.xy);
+              pos.x = cos(angle) * radius;
+              pos.y = sin(angle) * radius;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+              gl_PointSize = 2.0 * size / length(pos.xy);
+            }
+          `,
+              fragmentShader: `
+            varying vec3 vColor;
+            void main() {
+              gl_FragColor = vec4(vColor, 1.0);
+            }
+          `,
+              blending: THREE.AdditiveBlending,
+              depthTest: false,
+              transparent: true,
+            });
+
+            const particleSystem = new THREE.Points(
+              particleGeometry,
+              particleMaterial
+            );
+            blackHoleMesh.add(particleSystem);
+
+            // Update function to animate the black hole effects
+            const updateBlackHoleEffects = (time) => {
+              ring.material.uniforms.time.value = time;
+              particleSystem.material.uniforms.time.value = time;
+            };
+
+            blackHoleMesh.updateBlackHoleEffects = updateBlackHoleEffects;
+          }
+
+          createTextures() {
+            this.textures = {
+              planet: this.createPlanetTexture(),
+              planetBump: this.createPlanetBumpMap(),
+              star: this.createStarTexture(),
+              neutronStar: this.createNeutronStarTexture(),
+              moon: this.createMoonTexture(),
+              moonBump: this.createMoonBumpMap(),
+            };
+          }
+
+          createPlayerSplitEntity(x, y, size) {
+            const splitEntity = new Entity();
+            splitEntity.addComponent(new PositionComponent(x, y, 0));
+            splitEntity.addComponent(new SizeComponent(size));
+            splitEntity.addComponent(new AIControlledComponent());
+            splitEntity.addComponent(new AbsorbableComponent());
+
+            const evolutionComponent = new EvolutionaryStageComponent();
+            evolutionComponent.stage = this.getInitialStage(size);
+            splitEntity.addComponent(evolutionComponent);
+
+            const mesh = this.createEntityMesh(evolutionComponent.stage, size);
+            splitEntity.addComponent(new RenderComponent(mesh));
+
+            const shape = new CANNON.Sphere(size / 2);
+            const body = new CANNON.Body({
+              mass: size,
+              shape: shape,
+              material: this.entityMaterial,
+              position: new CANNON.Vec3(x, y, 0),
+              velocity: new CANNON.Vec3(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10,
+                0
+              ),
+            });
+            splitEntity.addComponent(new PhysicsComponent(body));
+
+            this.scene.add(mesh);
+            this.physicsSystem.physicsWorld.addBody(body);
+
+            return splitEntity;
+          }
+
+          createMoonTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Base color
+            const gradient = ctx.createRadialGradient(
+              512,
+              256,
+              0,
+              512,
+              256,
+              512
+            );
+            gradient.addColorStop(0, '#e6e6e6');
+            gradient.addColorStop(0.8, '#b3b3b3');
+            gradient.addColorStop(1, '#808080');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 1024, 512);
+
+            // Add craters
+            for (let i = 0; i < 500; i++) {
+              const x = Math.random() * 1024;
+              const y = Math.random() * 512;
+              const radius = Math.random() * 20 + 5;
+              const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+              gradient.addColorStop(0, 'rgba(80, 80, 80, 0.8)');
+              gradient.addColorStop(0.8, 'rgba(100, 100, 100, 0.2)');
+              gradient.addColorStop(1, 'rgba(120, 120, 120, 0)');
+              ctx.fillStyle = gradient;
+              ctx.beginPath();
+              ctx.arc(x, y, radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            // Add some brighter spots
+            for (let i = 0; i < 200; i++) {
+              const x = Math.random() * 1024;
+              const y = Math.random() * 512;
+              const radius = Math.random() * 30 + 10;
+              const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+              gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+              gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+              ctx.fillStyle = gradient;
+              ctx.beginPath();
+              ctx.arc(x, y, radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+          }
+
+          createMoonBumpMap() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 1024, 512);
+
+            // Add bumps for craters
+            for (let i = 0; i < 1000; i++) {
+              const x = Math.random() * 1024;
+              const y = Math.random() * 512;
+              const radius = Math.random() * 20 + 5;
+              const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+              gradient.addColorStop(0, 'white');
+              gradient.addColorStop(0.2, 'gray');
+              gradient.addColorStop(1, 'black');
+              ctx.fillStyle = gradient;
+              ctx.beginPath();
+              ctx.arc(x, y, radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+          }
+
+          createNeutronStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(
+              256,
+              256,
+              0,
+              256,
+              256,
+              256
+            );
+            gradient.addColorStop(0, '#ffffff');
+            gradient.addColorStop(0.3, '#00ffff');
+            gradient.addColorStop(0.6, '#0080ff');
+            gradient.addColorStop(1, '#000080');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+
+            for (let i = 0; i < 10; i++) {
+              const pulseGradient = ctx.createRadialGradient(
+                256,
+                256,
+                0,
+                256,
+                256,
+                256 * Math.random()
+              );
+              pulseGradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+              pulseGradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+              ctx.fillStyle = pulseGradient;
+              ctx.fillRect(0, 0, 512, 512);
+            }
+
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 8; i++) {
+              ctx.beginPath();
+              ctx.moveTo(0, i * 64);
+              ctx.bezierCurveTo(
+                128,
+                i * 64 + 32,
+                384,
+                i * 64 - 32,
+                512,
+                i * 64
+              );
+              ctx.stroke();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+          }
+
+          createPlanetTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(
+              256,
+              256,
+              0,
+              256,
+              256,
+              256
+            );
+            gradient.addColorStop(0, '#4287f5');
+            gradient.addColorStop(1, '#1a3c6e');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+
+            ctx.fillStyle = '#2ecc71';
+            for (let i = 0; i < 10; i++) {
+              ctx.beginPath();
+              ctx.moveTo(Math.random() * 512, Math.random() * 512);
+              ctx.bezierCurveTo(
+                Math.random() * 512,
+                Math.random() * 512,
+                Math.random() * 512,
+                Math.random() * 512,
+                Math.random() * 512,
+                Math.random() * 512
+              );
+              ctx.fill();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+          }
+
+          createPlanetBumpMap() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 512, 512);
+
+            for (let i = 0; i < 1000; i++) {
+              const x = Math.random() * 512;
+              const y = Math.random() * 512;
+              const radius = Math.random() * 5 + 1;
+              const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+              gradient.addColorStop(0, 'white');
+              gradient.addColorStop(1, 'black');
+              ctx.fillStyle = gradient;
+              ctx.beginPath();
+              ctx.arc(x, y, radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+          }
+
+          createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(
+              256,
+              256,
+              0,
+              256,
+              256,
+              256
+            );
+            gradient.addColorStop(0, 'white');
+            gradient.addColorStop(0.1, 'yellow');
+            gradient.addColorStop(0.3, 'orange');
+            gradient.addColorStop(0.6, 'red');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+
+            for (let i = 0; i < 8; i++) {
+              ctx.save();
+              ctx.translate(256, 256);
+              ctx.rotate((i * Math.PI) / 4);
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+              ctx.beginPath();
+              ctx.moveTo(0, 0);
+              ctx.lineTo(200, 0);
+              ctx.lineTo(0, 20);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+          }
+
+          defineShaders() {
+            this.shaders = {
+              speedPowerUpFragment: `
+            uniform float time;
+            attribute float alpha;
+            varying float vAlpha;
+            void main() {
+              vAlpha = alpha;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_PointSize = 2.0 * (300.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `,
+              blackholeVertex: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+              blackholeFragment: `
+            uniform float time;
+            uniform float size;
+            varying vec2 vUv;
+
+            void main() {
+              vec2 center = vec2(0.5, 0.5);
+              float dist = distance(vUv, center);
+
+              float pulse = (sin(time * 2.0) * 0.05) + 0.95;
+              float radius = 0.5 * pulse;
+
+              float angle = atan(vUv.y - 0.5, vUv.x - 0.5);
+              float swirl = sin(angle * 10.0 + time * 2.0) * 0.05;
+
+              float alpha = smoothstep(radius + swirl, radius - 0.05 + swirl, dist);
+
+              vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.8, 0.0, 1.0), smoothstep(0.0, 0.5, dist));
+
+              float glow = smoothstep(radius + 0.1, radius, dist) * 0.5;
+              color += vec3(1.0, 0.0, 0.2) * glow;
+
+              color = smoothstep(vec3(0.0), vec3(1.0), color);
+
+              gl_FragColor = vec4(color, alpha);
+            }
+          `,
+              blackholeEffectFragment: `
+            uniform float time;
+            uniform float blackHoleSize;
+            varying vec2 vUv;
+
+            void main() {
+              vec2 uv = vUv * 2.0 - 1.0;
+              float r = length(uv);
+              float theta = atan(uv.y, uv.x);
+
+              float bend = 1.0 / (r * 5.0 + 0.1);
+              theta += bend * 0.5 + time * 0.1;
+
+              vec2 distortedUv = vec2(cos(theta), sin(theta)) * r;
+
+              vec3 bg = vec3(1.0, 1.0, 1.0);
+              bg += vec3(0.1, 0.1, 0.2) * smoothstep(0.5, 1.0, sin(distortedUv.x * 10.0 + time) * sin(distortedUv.y * 10.0 + time));
+
+              float blackHoleEdge = blackHoleSize / (blackHoleSize * 3.0);
+              float edge = smoothstep(blackHoleEdge, blackHoleEdge + 0.01, r);
+
+              gl_FragColor = vec4(bg * edge, edge * 0.8);
+            }
+          `,
+              accretionDiskVertex: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+              accretionDiskFragment: `
+            uniform float time;
+            varying vec2 vUv;
+
+            void main() {
+              float r = length(vUv - vec2(0.5));
+              float theta = atan(vUv.y - 0.5, vUv.x - 0.5);
+              float color = smoothstep(0.3, 0.7, r) * (0.5 + 0.5 * sin(10.0 * theta + time * 5.0));
+              gl_FragColor = vec4(vec3(color, color * 0.8, color * 0.4), 1.0);
+            }
+          `,
+              glowVertex: `
+            uniform vec3 viewVector;
+            varying float intensity;
+            void main() {
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              vec3 actual_normal = vec3(modelMatrix * vec4(normal, 0.0));
+              intensity = pow(dot(normalize(viewVector), actual_normal), 6.0);
+            }
+          `,
+              glowFragment: `
+            uniform vec3 glowColor;
+            varying float intensity;
+            void main() {
+              gl_FragColor = vec4(glowColor, 1.0) * intensity;
+            }
+          `,
+              particleVertex: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            varying float vAlpha;
+
+            void main() {
+              vColor = color;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_PointSize = size * (300.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+              vAlpha = smoothstep(200.0, 100.0, -mvPosition.z);
+            }
+          `,
+              particleFragment: `
+            varying vec3 vColor;
+            varying float vAlpha;
+
+            void main() {
+              float r = 0.0, delta = 0.0, alpha = 1.0;
+              vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+              r = dot(cxy, cxy);
+              if (r > 1.0) {
+                discard;
+              }
+              delta = fwidth(r);
+              alpha = 1.0 - smoothstep(1.0 - delta, 1.0 + delta, r);
+
+              vec3 glow = vColor * (1.0 - r * r);
+              gl_FragColor = vec4(glow, alpha * vAlpha);
+            }
+          `,
+              spaceDustVertex: `
+            attribute float size;
+            varying float vAlpha;
+
+            void main() {
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_PointSize = size * (300.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+              vAlpha = smoothstep(200.0, 100.0, -mvPosition.z);
+            }
+          `,
+              spaceDustFragment: `
+            varying float vAlpha;
+
+            void main() {
+              float r = 0.0, delta = 0.0, alpha = 1.0;
+              vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+              r = dot(cxy, cxy);
+              if (r > 1.0) {
+                discard;
+              }
+              delta = fwidth(r);
+              alpha = 1.0 - smoothstep(1.0 - delta, 1.0 + delta, r);
+
+              vec3 color = vec3(0.9, 0.9, 1.0);
+              vec3 glow = color * (1.0 - r * r);
+              gl_FragColor = vec4(glow, alpha * vAlpha);
+            }
+          `,
+              nebulaVertex: `
+            uniform float time;
+            uniform float scale;
+            attribute vec3 currentPosition;
+            attribute vec3 color;
+            attribute float size;
+            varying vec3 vColor;
+            void main() {
+              vColor = color;
+              vec3 pos = currentPosition;
+              pos.x += sin(time * 0.5 + currentPosition.z * 0.01) * 2.0;
+              pos.y += cos(time * 0.5 + currentPosition.x * 0.01) * 2.0;
+              pos.z += sin(time * 0.5 + currentPosition.y * 0.01) * 2.0;
+              vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+              gl_PointSize = size * scale * (300.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `,
+              nebulaFragment: `
+            varying vec3 vColor;
+            void main() {
+              if (length(gl_PointCoord - vec2(0.5, 0.5)) > 0.475) discard;
+              gl_FragColor = vec4(vColor, 0.7);
+            }
+          `,
+              powerUpVertex: `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        vec3 pos = position;
+        float displacement = sin(time * 5.0 + position.x * 10.0) * 0.1;
+        pos.y += displacement;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      }
+    `,
+              speedPowerUpFragment: `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        vec2 center = vUv - 0.5;
+        float dist = length(center);
+        float ring = smoothstep(0.4, 0.5, dist) - smoothstep(0.2, 0.3, dist);
+        vec3 color = vec3(1.0, 1.0, 0.0); // Yellow
+        float pulse = sin(time * 10.0) * 0.5 + 0.5;
+        color *= ring * pulse;
+        float sparkle = pow(sin(vUv.x * 50.0 + time * 5.0) * sin(vUv.y * 50.0 + time * 7.0), 5.0);
+        color += vec3(1.0) * sparkle;
+
+        // Add letter 'S' to the texture
+        float letter = step(0.1, max(abs(vUv.x - 0.5) - 0.2, abs(vUv.y - 0.5) - 0.3));
+        letter *= step(0.1, abs(vUv.x - 0.5) + abs(vUv.y - 0.5) - 0.4);
+        color = mix(vec3(0.0), color, letter);
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+
+              sizePowerUpFragment: `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        vec2 center = vUv - 0.5;
+        float dist = length(center);
+        float circle = 1.0 - smoothstep(0.0, 0.5, dist);
+        vec3 color = vec3(1.0, 0.0, 1.0); // Magenta
+        float pulse = sin(time * 5.0) * 0.5 + 0.5;
+        color *= circle * pulse;
+        float ripple = sin(dist * 20.0 - time * 5.0) * 0.5 + 0.5;
+        color += vec3(1.0, 0.5, 1.0) * ripple * circle;
+
+        // Add letter 'Z' to the texture
+        float letter = step(0.1, max(abs(vUv.x - 0.5) - 0.2, abs(vUv.y - 0.5) - 0.3));
+        letter *= step(0.1, abs(vUv.x - vUv.y) - 0.2);
+        color = mix(vec3(0.0), color, letter);
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+
+              shieldPowerUpFragment: `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        vec2 center = vUv - 0.5;
+        float dist = length(center);
+        float shield = smoothstep(0.4, 0.5, dist) - smoothstep(0.2, 0.3, dist);
+        vec3 color = vec3(0.0, 0.5, 1.0); // Blue
+        float pulse = sin(time * 3.0) * 0.5 + 0.5;
+        color *= shield * pulse;
+        float energyField = pow(sin(dist * 30.0 - time * 2.0), 2.0);
+        color += vec3(0.5, 0.7, 1.0) * energyField * shield;
+
+        // Add letter 'S' to the texture
+        float letter = step(0.1, max(abs(vUv.x - 0.5) - 0.2, abs(vUv.y - 0.5) - 0.3));
+        letter *= step(0.1, abs(vUv.x - 0.5) + abs(vUv.y - 0.5) - 0.4);
+        color = mix(vec3(0.0), color, letter);
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+
+              boostPowerUpFragment: `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        vec2 center = vUv - 0.5;
+        float dist = length(center);
+        float flame = 1.0 - smoothstep(0.0, 0.5 + sin(vUv.x * 10.0 + time * 5.0) * 0.1, dist);
+        vec3 color = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.5, 0.0), vUv.y); // Red to orange gradient
+        float flicker = sin(time * 20.0) * 0.5 + 0.5;
+        color *= flame * flicker;
+        float sparks = step(0.98, sin(vUv.x * 100.0 + time * 10.0) * sin(vUv.y * 100.0 + time * 15.0));
+        color += vec3(1.0, 1.0, 0.5) * sparks * flame;
+
+        // Add letter 'B' to the texture
+        float letter = step(0.1, max(abs(vUv.x - 0.5) - 0.2, abs(vUv.y - 0.5) - 0.3));
+        letter *= step(0.1, min(abs(vUv.x - 0.5) - 0.1, abs(vUv.y - 0.5) - 0.2));
+        color = mix(vec3(0.0), color, letter);
+
+        gl_FragColor = vec4(color, flame);
+      }
+`,
+            };
+          }
+          createBoundaries() {
+            const wallThickness = 50;
+            const wallHeight = 1000; // Ensure it's large enough to cover any possible Z displacement
+
+            const createWall = (positionX, positionY, sizeX, sizeY) => {
+              const wallShape = new CANNON.Box(
+                new CANNON.Vec3(sizeX, sizeY, wallHeight / 2)
+              );
+              const wallBody = new CANNON.Body({
+                mass: 0,
+                shape: wallShape,
+                material: this.wallMaterial,
+              });
+              wallBody.position.set(positionX, positionY, 0);
+              wallBody.collisionResponse = true; // Ensure it reacts to collisions
+              this.physicsSystem.physicsWorld.addBody(wallBody);
+            };
+
+            // Right, Left, Top, Bottom
+            createWall(
+              this.boundary + wallThickness / 2,
+              0,
+              wallThickness / 2,
+              this.boundary
+            );
+            createWall(
+              -this.boundary - wallThickness / 2,
+              0,
+              wallThickness / 2,
+              this.boundary
+            );
+            createWall(
+              0,
+              this.boundary + wallThickness / 2,
+              this.boundary,
+              wallThickness / 2
+            );
+            createWall(
+              0,
+              -this.boundary - wallThickness / 2,
+              this.boundary,
+              wallThickness / 2
+            );
+          }
+
+          createVisibleWalls() {
+            const wallThickness = 50;
+            const wallHeight = 300;
+            const wallMaterial = new THREE.MeshBasicMaterial({
+              color: 0x808080,
+              transparent: false,
+              opacity: 0.5,
+            });
+
+            const createWall = (positionX, positionY, sizeX, sizeY) => {
+              const wallGeometry = new THREE.BoxGeometry(
+                sizeX * 2,
+                sizeY * 2,
+                wallHeight
+              );
+              const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+              wallMesh.position.set(positionX, positionY, wallHeight / 2);
+              this.scene.add(wallMesh);
+            };
+
+            // Create four walls at the boundaries
+            createWall(this.boundary, 0, wallThickness, this.boundary);
+            createWall(-this.boundary, 0, wallThickness, this.boundary);
+            createWall(0, this.boundary, this.boundary, wallThickness);
+            createWall(0, -this.boundary, this.boundary, wallThickness);
+          }
+
+          createSpaceDust() {
+            for (let i = 0; i < 1000; i++) {
+              const dust = new Entity();
+              const x = (Math.random() - 0.5) * this.boundary * 2;
+              const y = (Math.random() - 0.5) * this.boundary * 2;
+              dust.addComponent(new PositionComponent(x, y, 0));
+              dust.addComponent(new SpaceDustComponent());
+              dust.addComponent(new SizeComponent(0.1));
+
+              const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+              const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+              const mesh = new THREE.Mesh(geometry, material);
+              dust.addComponent(new RenderComponent(mesh));
+
+              this.scene.add(mesh);
+              this.addEntity(dust);
+            }
+          }
+
+          addEntity(entity) {
+            this.entities.push(entity);
+          }
+
+          removeEntity(entity) {
+            const index = this.entities.indexOf(entity);
+            if (index !== -1) {
+              this.entities.splice(index, 1);
+              if (entity.hasComponent(RenderComponent)) {
+                const renderComponent = entity.getComponent(RenderComponent);
+                this.scene.remove(renderComponent.mesh);
+              }
+              if (entity.hasComponent(PhysicsComponent)) {
+                const physicsComponent = entity.getComponent(PhysicsComponent);
+                this.physicsSystem.physicsWorld.removeBody(
+                  physicsComponent.body
+                );
+              }
+            }
+          }
+
+          addSystem(system) {
+            this.systems.push(system);
+          }
+
+          update(deltaTime) {
+            if (this.isPaused) return;
+            for (let system of this.systems) {
+              system.update(deltaTime);
+            }
+
+            const currentEnemyCount = this.entities.filter((e) =>
+              e.hasComponent(AIControlledComponent)
+            ).length;
+
+            for (let i = currentEnemyCount; i < this.initialEnemyCount; i++) {
+              this.createAIEntity(Math.random() < 0.3);
+            }
+
+            for (let entity of this.entities) {
+              if (entity.hasComponent(RenderComponent)) {
+                const material =
+                  entity.getComponent(RenderComponent).mesh.material;
+                if (
+                  material.type === 'ShaderMaterial' &&
+                  material.uniforms.time
+                ) {
+                  material.uniforms.time.value += deltaTime;
+                }
+              }
+              if (
+                entity.hasComponent(PositionComponent) &&
+                entity.hasComponent(PhysicsComponent) &&
+                entity.hasComponent(SizeComponent)
+              ) {
+                const position = entity.getComponent(PositionComponent);
+                const physics = entity.getComponent(PhysicsComponent);
+                const size = entity.getComponent(SizeComponent);
+
+                const maxX = this.boundary - size.size;
+                const maxY = this.boundary - size.size;
+
+                // Bounce back logic
+                if (Math.abs(position.x) > maxX) {
+                  position.x = Math.sign(position.x) * maxX;
+                  physics.body.position.x = position.x;
+
+                  // Reverse and reduce velocity to create bounce effect
+                  physics.body.velocity.x = -physics.body.velocity.x * 0.8;
+
+                  // Apply additional force to simulate a bounce
+                  const bounceForce = new CANNON.Vec3(
+                    -physics.body.velocity.x * 10,
+                    0,
+                    0
+                  );
+                  physics.body.applyForce(bounceForce, physics.body.position);
+                }
+
+                if (Math.abs(position.y) > maxY) {
+                  position.y = Math.sign(position.y) * maxY;
+                  physics.body.position.y = position.y;
+
+                  // Reverse and reduce velocity to create bounce effect
+                  physics.body.velocity.y = -physics.body.velocity.y * 0.8;
+
+                  // Apply additional force to simulate a bounce
+                  const bounceForce = new CANNON.Vec3(
+                    0,
+                    -physics.body.velocity.y * 10,
+                    0
+                  );
+                  physics.body.applyForce(bounceForce, physics.body.position);
+                }
+
+                physics.body.position.set(position.x, position.y, position.z);
+              }
+            }
+          }
+
+          createPlayer() {
+            const player = new Entity();
+            player.addComponent(new PositionComponent(0, 0, 0));
+            player.addComponent(new SizeComponent(this.initialPlayerSize));
+            player.addComponent(new PlayerControlledComponent());
+
+            const evolutionComponent = new EvolutionaryStageComponent();
+            evolutionComponent.stage = 'black hole';
+            player.addComponent(evolutionComponent);
+
+            const mesh = this.createEntityMesh(
+              'black hole',
+              this.initialPlayerSize,
+              true
+            );
+            player.addComponent(new RenderComponent(mesh));
+
+            const shape = new CANNON.Sphere(this.initialPlayerSize);
+            const body = new CANNON.Body({
+              mass: 5,
+              shape: shape,
+              material: this.physicsSystem.entityMaterial,
+              position: new CANNON.Vec3(0, 0, 0),
+              velocity: new CANNON.Vec3(0, 0, 0),
+            });
+            player.addComponent(new PhysicsComponent(body));
+
+            this.scene.add(mesh);
+            this.physicsSystem.physicsWorld.addBody(body);
+            this.addEntity(player);
+
+            return player;
+          }
+
+          createEntityMesh(stage, size, isPlayer = false, isSpikey = false) {
+            let geometry, material;
+            const scaledSize = size;
+
+            // Select a random Hashinal texture
+            const randomTexture = Array.from(
+              this?.hashinalTextures?.values() || []
+            )[Math.floor(Math.random() * this?.hashinalTextures?.size)];
+
+            // Decide whether to apply the Hashinal texture (only if the entity is not the player)
+            const shouldApplyHashinalTexture = !isPlayer && randomTexture;
+
+            switch (stage) {
+              case 'asteroid':
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.MeshStandardMaterial({
+                  map: shouldApplyHashinalTexture ? randomTexture : null,
+                  color: shouldApplyHashinalTexture ? null : 0x00ffff,
+                  roughness: 0.8,
+                  metalness: 0.2,
+                  transparent: false,
+                  side: THREE.DoubleSide, // Ensure the circle is visible from both sides
+                });
+                break;
+              case 'moon':
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.MeshStandardMaterial({
+                  map: shouldApplyHashinalTexture
+                    ? randomTexture
+                    : this.textures.moon,
+                  bumpMap: this.textures.moonBump,
+                  bumpScale: 0.05,
+                  transparent: false,
+                  color: shouldApplyHashinalTexture ? null : 0xf4f4f4,
+                  side: THREE.DoubleSide,
+                });
+                break;
+              case 'planet':
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.MeshPhongMaterial({
+                  map: shouldApplyHashinalTexture
+                    ? randomTexture
+                    : this.textures.planet,
+                  bumpMap: this.textures.planetBump,
+                  bumpScale: 0.05,
+                  transparent: false,
+                  side: THREE.DoubleSide,
+                });
+                break;
+              case 'star':
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.MeshBasicMaterial({
+                  map: shouldApplyHashinalTexture
+                    ? randomTexture
+                    : this.textures.planet,
+                  emissive: 0xffff00,
+                  emissiveIntensity: 0.5,
+                  transparent: false,
+                  side: THREE.DoubleSide,
+                });
+                break;
+              case 'neutron star':
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.MeshPhongMaterial({
+                  map: shouldApplyHashinalTexture
+                    ? randomTexture
+                    : this.textures.planet,
+                  emissive: 0x00ffff,
+                  emissiveIntensity: 0.8,
+                  shininess: 100,
+                  transparent: false,
+                  side: THREE.DoubleSide,
+                });
+                break;
+              case 'black hole':
+                if (Number(scaledSize) <= 0) {
+                  scaledSize = 1.0;
+                }
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.ShaderMaterial({
+                  uniforms: {
+                    time: { value: 0 },
+                    blackHoleSize: { value: scaledSize },
+                  },
+                  vertexShader: this.shaders.blackholeVertex,
+                  fragmentShader: this.shaders.blackholeFragment,
+                  transparent: false,
+                  side: THREE.DoubleSide,
+                });
+                break;
+
+              default:
+                geometry = new THREE.CircleGeometry(scaledSize, 32);
+                material = new THREE.MeshStandardMaterial({
+                  color: 0xffffff,
+                  side: THREE.DoubleSide,
+                  transparent: false,
+                });
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.renderOrder = 1;
+
+            if (isPlayer && stage === 'black hole') {
+              this.addBlackHoleEffects(mesh, scaledSize);
+            }
+
+            if (isSpikey) {
+              this.addSpikes(mesh, scaledSize);
+            }
+
+            return mesh;
+          }
+
+          addSpikes(mesh, size) {
+            const spikeCount = Math.floor(size * 2) + 5;
+            const spikeGeometry = new THREE.ConeGeometry(
+              size * 0.2,
+              size * 0.5,
+              8
+            );
+            const spikeMaterial = new THREE.MeshStandardMaterial({
+              color: 0xff0000,
+              side: THREE.DoubleSide,
+            });
+
+            for (let i = 0; i < spikeCount; i++) {
+              const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+
+              // Position the spike on the edge of the circle
+              const angle = (i / spikeCount) * Math.PI * 2; // Distribute spikes evenly
+              const x = Math.cos(angle) * size;
+              const y = Math.sin(angle) * size;
+
+              spike.position.set(x, y, 0); // Place the spike on the circle's edge
+              spike.rotation.z = angle - Math.PI / 2; // Rotate the spike to face outward
+
+              mesh.add(spike);
+            }
+          }
+
+          getInitialStage(size) {
+            if (size < 2) return 'asteroid';
+            if (size < 4) return 'moon';
+            if (size < 6) return 'planet';
+            if (size < 8) return 'star';
+            if (size < 10) return 'neutron star';
+            return 'black hole';
+          }
+
+          createAIEntity(nearPlayer = false, isLarge = false) {
+            const entity = new Entity();
+            let x, y;
+
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            const playerSize = player
+              ? player.getComponent(SizeComponent).size
+              : this.initialPlayerSize;
+            const playerPos = player.getComponent(PositionComponent);
+
+            let isValidSpawn = false;
+
+            const minSize = Math.max(this.minEnemySize, playerSize * 0.5);
+            let maxSize = playerSize * 1.3;
+
+            let size;
+            if (Math.random() < 0.02 || isLarge) {
+              size = playerSize * 2; // Large enemy
+            } else {
+              const sizeBias = Math.pow(Math.random(), 2);
+              size = minSize + (maxSize - minSize) * sizeBias;
+            }
+
+            while (!isValidSpawn) {
+              if (nearPlayer && player) {
+                const isSmaller = size < playerSize;
+                const spawnDifference = isSmaller ? 400 : 1000;
+                const spawnDistance = isSmaller ? 2 : 5;
+                const spawnRadius =
+                  spawnDifference + playerSize * spawnDistance;
+                const angle = Math.random() * Math.PI * 2;
+                x = playerPos.x + Math.cos(angle) * spawnRadius;
+                y = playerPos.y + Math.sin(angle) * spawnRadius;
+              } else {
+                x = (Math.random() - 0.5) * this.boundary * 2;
+                y = (Math.random() - 0.5) * this.boundary * 2;
+              }
+
+              const distanceToPlayer = Math.sqrt(
+                Math.pow(playerPos.x - x, 2) + Math.pow(playerPos.y - y, 2)
+              );
+
+              // Ensure the enemy spawns far enough from the player
+              isValidSpawn = distanceToPlayer > playerSize * 10;
+            }
+
+            entity.addComponent(new PositionComponent(x, y, 0));
+
+            // Adjust size if the entity is spikey
+            const isSpikey = Math.random() < 0.05;
+            if (isSpikey) {
+              size = Math.max(size, playerSize * 1.1);
+              entity.addComponent(new SpikeyComponent());
+              console.log('Created a spikey entity');
+            }
+
+            entity.addComponent(new SizeComponent(size));
+            entity.addComponent(new AIControlledComponent());
+            entity.addComponent(new AbsorbableComponent());
+
+            const evolutionComponent = new EvolutionaryStageComponent();
+            const initialStage = this.getInitialStage(size);
+            evolutionComponent.stage = initialStage;
+            entity.addComponent(evolutionComponent);
+
+            const mesh = this.createEntityMesh(
+              initialStage,
+              size,
+              false,
+              isSpikey
+            );
+            entity.addComponent(new RenderComponent(mesh));
+
+            const shape = new CANNON.Sphere(size);
+            const body = new CANNON.Body({
+              mass: size,
+              shape: shape,
+              material: this.entityMaterial,
+              position: new CANNON.Vec3(x, y, 0),
+              velocity: new CANNON.Vec3(
+                (Math.random() - 0.5) * 5,
+                (Math.random() - 0.5) * 5,
+                0
+              ),
+            });
+            body.addEventListener('collide', (event) => {
+              const relativeVelocity =
+                event.contact.getImpactVelocityAlongNormal();
+              if (relativeVelocity > 0.1) {
+                // Adjust the threshold as necessary
+                const collisionNormal = event.contact.ni;
+                const collisionImpulse = collisionNormal.scale(
+                  -relativeVelocity * body.mass
+                );
+                body.applyImpulse(collisionImpulse, body.position);
+              }
+            });
+
+            entity.addComponent(new PhysicsComponent(body));
+
+            this.scene.add(mesh);
+            this.physicsSystem.physicsWorld.addBody(body);
+            this.addEntity(entity);
+
+            return entity;
+          }
+
+          updatePowerUpIndicator(powerUpType, isActive) {
+            const button = this.powerUpButtons[powerUpType];
+            if (button) {
+              if (isActive) {
+                button.classList.remove('nes-btn');
+                button.classList.add('nes-btn', 'is-success');
+              } else {
+                button.classList.remove('nes-btn', 'is-success');
+                button.classList.add('nes-btn');
+              }
+            }
+          }
+
+          applyPowerUp(type) {
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+
+            if (!playerControl.abilities) {
+              playerControl.abilities = {
+                pulse: { cooldown: 0, maxCooldown: 10, active: false },
+                shield: { cooldown: 0, maxCooldown: 15, active: false },
+                boost: { cooldown: 0, maxCooldown: 5, active: false },
+              };
+            }
+            if (!playerControl.powerUpTimers) {
+              playerControl.powerUpTimers = {
+                pulse: null,
+                shield: null,
+                boost: null,
+              };
+            }
+
+            if (!playerControl.abilities[type]) {
+              console.error(`Invalid power-up type: ${type}`);
+              playerControl.abilities[type] = {
+                cooldown: 0,
+                maxCooldown: 0,
+                active: false,
+              };
+            }
+            // Clear any existing timer for this power-up
+            if (playerControl.powerUpTimers[type]) {
+              clearTimeout(playerControl.powerUpTimers[type]);
+            }
+
+            playerControl.abilities[type].active = true;
+            this.updatePowerUpIndicator(type, true);
+
+            let duration;
+            switch (type) {
+              case 'speed':
+                this.activeSpeed(player);
+                duration = 5000; // 5 seconds
+                break;
+              case 'pulse':
+                this.createGravitationalPulse(player);
+                duration = 1000; // 1 second
+                break;
+              case 'shield':
+                this.activateShield(player);
+                duration = 10000; // 10 seconds
+                break;
+              case 'boost':
+                this.activateBoost(player);
+                duration = 5000; // 5 seconds
+              case 'size':
+                duration = 5000;
+                break;
+            }
+
+            playerControl.powerUpTimers[type] = setTimeout(() => {
+              playerControl.abilities[type].active = false;
+              this.updatePowerUpIndicator(type, false);
+            }, duration);
+
+            console.log(`Power-up applied: ${type}`);
+          }
+          getPowerUpColor(type) {
+            switch (type) {
+              case 'speed':
+                return 0xffff00; // Yellow
+              case 'size':
+                return 0xff00ff; // Magenta
+              case 'shield':
+                return 0x00ffff; // Cyan
+              case 'boost':
+                return 0xff0000; // Red
+              default:
+                return 0xffffff; // White
+            }
+          }
+
+          activeSpeed(player) {
+            const trailGeometry = new THREE.BufferGeometry();
+            const trailMaterial = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+                color: { value: new THREE.Color(0xffff00) },
+              },
+              vertexShader: this.shaders.speedPowerUpFragment,
+              fragmentShader: `
+            uniform vec3 color;
+            varying float vAlpha;
+            void main() {
+              gl_FragColor = vec4(color, vAlpha);
+            }
+          `,
+              transparent: true,
+              depthWrite: false,
+            });
+
+            const trail = new THREE.Points(trailGeometry, trailMaterial);
+            this.scene.add(trail);
+
+            const trailPoints = [];
+            const trailAlphas = [];
+
+            const updateTrail = () => {
+              const playerPosition = player.getComponent(PositionComponent);
+              trailPoints.unshift(
+                playerPosition.x,
+                playerPosition.y,
+                playerPosition.z
+              );
+              trailAlphas.unshift(1);
+
+              if (trailPoints.length > 300) {
+                trailPoints.splice(300);
+                trailAlphas.splice(100);
+              }
+
+              trailGeometry.setAttribute(
+                'position',
+                new THREE.Float32BufferAttribute(trailPoints, 3)
+              );
+              trailGeometry.setAttribute(
+                'alpha',
+                new THREE.Float32BufferAttribute(trailAlphas, 1)
+              );
+
+              for (let i = 0; i < trailAlphas.length; i++) {
+                trailAlphas[i] *= 0.95;
+              }
+
+              trailMaterial.uniforms.time.value += 0.016;
+
+              if (
+                player.getComponent(PlayerControlledComponent).abilities.boost
+                  .active
+              ) {
+                requestAnimationFrame(updateTrail);
+              } else {
+                this.scene.remove(trail);
+              }
+            };
+
+            updateTrail();
+          }
+
+          activateShield(player) {
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+            playerControl.abilities.shield.active = true;
+
+            const shieldGeometry = new THREE.SphereGeometry(
+              player.getComponent(SizeComponent).size * 1.2,
+              32,
+              32
+            );
+            const shieldMaterial = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+                color: { value: new THREE.Color(0x00ffff) },
+              },
+              vertexShader: `
+            varying vec3 vNormal;
+            void main() {
+              vNormal = normal;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+              fragmentShader: `
+            uniform float time;
+            uniform vec3 color;
+            varying vec3 vNormal;
+            void main() {
+              float intensity = pow(0.8 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
+              gl_FragColor = vec4(color, 0.5 * intensity * (1.0 + 0.5 * sin(time * 5.0)));
+            }
+          `,
+              transparent: true,
+              side: THREE.DoubleSide,
+            });
+            const shieldMesh = new THREE.Mesh(shieldGeometry, shieldMaterial);
+            player.getComponent(RenderComponent).mesh.add(shieldMesh);
+
+            const animateShield = () => {
+              shieldMaterial.uniforms.time.value += 0.016;
+              if (playerControl.abilities.shield.active) {
+                requestAnimationFrame(animateShield);
+              } else {
+                player.getComponent(RenderComponent).mesh.remove(shieldMesh);
+              }
+            };
+            animateShield();
+
+            setTimeout(() => {
+              playerControl.abilities.shield.active = false;
+            }, 10000);
+          }
+
+          activateBoost(player) {
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+            playerControl.abilities.boost.active = true;
+
+            const boostParticles = new THREE.Points(
+              new THREE.BufferGeometry(),
+              new THREE.ShaderMaterial({
+                uniforms: {
+                  time: { value: 0 },
+                  color: { value: new THREE.Color(0xff0000) },
+                },
+                vertexShader: `
+              uniform float time;
+              attribute float size;
+              varying float vAlpha;
+              void main() {
+                vAlpha = 1.0 - (time - position.w) * 2.0;
+                vec3 pos = position.xyz;
+                pos.x += sin(time * 10.0 + position.y) * 0.1;
+                pos.y += cos(time * 10.0 + position.x) * 0.1;
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z) * vAlpha;
+                gl_Position = projectionMatrix * mvPosition;
+              }
+            `,
+                fragmentShader: `
+              uniform vec3 color;
+              varying float vAlpha;
+              void main() {
+                if (length(gl_PointCoord - vec2(0.5)) > 0.5) discard;
+                gl_FragColor = vec4(color, vAlpha);
+              }
+            `,
+                transparent: true,
+                depthWrite: false,
+              })
+            );
+
+            player.getComponent(RenderComponent).mesh.add(boostParticles);
+
+            const updateBoostParticles = () => {
+              const positions = [];
+              const sizes = [];
+              const playerPosition = player.getComponent(PositionComponent);
+              const particleCount = 50;
+
+              for (let i = 0; i < particleCount; i++) {
+                positions.push(
+                  playerPosition.x + (Math.random() - 0.5) * 2,
+                  playerPosition.y + (Math.random() - 0.5) * 2,
+                  playerPosition.z,
+                  Date.now() * 0.001
+                );
+                sizes.push(Math.random() * 2 + 1);
+              }
+
+              boostParticles.geometry.setAttribute(
+                'position',
+                new THREE.Float32BufferAttribute(positions, 4)
+              );
+              boostParticles.geometry.setAttribute(
+                'size',
+                new THREE.Float32BufferAttribute(sizes, 1)
+              );
+
+              boostParticles.material.uniforms.time.value = Date.now() * 0.001;
+
+              if (playerControl.abilities.boost.active) {
+                requestAnimationFrame(updateBoostParticles);
+              } else {
+                player
+                  .getComponent(RenderComponent)
+                  .mesh.remove(boostParticles);
+              }
+            };
+
+            updateBoostParticles();
+
+            setTimeout(() => {
+              playerControl.abilities.boost.active = false;
+            }, 5000);
+          }
+
+          createPowerUp() {
+            const powerUpTypes = ['speed', 'size', 'shield', 'boost'];
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            const playerSize = player
+              ? player.getComponent(SizeComponent).size
+              : this.initialPlayerSize;
+            const type =
+              powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+
+            const entity = new Entity();
+            const x = (Math.random() - 0.5) * this.boundary * 2;
+            const y = (Math.random() - 0.5) * this.boundary * 2;
+            entity.addComponent(new PositionComponent(x, y, 0));
+            entity.addComponent(new SizeComponent(5));
+            entity.addComponent(new PowerUpComponent(type));
+
+            const geometry = new THREE.CircleGeometry(playerSize / 2, 32);
+            const texture = this.createPowerUpTexture(type);
+            const material = new THREE.MeshBasicMaterial({
+              map: texture,
+              transparent: true,
+              side: THREE.DoubleSide,
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            entity.addComponent(new RenderComponent(mesh));
+
+            const shape = new CANNON.Sphere(playerSize / 2);
+            const body = new CANNON.Body({
+              mass: 0,
+              shape: shape,
+              position: new CANNON.Vec3(x, y, 0),
+            });
+            entity.addComponent(new PhysicsComponent(body));
+
+            this.scene.add(mesh);
+            this.physicsSystem.physicsWorld.addBody(body);
+            this.addEntity(entity);
+
+            // Add pulsating effect
+            const pulsate = () => {
+              mesh.scale.x =
+                mesh.scale.y =
+                mesh.scale.z =
+                  1 + Math.sin(Date.now() * 0.005) * 0.1;
+              requestAnimationFrame(pulsate);
+            };
+            pulsate();
+
+            return entity;
+          }
+          createPowerUpTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.beginPath();
+            ctx.arc(64, 64, 62, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Outer glow
+            const gradient = ctx.createRadialGradient(64, 64, 48, 64, 64, 64);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(64, 64, 64, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner circle
+            ctx.fillStyle = this.getPowerUpColor(type);
+            ctx.beginPath();
+            ctx.arc(64, 64, 48, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.getPowerUpLetter(type), 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+          }
+          getPowerUpColor(type) {
+            switch (type) {
+              case 'speed':
+                return 'rgba(255, 255, 0, 0.8)'; // Yellow
+              case 'size':
+                return 'rgba(255, 0, 255, 0.8)'; // Magenta
+              case 'shield':
+                return 'rgba(0, 255, 255, 0.8)'; // Cyan
+              case 'boost':
+                return 'rgba(255, 0, 0, 0.8)'; // Red
+              default:
+                return 'rgba(255, 255, 255, 0.8)'; // White
+            }
+          }
+          getPowerUpLetter(type) {
+            switch (type) {
+              case 'speed':
+                return 'S';
+              case 'size':
+                return 'Z';
+              case 'shield':
+                return 'S';
+              case 'boost':
+                return 'B';
+              default:
+                return '?';
+            }
+          }
+          createObstacle() {
+            const obstacleTypes = ['asteroid'];
+            const type =
+              obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+
+            const entity = new Entity();
+            const x = (Math.random() - 0.5) * this.boundary * 2;
+            const y = (Math.random() - 0.5) * this.boundary * 2;
+            entity.addComponent(new PositionComponent(x, y, 0));
+            entity.addComponent(new ObstacleComponent(type));
+
+            let geometry, material, shape, mass;
+            switch (type) {
+              case 'blackhole':
+                geometry = new THREE.SphereGeometry(10, 32, 32);
+                material = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                shape = new CANNON.Sphere(10);
+                mass = 0;
+                entity.addComponent(new GravityFieldComponent(500, 100));
+                break;
+              case 'asteroid':
+                geometry = new THREE.DodecahedronGeometry(5);
+                material = new THREE.MeshPhongMaterial({ color: 0x808080 });
+                shape = new CANNON.Box(new CANNON.Vec3(5, 5, 5));
+                mass = 100;
+                break;
+              case 'nebula':
+                geometry = new THREE.SphereGeometry(20, 32, 32);
+                material = new THREE.MeshPhongMaterial({
+                  color: 0x4b0082,
+                  transparent: true,
+                  opacity: 0.5,
+                });
+                shape = new CANNON.Sphere(20);
+                mass = 0;
+                break;
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            entity.addComponent(new RenderComponent(mesh));
+            entity.addComponent(
+              new SizeComponent(mesh.geometry.parameters.radius)
+            );
+
+            const body = new CANNON.Body({
+              mass: mass,
+              shape: shape,
+              position: new CANNON.Vec3(x, y, 0),
+            });
+            entity.addComponent(new PhysicsComponent(body));
+
+            this.scene.add(mesh);
+            this.physicsSystem.physicsWorld.addBody(body);
+            this.addEntity(entity);
+          }
+
+          activateShield(player) {
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+            playerControl.abilities.shield.active = true;
+
+            const shieldGeometry = new THREE.SphereGeometry(
+              player.getComponent(SizeComponent).size * 1.2,
+              32,
+              32
+            );
+            const shieldMaterial = new THREE.MeshPhongMaterial({
+              color: 0x0000ff,
+              transparent: true,
+              opacity: 0.3,
+            });
+            const shieldMesh = new THREE.Mesh(shieldGeometry, shieldMaterial);
+            player.getComponent(RenderComponent).mesh.add(shieldMesh);
+
+            setTimeout(() => {
+              playerControl.abilities.shield.active = false;
+              player.getComponent(RenderComponent).mesh.remove(shieldMesh);
+            }, 10000);
+          }
+
+          activateBoost(player) {
+            const playerControl = player.getComponent(
+              PlayerControlledComponent
+            );
+            playerControl.abilities.boost.active = true;
+
+            setTimeout(() => {
+              playerControl.abilities.boost.active = false;
+            }, 5000);
+          }
+
+          createGravitationalPulse(player) {
+            const playerPosition = player.getComponent(PositionComponent);
+            const playerSize = player.getComponent(SizeComponent);
+
+            const pulseGeometry = new THREE.SphereGeometry(
+              playerSize.size * 5,
+              32,
+              32
+            );
+            const pulseMaterial = new THREE.MeshBasicMaterial({
+              color: 0x00ff00,
+              transparent: true,
+              opacity: 0.3,
+            });
+            const pulseMesh = new THREE.Mesh(pulseGeometry, pulseMaterial);
+            pulseMesh.position.set(
+              playerPosition.x,
+              playerPosition.y,
+              playerPosition.z
+            );
+
+            this.scene.add(pulseMesh);
+
+            const pulseAnimation = createjs.Tween.get(pulseMesh.scale)
+              .to({ x: 2, y: 2, z: 2 }, 1000, createjs.Ease.quadOut)
+              .call(() => {
+                this.scene.remove(pulseMesh);
+              });
+
+            pulseAnimation.start();
+
+            for (let entity of this.entities) {
+              if (entity !== player && entity.hasComponent(PhysicsComponent)) {
+                const entityPosition = entity.getComponent(PositionComponent);
+                const physics = entity.getComponent(PhysicsComponent);
+
+                const distance = new THREE.Vector3(
+                  playerPosition.x,
+                  playerPosition.y,
+                  playerPosition.z
+                ).distanceTo(
+                  new THREE.Vector3(
+                    entityPosition.x,
+                    entityPosition.y,
+                    entityPosition.z
+                  )
+                );
+
+                if (distance < playerSize.size * 5) {
+                  const force = (1 - distance / (playerSize.size * 5)) * 500;
+                  const direction = new CANNON.Vec3(
+                    entityPosition.x - playerPosition.x,
+                    entityPosition.y - playerPosition.y,
+                    entityPosition.z - playerPosition.z
+                  ).unit();
+
+                  physics.body.applyForce(direction.scale(force));
+                }
+              }
+            }
+          }
+
+          updateEntityVisual(entity, isPlayer = false) {
+            const renderComponent = entity.getComponent(RenderComponent);
+            if (!renderComponent) return;
+
+            const mesh = renderComponent.mesh;
+            const evolution = entity.getComponent(EvolutionaryStageComponent);
+            const size = entity.getComponent(SizeComponent).size;
+
+            this.scene.remove(mesh);
+
+            const newMesh = this.createEntityMesh(
+              evolution.stage,
+              size,
+              isPlayer
+            );
+
+            renderComponent.mesh = newMesh;
+
+            this.scene.add(newMesh);
+
+            const physicsComponent = entity.getComponent(PhysicsComponent);
+            if (physicsComponent) {
+              const shape = new CANNON.Sphere(size);
+              physicsComponent.body.shapes[0] = shape;
+              physicsComponent.body.updateBoundingRadius();
+            }
+          }
+
+          createSplitEffect(position) {
+            const particleCount = 50;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+
+            const color = new THREE.Color(0xff0000);
+
+            for (let i = 0; i < particleCount; i++) {
+              const i3 = i * 3;
+              const angle = Math.random() * Math.PI * 2;
+              const radius = Math.random() * 2;
+              positions[i3] = position.x + Math.cos(angle) * radius;
+              positions[i3 + 1] = position.y + Math.sin(angle) * radius;
+              positions[i3 + 2] = position.z;
+
+              colors[i3] = color.r;
+              colors[i3 + 1] = color.g;
+              colors[i3 + 2] = color.b;
+
+              sizes[i] = Math.random() * 0.5 + 0.5;
+            }
+
+            geometry.setAttribute(
+              'position',
+              new THREE.BufferAttribute(positions, 3)
+            );
+            geometry.setAttribute(
+              'color',
+              new THREE.BufferAttribute(colors, 3)
+            );
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+              },
+              vertexShader: this.shaders.particleVertex,
+              fragmentShader: this.shaders.particleFragment,
+              blending: THREE.AdditiveBlending,
+              depthTest: false,
+              transparent: true,
+            });
+
+            const particleSystem = new THREE.Points(geometry, material);
+            this.scene.add(particleSystem);
+
+            const startTime = Date.now();
+
+            const animateParticles = () => {
+              const elapsedTime = (Date.now() - startTime) / 1000;
+              material.uniforms.time.value = elapsedTime;
+
+              const positions = geometry.attributes.position.array;
+              const sizes = geometry.attributes.size.array;
+
+              for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const angle = Math.atan2(
+                  positions[i3 + 1] - position.y,
+                  positions[i3] - position.x
+                );
+                const speed = 2 * (1 - elapsedTime / 1.5);
+                positions[i3] += Math.cos(angle) * speed * 0.1;
+                positions[i3 + 1] += Math.sin(angle) * speed * 0.1;
+
+                sizes[i] *= 0.98;
+              }
+
+              geometry.attributes.position.needsUpdate = true;
+              geometry.attributes.size.needsUpdate = true;
+
+              if (elapsedTime < 1.5) {
+                requestAnimationFrame(animateParticles);
+              } else {
+                this.scene.remove(particleSystem);
+              }
+            };
+
+            animateParticles();
+          }
+
+          async playBackgroundMusic() {
+            const musicTopicId = '0.0.6770997';
+            let audioUrl = window?.HCS?.LoadedAudios?.[musicTopicId];
+
+            if (this.playingBackgroundMusic) {
+              return;
+            }
+            this.playingBackgroundMusic = true;
+            await window.HCS.playAudio(musicTopicId, 0.3);
+            setInterval(async () => {
+              audioUrl = window?.HCS?.LoadedAudios?.[musicTopicId];
+              if (!audioUrl) {
+                await window.HCS.playAudio(musicTopicId, 0.3);
+              }
+            }, 30000);
+          }
+
+          startGame() {
+            this.playBackgroundMusic();
+            while (this.entities.length > 0) {
+              this.removeEntity(this.entities[0]);
+            }
+
+            this.score = 0;
+            this.level = 1;
+
+            this.createPlayer();
+
+            for (let i = 0; i < this.initialEnemyCount; i++) {
+              this.createAIEntity(Math.random() < 0.1);
+            }
+
+            for (let i = 0; i < 50; i++) {
+              this.createObstacle();
+            }
+
+            this.createSpaceDust();
+
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+
+            this.gameActive = true;
+          }
+          gameOver() {
+            this.gameActive = false;
+            document.getElementById('game-over-screen').style.display = 'block';
+            document.getElementById('final-score').textContent = this.score;
+            const submitScoreBtn = document.getElementById('submit-score-btn');
+            submitScoreBtn.style.display = isLoggedIn ? 'inline-block' : 'none';
+          }
+
+          updateHUD() {
+            document.getElementById(
+              'score'
+            ).textContent = `Score: ${this.score}`;
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (player) {
+              const size = player.getComponent(SizeComponent);
+              document.getElementById(
+                'size'
+              ).textContent = `Size: ${size.size.toFixed(2)}`;
+            }
+          }
+
+          updateMinimap() {
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            const playerSize = player.getComponent(SizeComponent);
+            const minimap = document.getElementById('minimap');
+            const ctx = minimap.getContext('2d');
+            ctx.clearRect(0, 0, minimap.width, minimap.height);
+
+            // Scale to fit the entire game world within the minimap
+            const scale = minimap.width / (this.boundary * 2);
+
+            // Draw entities on the minimap relative to their world positions
+            for (let entity of this.entities) {
+              if (entity.hasComponent(PositionComponent)) {
+                const position = entity.getComponent(PositionComponent);
+                const size = entity.hasComponent(SizeComponent)
+                  ? entity.getComponent(SizeComponent).size
+                  : 1;
+
+                let color;
+                if (
+                  entity.hasComponent(PlayerControlledComponent) ||
+                  entity.hasComponent(PlayerControlSystem)
+                ) {
+                  color = 'red'; // Change player color to red for better visibility
+                } else if (entity.hasComponent(AIControlledComponent)) {
+                  color = size > playerSize.size * 1.1 ? 'red' : 'green';
+                } else if (entity.hasComponent(ObstacleComponent)) {
+                  color = 'orange';
+                } else if (entity.hasComponent(PowerUpComponent)) {
+                  color = 'yellow';
+                } else {
+                  color = 'white';
+                }
+
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(
+                  (position.x + this.boundary) * scale,
+                  (this.boundary - position.y) * scale,
+                  Math.max(size * scale, 1),
+                  0,
+                  Math.PI * 2
+                );
+                ctx.fill();
+
+                if (entity.hasComponent(PlayerControlledComponent)) {
+                  ctx.strokeStyle = 'gold';
+                  ctx.lineWidth = 5;
+                  ctx.stroke();
+
+                  // Add glow effect to player icon
+                  ctx.shadowColor = 'gold';
+                  ctx.shadowBlur = 10;
+                  ctx.fill();
+                }
+              }
+            }
+
+            // Reset shadow after drawing
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+          }
+
+          onWindowResize() {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+          }
+
+          animate(time) {
+            requestAnimationFrame((t) => this.animate(t));
+
+            if (this.gameActive) {
+              const deltaTime = time - (this.lastTime || time);
+              this.lastTime = time;
+              this.animationTime += deltaTime * 0.001;
+
+              this.update(deltaTime / 1000);
+
+              if (this.backgroundParticles) {
+                this.backgroundParticles.material.uniforms.time.value =
+                  this.animationTime;
+                this.backgroundParticles.material.uniforms.scale.value =
+                  1 + Math.sin(this.animationTime * 0.5) * 0.2;
+              }
+
+              for (let entity of this.entities) {
+                if (entity.hasComponent(RenderComponent)) {
+                  const material =
+                    entity.getComponent(RenderComponent).mesh.material;
+                  if (material.uniforms && material.uniforms.time) {
+                    material.uniforms.time.value = this.animationTime;
+                  }
+                }
+                if (
+                  entity.hasComponent(RenderComponent) &&
+                  entity.hasComponent(EvolutionaryStageComponent)
+                ) {
+                  const renderComponent = entity.getComponent(RenderComponent);
+                  const evolutionComponent = entity.getComponent(
+                    EvolutionaryStageComponent
+                  );
+
+                  if (evolutionComponent.stage === 'black hole') {
+                    const material = renderComponent.mesh.material;
+                    if (material.uniforms) {
+                      material.uniforms.time.value = this.animationTime;
+                    }
+
+                    // Update black hole effects
+                    if (renderComponent.mesh.updateBlackHoleEffects) {
+                      renderComponent.mesh.updateBlackHoleEffects(
+                        this.animationTime
+                      );
+                    }
+                  }
+                }
+              }
+
+              const currentEnemyCount = this.entities.filter((e) =>
+                e.hasComponent(AIControlledComponent)
+              ).length;
+              for (let i = currentEnemyCount; i < this.enemyCount; i++) {
+                this.createAIEntity(Math.random() < 0.3);
+              }
+
+              if (Math.random() < 0.1) this.createPowerUp();
+
+              if (this.score > this.level * 1000) {
+                this.level++;
+                this.createObstacle();
+                this.createAIEntity(true, true);
+              }
+
+              this.updateHUD();
+              this.updateMinimap();
+              createjs.Tween.tick(deltaTime);
+
+              for (let entity of this.entities) {
+                if (entity.hasComponent(RenderComponent)) {
+                  const material =
+                    entity.getComponent(RenderComponent).mesh.material;
+                  if (material.uniforms && material.uniforms.time) {
+                    material.uniforms.time.value = this.animationTime;
+                  }
+                }
+              }
+            }
+
+            this.renderer.render(this.scene, this.camera);
+          }
+
+          createAbsorptionEffect(entity) {
+            const position = entity.getComponent(PositionComponent);
+            const size = entity.getComponent(SizeComponent).size;
+            const particleCount = Math.floor(size * 100);
+
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+
+            const color = new THREE.Color();
+
+            for (let i = 0; i < particleCount; i++) {
+              const i3 = i * 3;
+              positions[i3] = position.x + (Math.random() - 0.5) * size * 2;
+              positions[i3 + 1] = position.y + (Math.random() - 0.5) * size * 2;
+              positions[i3 + 2] = position.z + (Math.random() - 0.5) * size * 2;
+
+              color.setHSL(Math.random(), 1, 0.5 + Math.random() * 0.5);
+              colors[i3] = color.r;
+              colors[i3 + 1] = color.g;
+              colors[i3 + 2] = color.b;
+
+              sizes[i] = Math.random() * 2 + 1;
+            }
+
+            geometry.setAttribute(
+              'position',
+              new THREE.BufferAttribute(positions, 3)
+            );
+            geometry.setAttribute(
+              'color',
+              new THREE.BufferAttribute(colors, 3)
+            );
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+              },
+              vertexShader: this.shaders.particleVertex,
+              fragmentShader: this.shaders.particleFragment,
+              blending: THREE.AdditiveBlending,
+              depthTest: false,
+              transparent: true,
+            });
+
+            const particleSystem = new THREE.Points(geometry, material);
+            this.scene.add(particleSystem);
+
+            const startTime = Date.now();
+
+            const animateParticles = () => {
+              const elapsedTime = (Date.now() - startTime) / 1000;
+              material.uniforms.time.value = elapsedTime;
+
+              const positions = geometry.attributes.position.array;
+              const sizes = geometry.attributes.size.array;
+
+              for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const scale = Math.sin(elapsedTime * 2 + i) * 0.5 + 0.5;
+
+                positions[i3] += Math.sin(elapsedTime + i) * 0.1;
+                positions[i3 + 1] += Math.cos(elapsedTime + i) * 0.1;
+                positions[i3 + 2] += Math.sin(elapsedTime * 2 + i) * 0.1;
+
+                sizes[i] = (Math.sin(elapsedTime * 3 + i) * 0.5 + 0.5) * 3 + 1;
+              }
+
+              geometry.attributes.position.needsUpdate = true;
+              geometry.attributes.size.needsUpdate = true;
+
+              if (elapsedTime < 3) {
+                requestAnimationFrame(animateParticles);
+              } else {
+                this.scene.remove(particleSystem);
+              }
+            };
+
+            animateParticles();
+          }
+          createEvolutionEffect(entity) {
+            const position = entity.getComponent(PositionComponent);
+            const size = entity.getComponent(SizeComponent).size;
+
+            const ringGeometry = new THREE.RingGeometry(size, size + 0.5, 32);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+              side: THREE.DoubleSide,
+              transparent: true,
+              opacity: 0.7,
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.position.set(position.x, position.y, position.z);
+            this.scene.add(ring);
+
+            const tween = new createjs.Tween.get(ring.scale)
+              .to({ x: 2, y: 2, z: 2 }, 1000, createjs.Ease.quadOut)
+              .call(() => {
+                this.scene.remove(ring);
+              });
+
+            const opacityTween = new createjs.Tween.get(ringMaterial).to(
+              { opacity: 0 },
+              1000,
+              createjs.Ease.quadIn
+            );
+          }
+
+          createSpaceDustEffect(position) {
+            const particleCount = 20;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+
+            for (let i = 0; i < particleCount; i++) {
+              const i3 = i * 3;
+              positions[i3] = position.x + (Math.random() - 0.5) * 0.2;
+              positions[i3 + 1] = position.y + (Math.random() - 0.5) * 0.2;
+              positions[i3 + 2] = position.z + (Math.random() - 0.5) * 0.2;
+
+              sizes[i] = Math.random() * 0.05 + 0.02;
+            }
+
+            geometry.setAttribute(
+              'position',
+              new THREE.BufferAttribute(positions, 3)
+            );
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0 },
+              },
+              vertexShader: this.shaders.spaceDustVertex,
+              fragmentShader: this.shaders.spaceDustFragment,
+              blending: THREE.AdditiveBlending,
+              depthTest: false,
+              transparent: true,
+            });
+
+            const particleSystem = new THREE.Points(geometry, material);
+            this.scene.add(particleSystem);
+
+            const startTime = Date.now();
+
+            const animateSpaceDust = () => {
+              const elapsedTime = (Date.now() - startTime) / 1000;
+              material.uniforms.time.value = elapsedTime;
+
+              const positions = geometry.attributes.position.array;
+              const sizes = geometry.attributes.size.array;
+
+              for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const scale = Math.sin(elapsedTime * 2 + i) * 0.5 + 0.5;
+
+                positions[i3] += Math.sin(elapsedTime + i) * 0.001;
+                positions[i3 + 1] += Math.cos(elapsedTime + i) * 0.001;
+                positions[i3 + 2] += Math.sin(elapsedTime * 2 + i) * 0.001;
+
+                sizes[i] =
+                  (Math.sin(elapsedTime * 3 + i) * 0.5 + 0.5) * 0.05 + 0.02;
+              }
+
+              geometry.attributes.position.needsUpdate = true;
+              geometry.attributes.size.needsUpdate = true;
+
+              particleSystem.scale.set(
+                1 + elapsedTime * 2,
+                1 + elapsedTime * 2,
+                1 + elapsedTime * 2
+              );
+
+              if (elapsedTime < 0.5) {
+                requestAnimationFrame(animateSpaceDust);
+              } else {
+                this.scene.remove(particleSystem);
+              }
+            };
+
+            animateSpaceDust();
+          }
+        }
+
+        const world = new World();
+        world.animate(0);
+      };
+    </script>
+        <!-- Note, the Recursion SDK is loaded automatically through the TierBot CDN, you can remove this code before inscribing. -->
+   <script>
+    !function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"function"==typeof define&&define.amd?define(["exports"],e):e((t="undefined"!=typeof globalThis?globalThis:t||self).HCSRecusionSDK={})}(this,(function(t){"use strict";class e{constructor(){this.config={cdnUrl:"https://kiloscribe.com/api/inscription-cdn/",network:"mainnet",retryAttempts:3,retryBackoff:300,debug:!1,showLoadingIndicator:!1,loadingCallbackName:null},this.configMapping={hcsCdnUrl:"cdnUrl",hcsNetwork:"network",hcsRetryAttempts:"retryAttempts",hcsRetryBackoff:"retryBackoff",hcsDebug:"debug",hcsShowLoadingIndicator:"showLoadingIndicator",hcsLoadingCallbackName:"loadingCallbackName"},this.LoadedScripts={},this.LoadedWasm={},this.LoadedImages={},this.LoadedVideos={},this.LoadedAudios={},this.LoadedAudioUrls={},this.LoadedGLBs={},this.scriptLoadedEvent=new Event("HCSScriptLoaded"),this.loadQueue=[],this.isProcessingQueue=!1}log(...t){this.config.debug&&console.log("[HCS SDK]",...t)}error(...t){console.error("[HCS SDK]",...t)}loadConfigFromHTML(){const t=document.querySelector("script[data-hcs-config]");t&&Object.keys(this.configMapping).forEach((e=>{if(t.dataset[e]){const a=this.configMapping[e];let i=t.dataset[e];"true"===i&&(i=!0),"false"===i&&(i=!1),isNaN(Number(i))||""===i||(i=Number(i)),this.config[a]=i}})),this.log("Loaded config:",this.config)}updateLoadingStatus(t,e){if("loaded"!==this.LoadedScripts[t]&&(this.config.showLoadingIndicator&&console.log("[HCS Loading] "+t+" : "+e),this.LoadedScripts[t]=e,this.config.loadingCallbackName&&"function"==typeof window[this.config.loadingCallbackName])){const a=window[this.config.loadingCallbackName];"function"==typeof a&&a(t,e)}}async fetchWithRetry(t,e=this.config.retryAttempts,a=this.config.retryBackoff){try{const e=await fetch(t);if(!e.ok)throw new Error("HTTP error! status: "+e.status);return e}catch(i){if(e>0)return this.log("Retrying fetch for "+t+" Attempts left: "+(e-1)),await this.sleep(a),this.fetchWithRetry(t,e-1,2*a);throw i}}sleep(t){return new Promise((e=>setTimeout(e,t)))}isDuplicate(t){return!!this.LoadedScripts[t]}async retrieveHCS1Data(t,e=this.config.cdnUrl,a=this.config.network){const i=await this.fetchWithRetry(e+t+"?network="+a);return await i.blob()}async loadScript(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),i=null==e?void 0:e.split("/").pop(),o=t.getAttribute("type"),s=t.hasAttribute("data-required");if(!this.isDuplicate(i||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,d=t.getAttribute("data-network")||this.config.network,r=await this.retrieveHCS1Data(i,e,d);if("wasm"===o){const e=await r.arrayBuffer(),i=await WebAssembly.compile(e);this.LoadedWasm[a]=await WebAssembly.instantiate(i,{env:{},...t.dataset}),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded wasm: "+a)}else{const t=await r.text(),e=document.createElement("script");e.textContent=t,document.body.appendChild(e),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded script: "+a),e.onerror=t=>{if(this.error("Failed to load "+o+": "+a,t),this.updateLoadingStatus(a,"failed"),s)throw t}}}catch(d){if(this.error("Failed to load "+o+": "+a,d),this.updateLoadingStatus(a,"failed"),s)throw d}}}async loadStylesheet(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),i=null==e?void 0:e.split("/").pop(),o=t.hasAttribute("data-required");if(!this.isDuplicate(i||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,s=await this.retrieveHCS1Data(i,e,o),d=await s.text(),r=document.createElement("style");r.textContent=d,document.head.appendChild(r),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded and inlined stylesheet: "+a)}catch(s){if(this.error("Failed to load stylesheet: "+a,s),this.updateLoadingStatus(a,"failed"),o)throw s}}}async loadImage(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading image: "+a),this.updateLoadingStatus("Image: "+a,"loaded");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,o=await this.retrieveHCS1Data(a,e,i),s=URL.createObjectURL(o);t.src=s,this.LoadedImages[a]=s,this.updateLoadingStatus("Image: "+a,"loaded"),this.log("Loaded image: "+a)}catch(i){this.error("Failed to load image: "+a,i),this.updateLoadingStatus("Image: "+a,"failed")}}async loadMedia(t,e){const a=t.getAttribute("data-src"),i=null==a?void 0:a.split("/").pop();this.log("Loading "+e+": "+i),this.updateLoadingStatus(e+": "+i,"loading");try{const a=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,s=await this.retrieveHCS1Data(i,a,o),d=URL.createObjectURL(s);t.src=d,"video"===e?this.LoadedVideos[i]=d:this.LoadedAudioUrls[i]=d,this.updateLoadingStatus(e+": "+i,"loaded"),this.log("Loaded "+e+": "+i)}catch(o){this.error("Failed to load "+e+": "+i,o),this.updateLoadingStatus(e+": "+i,"failed")}}async loadGLB(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading GLB: "+a),this.updateLoadingStatus("GLB: "+a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,o=await this.retrieveHCS1Data(a,e,i),s=URL.createObjectURL(o);t.src=s,this.LoadedGLBs[a]=s,this.updateLoadingStatus("GLB: "+a,"loaded"),this.log("Loaded GLB: "+a)}catch(i){this.error("Failed to load GLB: "+a,i),this.updateLoadingStatus("GLB: "+a,"failed")}}async loadResource(t,e,a){return new Promise((i=>{this.loadQueue.push({element:t,type:e,order:a,resolve:i}),this.processQueue()}))}async processQueue(){if(!this.isProcessingQueue){for(this.isProcessingQueue=!0;this.loadQueue.length>0;){const e=this.loadQueue.shift();try{"script"===e.type?await this.loadScript(e.element):"image"===e.type?await this.loadImage(e.element):"video"===e.type||"audio"===e.type?await this.loadMedia(e.element,e.type):"glb"===e.type?await this.loadGLB(e.element):"css"===e.type&&await this.loadStylesheet(e.element),e.resolve()}catch(t){if(this.error("Error processing queue item:",t),"script"===e.type&&e.element.hasAttribute("data-required"))break}}this.isProcessingQueue=!1}}async init(){return this.loadConfigFromHTML(),new Promise((t=>{const e=async()=>{const e=document.querySelectorAll('script[data-src^="hcs://"]'),a=document.querySelectorAll('img[data-src^="hcs://"]'),i=document.querySelectorAll('video[data-src^="hcs://"]'),o=document.querySelectorAll('audio[data-src^="hcs://"]'),s=document.querySelectorAll('model-viewer[data-src^="hcs://"]'),d=document.querySelectorAll('link[data-src^="hcs://"]'),r=[];[{elements:e,type:"script"},{elements:a,type:"image"},{elements:i,type:"video"},{elements:o,type:"audio"},{elements:s,type:"glb"},{elements:d,type:"css"}].forEach((({elements:t,type:e})=>{t.forEach((t=>{const a=parseInt(t.getAttribute("data-load-order")||"")||1/0;r.push(this.loadResource(t,e,a))}))})),await Promise.all(r);const n=new MutationObserver((t=>{t.forEach((t=>{t.addedNodes.forEach((t=>{if(t.nodeType===Node.ELEMENT_NODE){const e=t;e.matches('script[data-src^="hcs://"]')?this.loadResource(e,"script",1/0):e.matches('img[data-src^="hcs://"]')?this.loadResource(e,"image",1/0):e.matches('video[data-src^="hcs://"]')?this.loadResource(e,"video",1/0):e.matches('audio[data-src^="hcs://"]')?this.loadResource(e,"audio",1/0):e.matches('model-viewer[data-src^="hcs://"]')?this.loadResource(e,"glb",1/0):e.matches('link[data-src^="hcs://"]')&&this.loadResource(e,"css",1/0)}}))}))}));document.body?n.observe(document.body,{childList:!0,subtree:!0}):document.addEventListener("DOMContentLoaded",(()=>{n.observe(document.body,{childList:!0,subtree:!0})})),t()};"loading"===document.readyState?document.addEventListener("DOMContentLoaded",e):e()}))}async preloadImage(t){this.log("Loading image:"+t),this.updateLoadingStatus("image: "+t,"loading");const e=await this.retrieveHCS1Data(t),a=URL.createObjectURL(e);return this.LoadedImages[t]=a,this.updateLoadingStatus("image: "+t,"loaded"),a}async preloadAudio(t){const e=document.createElement("audio");e.setAttribute("data-topic-id",t),e.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(e),await this.loadMedia(e,"audio");const a=document.querySelector('audio[data-topic-id="'+t+'"]');return a?this.LoadedAudioUrls[t]=a.src:console.error("Failed to preload audio: "+t),this.LoadedAudioUrls[t]}async playAudio(t,e=1){const a=this.LoadedAudioUrls[t];if(a){const i=new Audio(a);i.volume=e,this.LoadedAudios[t]=i,i.play().catch((t=>{console.error("Failed to play audio:",t)})),i.addEventListener("ended",(()=>{i.remove(),delete this.LoadedAudios[t]}))}else console.error("Audio not preloaded: "+t)}async pauseAudio(t){var e,a;const i=document.querySelector('audio[data-topic-id="'+t+'"]');i?(console.log("found element",i),i.pause(),null==(e=this.LoadedAudios[t])||e.pause()):null==(a=this.LoadedAudios[t])||a.pause()}async loadAndPlayAudio(t,e=!1,a=1){let i=document.querySelector('audio[data-topic-id="'+t+'"]');if(i)i.volume=a,await i.play();else{const o=document.createElement("audio");o.volume=a,e&&o.setAttribute("autoplay","autoplay"),o.setAttribute("data-topic-id",t),o.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(o),await this.loadMedia(o,"audio"),i=document.querySelector('audio[data-topic-id="'+t+'"]'),e||await i.play()}}}window.HCS=new e,window.HCS.init().then((()=>{console.log("All HCS resources loaded"),"function"==typeof window.HCSReady&&(console.log("Running HCSReady..."),window.HCSReady())}));const a=window.HCS;t.HCS=e,t.default=a,t.sleep=t=>new Promise((e=>setTimeout(e,t))),Object.defineProperties(t,{__esModule:{value:!0},[Symbol.toStringTag]:{value:"Module"}})}));
+  </script>
+  </body>
+</html>

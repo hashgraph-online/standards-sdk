@@ -1,0 +1,48 @@
+name: DCO Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  dco-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR Commits
+        id: get-pr-commits
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const query = `query($owner:String!, $repo:String!, $pull_number:Int!) {
+              repository(owner:$owner, name:$repo) {
+                pullRequest(number:$pull_number) {
+                  commits(first:100) {
+                    nodes {
+                      commit {
+                        oid
+                        message
+                      }
+                    }
+                  }
+                }
+              }
+            }`;
+
+            const variables = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            };
+
+            const result = await github.graphql(query, variables);
+
+            const commits = result.repository.pullRequest.commits.nodes.map(node => node.commit);
+
+            const unsigned = commits.filter(commit => !commit.message.includes('Signed-off-by:'));
+
+            if (unsigned.length > 0) {
+              core.setFailed(`The following commits are not signed with DCO:\n${unsigned.map(c => c.oid).join('\n')}\n\nPlease sign your commits using 'git commit -s'.`);
+            } else {
+              console.log('All commits are signed with DCO!');
+            }

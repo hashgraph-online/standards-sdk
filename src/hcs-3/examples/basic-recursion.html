@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>HCS Recursion - With Raw WASM Handling</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #000033;
+      }
+      canvas {
+        display: block;
+      }
+      #overlay {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: #00ffff;
+        font-family: Arial, sans-serif;
+        font-size: 24px;
+        text-shadow: 0 0 10px #00ffff;
+      }
+      #loading-indicator {
+        position: absolute;
+        top: 60px;
+        left: 20px;
+        color: #ffff00;
+        font-family: Arial, sans-serif;
+        font-size: 18px;
+      }
+    </style>
+    <script
+      data-hcs-config
+      data-hcs-cdn-url="https://kiloscribe.com/api/inscription-cdn/"
+      data-hcs-network="mainnet"
+      data-hcs-debug="true"
+      data-hcs-retry-attempts="5"
+      data-hcs-retry-backoff="500"
+      data-hcs-show-loading-indicator="true"
+      data-hcs-loading-callback-name="setLoadingIndicator"
+    ></script>
+  </head>
+  <body>
+    <canvas id="myCanvas"></canvas>
+    <div id="overlay">Basic HCS Recursion with Raw WASM Handling</div>
+    <div id="loading-indicator"></div>
+    <script
+      data-src="hcs://1/0.0.6614307"
+      data-load-order="1"
+      data-script-id="threejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6627067"
+      data-load-order="2"
+      data-script-id="animejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6628687"
+      data-script-id="rust-wasm"
+      type="wasm"
+      data-load-order="3"
+    ></script>
+    <!-- Note, the Recursion SDK is loaded automatically through the TierBot CDN, you can remove this code before inscribing. -->
+    <script>
+        !function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"function"==typeof define&&define.amd?define(["exports"],e):e((t="undefined"!=typeof globalThis?globalThis:t||self).HCSRecusionSDK={})}(this,(function(t){"use strict";const e=t=>new Promise((e=>setTimeout(e,t))),a={config:{cdnUrl:"https://kiloscribe.com/api/inscription-cdn/",network:"mainnet",retryAttempts:3,retryBackoff:300,debug:!1,showLoadingIndicator:!1,loadingCallbackName:null},configMapping:{hcsCdnUrl:"cdnUrl",hcsNetwork:"network",hcsRetryAttempts:"retryAttempts",hcsRetryBackoff:"retryBackoff",hcsDebug:"debug",hcsShowLoadingIndicator:"showLoadingIndicator",hcsLoadingCallbackName:"loadingCallbackName"},LoadedScripts:{},LoadedWasm:{},LoadedImages:{},LoadedVideos:{},LoadedAudios:{},LoadedAudioUrls:{},LoadedGLBs:{},scriptLoadedEvent:new Event("HCSScriptLoaded"),loadQueue:[],isProcessingQueue:!1,log(...t){this.config.debug&&console.log("[HCS SDK]",...t)},error(...t){console.error("[HCS SDK]",...t)},loadConfigFromHTML(){const t=document.querySelector("script[data-hcs-config]");t&&Object.keys(this.configMapping).forEach((e=>{if(t.dataset[e]){const a=this.configMapping[e];let o=t.dataset[e];"true"===o&&(o=!0),"false"===o&&(o=!1),isNaN(Number(o))||""===o||(o=Number(o)),this.config[a]=o}})),this.log("Loaded config:",this.config)},updateLoadingStatus(t,e){"loaded"!==this.LoadedScripts[t]&&(this.config.showLoadingIndicator&&console.log("[HCS Loading] "+t+" : "+e),this.LoadedScripts[t]=e,this.config.loadingCallbackName&&"function"==typeof window[this.config.loadingCallbackName]&&window[this.config.loadingCallbackName](t,e))},async fetchWithRetry(t,a=this.config.retryAttempts,o=this.config.retryBackoff){try{const e=await fetch(t);if(!e.ok)throw new Error("HTTP error! status: "+e.status);return e}catch(i){if(a>0)return this.log("Retrying fetch for "+t+" Attempts left: "+(a-1)),await e(o),this.fetchWithRetry(t,a-1,2*o);throw i}},isDuplicate(t){return!!this.LoadedScripts[t]},async loadScript(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),o=null==e?void 0:e.split("/").pop(),i=t.getAttribute("type"),d=t.hasAttribute("data-required");if(!this.isDuplicate(o||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,s=t.getAttribute("data-network")||this.config.network,r=await this.fetchWithRetry(e+o+"?network="+s);if("wasm"===i){const e=await r.arrayBuffer(),o=await WebAssembly.compile(e);return this.LoadedWasm[a]=await WebAssembly.instantiate(o,{env:{},...t.dataset}),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded wasm: "+a),this.LoadedWasm[a]}{const t=await r.text(),e=document.createElement("script");e.textContent=t,document.body.appendChild(e),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded script: "+a),e.onerror=t=>{if(this.error("Failed to load "+i+": "+a,t),this.updateLoadingStatus(a,"failed"),d)throw t}}}catch(s){if(this.error("Failed to load "+i+": "+a,s),this.updateLoadingStatus(a,"failed"),d)throw s}}},async loadStylesheet(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),o=null==e?void 0:e.split("/").pop(),i=t.hasAttribute("data-required");if(!this.isDuplicate(o||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,d=await this.fetchWithRetry(e+o+"?network="+i),s=await d.text(),r=document.createElement("style");r.textContent=s,document.head.appendChild(r),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded and inlined stylesheet: "+a)}catch(d){if(this.error("Failed to load stylesheet: "+a,d),this.updateLoadingStatus(a,"failed"),i)throw d}}},async loadImage(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading image: "+a),this.updateLoadingStatus("Image: "+a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,i=await this.fetchWithRetry(e+a+"?network="+o),d=await i.blob(),s=URL.createObjectURL(d);t.src=s,this.LoadedImages[a]=s,this.updateLoadingStatus("Image: "+a,"loaded"),this.log("Loaded image: "+a)}catch(o){this.error("Failed to load image: "+a,o),this.updateLoadingStatus("Image: "+a,"failed")}},async loadMedia(t,e){const a=t.getAttribute("data-src"),o=null==a?void 0:a.split("/").pop();this.log("Loading "+e+": "+o),this.updateLoadingStatus(e+": "+o,"loading");try{const a=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,d=await this.fetchWithRetry(a+o+"?network="+i),s=await d.blob(),r=URL.createObjectURL(s);t.src=r,"video"===e?this.LoadedVideos[o]=r:this.LoadedAudios[o]=r,this.updateLoadingStatus(e+": "+o,"loaded"),this.log("Loaded "+e+": "+o)}catch(i){this.error("Failed to load "+e+": "+o,i),this.updateLoadingStatus(e+": "+o,"failed")}},async loadGLB(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading GLB: "+a),this.updateLoadingStatus("GLB: "+a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,i=await this.fetchWithRetry(e+a+"?network="+o),d=await i.blob(),s=URL.createObjectURL(d);t.src=s,this.LoadedGLBs[a]=s,this.updateLoadingStatus("GLB: "+a,"loaded"),this.log("Loaded GLB: "+a)}catch(o){this.error("Failed to load GLB: "+a,o),this.updateLoadingStatus("GLB: "+a,"failed")}},async loadResource(t,e,a){return new Promise((o=>{this.loadQueue.push({element:t,type:e,order:a,resolve:o}),this.processQueue()}))},async processQueue(){if(!this.isProcessingQueue){for(this.isProcessingQueue=!0;this.loadQueue.length>0;){const e=this.loadQueue.shift();try{"script"===e.type?await this.loadScript(e.element):"image"===e.type?await this.loadImage(e.element):"video"===e.type||"audio"===e.type?await this.loadMedia(e.element,e.type):"glb"===e.type?await this.loadGLB(e.element):"css"===e.type&&await this.loadStylesheet(e.element),e.resolve()}catch(t){if(this.error("Error processing queue item:",t),"script"===e.type&&e.element.hasAttribute("data-required"))break}}this.isProcessingQueue=!1}},async init(){return this.loadConfigFromHTML(),new Promise((t=>{const e=async()=>{const e=document.querySelectorAll('script[data-src^="hcs://"]'),a=document.querySelectorAll('img[data-src^="hcs://"]'),o=document.querySelectorAll('video[data-src^="hcs://"]'),i=document.querySelectorAll('audio[data-src^="hcs://"]'),d=document.querySelectorAll('model-viewer[data-src^="hcs://"]'),s=document.querySelectorAll('link[data-src^="hcs://"]'),r=[];[{elements:e,type:"script"},{elements:a,type:"image"},{elements:o,type:"video"},{elements:i,type:"audio"},{elements:d,type:"glb"},{elements:s,type:"css"}].forEach((({elements:t,type:e})=>{t.forEach((t=>{const a=parseInt(t.getAttribute("data-load-order")||"")||1/0;r.push(this.loadResource(t,e,a))}))})),await Promise.all(r);const n=new MutationObserver((t=>{t.forEach((t=>{t.addedNodes.forEach((t=>{if(t.nodeType===Node.ELEMENT_NODE){const e=t;e.matches('script[data-src^="hcs://"]')?this.loadResource(e,"script",1/0):e.matches('img[data-src^="hcs://"]')?this.loadResource(e,"image",1/0):e.matches('video[data-src^="hcs://"]')?this.loadResource(e,"video",1/0):e.matches('audio[data-src^="hcs://"]')?this.loadResource(e,"audio",1/0):e.matches('model-viewer[data-src^="hcs://"]')?this.loadResource(e,"glb",1/0):e.matches('link[data-src^="hcs://"]')&&this.loadResource(e,"css",1/0)}}))}))}));document.body?n.observe(document.body,{childList:!0,subtree:!0}):document.addEventListener("DOMContentLoaded",(()=>{n.observe(document.body,{childList:!0,subtree:!0})})),t()};"loading"===document.readyState?document.addEventListener("DOMContentLoaded",e):e()}))},async preloadAudio(t){const e=document.createElement("audio");e.setAttribute("data-topic-id",t),e.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(e),await this.loadMedia(e,"audio");const a=document.querySelector('audio[data-topic-id="'+t+'"]');a?this.LoadedAudioUrls[t]=a.src:console.error("Failed to preload audio: "+t)},async playAudio(t,e=1){const a=this.LoadedAudioUrls[t];if(a){const o=new Audio(a);o.volume=e,this.LoadedAudios[t]=o,o.play().catch((t=>{console.error("Failed to play audio:",t)})),o.addEventListener("ended",(()=>{o.remove(),delete this.LoadedAudios[t]}))}else console.error("Audio not preloaded: "+t)},async pauseAudio(t){var e,a;const o=document.querySelector('audio[data-topic-id="'+t+'"]');o?(console.log("found element",o),o.pause(),null==(e=this.LoadedAudios[t])||e.pause()):null==(a=this.LoadedAudios[t])||a.pause()},async loadAndPlayAudio(t,e=!1,a=1){let o=document.querySelector('audio[data-topic-id="'+t+'"]');if(o)o.volume=a,await o.play();else{const i=document.createElement("audio");i.volume=a,e&&i.setAttribute("autoplay","autoplay"),i.setAttribute("data-topic-id",t),i.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(i),await this.loadMedia(i,"audio"),o=document.querySelector('audio[data-topic-id="'+t+'"]'),e||await o.play()}}};window.HCS=a,a.init().then((()=>{console.log("All HCS resources loaded"),"function"==typeof window.HCSReady&&(console.log("Running HCSReady..."),window.HCSReady())})),t.default=a,t.sleep=e,Object.defineProperties(t,{__esModule:{value:!0},[Symbol.toStringTag]:{value:"Module"}})}));
+    </script>
+    <script>
+      window.setLoadingIndicator = function (id, status) {
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        let element = document.getElementById(`loading-status-${id}`);
+        if (!element) {
+          element = document.createElement('div');
+          element.id = `loading-status-${id}`;
+          loadingIndicator.appendChild(element);
+        }
+
+        element.className = `nes-text ${
+          status === 'loaded' ? 'is-success' : 'is-warning'
+        }`;
+        element.innerHTML = `${id}: ${
+          status === 'loaded' ? 'Loaded!' : 'Loading...'
+        }`;
+
+        loadingIndicator.scrollTop = loadingIndicator.scrollHeight;
+      };
+      window.HCSReady = async function () {
+        console.log(
+          'All scripts and WASM modules loaded, initializing demo',
+          window.HCS
+        );
+
+        const rustWasm = window.HCS.LoadedWasm['rust-wasm'].exports;
+
+        // Set up Three.js scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({
+          canvas: document.getElementById('myCanvas'),
+          antialias: true,
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000033);
+
+        // Create a simple character
+        const characterGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const characterMaterial = new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+        });
+        const character = new THREE.Mesh(characterGeometry, characterMaterial);
+        scene.add(character);
+
+        camera.position.z = 5;
+
+        // Animate the character using Anime.js
+        anime({
+          targets: character.position,
+          x: [-2, 2],
+          duration: 2000,
+          easing: 'easeInOutQuad',
+          loop: true,
+          direction: 'alternate',
+        });
+
+        let frame = 0;
+        function animate() {
+          requestAnimationFrame(animate);
+
+          // Call WASM function (if it exists)
+          if (rustWasm.update_position) {
+            frame = rustWasm.update_position(frame);
+            character.position.y = Math.sin(frame * 0.1) * 0.5;
+          }
+
+          // Update Three.js scene
+          renderer.render(scene, camera);
+        }
+
+        animate();
+        console.log('Animation started');
+
+        window.addEventListener(
+          'resize',
+          function () {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+          },
+          false
+        );
+
+        console.log('Scene setup complete');
+      };
+    </script>
+  </body>
+</html>
