@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hashinova (Simple) - HCS-3 Game</title>
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        font-family: Arial, sans-serif;
+      }
+      #game-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      #hud {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        font-size: 18px;
+        text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
+      }
+      #minimap {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        width: 200px;
+        height: 200px;
+        background-color: rgba(0, 0, 0, 0.5);
+        border: 2px solid white;
+      }
+      #start-screen,
+      #game-over-screen {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        background-color: rgba(0, 0, 0, 0.7);
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+      }
+      button {
+        background-color: #4caf50;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+    </style>
+    <script
+      data-src="hcs://1/0.0.6614307"
+      data-load-order="2"
+      data-script-id="threejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6627067"
+      data-load-order="3"
+      data-script-id="animejs"
+    ></script>
+  </head>
+  <body>
+    <div id="game-container">
+      <div id="hud">
+        <div id="score">Score: 0</div>
+        <div id="size">Size: 1.00</div>
+        <div id="level">Level: 1</div>
+      </div>
+      <canvas id="minimap"></canvas>
+      <div id="start-screen">
+        <h1>HashiNova</h1>
+        <p>
+          Absorb smaller celestial bodies to grow. Avoid larger ones and
+          obstacles!
+        </p>
+        <p>
+          Use WASD or Arrow keys to move. Mouse to aim. Space to use special
+          ability.
+        </p>
+        <button id="start-button">Start Game</button>
+      </div>
+      <div id="game-over-screen" style="display: none">
+        <h1>Game Over</h1>
+        <p>Your final score: <span id="final-score"></span></p>
+        <p>Highest level reached: <span id="final-level"></span></p>
+        <button id="restart-button">Play Again</button>
+      </div>
+    </div>
+
+    <script>
+      window.HCSReady = async function () {
+        console.log('All resources loaded, initializing game');
+
+        class Component {}
+
+        class PositionComponent extends Component {
+          constructor(x, y, z) {
+            super();
+            this.x = x;
+            this.y = y;
+            this.z = z;
+          }
+        }
+
+        class VelocityComponent extends Component {
+          constructor(vx, vy, vz) {
+            super();
+            this.vx = vx;
+            this.vy = vy;
+            this.vz = vz;
+          }
+        }
+
+        class RenderComponent extends Component {
+          constructor(mesh) {
+            super();
+            this.mesh = mesh;
+          }
+        }
+
+        class SizeComponent extends Component {
+          constructor(size) {
+            super();
+            this.size = size;
+          }
+        }
+
+        class PlayerControlledComponent extends Component {
+          constructor() {
+            super();
+            this.specialAbilityCooldown = 0;
+          }
+        }
+
+        class AIControlledComponent extends Component {}
+
+        class AbsorbableComponent extends Component {}
+
+        class PowerUpComponent extends Component {
+          constructor(type) {
+            super();
+            this.type = type;
+          }
+        }
+
+        class ObstacleComponent extends Component {
+          constructor(type) {
+            super();
+            this.type = type;
+          }
+        }
+
+        class Entity {
+          constructor() {
+            this.components = new Map();
+          }
+
+          addComponent(component) {
+            this.components.set(component.constructor, component);
+          }
+
+          removeComponent(componentClass) {
+            this.components.delete(componentClass);
+          }
+
+          getComponent(componentClass) {
+            return this.components.get(componentClass);
+          }
+
+          hasComponent(componentClass) {
+            return this.components.has(componentClass);
+          }
+        }
+
+        class System {
+          constructor(world) {
+            this.world = world;
+          }
+
+          update(deltaTime) {}
+        }
+
+        class MovementSystem extends System {
+          update(deltaTime) {
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(PositionComponent) &&
+                entity.hasComponent(VelocityComponent)
+              ) {
+                const position = entity.getComponent(PositionComponent);
+                const velocity = entity.getComponent(VelocityComponent);
+
+                position.x += velocity.vx * deltaTime;
+                position.y += velocity.vy * deltaTime;
+                position.z += velocity.vz * deltaTime;
+
+                const bound = 1000;
+                position.x = Math.max(-bound, Math.min(bound, position.x));
+                position.y = Math.max(-bound, Math.min(bound, position.y));
+                position.z = Math.max(-bound, Math.min(bound, position.z));
+              }
+            }
+          }
+        }
+
+        class RenderSystem extends System {
+          update() {
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(PositionComponent) &&
+                entity.hasComponent(RenderComponent)
+              ) {
+                const position = entity.getComponent(PositionComponent);
+                const render = entity.getComponent(RenderComponent);
+
+                render.mesh.position.set(position.x, position.y, position.z);
+
+                if (entity.hasComponent(SizeComponent)) {
+                  const size = entity.getComponent(SizeComponent);
+                  render.mesh.scale.set(size.size, size.size, size.size);
+                }
+              }
+            }
+          }
+        }
+
+        class PlayerControlSystem extends System {
+          constructor(world, camera) {
+            super(world);
+            this.camera = camera;
+            this.mouse = new THREE.Vector2();
+            this.raycaster = new THREE.Raycaster();
+            this.keys = {};
+
+            window.addEventListener('mousemove', (event) => {
+              this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+              this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            });
+
+            window.addEventListener('keydown', (event) => {
+              this.keys[event.key.toLowerCase()] = true;
+              if (event.key === ' ') {
+                this.useSpecialAbility();
+              }
+            });
+
+            window.addEventListener('keyup', (event) => {
+              this.keys[event.key.toLowerCase()] = false;
+            });
+          }
+
+          update(deltaTime) {
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(PlayerControlledComponent) &&
+                entity.hasComponent(VelocityComponent)
+              ) {
+                const velocity = entity.getComponent(VelocityComponent);
+                const position = entity.getComponent(PositionComponent);
+                const playerControl = entity.getComponent(
+                  PlayerControlledComponent
+                );
+
+                let dx = 0,
+                  dy = 0;
+                if (this.keys['w'] || this.keys['arrowup']) dy += 1;
+                if (this.keys['s'] || this.keys['arrowdown']) dy -= 1;
+                if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
+                if (this.keys['d'] || this.keys['arrowright']) dx += 1;
+
+                const speed = 150;
+                velocity.vx = dx * speed;
+                velocity.vy = dy * speed;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObject(
+                  this.world.plane
+                );
+
+                if (intersects.length > 0) {
+                  const target = intersects[0].point;
+                  const direction = new THREE.Vector3().subVectors(
+                    target,
+                    position
+                  );
+                  direction.normalize();
+
+                  velocity.vx += direction.x * speed * 0.5;
+                  velocity.vy += direction.y * speed * 0.5;
+                }
+
+                this.camera.position.x = position.x;
+                this.camera.position.y = position.y;
+                this.camera.position.z = 300 + position.z;
+                this.camera.lookAt(position.x, position.y, position.z);
+
+                if (playerControl.specialAbilityCooldown > 0) {
+                  playerControl.specialAbilityCooldown -= deltaTime;
+                }
+              }
+            }
+          }
+
+          useSpecialAbility() {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (player) {
+              const playerControl = player.getComponent(
+                PlayerControlledComponent
+              );
+              if (playerControl.specialAbilityCooldown <= 0) {
+                this.world.createGravitationalPulse(player);
+                playerControl.specialAbilityCooldown = 10;
+              }
+            }
+          }
+        }
+
+        class CollisionSystem extends System {
+          update() {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerPosition = player.getComponent(PositionComponent);
+            const playerSize = player.getComponent(SizeComponent);
+
+            for (let entity of this.world.entities) {
+              if (entity === player) continue;
+
+              if (entity.hasComponent(AbsorbableComponent)) {
+                const entityPosition = entity.getComponent(PositionComponent);
+                const entitySize = entity.getComponent(SizeComponent);
+
+                const distance = new THREE.Vector3(
+                  playerPosition.x,
+                  playerPosition.y,
+                  playerPosition.z
+                ).distanceTo(
+                  new THREE.Vector3(
+                    entityPosition.x,
+                    entityPosition.y,
+                    entityPosition.z
+                  )
+                );
+
+                if (distance < (playerSize.size + entitySize.size) * 2.5) {
+                  if (playerSize.size > entitySize.size) {
+                    playerSize.size += entitySize.size * 0.1;
+                    this.world.removeEntity(entity);
+                    this.world.score += Math.floor(entitySize.size * 10);
+                    this.world.updateHUD();
+                  } else {
+                    this.world.gameOver();
+                  }
+                }
+              }
+
+              if (entity.hasComponent(PowerUpComponent)) {
+                const entityPosition = entity.getComponent(PositionComponent);
+                const distance = new THREE.Vector3(
+                  playerPosition.x,
+                  playerPosition.y,
+                  playerPosition.z
+                ).distanceTo(
+                  new THREE.Vector3(
+                    entityPosition.x,
+                    entityPosition.y,
+                    entityPosition.z
+                  )
+                );
+
+                if (distance < (playerSize.size + 5) * 2.5) {
+                  const powerUp = entity.getComponent(PowerUpComponent);
+                  this.world.applyPowerUp(powerUp.type);
+                  this.world.removeEntity(entity);
+                }
+              }
+
+              if (entity.hasComponent(ObstacleComponent)) {
+                const entityPosition = entity.getComponent(PositionComponent);
+                const entitySize = entity.getComponent(SizeComponent);
+                const distance = new THREE.Vector3(
+                  playerPosition.x,
+                  playerPosition.y,
+                  playerPosition.z
+                ).distanceTo(
+                  new THREE.Vector3(
+                    entityPosition.x,
+                    entityPosition.y,
+                    entityPosition.z
+                  )
+                );
+
+                if (distance < (playerSize.size + entitySize.size) * 1.5) {
+                  const obstacle = entity.getComponent(ObstacleComponent);
+                  switch (obstacle.type) {
+                    case 'blackhole':
+                      this.world.gameOver();
+                      break;
+                    case 'asteroid':
+                      playerSize.size *= 0.9;
+                      this.world.removeEntity(entity);
+                      break;
+                    case 'nebula':
+                      const velocity = player.getComponent(VelocityComponent);
+                      velocity.vx *= 0.5;
+                      velocity.vy *= 0.5;
+                      break;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        class AISystem extends System {
+          update(deltaTime) {
+            const player = this.world.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            const playerPosition = player.getComponent(PositionComponent);
+
+            for (let entity of this.world.entities) {
+              if (
+                entity.hasComponent(AIControlledComponent) &&
+                entity.hasComponent(VelocityComponent)
+              ) {
+                const velocity = entity.getComponent(VelocityComponent);
+                const position = entity.getComponent(PositionComponent);
+                const size = entity.getComponent(SizeComponent);
+
+                const direction = new THREE.Vector3().subVectors(
+                  new THREE.Vector3(
+                    playerPosition.x,
+                    playerPosition.y,
+                    playerPosition.z
+                  ),
+                  new THREE.Vector3(position.x, position.y, position.z)
+                );
+                direction.normalize();
+
+                const playerSize = player.getComponent(SizeComponent).size;
+                const aiSize = size.size;
+                const speed = 50 + 50 * (1 - aiSize / 10);
+
+                if (aiSize < playerSize) {
+                  velocity.vx = -direction.x * speed;
+                  velocity.vy = -direction.y * speed;
+                } else {
+                  velocity.vx = direction.x * speed;
+                  velocity.vy = direction.y * speed;
+                }
+
+                const bound = 975;
+                if (Math.abs(position.x) > bound)
+                  velocity.vx = -Math.sign(position.x) * speed;
+                if (Math.abs(position.y) > bound)
+                  velocity.vy = -Math.sign(position.y) * speed;
+              }
+            }
+          }
+        }
+
+        class GravitySystem extends System {
+          update(deltaTime) {
+            const entities = this.world.entities.filter(
+              (e) =>
+                e.hasComponent(SizeComponent) &&
+                e.hasComponent(PositionComponent)
+            );
+
+            for (let i = 0; i < entities.length; i++) {
+              for (let j = i + 1; j < entities.length; j++) {
+                const entity1 = entities[i];
+                const entity2 = entities[j];
+
+                const pos1 = entity1.getComponent(PositionComponent);
+                const pos2 = entity2.getComponent(PositionComponent);
+                const size1 = entity1.getComponent(SizeComponent);
+                const size2 = entity2.getComponent(SizeComponent);
+
+                const dx = pos2.x - pos1.x;
+                const dy = pos2.y - pos1.y;
+                const dz = pos2.z - pos1.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                if (distance > 0 && distance < 500) {
+                  const force =
+                    (1 * (size1.size * size2.size)) / (distance * distance);
+                  const fx = (force * dx) / distance;
+                  const fy = (force * dy) / distance;
+                  const fz = (force * dz) / distance;
+
+                  if (entity1.hasComponent(VelocityComponent)) {
+                    const vel1 = entity1.getComponent(VelocityComponent);
+                    vel1.vx += (fx * deltaTime) / size1.size;
+                    vel1.vy += (fy * deltaTime) / size1.size;
+                    vel1.vz += (fz * deltaTime) / size1.size;
+                  }
+
+                  if (entity2.hasComponent(VelocityComponent)) {
+                    const vel2 = entity2.getComponent(VelocityComponent);
+                    vel2.vx -= (fx * deltaTime) / size2.size;
+                    vel2.vy -= (fy * deltaTime) / size2.size;
+                    vel2.vz -= (fz * deltaTime) / size2.size;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        class MinimapSystem extends System {
+          constructor(world, minimapCanvas) {
+            super(world);
+            this.minimapCanvas = minimapCanvas;
+            this.minimapCtx = minimapCanvas.getContext('2d');
+          }
+
+          update() {
+            const mapSize = 200;
+            const worldSize = 2000;
+            const scale = mapSize / worldSize;
+
+            this.minimapCtx.clearRect(0, 0, mapSize, mapSize);
+
+            for (let entity of this.world.entities) {
+              if (entity.hasComponent(PositionComponent)) {
+                const position = entity.getComponent(PositionComponent);
+                const x = (position.x + worldSize / 2) * scale;
+                const y = (position.y + worldSize / 2) * scale;
+
+                if (entity.hasComponent(PlayerControlledComponent)) {
+                  this.minimapCtx.fillStyle = 'lime';
+                  this.minimapCtx.beginPath();
+                  this.minimapCtx.arc(x, y, 4, 0, Math.PI * 2);
+                  this.minimapCtx.fill();
+                } else if (entity.hasComponent(AIControlledComponent)) {
+                  this.minimapCtx.fillStyle = 'red';
+                  this.minimapCtx.fillRect(x - 2, y - 2, 4, 4);
+                } else if (entity.hasComponent(PowerUpComponent)) {
+                  this.minimapCtx.fillStyle = 'yellow';
+                  this.minimapCtx.fillRect(x - 2, y - 2, 4, 4);
+                } else if (entity.hasComponent(ObstacleComponent)) {
+                  this.minimapCtx.fillStyle = 'white';
+                  this.minimapCtx.fillRect(x - 2, y - 2, 4, 4);
+                }
+              }
+            }
+          }
+        }
+
+        class World {
+          constructor() {
+            this.entities = [];
+            this.systems = [];
+            this.score = 0;
+            this.level = 1;
+            this.gameActive = false;
+
+            this.scene = new THREE.Scene();
+            this.camera = new THREE.PerspectiveCamera(
+              75,
+              window.innerWidth / window.innerHeight,
+              0.1,
+              2000
+            );
+            this.renderer = new THREE.WebGLRenderer();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            document
+              .getElementById('game-container')
+              .appendChild(this.renderer.domElement);
+
+            const planeGeometry = new THREE.PlaneGeometry(2000, 2000);
+            const planeMaterial = new THREE.MeshBasicMaterial({
+              visible: false,
+            });
+            this.plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            this.plane.rotation.x = -Math.PI / 2;
+            this.scene.add(this.plane);
+
+            this.camera.position.set(0, 0, 300);
+            this.camera.lookAt(0, 0, 0);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            this.scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(1, 1, 1);
+            this.scene.add(directionalLight);
+
+            this.createStarfield();
+
+            const minimapCanvas = document.getElementById('minimap');
+            minimapCanvas.width = 200;
+            minimapCanvas.height = 200;
+
+            this.addSystem(new MovementSystem(this));
+            this.addSystem(new RenderSystem(this));
+            this.addSystem(new PlayerControlSystem(this, this.camera));
+            this.addSystem(new CollisionSystem(this));
+            this.addSystem(new AISystem(this));
+            this.addSystem(new GravitySystem(this));
+            this.addSystem(new MinimapSystem(this, minimapCanvas));
+
+            window.addEventListener('resize', () => this.onWindowResize());
+            document
+              .getElementById('start-button')
+              .addEventListener('click', () => this.startGame());
+            document
+              .getElementById('restart-button')
+              .addEventListener('click', () => this.startGame());
+
+            this.updateHUD();
+          }
+
+          createStarfield() {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({
+              color: 0xffffff,
+              size: 0.5,
+            });
+
+            const starsVertices = [];
+            for (let i = 0; i < 10000; i++) {
+              const x = (Math.random() - 0.5) * 2000;
+              const y = (Math.random() - 0.5) * 2000;
+              const z = (Math.random() - 0.5) * 2000;
+              starsVertices.push(x, y, z);
+            }
+
+            starsGeometry.setAttribute(
+              'position',
+              new THREE.Float32BufferAttribute(starsVertices, 3)
+            );
+            const starField = new THREE.Points(starsGeometry, starsMaterial);
+            this.scene.add(starField);
+          }
+
+          addEntity(entity) {
+            this.entities.push(entity);
+          }
+
+          removeEntity(entity) {
+            const index = this.entities.indexOf(entity);
+            if (index !== -1) {
+              this.entities.splice(index, 1);
+              if (entity.hasComponent(RenderComponent)) {
+                const renderComponent = entity.getComponent(RenderComponent);
+                this.scene.remove(renderComponent.mesh);
+              }
+            }
+          }
+
+          addSystem(system) {
+            this.systems.push(system);
+          }
+
+          update(deltaTime) {
+            for (let system of this.systems) {
+              system.update(deltaTime);
+            }
+          }
+
+          createPlayer() {
+            const player = new Entity();
+            player.addComponent(new PositionComponent(0, 0, 0));
+            player.addComponent(new VelocityComponent(0, 0, 0));
+            player.addComponent(new SizeComponent(5));
+            player.addComponent(new PlayerControlledComponent());
+
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshPhongMaterial({
+              color: 0x00ff00,
+              emissive: 0x00ff00,
+              emissiveIntensity: 0.3,
+              shininess: 100,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            player.addComponent(new RenderComponent(mesh));
+
+            this.scene.add(mesh);
+            this.addEntity(player);
+
+            return player;
+          }
+
+          createAIEntity() {
+            const entity = new Entity();
+            entity.addComponent(
+              new PositionComponent(
+                (Math.random() - 0.5) * 1800,
+                (Math.random() - 0.5) * 1800,
+                0
+              )
+            );
+            entity.addComponent(new VelocityComponent(0, 0, 0));
+            const size = Math.random() * 4 + 1;
+            entity.addComponent(new SizeComponent(size));
+            entity.addComponent(new AIControlledComponent());
+            entity.addComponent(new AbsorbableComponent());
+
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshPhongMaterial({
+              color: Math.random() * 0xffffff,
+              shininess: 50,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            entity.addComponent(new RenderComponent(mesh));
+
+            this.scene.add(mesh);
+            this.addEntity(entity);
+          }
+
+          createPowerUp() {
+            const powerUpTypes = ['speed', 'size', 'split', 'shield'];
+            const type =
+              powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+
+            const entity = new Entity();
+            entity.addComponent(
+              new PositionComponent(
+                (Math.random() - 0.5) * 1800,
+                (Math.random() - 0.5) * 1800,
+                0
+              )
+            );
+            entity.addComponent(new PowerUpComponent(type));
+
+            let color;
+            switch (type) {
+              case 'speed':
+                color = 0xffff00;
+                break;
+              case 'size':
+                color = 0xff00ff;
+                break;
+              case 'split':
+                color = 0x00ffff;
+                break;
+              case 'shield':
+                color = 0x0000ff;
+                break;
+            }
+
+            const geometry = new THREE.OctahedronGeometry(2.5);
+            const material = new THREE.MeshPhongMaterial({
+              color: color,
+              emissive: color,
+              emissiveIntensity: 0.5,
+              shininess: 100,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            entity.addComponent(new RenderComponent(mesh));
+
+            this.scene.add(mesh);
+            this.addEntity(entity);
+          }
+
+          createObstacle() {
+            const obstacleTypes = ['blackhole', 'asteroid', 'nebula'];
+            const type =
+              obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+
+            const entity = new Entity();
+            entity.addComponent(
+              new PositionComponent(
+                (Math.random() - 0.5) * 1800,
+                (Math.random() - 0.5) * 1800,
+                0
+              )
+            );
+            entity.addComponent(new ObstacleComponent(type));
+
+            let geometry, material;
+            switch (type) {
+              case 'blackhole':
+                geometry = new THREE.SphereGeometry(10, 32, 32);
+                material = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                break;
+              case 'asteroid':
+                geometry = new THREE.DodecahedronGeometry(5);
+                material = new THREE.MeshPhongMaterial({ color: 0x808080 });
+                break;
+              case 'nebula':
+                geometry = new THREE.SphereGeometry(20, 32, 32);
+                material = new THREE.MeshPhongMaterial({
+                  color: 0x4b0082,
+                  transparent: true,
+                  opacity: 0.5,
+                });
+                break;
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            entity.addComponent(new RenderComponent(mesh));
+            entity.addComponent(
+              new SizeComponent(mesh.geometry.parameters.radius)
+            );
+
+            this.scene.add(mesh);
+            this.addEntity(entity);
+          }
+
+          applyPowerUp(type) {
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (!player) return;
+
+            switch (type) {
+              case 'speed':
+                const velocity = player.getComponent(VelocityComponent);
+                velocity.vx *= 1.5;
+                velocity.vy *= 1.5;
+                velocity.vz *= 1.5;
+                setTimeout(() => {
+                  velocity.vx /= 1.5;
+                  velocity.vy /= 1.5;
+                  velocity.vz /= 1.5;
+                }, 5000);
+                break;
+              case 'size':
+                const size = player.getComponent(SizeComponent);
+                size.size *= 1.2;
+                break;
+              case 'split':
+                this.splitPlayer(player);
+                break;
+              case 'shield':
+                break;
+            }
+          }
+
+          splitPlayer(player) {
+            const position = player.getComponent(PositionComponent);
+            const size = player.getComponent(SizeComponent);
+
+            if (size.size > 2.5) {
+              size.size *= 0.7;
+
+              const splitEntity = new Entity();
+              splitEntity.addComponent(
+                new PositionComponent(position.x, position.y, position.z)
+              );
+              splitEntity.addComponent(
+                new VelocityComponent(
+                  (Math.random() - 0.5) * 100,
+                  (Math.random() - 0.5) * 100,
+                  0
+                )
+              );
+              splitEntity.addComponent(new SizeComponent(size.size));
+              splitEntity.addComponent(new PlayerControlledComponent());
+
+              const geometry = new THREE.SphereGeometry(1, 32, 32);
+              const material = new THREE.MeshPhongMaterial({
+                color: 0x00ff00,
+                emissive: 0x00ff00,
+                emissiveIntensity: 0.3,
+                shininess: 100,
+              });
+              const mesh = new THREE.Mesh(geometry, material);
+              splitEntity.addComponent(new RenderComponent(mesh));
+
+              this.scene.add(mesh);
+              this.addEntity(splitEntity);
+            }
+          }
+
+          createGravitationalPulse(player) {
+            const playerPosition = player.getComponent(PositionComponent);
+            const playerSize = player.getComponent(SizeComponent);
+
+            const pulseGeometry = new THREE.SphereGeometry(
+              playerSize.size * 5,
+              32,
+              32
+            );
+            const pulseMaterial = new THREE.MeshBasicMaterial({
+              color: 0x00ff00,
+              transparent: true,
+              opacity: 0.3,
+            });
+            const pulseMesh = new THREE.Mesh(pulseGeometry, pulseMaterial);
+            pulseMesh.position.set(
+              playerPosition.x,
+              playerPosition.y,
+              playerPosition.z
+            );
+
+            this.scene.add(pulseMesh);
+
+            const pulseAnimation = new THREE.AnimationClip('pulse', 1, [
+              new THREE.VectorKeyframeTrack(
+                '.scale',
+                [0, 1],
+                [1, 1, 1, 2, 2, 2]
+              ),
+            ]);
+
+            const mixer = new THREE.AnimationMixer(pulseMesh);
+            const action = mixer.clipAction(pulseAnimation);
+            action.setLoop(THREE.LoopOnce);
+            action.clampWhenFinished = true;
+            action.play();
+
+            for (let entity of this.entities) {
+              if (
+                entity !== player &&
+                entity.hasComponent(PositionComponent) &&
+                entity.hasComponent(VelocityComponent)
+              ) {
+                const entityPosition = entity.getComponent(PositionComponent);
+                const entityVelocity = entity.getComponent(VelocityComponent);
+
+                const distance = new THREE.Vector3(
+                  playerPosition.x,
+                  playerPosition.y,
+                  playerPosition.z
+                ).distanceTo(
+                  new THREE.Vector3(
+                    entityPosition.x,
+                    entityPosition.y,
+                    entityPosition.z
+                  )
+                );
+
+                if (distance < playerSize.size * 5) {
+                  const force = (1 - distance / (playerSize.size * 5)) * 1000;
+                  const direction = new THREE.Vector3(
+                    entityPosition.x - playerPosition.x,
+                    entityPosition.y - playerPosition.y,
+                    entityPosition.z - playerPosition.z
+                  ).normalize();
+
+                  entityVelocity.vx += direction.x * force;
+                  entityVelocity.vy += direction.y * force;
+                  entityVelocity.vz += direction.z * force;
+                }
+              }
+            }
+
+            setTimeout(() => {
+              this.scene.remove(pulseMesh);
+            }, 1000);
+          }
+
+          startGame() {
+            while (this.entities.length > 0) {
+              this.removeEntity(this.entities[0]);
+            }
+
+            this.score = 0;
+            this.level = 1;
+
+            this.createPlayer();
+
+            for (let i = 0; i < 50; i++) {
+              this.createAIEntity();
+            }
+
+            for (let i = 0; i < 10; i++) {
+              this.createObstacle();
+            }
+
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+
+            this.gameActive = true;
+          }
+
+          gameOver() {
+            this.gameActive = false;
+            document.getElementById('game-over-screen').style.display = 'block';
+            document.getElementById('final-score').textContent = this.score;
+            document.getElementById('final-level').textContent = this.level;
+          }
+
+          updateHUD() {
+            document.getElementById(
+              'score'
+            ).textContent = `Score: ${this.score}`;
+            document.getElementById(
+              'level'
+            ).textContent = `Level: ${this.level}`;
+            const player = this.entities.find((e) =>
+              e.hasComponent(PlayerControlledComponent)
+            );
+            if (player) {
+              const size = player.getComponent(SizeComponent);
+              document.getElementById(
+                'size'
+              ).textContent = `Size: ${size.size.toFixed(2)}`;
+            }
+          }
+
+          onWindowResize() {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+          }
+
+          animate(time) {
+            requestAnimationFrame((t) => this.animate(t));
+
+            if (this.gameActive) {
+              const deltaTime = time - (this.lastTime || time);
+              this.lastTime = time;
+
+              this.update(deltaTime / 1000);
+
+              if (Math.random() < 0.02) this.createAIEntity();
+              if (Math.random() < 0.005) this.createPowerUp();
+
+              if (this.score > this.level * 1000) {
+                this.level++;
+                this.createObstacle();
+              }
+
+              this.updateHUD();
+            }
+
+            this.renderer.render(this.scene, this.camera);
+          }
+        }
+
+        const world = new World();
+        world.animate(0);
+      };
+    </script>
+       <!-- Note, the Recursion SDK is loaded automatically through the TierBot CDN, you can remove this code before inscribing. -->
+    <script>
+!function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"function"==typeof define&&define.amd?define(["exports"],e):e((t="undefined"!=typeof globalThis?globalThis:t||self).HCSRecusionSDK={})}(this,(function(t){"use strict";const e=t=>new Promise((e=>setTimeout(e,t))),a={config:{cdnUrl:"https://kiloscribe.com/api/inscription-cdn/",network:"mainnet",retryAttempts:3,retryBackoff:300,debug:!1,showLoadingIndicator:!1,loadingCallbackName:null},configMapping:{hcsCdnUrl:"cdnUrl",hcsNetwork:"network",hcsRetryAttempts:"retryAttempts",hcsRetryBackoff:"retryBackoff",hcsDebug:"debug",hcsShowLoadingIndicator:"showLoadingIndicator",hcsLoadingCallbackName:"loadingCallbackName"},LoadedScripts:{},LoadedWasm:null,LoadedImages:{},LoadedVideos:{},LoadedAudios:{},LoadedAudioUrls:{},LoadedGLBs:{},scriptLoadedEvent:new Event("HCSScriptLoaded"),loadQueue:[],isProcessingQueue:!1,log(...t){this.config.debug&&console.log("[HCS SDK]",...t)},error(...t){console.error("[HCS SDK]",...t)},loadConfigFromHTML(){const t=document.querySelector("script[data-hcs-config]");t&&Object.keys(this.configMapping).forEach((e=>{if(t.dataset[e]){const a=this.configMapping[e];let i=t.dataset[e];"true"===i&&(i=!0),"false"===i&&(i=!1),isNaN(Number(i))||""===i||(i=Number(i)),this.config[a]=i}})),this.log("Loaded config:",this.config)},updateLoadingStatus(t,e){"loaded"!==this.LoadedScripts[t]&&(this.config.showLoadingIndicator&&console.log("[HCS Loading] "+t+" : "+e),this.LoadedScripts[t]=e,this.config.loadingCallbackName&&"function"==typeof window[this.config.loadingCallbackName]&&window[this.config.loadingCallbackName](t,e))},async fetchWithRetry(t,a=this.config.retryAttempts,i=this.config.retryBackoff){try{const e=await fetch(t);if(!e.ok)throw new Error("HTTP error! status: "+e.status);return e}catch(o){if(a>0)return this.log("Retrying fetch for "+t+" Attempts left: "+(a-1)),await e(i),this.fetchWithRetry(t,a-1,2*i);throw o}},isDuplicate(t){return!!this.LoadedScripts[t]},async loadScript(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),i=null==e?void 0:e.split("/").pop(),o=t.getAttribute("type"),d=t.hasAttribute("data-required");if(!this.isDuplicate(i||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,s=t.getAttribute("data-network")||this.config.network,n=await this.fetchWithRetry(e+i+"?network="+s);if("wasm"===o){const e=await n.arrayBuffer(),i=await WebAssembly.compile(e);this.LoadedWasm=await WebAssembly.instantiate(i,{env:{},...t.dataset}),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded wasm: "+a)}else{const t=await n.text(),e=document.createElement("script");e.textContent=t,document.body.appendChild(e),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded script: "+a),e.onerror=t=>{if(this.error("Failed to load "+o+": "+a,t),this.updateLoadingStatus(a,"failed"),d)throw t}}}catch(s){if(this.error("Failed to load "+o+": "+a,s),this.updateLoadingStatus(a,"failed"),d)throw s}}},async loadStylesheet(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),i=null==e?void 0:e.split("/").pop(),o=t.hasAttribute("data-required");if(!this.isDuplicate(i||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,d=await this.fetchWithRetry(e+i+"?network="+o),s=await d.text(),n=document.createElement("style");n.textContent=s,document.head.appendChild(n),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded and inlined stylesheet: "+a)}catch(d){if(this.error("Failed to load stylesheet: "+a,d),this.updateLoadingStatus(a,"failed"),o)throw d}}},async loadImage(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading image: "+a),this.updateLoadingStatus("Image: "+a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,o=await this.fetchWithRetry(e+a+"?network="+i),d=await o.blob(),s=URL.createObjectURL(d);t.src=s,this.LoadedImages[a]=s,this.updateLoadingStatus("Image: "+a,"loaded"),this.log("Loaded image: "+a)}catch(i){this.error("Failed to load image: "+a,i),this.updateLoadingStatus("Image: "+a,"failed")}},async loadMedia(t,e){const a=t.getAttribute("data-src"),i=null==a?void 0:a.split("/").pop();this.log("Loading "+e+": "+i),this.updateLoadingStatus(e+": "+i,"loading");try{const a=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,d=await this.fetchWithRetry(a+i+"?network="+o),s=await d.blob(),n=URL.createObjectURL(s);t.src=n,"video"===e?this.LoadedVideos[i]=n:this.LoadedAudios[i]=n,this.updateLoadingStatus(e+": "+i,"loaded"),this.log("Loaded "+e+": "+i)}catch(o){this.error("Failed to load "+e+": "+i,o),this.updateLoadingStatus(e+": "+i,"failed")}},async loadGLB(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading GLB: "+a),this.updateLoadingStatus("GLB: "+a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,o=await this.fetchWithRetry(e+a+"?network="+i),d=await o.blob(),s=URL.createObjectURL(d);t.src=s,this.LoadedGLBs[a]=s,this.updateLoadingStatus("GLB: "+a,"loaded"),this.log("Loaded GLB: "+a)}catch(i){this.error("Failed to load GLB: "+a,i),this.updateLoadingStatus("GLB: "+a,"failed")}},async processQueue(){if(!this.isProcessingQueue){for(this.isProcessingQueue=!0;this.loadQueue.length>0;){const e=this.loadQueue.shift();try{"script"===e.type?await this.loadScript(e.element):"image"===e.type?await this.loadImage(e.element):"video"===e.type||"audio"===e.type?await this.loadMedia(e.element,e.type):"glb"===e.type?await this.loadGLB(e.element):"css"===e.type&&await this.loadStylesheet(e.element)}catch(t){if(this.error("Error processing queue item:",t),"script"===e.type&&e.element.hasAttribute("data-required"))break}}this.isProcessingQueue=!1}},queueLoading(t,e){t.forEach((t=>{const a=parseInt(t.getAttribute("data-load-order")||"")||1/0;this.loadQueue.push({element:t,type:e,order:a})})),this.loadQueue.sort(((t,e)=>t.order-e.order)),this.processQueue()},init(){return this.loadConfigFromHTML(),new Promise((t=>{const e=()=>{const e=document.querySelectorAll('script[data-src^="hcs://"]'),a=document.querySelectorAll('img[data-src^="hcs://"]'),i=document.querySelectorAll('video[data-src^="hcs://"]'),o=document.querySelectorAll('audio[data-src^="hcs://"]'),d=document.querySelectorAll('model-viewer[data-src^="hcs://"]'),s=document.querySelectorAll('link[data-src^="hcs://"]');this.queueLoading(e,"script"),this.queueLoading(a,"image"),this.queueLoading(i,"video"),this.queueLoading(o,"audio"),this.queueLoading(d,"glb"),this.queueLoading(s,"css");const n=new MutationObserver((t=>{t.forEach((t=>{t.addedNodes.forEach((t=>{if(t.nodeType===Node.ELEMENT_NODE){const e=t;e.matches('script[data-src^="hcs://"]')?this.queueLoading([e],"script"):e.matches('img[data-src^="hcs://"]')?this.queueLoading([e],"image"):e.matches('video[data-src^="hcs://"]')?this.queueLoading([e],"video"):e.matches('audio[data-src^="hcs://"]')?this.queueLoading([e],"audio"):e.matches('model-viewer[data-src^="hcs://"]')?this.queueLoading([e],"glb"):e.matches('link[data-src^="hcs://"]')&&this.queueLoading([e],"css")}}))}))}));document.body?n.observe(document.body,{childList:!0,subtree:!0}):document.addEventListener("DOMContentLoaded",(()=>{n.observe(document.body,{childList:!0,subtree:!0})}));const r=()=>{0===this.loadQueue.length?t():requestAnimationFrame(r)};r()};"loading"===document.readyState?document.addEventListener("DOMContentLoaded",e):e()}))},async preloadAudio(t){const e=document.createElement("audio");e.setAttribute("data-topic-id",t),e.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(e),await window.HCS.loadMedia(e,"audio");const a=document.querySelector('audio[data-topic-id="'+t+'"]');a?window.HCS.LoadedAudioUrls[t]=a.src:console.error("Failed to preload audio: "+t)},async playAudio(t,e=1){var a,i;const o=null==(i=null==(a=null==window?void 0:window.HCS)?void 0:a.LoadedAudioUrls)?void 0:i[t];if(o){const a=new Audio(o);a.volume=e,window.HCS.LoadedAudios[t]=a,a.play().catch((t=>{console.error("Failed to play audio:",t)})),a.addEventListener("ended",(()=>{a.remove(),delete window.HCS.LoadedAudios[t]}))}else console.error("Audio not preloaded: "+t)},async pauseAudio(t){var e,a,i,o,d,s;const n=document.querySelector('audio[data-topic-id="'+t+'"]');n?(console.log("found element",n),n.pause(),null==(i=null==(a=null==(e=null==window?void 0:window.HCS)?void 0:e.LoadedAudios)?void 0:a[t])||i.pause()):null==(s=null==(d=null==(o=null==window?void 0:window.HCS)?void 0:o.LoadedAudios)?void 0:d[t])||s.pause()},async loadAndPlayAudio(t,e=!1,a=1){let i=document.querySelector('audio[data-topic-id="'+t+'"]');if(i)i.volume=a,await i.play();else{const o=document.createElement("audio");o.volume=a,e&&o.setAttribute("autoplay","autoplay"),o.setAttribute("data-topic-id",t),o.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(o),await this.loadMedia(o,"audio"),i=document.querySelector('audio[data-topic-id="'+t+'"]'),e||await i.play()}}};window.HCS=a,a.init().then((()=>{console.log("All HCS resources loaded",window.HCSReady),"function"==typeof window.HCSReady&&(console.log("running start.."),window.HCSReady())})),t.sleep=e,Object.defineProperty(t,Symbol.toStringTag,{value:"Module"})}));
+
+    </script>
+  </body>
+</html>

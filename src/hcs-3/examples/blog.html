@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recursion Blog</title>
+    <script
+        data-hcs-config
+        data-hcs-cdn-url="https://kiloscribe.com/api/inscription-cdn/"
+        data-hcs-network="mainnet"
+        data-hcs-debug="true"
+        data-hcs-retry-attempts="5"
+        data-hcs-retry-backoff="500"
+    ></script>
+    <script
+  data-src="hcs://1/0.0.7160262"
+  data-load-order="1"
+  data-script-id="twjs"></script>
+  <script data-src="hcs://1/0.0.7314015" data-script-id="vue"></script>
+</head>
+<body class="bg-gradient-to-r from-green-400 to-blue-500 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <header class="mb-8 bg-white rounded-lg p-6 shadow-lg">
+            <h1 class="text-5xl font-extrabold text-center text-green-600 mb-4">HCS-3 Blog</h1>
+            <nav class="mt-4">
+                <ul class="flex justify-center space-x-6">
+                    <li><a href="#" @click="currentPage = 'home'" class="text-green-600 hover:text-green-800 transition duration-300 text-lg font-semibold">Home</a></li>
+                    <li><a href="#" @click="currentPage = 'about'" class="text-green-600 hover:text-green-800 transition duration-300 text-lg font-semibold">About</a></li>
+                    <li><a href="#" @click="currentPage = 'contact'" class="text-green-600 hover:text-green-800 transition duration-300 text-lg font-semibold">Contact</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main>
+            <div v-if="currentPage === 'home'" class="space-y-8">
+                <h2 class="text-3xl font-bold mb-6 text-white text-center">Latest Posts</h2>
+                <div v-for="post in posts" :key="post.id" class="bg-white rounded-lg shadow-xl p-8 mb-8 transform hover:scale-105 transition duration-300">
+                    <div class="flex flex-col md:flex-row">
+                        <img :ref="'img-' + post.id" :alt="post.title" class="w-full md:w-1/3 h-48 object-cover rounded-lg mb-4 md:mb-0 md:mr-6">
+                        <div class="flex-1">
+                            <h3 class="text-2xl font-bold mb-4 text-green-600">{{ post.title }}</h3>
+                            <p class="text-gray-700 mb-6 line-clamp-3">{{ post.excerpt }}</p>
+                            <button @click="readMore(post.id)" class="bg-green-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-green-600 transition duration-300 transform hover:scale-105">Read More</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="currentPage === 'about'" class="bg-white rounded-lg shadow-xl p-8">
+                <h2 class="text-3xl font-bold mb-6 text-green-600">About Us</h2>
+                <p class="text-gray-700 mb-4 leading-relaxed">Welcome to HCS-3 Blog, where we explore the fascinating world of blockchain technology and its applications. Our team of passionate writers and researchers are dedicated to bringing you the latest insights, trends, and breakthroughs in the crypto space.</p>
+                <p class="text-gray-700 mb-4 leading-relaxed">Founded in 2023, HCS-3 Blog has quickly become a go-to resource for both newcomers and seasoned professionals in the blockchain industry. We pride ourselves on delivering accurate, in-depth, and engaging content that helps our readers navigate the complex and ever-evolving landscape of cryptocurrencies and distributed ledger technologies.</p>
+                <p class="text-gray-700 leading-relaxed">Whether you're here to learn about the latest DeFi projects, explore the potential of NFTs, or dive deep into the technical aspects of blockchain protocols, we've got you covered. Join us on this exciting journey as we unravel the potential of decentralized technologies and their impact on the future of finance, art, governance, and beyond.</p>
+            </div>
+
+            <div v-if="currentPage === 'contact'" class="bg-white rounded-lg shadow-xl p-8">
+                <h2 class="text-3xl font-bold mb-6 text-green-600">Contact Us</h2>
+                <form @submit.prevent="submitForm" class="space-y-6">
+                    <div>
+                        <label for="name" class="block text-lg font-medium text-gray-700 mb-2">Name</label>
+                        <input type="text" id="name" v-model="contactForm.name" required class="w-full px-4 py-2 rounded-md border border-gray-300 text-gray-700 focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50">
+                    </div>
+                    <div>
+                        <label for="email" class="block text-lg font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="email" v-model="contactForm.email" required class="w-full px-4 py-2 rounded-md border border-gray-300 text-gray-700 focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50">
+                    </div>
+                    <div>
+                        <label for="message" class="block text-lg font-medium text-gray-700 mb-2">Message</label>
+                        <textarea id="message" v-model="contactForm.message" required class="w-full px-4 py-2 rounded-md border border-gray-300 text-gray-700 focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50" rows="5"></textarea>
+                    </div>
+                    <button type="submit" class="bg-green-500 text-white px-8 py-3 rounded-full font-semibold hover:bg-green-600 transition duration-300 transform hover:scale-105">Send Message</button>
+                </form>
+            </div>
+
+            <div v-if="currentPage === 'post'" class="bg-white rounded-lg shadow-xl p-8">
+                <h2 class="text-3xl font-bold mb-6 text-green-600">{{ currentPost.title }}</h2>
+                <img :ref="'post-img'" :alt="currentPost.title" class="w-full h-64 object-cover rounded-lg mb-6">
+                <div class="prose prose-lg text-gray-700 mb-6" v-html="currentPost.content"></div>
+                <button @click="currentPage = 'home'" class="bg-green-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-green-600 transition duration-300 transform hover:scale-105">Back to Home</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        window.HCSReady = function() {
+            const app = new Vue({
+                el: '#app',
+                data: {
+                    currentPage: 'home',
+                    posts: [
+                        {
+                            id: 1,
+                            title: "The Rise of Decentralized Finance (DeFi)",
+                            excerpt: "Decentralized Finance, or DeFi, has taken the crypto world by storm. This revolutionary approach to financial services is changing the way we think about banking, lending, and investing. In this article, we'll explore the key concepts behind DeFi and its potential to disrupt traditional finance.",
+                            thumbnail: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+                                <rect width="100%" height="100%" fill="%23f3f4f6"/>
+                                <circle cx="400" cy="300" r="150" fill="%234ade80" opacity="0.8"/>
+                                <path d="M250 300 Q400 150 550 300 Q400 450 250 300 Z" fill="%2322c55e" opacity="0.6"/>
+                                <text x="400" y="310" font-family="Arial, sans-serif" font-size="48" text-anchor="middle" fill="%23065f46">DeFi</text>
+                                <circle cx="300" cy="250" r="30" fill="%23ffffff"/>
+                                <circle cx="500" cy="250" r="30" fill="%23ffffff"/>
+                                <circle cx="300" cy="350" r="30" fill="%23ffffff"/>
+                                <circle cx="500" cy="350" r="30" fill="%23ffffff"/>
+                                <line x1="300" y1="250" x2="500" y2="350" stroke="%23ffffff" stroke-width="5"/>
+                                <line x1="300" y1="350" x2="500" y2="250" stroke="%23ffffff" stroke-width="5"/>
+                            </svg>`,
+                            content: `<p class="mb-4">Decentralized Finance, commonly known as DeFi, has emerged as one of the most exciting and transformative applications of blockchain technology. By leveraging smart contracts and decentralized networks, DeFi aims to recreate and improve upon traditional financial systems without the need for intermediaries.</p>
+
+<p class="mb-4">At its core, DeFi encompasses a wide range of financial services, including:</p>
+
+<ul class="list-disc pl-6 mb-4">
+    <li>Lending and borrowing platforms</li>
+    <li>Decentralized exchanges (DEXs)</li>
+    <li>Stablecoins</li>
+    <li>Yield farming</li>
+    <li>Insurance</li>
+    <li>Derivatives</li>
+</ul>
+
+<p class="mb-4">One of the key advantages of DeFi is its openness and accessibility. Unlike traditional financial systems, which often have high barriers to entry, DeFi protocols are open to anyone with an internet connection and a crypto wallet. This democratization of finance has the potential to bring financial services to the unbanked and underbanked populations around the world.</p>
+
+<p class="mb-4">However, DeFi is not without its challenges. The space is still relatively new and faces issues such as smart contract vulnerabilities, scalability limitations, and regulatory uncertainties. As the ecosystem matures, we can expect to see more robust solutions and increased adoption of DeFi technologies.</p>
+
+<p class="mb-4">In conclusion, DeFi represents a paradigm shift in the way we think about and interact with financial services. As the technology continues to evolve and mature, it has the potential to revolutionize the global financial landscape and create new opportunities for financial inclusion and innovation.</p>`
+                        },
+                        {
+                            id: 2,
+                            title: "NFTs: More Than Just Digital Art",
+                            excerpt: "Non-Fungible Tokens (NFTs) have captured the imagination of artists, collectors, and investors alike. But the potential of NFTs goes far beyond digital art. In this post, we'll explore the various applications of NFTs and their impact on industries beyond the art world.",
+                            thumbnail: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+                                <rect width="100%" height="100%" fill="%23f3f4f6"/>
+                                <rect x="200" y="150" width="400" height="300" fill="%234ade80" opacity="0.8"/>
+                                <circle cx="400" cy="300" r="100" fill="%2322c55e" opacity="0.6"/>
+                                <text x="400" y="310" font-family="Arial, sans-serif" font-size="48" text-anchor="middle" fill="%23ffffff">NFT</text>
+                                <path d="M300 200 L350 150 L400 200 L450 150 L500 200" fill="none" stroke="%23ffffff" stroke-width="5"/>
+                                <path d="M300 400 L350 450 L400 400 L450 450 L500 400" fill="none" stroke="%23ffffff" stroke-width="5"/>
+                                <rect x="320" y="220" width="40" height="40" fill="%23ffffff"/>
+                                <rect x="440" y="220" width="40" height="40" fill="%23ffffff"/>
+                                <rect x="320" y="340" width="40" height="40" fill="%23ffffff"/>
+                                <rect x="440" y="340" width="40" height="40" fill="%23ffffff"/>
+                            </svg>`,
+                            content: `<p class="mb-4">Non-Fungible Tokens, or NFTs, have exploded in popularity over the past year, with digital artworks selling for millions of dollars and celebrities jumping on the bandwagon. However, the true potential of NFTs extends far beyond the realm of digital art.</p>
+
+<p class="mb-4">At their core, NFTs are unique digital assets that represent ownership or proof of authenticity of a specific item, whether digital or physical. This technology has the power to revolutionize various industries, including:</p>
+
+<ol class="list-decimal pl-6 mb-4">
+    <li><strong>Gaming:</strong> NFTs can represent in-game items, characters, or even entire virtual worlds, allowing players to truly own and trade their digital assets across different games and platforms.</li>
+    <li><strong>Real Estate:</strong> Property titles and land deeds can be tokenized as NFTs, streamlining the process of buying, selling, and transferring ownership of real estate.</li>
+    <li><strong>Music and Entertainment:</strong> Artists can use NFTs to release limited edition albums, concert tickets, or even shares in their royalties, creating new revenue streams and closer connections with fans.</li>
+    <li><strong>Supply Chain Management:</strong> NFTs can be used to track and verify the authenticity and provenance of physical goods, from luxury items to agricultural products.</li>
+    <li><strong>Identity and Credentials:</strong> Academic degrees, professional certifications, and even personal identities could be represented as NFTs, providing secure and verifiable proof of credentials.</li>
+</ol>
+
+<p class="mb-4">The potential applications of NFTs are limited only by our imagination. As the technology matures and becomes more accessible, we can expect to see innovative use cases that go far beyond digital collectibles.</p>
+
+<p class="mb-4">However, it's important to note that the NFT space is still in its early stages and faces challenges such as environmental concerns due to energy consumption, market volatility, and the need for more user-friendly platforms.</p>
+
+<p class="mb-4">As we move forward, it will be exciting to see how NFTs continue to evolve and shape the future of digital ownership and asset management across various industries.</p>`
+                        },
+                        {
+                            id: 3,
+                            title: "The Future of Blockchain Scalability",
+                            excerpt: "Scalability has long been a challenge for blockchain networks. As adoption grows, the need for faster and more efficient solutions becomes crucial. In this article, we'll dive into the latest developments in blockchain scalability and the promising solutions on the horizon.",
+                            thumbnail: "hcs://1/0.0.7314171",
+                            content: `<p class="mb-4">Blockchain technology has the potential to revolutionize various industries, from finance to supply chain management. However, one of the biggest challenges facing blockchain networks is scalability – the ability to handle a large number of transactions quickly and efficiently.</p>
+
+<p class="mb-4">As blockchain adoption continues to grow, the need for scalable solutions becomes increasingly urgent. Here are some of the most promising approaches to solving the scalability problem:</p>
+
+<h3 class="text-xl font-semibold mb-2">1. Layer 2 Solutions</h3>
+<p class="mb-4">Layer 2 solutions aim to offload some of the transaction processing from the main blockchain (Layer 1) to a secondary layer. This approach can significantly increase transaction throughput without sacrificing the security of the main chain. Examples include:</p>
+<ul class="list-disc pl-6 mb-4">
+    <li>Lightning Network (Bitcoin)</li>
+    <li>Optimistic Rollups (Ethereum)</li>
+    <li>ZK-Rollups (Ethereum)</li>
+</ul>
+
+<h3 class="text-xl font-semibold mb-2">2. Sharding</h3>
+<p class="mb-4">Sharding involves breaking the blockchain network into smaller, more manageable pieces called shards. Each shard processes its own set of transactions, allowing for parallel processing and increased throughput. Ethereum 2.0 is implementing sharding as part of its scalability roadmap.</p>
+
+<h3 class="text-xl font-semibold mb-2">3. Alternative Consensus Mechanisms</h3>
+<p class="mb-4">Moving away from energy-intensive Proof of Work (PoW) to more efficient consensus mechanisms can improve scalability. Examples include:</p>
+<ul class="list-disc pl-6 mb-4">
+    <li>Proof of Stake (PoS)</li>
+    <li>Delegated Proof of Stake (DPoS)</li>
+    <li>Practical Byzantine Fault Tolerance (PBFT)</li>
+</ul>
+
+<h3 class="text-xl font-semibold mb-2">4. Interoperability Solutions</h3>
+<p class="mb-4">By enabling different blockchain networks to communicate and work together, interoperability solutions can distribute the load across multiple chains, effectively increasing overall scalability. Projects like Polkadot and Cosmos are working on this approach.</p>
+
+<h3 class="text-xl font-semibold mb-2">5. Novel Blockchain Architectures</h3>
+<p class="mb-4">Some projects are exploring entirely new blockchain architectures designed for scalability from the ground up. Examples include:</p>
+<ul class="list-disc pl-6 mb-4">
+    <li>Directed Acyclic Graphs (DAGs) like IOTA</li>
+    <li>Holochain's agent-centric approach</li>
+</ul>
+
+<p class="mb-4">As these scalability solutions continue to develop and mature, we can expect to see significant improvements in blockchain performance and capacity. This will pave the way for more widespread adoption of blockchain technology across various industries and use cases.</p>
+
+<p class="mb-4">However, it's important to note that there are often trade-offs between scalability, security, and decentralization (known as the "blockchain trilemma"). As the technology evolves, finding the right balance between these factors will be crucial for the long-term success and adoption of blockchain solutions.</p>
+
+<p class="mb-4">In conclusion, while scalability remains a challenge for blockchain networks, the innovative solutions being developed give us reason to be optimistic about the future of this transformative technology.</p>`
+                        }
+                    ],
+                    currentPost: null,
+                    contactForm: {
+                        name: '',
+                        email: '',
+                        message: ''
+                    }
+                },
+                methods: {
+                    readMore(postId) {
+                        this.currentPost = this.posts.find(post => post.id === postId);
+                        this.currentPage = 'post';
+                        this.$nextTick(() => {
+                            this.loadHCSImage(this.$refs['post-img'], this.currentPost.thumbnail);
+                        });
+                    },
+                    submitForm() {
+                        alert('Form submitted!\nName: ' + this.contactForm.name + '\nEmail: ' + this.contactForm.email + '\nMessage: ' + this.contactForm.message);
+                        this.contactForm = { name: '', email: '', message: '' };
+                    },
+                    loadHCSImage(imgElement, src) {
+                        if (src.startsWith('hcs://')) {
+                            imgElement.setAttribute('data-src', src);
+                            imgElement.setAttribute('data-load-order', '1');
+                            imgElement.setAttribute('data-script-id', 'img');
+                            window.HCS.loadImage(imgElement);
+                        } else {
+                            imgElement.src = src;
+                        }
+                    },
+                    reloadImages() {
+                        this.$nextTick(() => {
+                            this.posts.forEach(post => {
+                                const imgElement = this.$refs[`img-${post.id}`][0];
+                                this.loadHCSImage(imgElement, post.thumbnail);
+                            });
+                        });
+                    }
+                },
+                watch: {
+                    currentPage(newPage) {
+                        if (newPage === 'home') {
+                            this.reloadImages();
+                        }
+                    }
+                },
+                mounted() {
+                    this.reloadImages();
+                }
+            });
+        };
+
+        if (window.HCSLoaded) {
+            window.HCSReady();
+        }
+    </script>
+</body>
+</html>

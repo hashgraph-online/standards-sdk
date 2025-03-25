@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HCS Recursion - Hashinal Blaster</title>
+
+    <script
+      data-hcs-config
+      data-hcs-cdn-url="https://kiloscribe.com/api/inscription-cdn/"
+      data-hcs-network="mainnet"
+      data-hcs-debug="true"
+      data-hcs-retry-attempts="5"
+      data-hcs-retry-backoff="500"
+      data-hcs-show-loading-indicator="true"
+      data-hcs-loading-callback-name="setLoadingIndicator"
+    ></script>
+    <link
+      data-src="hcs://1/0.0.6762200"
+      data-load-order="1"
+      data-required="true"
+      data-script-id="nes-css"
+      type="css"
+    />
+    <script
+      data-src="hcs://1/0.0.6614307"
+      data-load-order="2"
+      data-script-id="threejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6627067"
+      data-load-order="3"
+      data-script-id="animejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6628687"
+      data-script-id="rust-wasm"
+      type="wasm"
+      data-load-order="5"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.8084872"
+      data-script-id="wallet-connect"
+      data-load-order="4"
+    ></script>
+    <style>
+      body {
+        margin: 0;
+        background-color: #000033;
+        font-family: 'Verdana', Verdana, sans-serif !important;
+        color: #fff;
+      }
+      canvas {
+        display: block;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border: 4px solid #fff;
+      }
+      #game-ui {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      wcm-modal {
+        z-index: 9999;
+        position: relative;
+      }
+      #overlay {
+        position: relative;
+        max-width: 400px;
+        top: 20px;
+        left: 20px;
+        margin-bottom: 20px;
+        margin-top: 20px;
+        color: #00ffff;
+        font-size: 24px;
+        text-shadow: 0 0 10px #00ffff;
+      }
+      #loading-container {
+        position: relative;
+        top: 40px;
+        left: 20px;
+        width: 350px;
+        max-height: 250px;
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        display: flex;
+        flex-direction: column;
+        z-index: 10000;
+      }
+
+      #loading-indicator {
+        flex-grow: 1;
+        overflow-y: auto;
+        max-height: 100%;
+      }
+
+      #author-section {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.7);
+        padding: 10px;
+        border-radius: 5px;
+      }
+      #author-avatar {
+        width: 50px;
+        height: 50px;
+        image-rendering: pixelated;
+        border: 4px solid #fff;
+        margin-right: 10px;
+      }
+      #author-name {
+        font-size: 16px;
+      }
+      #controls {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        font-size: 14px;
+        z-index: 1000;
+      }
+      #controls button,
+      #controls select {
+        pointer-events: auto;
+        margin-top: 5px;
+      }
+      #score {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 24px;
+        color: #57d175;
+      }
+      #difficulty-level {
+        z-index: 40;
+        display: block;
+      }
+      #wallet-section {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        font-size: 16px;
+        text-align: right;
+      }
+      #wallet-section button {
+        pointer-events: auto;
+      }
+      #account-id {
+        margin-top: 10px;
+      }
+      #leaderboard-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 600px;
+        background-color: rgba(0, 0, 0, 0.9);
+        border: 4px solid #fff;
+        padding: 20px;
+        border-radius: 10px;
+        display: none;
+        z-index: 5000;
+        pointer-events: auto;
+      }
+      #leaderboard-modal h3 {
+        text-align: center;
+        color: #fff;
+      }
+      #leaderboard-modal table {
+        width: 100%;
+        margin: 20px 0;
+      }
+      #leaderboard-modal table th,
+      #leaderboard-modal table td {
+        padding: 10px;
+        border: 1px solid #fff;
+        text-align: center;
+      }
+      #leaderboard-modal table th {
+        background-color: #1a1a1a;
+        color: #57d175;
+      }
+      #close-leaderboard-btn {
+        position: absolute;
+        z-index: 500;
+        top: 10px;
+        right: 10px;
+        background-color: transparent;
+        border: none;
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+      }
+      #death-dialog {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 600px;
+        background-color: rgba(0, 0, 0, 0.9);
+        border: 4px solid #fff;
+        padding: 20px;
+        border-radius: 10px;
+        display: none;
+        z-index: 10;
+        pointer-events: auto;
+      }
+      #death-dialog .nes-dialog {
+        background-color: #000033;
+      }
+      #mobile-menu-button-close {
+        display: none;
+      }
+      #start-screen {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+        pointer-events: auto;
+        text-align: center;
+      }
+      #start-btn,
+      #mint-btn-2 {
+        font-size: 24px;
+        padding: 10px 20px;
+      }
+      @media (max-width: 768px) {
+        #start-btn,
+        #mint-btn-2 {
+          font-size: 20px;
+          padding: 5px 10px;
+        }
+        #start-screen {
+          width: 90%;
+        }
+        #start-screen h1 {
+          font-size: 24px;
+        }
+        canvas {
+          border: none;
+        }
+        #mobile-menu-button-close {
+          display: block;
+        }
+        #game-ui {
+          display: flex;
+          flex-direction: column;
+        }
+
+        #overlay {
+          position: relative;
+          left: 0;
+          max-width: 400px;
+          margin-top: 0px;
+          margin-left: 50px;
+          font-size: 16px;
+          text-align: center;
+          left: 0;
+          top: 0px;
+        }
+        #loading-container {
+          position: relative;
+          top: 0;
+          left: 0;
+          width: 100%;
+        }
+        #controls {
+          position: relative;
+          bottom: auto;
+          left: auto;
+          order: 2;
+          text-align: center;
+          margin-top: 20px;
+        }
+        #wallet-section {
+          position: relative;
+          top: auto;
+          right: auto;
+          order: 1;
+          text-align: center;
+          margin-top: 20px;
+        }
+        #score {
+          order: 0;
+          top: 50px;
+          margin-top: 20px;
+          font-size: 18px;
+        }
+        #author-section {
+          position: relative;
+          bottom: auto;
+          right: auto;
+          order: 3;
+          justify-content: center;
+          margin-top: 20px;
+        }
+        #mobile-controller {
+          display: flex;
+          background: black;
+          justify-content: space-between;
+          position: fixed;
+          bottom: 0px;
+          left: 50%;
+          transform: translateX(-50%);
+          margin-top: 50px;
+          z-index: 1000;
+        }
+        #mobile-controller button {
+          font-size: 24px;
+          padding: 10px 20px;
+          pointer-events: auto;
+        }
+        #mobile-slide-out {
+          position: fixed;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0, 0, 33, 0.95);
+          transition: left 0.3s ease-in-out;
+          z-index: 2000;
+          padding: 20px;
+          overflow: scroll;
+        }
+        #mobile-slide-out.open {
+          left: 0;
+        }
+        .overlay {
+          z-index: 2000;
+        }
+        #mobile-menu-button {
+          display: block;
+          position: fixed;
+          top: 0px;
+          margin-right: 5px;
+          left: 5px;
+          z-index: 2001;
+          font-size: 24px;
+          pointer-events: auto;
+        }
+      }
+      @media (max-width: 1400px) {
+        #loading-container {
+          display: none;
+        }
+        #start-btn,
+        #mint-btn-2 {
+          font-size: 20px;
+          padding: 5px 10px;
+        }
+      }
+
+      @media (min-width: 769px) and (max-width: 1024px) {
+        body {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+          padding: 0;
+        }
+
+        #game-canvas {
+          width: 100%;
+          height: 100%;
+          max-width: none;
+          max-height: none;
+          border: none;
+        }
+
+        #game-ui {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 20px;
+          box-sizing: border-box;
+        }
+
+        #overlay {
+          width: 100%;
+          max-width: none;
+          text-align: center;
+          margin-bottom: 10px;
+        }
+
+        #controls {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        #wallet-section {
+          width: 100%;
+          text-align: center;
+          margin-bottom: 10px;
+        }
+
+        #score {
+          position: static;
+          width: 100%;
+          text-align: center;
+          margin-bottom: 10px;
+        }
+
+        #author-section {
+          width: 100%;
+          justify-content: center;
+          margin-top: 10px;
+        }
+
+        #leaderboard-modal {
+          width: 90%;
+          max-width: 700px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game-canvas"></canvas>
+    <div id="game-ui">
+      <div id="overlay" class="nes-container is-rounded is-dark">
+        HCS Recursion: Hashinal Blaster
+      </div>
+      <div id="loading-container" class="nes-container is-rounded is-dark">
+        <p class="title">Loading Status</p>
+        <div id="loading-indicator"></div>
+      </div>
+      <div id="author-section" class="nes-container is-rounded is-dark">
+        <img
+          id="author-avatar"
+          data-src="hcs://1/0.0.6529019"
+          alt="Kantorcodes Avatar"
+        />
+        <span id="author-name" class="nes-text is-primary"
+          >Built by <a href="https://x.com/kantorcodes">Kantorcodes</a></span
+        >
+      </div>
+      <div id="controls" class="nes-container is-rounded is-dark">
+        <p>Use Left/Right Arrows to Move, Space to Shoot.</p>
+        <p>Hit a bomb? Lose points. Touch a bomb? Lose the game.</p>
+        <label for="difficulty-level">Difficulty:</label>
+        <div class="nes-select is-success">
+          <select id="difficulty-level">
+            <option value="1">Easy</option>
+            <option value="2">Medium</option>
+            <option value="3">Hard</option>
+          </select>
+        </div>
+        <button id="reset-btn" class="nes-btn">Reset</button>
+        <button id="view-leaderboard-btn" class="nes-btn">
+          View Leaderboard
+        </button>
+        <div>
+          <button id="mint-btn" class="nes-btn is-success">Mint Game</button>
+          <button id="play-audio-btn" class="nes-btn is-primary">
+            Play Music
+          </button>
+          <button id="pause-audio-btn" class="nes-btn is-warning">
+            Pause Music
+          </button>
+        </div>
+      </div>
+      <div id="score" class="nes-container is-rounded is-dark">
+        Score: <span id="score-value">0</span>
+      </div>
+      <div id="wallet-section" class="nes-container is-rounded is-dark">
+        <button
+          id="connect-wallet-btn"
+          class="nes-btn is-primary connect-wallet-btn"
+        >
+          Connect Wallet
+        </button>
+        <button
+          id="disconnect-wallet-btn"
+          style="display: none"
+          class="nes-btn is-warning disconnect-wallet-btn"
+        >
+          Disconnect
+        </button>
+        <div id="account-id"></div>
+        <div id="account-balance"></div>
+      </div>
+
+      <div id="death-dialog" class="nes-container is-rounded is-dark">
+        <form method="dialog">
+          <p class="title">Game Over!</p>
+          <p>You were hit by a bomb.</p>
+          <menu class="dialog-menu">
+            <button class="nes-btn is-primary" id="reset-btn-2">Restart</button>
+            <button id="submit-score-btn" class="nes-btn is-primary">
+              Submit Score
+            </button>
+            <button
+              id="connect-wallet-btn-2"
+              class="nes-btn is-primary connect-wallet-btn"
+            >
+              Connect Wallet
+            </button>
+            <button id="mint-btn-3" class="nes-btn is-primary">
+              Mint Game
+            </button>
+          </menu>
+        </form>
+      </div>
+
+      <div id="leaderboard-modal" class="nes-container is-rounded is-dark">
+        <button id="close-leaderboard-btn" class="nes-btn">X</button>
+        <h3>Leaderboard</h3>
+        <table class="nes-table is-bordered is-centered is-dark">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Score</th>
+              <th>Difficulty</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-list"></tbody>
+        </table>
+      </div>
+
+      <div id="mobile-controller" style="display: none">
+        <button id="mobile-left-btn" class="nes-btn">←</button>
+        <button id="mobile-shoot-btn" class="nes-btn is-error">Shoot</button>
+        <button id="mobile-right-btn" class="nes-btn">→</button>
+      </div>
+
+      <div class="overlay">
+        <button id="mobile-menu-button" class="nes-btn" style="display: none">
+          ☰
+        </button>
+      </div>
+
+      <div id="mobile-slide-out">
+        <button id="mobile-menu-button-close" class="nes-btn">Close</button>
+      </div>
+    </div>
+
+    <div id="start-screen" class="nes-container is-rounded is-dark">
+      <h1>Welcome to Hashinal Blaster</h1>
+      <button id="start-btn" class="nes-btn is-primary">Start Game</button>
+      <button id="mint-btn-2" class="nes-btn is-primary is-success">
+        Mint Game
+      </button>
+    </div>
+
+    <script>
+      const loadingStatus = {};
+
+      window.setLoadingIndicator = function (id, status) {
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        let element = document.getElementById(`loading-status-${id}`);
+        if (!element) {
+          element = document.createElement('div');
+          element.id = `loading-status-${id}`;
+          loadingIndicator.appendChild(element);
+        }
+
+        element.className = `nes-text ${
+          status === 'loaded' ? 'is-success' : 'is-warning'
+        }`;
+        element.innerHTML = `${id}: ${
+          status === 'loaded' ? 'Loaded!' : 'Loading...'
+        }`;
+
+        loadingIndicator.scrollTop = loadingIndicator.scrollHeight;
+      };
+
+      const APP_METADATA = {
+        name: 'KiloScribe',
+        description: 'KiloScribe.',
+        url: 'https://kiloscribe.com',
+        icons: ['https://tier.bot/NFTiers.logo.svg'],
+      };
+
+      const PROJECT_ID = 'bfd9ad3ea26e2c73eb21e8f9c750c166';
+      const SUBMIT_TOPIC_ID = '0.0.6661622';
+
+      window.HCSReady = async function () {
+        console.log('All resources loaded, initializing game');
+        let gameOver = false;
+        let isLoggedIn = false;
+        const sdk = window?.HashinalsWalletConnectSDK;
+        await window.HCS.preloadAudio('0.0.6735077'); // background music
+        await window.HCS.preloadAudio('0.0.6718586'); // Balloon pop
+        await window.HCS.preloadAudio('0.0.6718497'); // Bomb explosion
+        await window.HCS.preloadAudio('0.0.6717862'); // Laser shoot
+
+        async function updateAccountInfo(accountId, balance) {
+          if (!accountId) {
+            isLoggedIn = false;
+            document.getElementById('connect-wallet-btn').style.display =
+              'block';
+            document.getElementById('disconnect-wallet-btn').style.display =
+              'none';
+            document.getElementById('account-id').textContent = ``;
+            document.getElementById('account-balance').textContent = ``;
+            return;
+          }
+          // example of getting user tokens, uncomment to try it out.
+          // const tokens = await sdk.getAccountTokens(accountId);
+          // console.log('tokens', tokens);
+
+          isLoggedIn = true;
+          document.getElementById(
+            'account-id'
+          ).textContent = `Connected: ${accountId}`;
+          document.getElementById(
+            'account-balance'
+          ).textContent = `Balance: ${balance}`;
+          document.getElementById('connect-wallet-btn').style.display = 'none';
+          document.getElementById('connect-wallet-btn-2').style.display =
+            'none';
+          document.getElementById('disconnect-wallet-btn').style.display =
+            'block';
+        }
+
+        async function connectWallet() {
+          try {
+            const { balance, accountId } = await sdk.connectWallet(
+              PROJECT_ID,
+              APP_METADATA
+            );
+            console.log('account info is', accountId, balance);
+            updateAccountInfo(accountId, balance);
+          } catch (error) {
+            console.error('Failed to connect wallet:', error);
+          }
+        }
+
+        async function disconnectWallet() {
+          try {
+            await sdk.disconnectWallet(PROJECT_ID, APP_METADATA);
+            updateAccountInfo(undefined);
+          } catch (error) {
+            console.error('Failed to connect wallet:', error);
+          }
+        }
+
+        const initAccount = async () => {
+          const accountResponse = await sdk.initAccount(
+            PROJECT_ID,
+            APP_METADATA
+          );
+
+          if (accountResponse && accountResponse.accountId) {
+            updateAccountInfo(
+              accountResponse.accountId,
+              accountResponse.balance
+            );
+          }
+        };
+
+        initAccount();
+
+        document
+          .getElementById('connect-wallet-btn')
+          .addEventListener('click', connectWallet);
+        document
+          .getElementById('connect-wallet-btn-2')
+          .addEventListener('click', connectWallet);
+
+        document
+          .getElementById('disconnect-wallet-btn')
+          .addEventListener('click', disconnectWallet);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({
+          canvas: document.getElementById('game-canvas'),
+          antialias: true,
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000033);
+
+        const balloons = new THREE.Group();
+        const bombs = new THREE.Group();
+        const hashinals = new THREE.Group();
+        scene.add(balloons);
+        scene.add(bombs);
+        scene.add(hashinals);
+
+        let difficulty = 1;
+
+        function resetGame() {
+          document.getElementById('death-dialog').style.display = 'none';
+          gameOver = false;
+          score = 0;
+          scoreElement.textContent = score;
+
+          while (balloons.children.length > 0) {
+            balloons.remove(balloons.children[0]);
+          }
+          while (bombs.children.length > 0) {
+            bombs.remove(bombs.children[0]);
+          }
+          while (hashinals.children.length > 0) {
+            hashinals.remove(hashinals.children[0]);
+          }
+
+          for (let i = 0; i < 20; i++) {
+            createBalloon();
+          }
+
+          spawnBombs();
+          fetchHashinalData();
+
+          gun.position.set(0, -7, 0);
+
+          console.log('Game reset');
+        }
+
+        document
+          .getElementById('difficulty-level')
+          .addEventListener('change', (e) => {
+            difficulty = parseInt(e.target.value, 10);
+            console.log('Difficulty changed to:', difficulty);
+            resetGame();
+          });
+
+        function createBalloon() {
+          const greenShades = [
+            '#8fe6a4',
+            '#57d175',
+            '#30b752',
+            '#25a244',
+            '#1e7734',
+            '#1d5e2e',
+            '#1a4d28',
+            '#092a13',
+          ];
+
+          const randomColor =
+            greenShades[Math.floor(Math.random() * greenShades.length)];
+
+          const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+          const material = new THREE.MeshPhongMaterial({
+            color: randomColor,
+          });
+          const balloon = new THREE.Mesh(geometry, material);
+          balloon.position.set(
+            Math.random() * 20 - 10,
+            Math.random() * 10 + 5,
+            0
+          );
+          balloons.add(balloon);
+        }
+
+        function createBomb() {
+          const bombGeometry = new THREE.SphereGeometry(0.4, 32, 32); // Increased radius to 0.4 (2x original size)
+          const bombMaterial = new THREE.MeshPhongMaterial({
+            color: 0xff0000,
+            emissive: 0x660000,
+            emissiveIntensity: 0.5,
+            shininess: 100,
+            specular: 0x990000,
+          });
+          const bomb = new THREE.Mesh(bombGeometry, bombMaterial);
+
+          const fuseGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1.0, 32);
+          const fuseMaterial = new THREE.MeshPhongMaterial({
+            color: 0xffd700,
+            shininess: 100,
+            specular: 0xffff00,
+          });
+          const fuse = new THREE.Mesh(fuseGeometry, fuseMaterial);
+          fuse.position.set(0, 0.6, 0);
+          fuse.rotation.x = Math.PI / 2;
+          bomb.add(fuse);
+
+          const capGeometry = new THREE.SphereGeometry(
+            0.2,
+            32,
+            32,
+            0,
+            Math.PI * 2,
+            0,
+            Math.PI / 2
+          );
+          const capMaterial = new THREE.MeshPhongMaterial({
+            color: 0x990000,
+            shininess: 50,
+            specular: 0xcc0000,
+          });
+          const cap = new THREE.Mesh(capGeometry, capMaterial);
+          cap.position.set(0, 0.4, 0);
+          bomb.add(cap);
+
+          const wickGeometry = new THREE.TorusGeometry(
+            0.04,
+            0.02,
+            16,
+            100,
+            Math.PI * 2
+          );
+          const wickMaterial = new THREE.MeshPhongMaterial({
+            color: 0x8b4513,
+          });
+          const wick = new THREE.Mesh(wickGeometry, wickMaterial);
+          wick.position.set(0, 0.8, 0);
+          wick.rotation.x = Math.PI / 2;
+          bomb.add(wick);
+
+          const sparkGeometry = new THREE.BufferGeometry();
+          const sparkMaterial = new THREE.PointsMaterial({
+            color: 0xffa500,
+            size: 0.05,
+            transparent: true,
+            opacity: 0.8,
+          });
+
+          const sparkPositions = new Float32Array(100 * 3);
+          for (let i = 0; i < sparkPositions.length; i += 3) {
+            sparkPositions[i] = 0;
+            sparkPositions[i + 1] = 0.9;
+            sparkPositions[i + 2] = 0;
+          }
+          sparkGeometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(sparkPositions, 3)
+          );
+
+          const sparks = new THREE.Points(sparkGeometry, sparkMaterial);
+          bomb.add(sparks);
+
+          const animateSparks = () => {
+            const positions = sparks.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+              positions[i] += (Math.random() - 0.5) * 0.1;
+              positions[i + 1] += Math.random() * 0.1;
+              positions[i + 2] += (Math.random() - 0.5) * 0.1;
+
+              if (positions[i + 1] > 1.5) {
+                positions[i] = 0;
+                positions[i + 1] = 0.9;
+                positions[i + 2] = 0;
+              }
+            }
+            sparks.geometry.attributes.position.needsUpdate = true;
+            requestAnimationFrame(animateSparks);
+          };
+          animateSparks();
+
+          bomb.position.set(Math.random() * 20 - 10, Math.random() * 10 + 5, 0);
+          bombs.add(bomb);
+        }
+
+        for (let i = 0; i < 20; i++) {
+          createBalloon();
+        }
+
+        function spawnBombs() {
+          bombs.clear();
+          for (let i = 0; i < difficulty * 5; i++) {
+            createBomb();
+          }
+        }
+
+        spawnBombs();
+
+        async function fetchHashinalData() {
+          const loader = document.getElementById('loading-indicator');
+
+          try {
+            const url =
+              'https://tier.bot/api/inscriptions/numbers?random=true&limit=20';
+
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            const allHashinals = data?.slice(0, 20);
+
+            const positions = allHashinals.map(() => [
+              (Math.random() - 0.5) * 20,
+              (Math.random() - 0.5) * 10 + 5,
+              0,
+            ]);
+
+            allHashinals.forEach((hashinal, index) => {
+              const card = createHashinalCard(hashinal, positions[index]);
+              hashinals.add(card);
+            });
+          } catch (error) {
+            console.error('Error fetching Hashinal data:', error);
+          } finally {
+            loader.style.display = 'none';
+          }
+        }
+
+        function createHashinalCard(data, position) {
+          const group = new THREE.Group();
+          group.position.set(...position);
+          group.userData = data;
+
+          const cardGeometry = new THREE.PlaneGeometry(1, 1);
+          const texture = new THREE.TextureLoader().load(
+            `https://kiloscribe.com/api/inscription-cdn/${data.image}?network=mainnet`
+          );
+          const cardMaterial = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide,
+          });
+          const card = new THREE.Mesh(cardGeometry, cardMaterial);
+          group.add(card);
+
+          return group;
+        }
+
+        const gun = new THREE.Group();
+
+        const gunBodyGeometry = new THREE.BoxGeometry(0.5, 1, 0.5);
+        const gunBodyMaterial = new THREE.MeshPhongMaterial({
+          color: 0xff0000,
+        });
+        const gunBody = new THREE.Mesh(gunBodyGeometry, gunBodyMaterial);
+        gun.add(gunBody);
+
+        const gunBarrelGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1, 32);
+        const gunBarrelMaterial = new THREE.MeshPhongMaterial({
+          color: 0x333333,
+        });
+        const gunBarrel = new THREE.Mesh(gunBarrelGeometry, gunBarrelMaterial);
+        gunBarrel.position.set(0, 0.75, 0);
+        gun.add(gunBarrel);
+
+        gun.position.set(0, -7, 0);
+        scene.add(gun);
+
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(0, 10, 10);
+        scene.add(light);
+
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        camera.position.z = 15;
+
+        let score = 0;
+        const scoreElement = document.getElementById('score-value');
+
+        function explodeBalloon(balloon) {
+          const particleCount = 30;
+          const particles = [];
+          const particleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+          const particleMaterial = new THREE.MeshBasicMaterial({
+            color: balloon.material.color,
+          });
+
+          window.HCS.playAudio('0.0.6718586');
+          for (let i = 0; i < particleCount; i++) {
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            particle.position.copy(balloon.position);
+            scene.add(particle);
+            particles.push(particle);
+
+            anime({
+              targets: particle.position,
+              x: particle.position.x + (Math.random() - 0.5) * 2,
+              y: particle.position.y + (Math.random() - 0.5) * 2,
+              z: particle.position.z + (Math.random() - 0.5) * 2,
+              duration: 500,
+              easing: 'easeOutQuad',
+              complete: () => {
+                scene.remove(particle);
+              },
+            });
+          }
+        }
+
+        let explodeBombLastPlayTime = 0;
+
+        function explodeBomb(bomb) {
+          const particleCount = 50;
+          const particles = [];
+          const particleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+          const particleMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+          });
+
+          // Add debounce mechanism
+          if (
+            !explodeBombLastPlayTime ||
+            Date.now() - explodeBombLastPlayTime >= 2000
+          ) {
+            window.HCS.playAudio('0.0.6718497', 0.2);
+            explodeBombLastPlayTime = Date.now();
+          }
+
+          for (let i = 0; i < particleCount; i++) {
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            particle.position.copy(bomb.position);
+            scene.add(particle);
+            particles.push(particle);
+
+            anime({
+              targets: particle.position,
+              x: particle.position.x + (Math.random() - 0.5) * 2,
+              y: particle.position.y + (Math.random() - 0.5) * 2,
+              z: particle.position.z + (Math.random() - 0.5) * 2,
+              duration: 500,
+              easing: 'easeOutQuad',
+              complete: () => {
+                scene.remove(particle);
+              },
+            });
+          }
+        }
+
+        function explodeHashinal(hashinal) {
+          const particleCount = 50;
+          const particles = [];
+          const particleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+          const particleMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+          });
+
+          for (let i = 0; i < particleCount; i++) {
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            particle.position.copy(hashinal.position);
+            scene.add(particle);
+            particles.push(particle);
+
+            anime({
+              targets: particle.position,
+              x: particle.position.x + (Math.random() - 0.5) * 2,
+              y: particle.position.y + (Math.random() - 0.5) * 2,
+              z: particle.position.z + (Math.random() - 0.5) * 2,
+              duration: 500,
+              easing: 'easeOutQuad',
+              complete: () => {
+                scene.remove(particle);
+              },
+            });
+          }
+        }
+
+        function shootLaser(e) {
+          console.log('shooting!');
+          if (e) {
+            e.preventDefault();
+          }
+          const laserGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 32);
+          const laserMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+          });
+          const laser = new THREE.Mesh(laserGeometry, laserMaterial);
+          laser.position.set(gun.position.x, gun.position.y + 1.2, 0);
+          scene.add(laser);
+          window.HCS.playAudio('0.0.6717862');
+
+          anime({
+            targets: laser.position,
+            y: 15,
+            duration: 1000,
+            easing: 'linear',
+            update: () => {
+              balloons.children.forEach((balloon) => {
+                const laserBox = new THREE.Box3().setFromObject(laser);
+                const balloonBox = new THREE.Box3().setFromObject(balloon);
+                if (laserBox.intersectsBox(balloonBox)) {
+                  explodeBalloon(balloon);
+                  scene.remove(laser);
+                  balloons.remove(balloon);
+                  score += 10;
+                  scoreElement.textContent = score;
+                  createBalloon();
+                }
+              });
+              gun.position.z = 0;
+
+              bombs.children.forEach((bomb) => {
+                bomb.position.z = 0;
+                const laserBox = new THREE.Box3().setFromObject(laser);
+                const gunBox = new THREE.Box3().setFromObject(gun);
+                const bombBox = new THREE.Box3().setFromObject(bomb);
+                if (gunBox.intersectsBox(bombBox)) {
+                  explodeBomb(bomb);
+                  document.getElementById('death-dialog').style.display =
+                    'block';
+                }
+                if (laserBox.intersectsBox(bombBox)) {
+                  explodeBomb(bomb);
+                  scene.remove(laser);
+                  bombs.remove(bomb);
+                  let reduction = difficulty === '1' ? 50 : 100;
+                  score -= reduction;
+                  scoreElement.textContent = score;
+                  createBomb();
+                }
+              });
+
+              hashinals.children.forEach((hashinal) => {
+                const laserBox = new THREE.Box3().setFromObject(laser);
+                const hashinalBox = new THREE.Box3().setFromObject(hashinal);
+                if (laserBox.intersectsBox(hashinalBox)) {
+                  explodeHashinal(hashinal);
+                  scene.remove(laser);
+                  hashinals.remove(hashinal);
+                  score += 20;
+                  scoreElement.textContent = score;
+                }
+              });
+            },
+            complete: () => {
+              scene.remove(laser);
+            },
+          });
+        }
+
+        async function animate() {
+          gun.position.z = 0;
+          requestAnimationFrame(animate);
+
+          balloons.children.forEach((balloon) => {
+            const getDifficulty = () => {
+              if (difficulty === 1) {
+                return 0.02;
+              } else if (difficulty === 2) {
+                return 0.03;
+              } else {
+                return 0.08;
+              }
+            };
+            balloon.position.y -= getDifficulty();
+            if (balloon.position.y < -10) {
+              balloon.position.y = Math.random() * 10 + 5;
+              balloon.position.x = Math.random() * 20 - 10;
+            }
+          });
+
+          bombs.children.forEach((bomb) => {
+            bomb.position.z = 0;
+            bomb.position.y -= 0.03;
+            if (bomb.position.y < -10) {
+              bomb.position.y = Math.random() * 10 + 5;
+              bomb.position.x = Math.random() * 20 - 10;
+            }
+
+            const gunBox = new THREE.Box3().setFromObject(gun);
+            const bombBox = new THREE.Box3().setFromObject(bomb);
+
+            if (gunBox.intersectsBox(bombBox)) {
+              explodeBomb(bomb);
+              document.getElementById('death-dialog').style.display = 'block';
+              gameOver = true;
+            }
+          });
+
+          hashinals.children.forEach((hashinal) => {
+            const getDifficulty = () => {
+              if (difficulty === 1) {
+                return 0.05;
+              } else if (difficulty === 2) {
+                return 0.075;
+              } else {
+                return 0.1;
+              }
+            };
+            hashinal.position.y -= getDifficulty();
+            if (hashinal.position.y < -10) {
+              hashinal.position.y = Math.random() * 10 + 5;
+              hashinal.position.x = Math.random() * 20 - 10;
+            }
+          });
+
+          if (!gameOver) {
+            renderer.render(scene, camera);
+          }
+        }
+
+        function groupBy(array, key) {
+          return array.reduce((result, currentValue) => {
+            const groupKey = currentValue[key];
+            if (!result[groupKey]) {
+              result[groupKey] = [];
+            }
+            result[groupKey].push(currentValue);
+            return result;
+          }, {});
+        }
+
+        const getAllMessages = async () => {
+          const messages = await sdk.getMessages(
+            SUBMIT_TOPIC_ID,
+            [],
+            undefined,
+            undefined
+          );
+
+          const filteredMessages = messages?.messages
+            ?.filter(
+              (msg) =>
+                Boolean(msg.metadata.difficulty) && Boolean(msg.p === 'hcs-2')
+            )
+            ?.map((a) => {
+              return {
+                ...a,
+                id: a.consensus_timestamp,
+                difficulty: a.metadata.difficulty,
+                score: a.metadata.score,
+              };
+            });
+
+          const groupedMessages = groupBy(filteredMessages, 'payer');
+          const uniqueMessages = Object.values(groupedMessages).map((msgs) => {
+            return msgs.reduce(
+              (maxMsg, msg) => (msg.score > maxMsg.score ? msg : maxMsg),
+              msgs[0]
+            );
+          });
+
+          const sortedMessages = uniqueMessages.sort(
+            (a, b) => b.score - a.score
+          );
+
+          return sortedMessages;
+        };
+
+        const displayLeaderboard = async () => {
+          console.log('opening leaderboard...');
+          const leaderboard = await getAllMessages();
+          const leaderboardList = document.getElementById('leaderboard-list');
+          leaderboardList.innerHTML = '';
+          leaderboard.forEach((entry) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${entry.payer}</td><td>${entry.score}</td><td>${entry.difficulty}</td>`;
+            leaderboardList.appendChild(row);
+          });
+          document.getElementById('leaderboard-modal').style.display = 'block';
+        };
+
+        document
+          .getElementById('view-leaderboard-btn')
+          .addEventListener('click', displayLeaderboard);
+
+        document
+          .getElementById('close-leaderboard-btn')
+          .addEventListener('click', () => {
+            document.getElementById('leaderboard-modal').style.display = 'none';
+          });
+
+        window.addEventListener('keydown', (event) => {
+          const step = 0.5;
+          event.preventDefault();
+          if (event.key === 'ArrowLeft') {
+            gun.position.x -= step;
+          } else if (event.key === 'ArrowRight') {
+            gun.position.x += step;
+          } else if (event.key === ' ') {
+            shootLaser(event);
+          }
+        });
+
+        document
+          .getElementById('reset-btn')
+          .addEventListener('click', resetGame);
+
+        document
+          .getElementById('reset-btn-2')
+          .addEventListener('click', resetGame);
+
+        document
+          .getElementById('submit-score-btn')
+          .addEventListener('click', async () => {
+            score = Number(document.getElementById('score-value').textContent);
+            if (!isLoggedIn) {
+              alert(
+                'You need to connect your wallet in order to submit a score.'
+              );
+              return;
+            }
+            await sdk.submitMessageToTopic(
+              SUBMIT_TOPIC_ID,
+              JSON.stringify({
+                t_id: SUBMIT_TOPIC_ID,
+                op: 'register',
+                m: 'Submitting score',
+                metadata: {
+                  score: score,
+                  difficulty: document.getElementById('difficulty-level').value,
+                },
+                p: 'hcs-2',
+              })
+            );
+          });
+
+        window.addEventListener(
+          'resize',
+          function () {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+          },
+          false
+        );
+
+        function setupMobileUI() {
+          if (isMobile()) {
+            console.log('setting up mobile...');
+            const mobileController =
+              document.getElementById('mobile-controller');
+            const mobileMenuButton =
+              document.getElementById('mobile-menu-button');
+            const mobileSlideOut = document.getElementById('mobile-slide-out');
+            const gameUI = document.getElementById('game-ui');
+
+            mobileController.style.display = 'flex';
+            mobileMenuButton.style.display = 'block';
+
+            const elementsToMove = [
+              'controls',
+              'wallet-section',
+              'loading-container',
+              'author-section',
+            ];
+            elementsToMove.forEach((id) => {
+              const element = document.getElementById(id);
+              if (element) {
+                mobileSlideOut.appendChild(element);
+              }
+            });
+
+            console.log('setting up controllers..');
+            function addMobileControlListeners() {
+              console.log('Adding mobile control listeners');
+
+              const leftBtn = document.getElementById('mobile-left-btn');
+              const rightBtn = document.getElementById('mobile-right-btn');
+              const shootBtn = document.getElementById('mobile-shoot-btn');
+              const closeButton = document.getElementById('mobile-menu-close');
+
+              const addListener = (element, action) => {
+                if (element) {
+                  element.addEventListener('touchstart', action, {
+                    passive: false,
+                  });
+                  element.addEventListener(
+                    'touchend',
+                    (e) => {
+                      e.preventDefault();
+                    },
+                    { passive: false }
+                  );
+                }
+              };
+
+              addListener(leftBtn, (e) => {
+                e.preventDefault();
+                console.log('Left button pressed');
+                gun.position.x -= 0.5;
+              });
+
+              addListener(rightBtn, (e) => {
+                e.preventDefault();
+                console.log('Right button pressed');
+                gun.position.x += 0.5;
+              });
+
+              addListener(shootBtn, (e) => {
+                e.preventDefault();
+                console.log('Shoot button pressed');
+                shootLaser();
+              });
+              addListener(closeButton, (e) => {
+                e.preventDefault();
+                console.log('Close button pressed');
+                mobileSlideOut.classList.remove('open');
+              });
+            }
+            mobileMenuButton.addEventListener('click', () => {
+              mobileSlideOut.classList.toggle('open');
+            });
+
+            const canvas = document.getElementById('game-canvas');
+            canvas.width = window.outerWidth;
+            canvas.height = window.outerHeight;
+            camera.aspect = canvas.width / canvas.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.width, canvas.height);
+            addMobileControlListeners();
+          }
+        }
+
+        setupMobileUI();
+
+        window.addEventListener('resize', () => {
+          if (isMobile()) {
+            setupMobileUI();
+          } else {
+            const mobileController =
+              document.getElementById('mobile-controller');
+            const mobileMenuButton =
+              document.getElementById('mobile-menu-button');
+            const mobileSlideOut = document.getElementById('mobile-slide-out');
+
+            mobileController.style.display = 'none';
+            mobileMenuButton.style.display = 'none';
+            mobileSlideOut.classList.remove('open');
+
+            const gameUI = document.getElementById('game-ui');
+            const elementsToMove = [
+              'controls',
+              'wallet-section',
+              'author-section',
+            ];
+            elementsToMove.forEach((id) => {
+              const element = document.getElementById(id);
+              gameUI.appendChild(element);
+            });
+
+            const canvas = document.getElementById('game-canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            camera.aspect = canvas.width / canvas.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.width, canvas.height);
+          }
+        });
+
+        const mintGame = async () => {
+          window.open(
+            'https://link.hashpack.app/eyJ0eXBlIjoibGF1bmNocGFkIiwibGluayI6Ik5GVGllci9oYXNoaW5hbC1ibGFzdGVyIn0=',
+            '_blank'
+          );
+        };
+
+        document
+          .getElementById('play-audio-btn')
+          .addEventListener('click', () => window.HCS.playAudio('0.0.6735077'));
+        const mintCallbackIds = ['mint-btn', 'mint-btn-2', 'mint-btn-3'];
+        for (const callbackId of mintCallbackIds) {
+          document
+            .getElementById(callbackId)
+            .addEventListener('click', mintGame);
+        }
+
+        document
+          .getElementById('pause-audio-btn')
+          .addEventListener('click', () => {
+            console.log('pausing audio');
+            window.HCS.pauseAudio('0.0.6735077');
+          });
+
+        let isFetchingHashinals = false;
+        const getHashinals = async () => {
+          setInterval(async () => {
+            if (!isFetchingHashinals) {
+              return;
+            }
+            isFetchingHashinals = true;
+            await fetchHashinalData();
+            isFetchingHashinals = false;
+          }, 5000);
+        };
+
+        getHashinals();
+        document
+          .getElementById('start-btn')
+          .addEventListener('click', async () => {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('loading-container').style.display = 'none';
+            await fetchHashinalData();
+            animate();
+            let isPlayingBg = true;
+            await window.HCS.playAudio('0.0.6735077');
+            setInterval(async () => {
+              if (!isPlayingBg) {
+                await window.HCS.playAudio('0.0.6735077');
+                isPlayingBg = false;
+              }
+            }, 30000);
+          });
+
+        function setupTabletUI() {
+          if (window.innerWidth > 768 && window.innerWidth <= 1024) {
+            const canvas = document.getElementById('game-canvas');
+            canvas.width = Math.min(window.innerWidth * 0.9, 800);
+            canvas.height = Math.min(window.innerHeight * 0.6, 600);
+            camera.aspect = canvas.width / canvas.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.width, canvas.height);
+
+            // Adjust game elements for tablet view
+            balloons.scale.set(0.8, 0.8, 0.8);
+            bombs.scale.set(0.8, 0.8, 0.8);
+            hashinals.scale.set(0.8, 0.8, 0.8);
+            gun.scale.set(0.8, 0.8, 0.8);
+
+            // Adjust game boundaries
+            const aspectRatio = canvas.width / canvas.height;
+            camera.left = -5 * aspectRatio;
+            camera.right = 5 * aspectRatio;
+            camera.top = 5;
+            camera.bottom = -5;
+            camera.updateProjectionMatrix();
+          }
+        }
+
+        function isMobile() {
+          return window.innerWidth <= 768;
+        }
+
+        function handleResize() {
+          if (isMobile()) {
+            setupMobileUI();
+          } else if (window.innerWidth > 768 && window.innerWidth <= 1024) {
+            setupTabletUI();
+          } else {
+            // Reset to desktop view
+            const canvas = document.getElementById('game-canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            camera.aspect = canvas.width / canvas.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.width, canvas.height);
+
+            balloons.scale.set(1, 1, 1);
+            bombs.scale.set(1, 1, 1);
+            hashinals.scale.set(1, 1, 1);
+            gun.scale.set(1, 1, 1);
+
+            camera.left = -10;
+            camera.right = 10;
+            camera.top = 10;
+            camera.bottom = -10;
+            camera.updateProjectionMatrix();
+          }
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        // Call handleResize initially to set up the correct view
+        handleResize();
+
+        console.log('Game setup complete');
+      };
+    </script>
+    <script>
+      !function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"function"==typeof define&&define.amd?define(["exports"],e):e((t="undefined"!=typeof globalThis?globalThis:t||self).HCSRecusionSDK={})}(this,(function(t){"use strict";class e{constructor(){this.config={cdnUrl:"https://kiloscribe.com/api/inscription-cdn/",network:"mainnet",retryAttempts:3,retryBackoff:300,debug:!1,showLoadingIndicator:!1,loadingCallbackName:null},this.configMapping={hcsCdnUrl:"cdnUrl",hcsNetwork:"network",hcsRetryAttempts:"retryAttempts",hcsRetryBackoff:"retryBackoff",hcsDebug:"debug",hcsShowLoadingIndicator:"showLoadingIndicator",hcsLoadingCallbackName:"loadingCallbackName"},this.LoadedScripts={},this.LoadedWasm={},this.LoadedImages={},this.LoadedVideos={},this.LoadedAudios={},this.LoadedAudioUrls={},this.LoadedGLBs={},this.scriptLoadedEvent=new Event("HCSScriptLoaded"),this.loadQueue=[],this.isProcessingQueue=!1}log(...t){this.config.debug&&console.log("[HCS SDK]",...t)}error(...t){console.error("[HCS SDK]",...t)}loadConfigFromHTML(){const t=document.querySelector("script[data-hcs-config]");t&&Object.keys(this.configMapping).forEach((e=>{if(t.dataset[e]){const a=this.configMapping[e];let i=t.dataset[e];"true"===i&&(i=!0),"false"===i&&(i=!1),isNaN(Number(i))||""===i||(i=Number(i)),this.config[a]=i}})),this.log("Loaded config:",this.config)}updateLoadingStatus(t,e){if("loaded"!==this.LoadedScripts[t]&&(this.config.showLoadingIndicator&&console.log("[HCS Loading] "+t+" : "+e),this.LoadedScripts[t]=e,this.config.loadingCallbackName&&"function"==typeof window[this.config.loadingCallbackName])){const a=window[this.config.loadingCallbackName];"function"==typeof a&&a(t,e)}}async fetchWithRetry(t,e=this.config.retryAttempts,a=this.config.retryBackoff){try{const e=await fetch(t);if(!e.ok)throw new Error("HTTP error! status: "+e.status);return e}catch(i){if(e>0)return this.log("Retrying fetch for "+t+" Attempts left: "+(e-1)),await this.sleep(a),this.fetchWithRetry(t,e-1,2*a);throw i}}sleep(t){return new Promise((e=>setTimeout(e,t)))}isDuplicate(t){return!!this.LoadedScripts[t]}async retrieveHCS1Data(t,e=this.config.cdnUrl,a=this.config.network){const i=await this.fetchWithRetry(e+t+"?network="+a);return await i.blob()}async loadScript(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),i=null==e?void 0:e.split("/").pop(),o=t.getAttribute("type"),s=t.hasAttribute("data-required"),d="module"===t.getAttribute("type");if(!this.isDuplicate(i||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,r=t.getAttribute("data-network")||this.config.network,n=await this.retrieveHCS1Data(i,e,r);if("wasm"===o){const e=await n.arrayBuffer(),i=await WebAssembly.compile(e);this.LoadedWasm[a]=await WebAssembly.instantiate(i,{env:{},...t.dataset}),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded wasm: "+a)}else{const t=await n.text(),e=document.createElement("script");if(e.textContent=t,d){e.type="module";const a=new Blob([t],{type:"application/javascript"});e.src=URL.createObjectURL(a)}document.body.appendChild(e),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded script: "+a),e.onerror=t=>{if(this.error("Failed to load "+o+": "+a,t),this.updateLoadingStatus(a,"failed"),s)throw t}}}catch(r){if(this.error("Failed to load "+o+": "+a,r),this.updateLoadingStatus(a,"failed"),s)throw r}}}async loadStylesheet(t){const e=t.getAttribute("data-src"),a=t.getAttribute("data-script-id"),i=null==e?void 0:e.split("/").pop(),o=t.hasAttribute("data-required");if(!this.isDuplicate(i||"")){this.updateLoadingStatus(a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,s=await this.retrieveHCS1Data(i,e,o),d=await s.text(),r=document.createElement("style");r.textContent=d,document.head.appendChild(r),this.updateLoadingStatus(a,"loaded"),window.dispatchEvent(this.scriptLoadedEvent),this.log("Loaded and inlined stylesheet: "+a)}catch(s){if(this.error("Failed to load stylesheet: "+a,s),this.updateLoadingStatus(a,"failed"),o)throw s}}}async loadImage(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading image: "+a),this.updateLoadingStatus("Image: "+a,"loaded");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,o=await this.retrieveHCS1Data(a,e,i),s=URL.createObjectURL(o);t.src=s,this.LoadedImages[a]=s,this.updateLoadingStatus("Image: "+a,"loaded"),this.log("Loaded image: "+a)}catch(i){this.error("Failed to load image: "+a,i),this.updateLoadingStatus("Image: "+a,"failed")}}async loadMedia(t,e){const a=t.getAttribute("data-src"),i=null==a?void 0:a.split("/").pop();this.log("Loading "+e+": "+i),this.updateLoadingStatus(e+": "+i,"loading");try{const a=t.getAttribute("data-cdn-url")||this.config.cdnUrl,o=t.getAttribute("data-network")||this.config.network,s=await this.retrieveHCS1Data(i,a,o),d=URL.createObjectURL(s);t.src=d,"video"===e?this.LoadedVideos[i]=d:this.LoadedAudioUrls[i]=d,this.updateLoadingStatus(e+": "+i,"loaded"),this.log("Loaded "+e+": "+i)}catch(o){this.error("Failed to load "+e+": "+i,o),this.updateLoadingStatus(e+": "+i,"failed")}}async loadGLB(t){const e=t.getAttribute("data-src"),a=null==e?void 0:e.split("/").pop();this.log("Loading GLB: "+a),this.updateLoadingStatus("GLB: "+a,"loading");try{const e=t.getAttribute("data-cdn-url")||this.config.cdnUrl,i=t.getAttribute("data-network")||this.config.network,o=await this.retrieveHCS1Data(a,e,i),s=URL.createObjectURL(o);t.src=s,this.LoadedGLBs[a]=s,this.updateLoadingStatus("GLB: "+a,"loaded"),this.log("Loaded GLB: "+a)}catch(i){this.error("Failed to load GLB: "+a,i),this.updateLoadingStatus("GLB: "+a,"failed")}}async loadResource(t,e,a){return new Promise((i=>{this.loadQueue.push({element:t,type:e,order:a,resolve:i}),this.processQueue()}))}async processQueue(){if(!this.isProcessingQueue){for(this.isProcessingQueue=!0;this.loadQueue.length>0;){const e=this.loadQueue.shift();try{"script"===e.type?await this.loadScript(e.element):"image"===e.type?await this.loadImage(e.element):"video"===e.type||"audio"===e.type?await this.loadMedia(e.element,e.type):"glb"===e.type?await this.loadGLB(e.element):"css"===e.type&&await this.loadStylesheet(e.element),e.resolve()}catch(t){if(this.error("Error processing queue item:",t),"script"===e.type&&e.element.hasAttribute("data-required"))break}}this.isProcessingQueue=!1}}async init(){return this.loadConfigFromHTML(),new Promise((t=>{const e=async()=>{const e=document.querySelectorAll('script[data-src^="hcs://"]'),a=document.querySelectorAll('img[data-src^="hcs://"]'),i=document.querySelectorAll('video[data-src^="hcs://"]'),o=document.querySelectorAll('audio[data-src^="hcs://"]'),s=document.querySelectorAll('model-viewer[data-src^="hcs://"]'),d=document.querySelectorAll('link[data-src^="hcs://"]'),r=[];[{elements:e,type:"script"},{elements:a,type:"image"},{elements:i,type:"video"},{elements:o,type:"audio"},{elements:s,type:"glb"},{elements:d,type:"css"}].forEach((({elements:t,type:e})=>{t.forEach((t=>{const a=parseInt(t.getAttribute("data-load-order")||"")||1/0;r.push(this.loadResource(t,e,a))}))})),await Promise.all(r);const n=new MutationObserver((t=>{t.forEach((t=>{t.addedNodes.forEach((t=>{if(t.nodeType===Node.ELEMENT_NODE){const e=t;e.matches('script[data-src^="hcs://"]')?this.loadResource(e,"script",1/0):e.matches('img[data-src^="hcs://"]')?this.loadResource(e,"image",1/0):e.matches('video[data-src^="hcs://"]')?this.loadResource(e,"video",1/0):e.matches('audio[data-src^="hcs://"]')?this.loadResource(e,"audio",1/0):e.matches('model-viewer[data-src^="hcs://"]')?this.loadResource(e,"glb",1/0):e.matches('link[data-src^="hcs://"]')&&this.loadResource(e,"css",1/0)}}))}))}));document.body?n.observe(document.body,{childList:!0,subtree:!0}):document.addEventListener("DOMContentLoaded",(()=>{n.observe(document.body,{childList:!0,subtree:!0})})),t()};"loading"===document.readyState?document.addEventListener("DOMContentLoaded",e):e()}))}async preloadImage(t){this.log("Loading image:"+t),this.updateLoadingStatus("image: "+t,"loading");const e=await this.retrieveHCS1Data(t),a=URL.createObjectURL(e);return this.LoadedImages[t]=a,this.updateLoadingStatus("image: "+t,"loaded"),a}async preloadAudio(t){const e=document.createElement("audio");e.setAttribute("data-topic-id",t),e.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(e),await this.loadMedia(e,"audio");const a=document.querySelector('audio[data-topic-id="'+t+'"]');return a?this.LoadedAudioUrls[t]=a.src:console.error("Failed to preload audio: "+t),this.LoadedAudioUrls[t]}async playAudio(t,e=1){const a=this.LoadedAudioUrls[t];if(a){const i=new Audio(a);i.volume=e,this.LoadedAudios[t]=i,i.play().catch((t=>{console.error("Failed to play audio:",t)})),i.addEventListener("ended",(()=>{i.remove(),delete this.LoadedAudios[t]}))}else console.error("Audio not preloaded: "+t)}async pauseAudio(t){var e,a;const i=document.querySelector('audio[data-topic-id="'+t+'"]');i?(console.log("found element",i),i.pause(),null==(e=this.LoadedAudios[t])||e.pause()):null==(a=this.LoadedAudios[t])||a.pause()}async loadAndPlayAudio(t,e=!1,a=1){let i=document.querySelector('audio[data-topic-id="'+t+'"]');if(i)i.volume=a,await i.play();else{const o=document.createElement("audio");o.volume=a,e&&o.setAttribute("autoplay","autoplay"),o.setAttribute("data-topic-id",t),o.setAttribute("data-src","hcs://1/"+t),document.body.appendChild(o),await this.loadMedia(o,"audio"),i=document.querySelector('audio[data-topic-id="'+t+'"]'),e||await i.play()}}}window.HCS=new e,window.HCS.init().then((()=>{console.log("All HCS resources loaded"),"function"==typeof window.HCSReady&&(console.log("Running HCSReady..."),window.HCSReady())}));const a=window.HCS;t.HCS=e,t.default=a,t.sleep=t=>new Promise((e=>setTimeout(e,t))),Object.defineProperties(t,{__esModule:{value:!0},[Symbol.toStringTag]:{value:"Module"}})}));
+
+    </script>
+  </body>
+</html>

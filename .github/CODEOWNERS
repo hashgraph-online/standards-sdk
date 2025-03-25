@@ -1,0 +1,16 @@
+# This file defines the code owners for the Hashgraph Online Standards SDK
+# Each line is a file pattern followed by one or more owners
+
+# These owners will be the default owners for everything in the repo
+* @kantorcodes @HGraphPunks @3nigma @victorholo @vla-dev @rocketmay
+
+# Specific directories or files can have different owners
+# Examples:
+# /src/hcs-10/ @kantorcodes
+# /docs/ @kantorcodes
+
+# Build and CI files
+.github/ @kantorcodes
+package.json @kantorcodes
+tsconfig.json @kantorcodes
+vite.config.js @kantorcodes

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>HCS Recursion: Preload Image Demo</title>
+    <style>
+      :root {
+        --color-blue-500: rgb(98, 79, 255);
+        --color-blue-600: rgb(70, 34, 252);
+        --color-blue-700: rgb(64, 25, 232);
+        --color-blue-800: rgb(52, 20, 195);
+        --color-blue-900: rgb(45, 19, 159);
+        --color-blue-950: rgb(24, 9, 108);
+        --color-green-400: rgb(87, 209, 117);
+        --color-green-500: rgb(48, 183, 82);
+        --color-green-600: rgb(37, 162, 68);
+      }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: linear-gradient(
+          135deg,
+          var(--color-blue-950) 0%,
+          var(--color-blue-900) 100%
+        );
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      }
+
+      canvas {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+
+      #overlay {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: clamp(16px, 4vw, 24px);
+        width: 90%;
+        max-width: 600px;
+        text-align: center;
+        z-index: 2;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-weight: 600;
+        background: rgba(24, 9, 108, 0.8);
+        padding: 12px 24px;
+        border-radius: 8px;
+        border: 1px solid rgba(98, 79, 255, 0.3);
+      }
+
+      #loading-indicator {
+        position: fixed;
+        top: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: var(--color-green-400);
+        font-size: 14px;
+        z-index: 2;
+        text-align: center;
+        width: 90%;
+        max-width: 600px;
+      }
+
+      #models-container {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: clamp(10px, 3vw, 40px);
+        width: 90%;
+        max-width: 1200px;
+        z-index: 2;
+      }
+
+      model-viewer {
+        width: clamp(250px, 45vw, 300px);
+        height: clamp(250px, 45vw, 300px);
+        background: rgba(24, 9, 108, 0.4);
+        border-radius: 12px;
+        border: 1px solid rgba(98, 79, 255, 0.2);
+        box-shadow: 0 4px 20px rgba(24, 9, 108, 0.5);
+        transition: all 0.3s ease;
+      }
+
+      model-viewer:nth-child(2) {
+        animation-delay: -3s;
+      }
+
+      model-viewer:hover {
+        transform: translateY(-8px);
+        border-color: rgba(98, 79, 255, 0.4);
+        box-shadow: 0 8px 30px rgba(24, 9, 108, 0.6);
+      }
+
+      .loading-status {
+        padding: 8px 16px;
+        margin: 5px;
+        border-radius: 6px;
+        background: rgba(24, 9, 108, 0.8);
+        border: 1px solid rgba(98, 79, 255, 0.2);
+        transition: all 0.3s ease;
+      }
+
+      .loading-status.loaded {
+        background: rgba(37, 162, 68, 0.1);
+        border-color: var(--color-green-500);
+        color: var(--color-green-400);
+      }
+
+      @media (max-width: 768px) {
+        #overlay {
+          padding: 8px 16px;
+        }
+        
+        .loading-status {
+          padding: 6px 12px;
+          font-size: 12px;
+        }
+        
+        model-viewer:hover {
+          transform: none;
+        }
+      }
+
+      @media (max-width: 480px) {
+        #models-container {
+          gap: 15px;
+        }
+        
+        model-viewer {
+          width: 100%;
+          height: 250px;
+        }
+      }
+    </style>
+    <!-- HCS Config Script -->
+    <script
+      data-hcs-config
+      data-hcs-cdn-url="https://kiloscribe.com/api/inscription-cdn/"
+      data-hcs-network="mainnet"
+      data-hcs-debug="true"
+      data-hcs-retry-attempts="5"
+      data-hcs-retry-backoff="500"
+      data-hcs-show-loading-indicator="true"
+      data-hcs-loading-callback-name="setLoadingIndicator"
+    ></script>
+  </head>
+  <body>
+    <canvas id="myCanvas"></canvas>
+    <div id="overlay">HCS-3 Recursion: Preload Image Demo</div>
+    <div id="loading-indicator"></div>
+
+    <div id="models-container">
+      <model-viewer
+        data-src="hcs://1/0.0.7287383"
+        data-script-id="model1"
+        camera-controls
+        auto-rotate
+        rotation-per-second="30deg"
+        exposure="1.2"
+        shadow-intensity="1"
+        environment-image="legacy"
+      ></model-viewer>
+
+      <model-viewer
+        data-src="hcs://1/0.0.7160717"
+        data-script-id="model2"
+        camera-controls
+        auto-rotate
+        rotation-per-second="30deg"
+        exposure="1.2"
+        shadow-intensity="1"
+        environment-image="legacy"
+      ></model-viewer>
+    </div>
+
+    <!-- Required Scripts -->
+    <script
+      data-src="hcs://1/0.0.6614307"
+      data-load-order="1"
+      data-script-id="threejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6627067"
+      data-load-order="2"
+      data-script-id="animejs"
+    ></script>
+    <script
+      data-src="hcs://1/0.0.6628687"
+      data-script-id="rust-wasm"
+      type="wasm"
+      data-load-order="4"
+    ></script>
+
+    <script>
+      window.setLoadingIndicator = function (id, status) {
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        let element = document.getElementById(`loading-status-${id}`);
+        if (!element) {
+          element = document.createElement('div');
+          element.id = `loading-status-${id}`;
+          element.className = 'loading-status';
+          loadingIndicator.appendChild(element);
+        }
+
+        element.className = `loading-status ${
+          status === 'loaded' ? 'loaded' : ''
+        }`;
+        element.innerHTML = `${id}: ${
+          status === 'loaded' ? '✓ Loaded!' : '⟳ Loading...'
+        }`;
+      };
+
+      window.HCSReady = async function () {
+        console.log('All scripts and WASM modules loaded, initializing demo');
+
+        const preloadedImage = await window.HCS.preloadImage('0.0.4840659');
+        console.log('got image', preloadedImage);
+
+        const rustWasm = window.HCS.LoadedWasm['rust-wasm'].exports;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({
+          canvas: document.getElementById('myCanvas'),
+          antialias: true,
+          alpha: true,
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const texture = new THREE.TextureLoader().load(preloadedImage);
+        const characterGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const characterMaterial = new THREE.MeshBasicMaterial({ map: texture });
+        const character = new THREE.Mesh(characterGeometry, characterMaterial);
+        scene.add(character);
+
+        const wireframeGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const wireframeMaterial = new THREE.MeshBasicMaterial({
+          color: 0x624fff,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const wireframeCube = new THREE.Mesh(
+          wireframeGeometry,
+          wireframeMaterial
+        );
+        scene.add(wireframeCube);
+
+        camera.position.z = 5;
+
+        anime({
+          targets: character.rotation,
+          y: Math.PI * 2,
+          duration: 4000,
+          easing: 'linear',
+          loop: true,
+        });
+
+        anime({
+          targets: character.position,
+          x: [-2, 2],
+          duration: 2000,
+          easing: 'easeInOutQuad',
+          loop: true,
+          direction: 'alternate',
+        });
+
+        let frame = 0;
+        function animate() {
+          requestAnimationFrame(animate);
+
+          // Update WASM position
+          if (rustWasm.update_position) {
+            frame = rustWasm.update_position(frame);
+            character.position.y = Math.sin(frame * 0.1) * 0.5;
+          }
+
+          // Rotate wireframe cube
+          wireframeCube.rotation.x += 0.01;
+          wireframeCube.rotation.y += 0.01;
+
+          renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      };
+    </script>
+  </body>
+</html>
