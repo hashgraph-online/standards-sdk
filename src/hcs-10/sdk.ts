@@ -278,7 +278,7 @@ export class HCS10Client extends HCS10BaseClient {
           `Failed to inscribe profile picture: ${imageResult.error}`
         );
         throw new Error(
-          imageResult.error || 'Failed to inscribe profile picture'
+          imageResult?.error || 'Failed to inscribe profile picture'
         );
       }
 
