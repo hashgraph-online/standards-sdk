@@ -28,7 +28,7 @@
     "build": "npm run clean && npm run build:umd && npm run build:es",
     "prepublishOnly": "npm run build",
     "release": "npm publish --access public",
-    "demo": "tsx demo/inscribe-demo.ts",
+    "demo:inscribe": "tsx demo/inscribe-demo.ts",
     "demo:hcs-10": "tsx demo/hcs-10/index.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\""
   },
