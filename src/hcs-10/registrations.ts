@@ -1,6 +1,7 @@
 import { AgentMetadata } from './sdk';
 import { Logger } from '../utils/logger';
 import { HCS11Client } from '../hcs-11';
+import { sleep } from '../utils/sleep';
 
 export interface RegistrationSearchOptions {
   tags?: string[];
@@ -204,23 +205,23 @@ export abstract class Registration {
           auth: { operatorId: '0.0.0' },
         });
         logger?.info(
-          'Fetching profile by account ID',
-          `${accountId}-${network}`
+          `Fetching profile by account ID ${accountId} on ${network}`
         );
+        await sleep(5000);
         const profileResult = await hcs11Client.fetchProfileByAccountId(
           accountId,
           network
         );
         logger?.info('Profile fetched', profileResult);
 
-        if (profileResult.error) {
+        if (profileResult?.error) {
           logger?.error('Error fetching profile', profileResult.error);
           return {
             error: profileResult.error,
             success: false,
           };
         }
-        if (!profileResult.success || !profileResult.profile) {
+        if (!profileResult?.success || !profileResult?.profile) {
           if (logger) {
             logger.error('Profile not found for agent registration');
           }

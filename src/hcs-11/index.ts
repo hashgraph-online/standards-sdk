@@ -493,8 +493,8 @@ export class HCS11Client {
             {
               network: this.network as 'mainnet' | 'testnet',
               waitForConfirmation,
-              waitMaxAttempts: 60,
-              waitIntervalMs: 2000,
+              waitMaxAttempts: 150,
+              waitIntervalMs: 4000,
               logging: {
                 level: 'debug',
               },
@@ -538,7 +538,7 @@ export class HCS11Client {
           },
           {
             waitForConfirmation,
-            waitMaxAttempts: 60,
+            waitMaxAttempts: 150,
             waitIntervalMs: 2000,
             logging: {
               level: 'debug',
@@ -642,8 +642,8 @@ export class HCS11Client {
         waitMaxAttempts: 100,
         waitIntervalMs: 2000,
         progressCallback: (data: any) => {
-          const adjustedPercent = 20 + (data.progressPercent || 0) * 0.75;
-          progressReporter.report({
+          const adjustedPercent = 20 + Number(data?.progressPercent || 0) * 0.75;
+          progressReporter?.report({
             stage: data.stage,
             message: data.message,
             progressPercent: adjustedPercent,
@@ -662,7 +662,7 @@ export class HCS11Client {
               privateKey: this.auth.privateKey,
               network: this.network as 'mainnet' | 'testnet',
             },
-            inscriptionOptions
+            inscriptionOptions,
           )
         : await inscribeWithSigner(
             input,
@@ -779,9 +779,9 @@ export class HCS11Client {
       },
     });
 
-    if (!inscriptionResult.success) {
+    if (!inscriptionResult?.success) {
       progressReporter.failed('Profile inscription failed', {
-        error: inscriptionResult.error,
+        error: inscriptionResult?.error,
       });
       return inscriptionResult;
     }
@@ -796,12 +796,12 @@ export class HCS11Client {
 
       if (!memoResult.success) {
         progressReporter.failed('Failed to update account memo', {
-          error: memoResult.error,
+          error: memoResult?.error,
         });
         return {
           ...inscriptionResult,
           success: false,
-          error: memoResult.error,
+          error: memoResult?.error,
         };
       }
     }

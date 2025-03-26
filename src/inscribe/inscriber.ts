@@ -458,7 +458,7 @@ async function waitForInscriptionConfirmation(
     });
 
     try {
-      const waitMethod = sdk.waitForInscription as (
+      const waitMethod = sdk.waitForInscription.bind(sdk) as (
         txId: string,
         maxAttempts: number,
         intervalMs: number,
@@ -475,7 +475,7 @@ async function waitForInscriptionConfirmation(
           stage: stage,
           message: message,
           progressPercent: percent,
-          details: data.details,
+          details: {},
         });
       };
 
@@ -487,6 +487,7 @@ async function waitForInscriptionConfirmation(
         wrappedCallback
       );
     } catch (e) {
+      console.log(e);
       // Fall back to standard method if progress callback fails
       logger.debug('Falling back to standard waitForInscription method', {
         error: e,
