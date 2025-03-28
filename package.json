@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.44",
+  "version": "0.0.46",
   "description": "HCS Standards SDK",
   "type": "module",
   "files": [
@@ -30,6 +30,7 @@
     "release": "npm publish --access public",
     "demo:inscribe": "tsx demo/inscribe-demo.ts",
     "demo:hcs-10": "tsx demo/hcs-10/index.ts",
+    "demo:polling-agent": "tsx demo/hcs-10/polling-agent.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\""
   },
   "devDependencies": {
@@ -57,6 +58,7 @@
     "@kiloscribe/inscription-sdk": "^1.0.26",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
+    "file-type": "^20.4.1",
     "ioredis": "^5.6.0",
     "lodash": "^4.17.21",
     "mime-types": "^2.1.35",
