@@ -14,7 +14,11 @@ export interface HCS10Config {
 
 export interface HCSMessage {
   p: 'hcs-10';
-  op: 'connection_request' | 'connection_created' | 'message';
+  op:
+    | 'connection_request'
+    | 'connection_created'
+    | 'message'
+    | 'close_connection';
   data: string;
   created?: Date;
   consensus_timestamp?: string;
@@ -29,6 +33,8 @@ export interface HCSMessage {
   connection_id?: number;
   sequence_number: number;
   operator_id?: string;
+  reason?: string;
+  close_method?: string;
 }
 
 export interface ProfileResponse {
@@ -59,13 +65,134 @@ export abstract class HCS10BaseClient extends Registration {
 
   abstract getAccountAndSigner(): { accountId: string; signer: any };
 
+  /**
+   * Get a stream of messages from a connection topic
+   * @param topicId The connection topic ID to get messages from
+   * @returns A stream of filtered messages valid for connection topics
+   */
+  public async getMessageStream(
+    topicId: string
+  ): Promise<{ messages: HCSMessage[] }> {
+    try {
+      const messages = await this.mirrorNode.getTopicMessages(topicId);
+      const validOps = ['message', 'close_connection'];
+
+      const filteredMessages = messages.filter((msg) => {
+        if (msg.p !== 'hcs-10' || !validOps.includes(msg.op)) {
+          return false;
+        }
+
+        if (msg.op === 'message') {
+          if (!msg.data) {
+            return false;
+          }
+
+          if (!msg.operator_id) {
+            return false;
+          }
+
+          if (!this.isValidOperatorId(msg.operator_id)) {
+            return false;
+          }
+        }
+
+        if (msg.op === 'close_connection') {
+          if (!msg.operator_id) {
+            return false;
+          }
+
+          if (!this.isValidOperatorId(msg.operator_id)) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      return {
+        messages: filteredMessages,
+      };
+    } catch (error: any) {
+      if (this.logger) {
+        this.logger.error(`Error fetching messages: ${error.message}`);
+      }
+      return { messages: [] };
+    }
+  }
+
+  /**
+   * Validates if an operator_id follows the correct format (agentTopicId@accountId)
+   * @param operatorId The operator ID to validate
+   * @returns True if the format is valid, false otherwise
+   */
+  protected isValidOperatorId(operatorId: string): boolean {
+    if (!operatorId) {
+      return false;
+    }
+
+    const parts = operatorId.split('@');
+
+    if (parts.length !== 2) {
+      return false;
+    }
+
+    const agentTopicId = parts[0];
+    const accountId = parts[1];
+
+    if (!agentTopicId) {
+      return false;
+    }
+
+    if (!accountId) {
+      return false;
+    }
+
+    const hederaIdPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+
+    if (!hederaIdPattern.test(accountId)) {
+      return false;
+    }
+
+    if (!hederaIdPattern.test(agentTopicId)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Get all messages from a topic
+   * @param topicId The topic ID to get messages from
+   * @returns All messages from the topic
+   */
   public async getMessages(
     topicId: string
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId);
+
+      const validatedMessages = messages.filter((msg) => {
+        if (msg.p !== 'hcs-10') {
+          return false;
+        }
+
+        if (msg.op === 'message') {
+          if (!msg.data) {
+            return false;
+          }
+
+          if (msg.operator_id) {
+            if (!this.isValidOperatorId(msg.operator_id)) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      });
+
       return {
-        messages: messages,
+        messages: validatedMessages,
       };
     } catch (error: any) {
       if (this.logger) {
