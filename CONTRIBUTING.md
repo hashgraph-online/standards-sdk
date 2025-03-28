@@ -6,11 +6,23 @@ We appreciate your interest in helping us and the rest of our community. We welc
 
 **Jump To:**
 
-- [Bug Reports](#bug-reports)
-- [Feature Requests](#feature-requests)
-- [Code Contributions](#code-contributions)
-- [Development Setup](#development-setup)
-- [Pull Request Process](#pull-request-process)
+- [Contributing to Hashgraph Online Standards SDK](#contributing-to-hashgraph-online-standards-sdk)
+  - [Bug Reports](#bug-reports)
+    - [Before Submitting a Bug Report](#before-submitting-a-bug-report)
+    - [Submitting a Bug Report](#submitting-a-bug-report)
+  - [Feature Requests](#feature-requests)
+    - [Submitting a Feature Request](#submitting-a-feature-request)
+  - [Code Contributions](#code-contributions)
+  - [Development Setup](#development-setup)
+  - [Pull Request Process](#pull-request-process)
+    - [Branch Naming Conventions](#branch-naming-conventions)
+    - [Commit Message Conventions](#commit-message-conventions)
+    - [Pull Request Naming](#pull-request-naming)
+    - [Pull Request Readiness](#pull-request-readiness)
+    - [Developer Certificate of Origin (DCO)](#developer-certificate-of-origin-dco)
+    - [Getting Your Pull Request Merged](#getting-your-pull-request-merged)
+  - [Code of Conduct](#code-of-conduct)
+  - [Getting in Contact](#getting-in-contact)
 
 ## Bug Reports
 
@@ -100,6 +112,96 @@ npm run build
 ```
 
 ## Pull Request Process
+
+### Branch Naming Conventions
+
+Branch names should clearly indicate the type of work being done. Follow this format:
+
+- `bug/fix-short-description` - For bug fixes
+- `feat/feature-short-description` - For new features
+- `docs-short-description` - For documentation changes
+- `chore-short-description` - For maintenance tasks
+- `refactor-short-description` - For code refactoring
+- `test-short-description` - For adding or modifying tests
+- `style-short-description` - For formatting changes
+
+Use hyphens to separate words in the description.
+
+Examples:
+
+- `bug/fix-token-validation`
+- `feature-add-hcs12-support`
+- `docs-update-installation-guide`
+
+### Commit Message Conventions
+
+We follow the Conventional Commits specification for commit messages. Each commit message should be structured as follows:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+Types:
+
+- `fix:` - Bug fixes (correlates with PATCH in semantic versioning)
+- `feat:` - New features (correlates with MINOR in semantic versioning)
+- `docs:` - Documentation only changes
+- `style:` - Changes that don't affect the code's meaning (white-space, formatting, etc.)
+- `refactor:` - Code changes that neither fix bugs nor add features
+- `perf:` - Changes that improve performance
+- `test:` - Adding or correcting tests
+- `chore:` - Changes to the build process or auxiliary tools
+
+Examples:
+
+```
+feat(sdk): add support for custom topic creation
+
+This allows users to create topics with custom properties.
+
+Closes #123
+```
+
+```
+fix: address memory leak in connection pooling
+
+The connection wasn't being properly closed when an error occurred.
+
+Fixes #456
+```
+
+Breaking changes should be indicated by adding `BREAKING CHANGE:` in the footer or appending a `!` after the type/scope:
+
+```
+feat!: drop support for Node 12
+
+BREAKING CHANGE: Use of new features requires Node 14 or higher.
+```
+
+### Pull Request Naming
+
+Pull request titles should follow the same format as commit messages:
+
+- `bug: Short description` - For bug fixes
+- `feat: Short description` - For new features
+- `docs: Short description` - For documentation changes
+- `chore: Short description` - For maintenance tasks
+- `refactor: Short description` - For code refactoring
+- `test: Short description` - For adding or modifying tests
+- `style: Short description` - For formatting changes
+- `perf: Short description` - For performance improvements
+
+Examples:
+
+- `bug: Fix token validation in authentication flow`
+- `feat: Add support for HCS-12 standard`
+- `docs: Update installation instructions`
+
+Include the issue number in the PR description rather than the title, using "Fixes #123" or "Closes #456" syntax to automatically link the PR to the issue.
 
 ### Pull Request Readiness
 

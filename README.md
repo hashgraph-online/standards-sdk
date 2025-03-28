@@ -58,10 +58,17 @@ The SDK includes demo implementations that showcase various features. Follow the
 
    ```bash
    # Run the inscribe demo
-   npm run demo
+   npm run demo:inscribe
+   ```
 
+   ```bash
    # Run the HCS-10 AI agent communication demo
    npm run demo:hcs-10
+   ```
+
+   ```bash
+   # Run the HCS-10 polling demo
+   npm run demo:polling-agent
    ```
 
 ### Demo Descriptions
