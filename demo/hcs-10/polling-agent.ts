@@ -1,7 +1,5 @@
 import dotenv from 'dotenv';
-import { HCS10Client } from '../../src/hcs-10/sdk';
-import { HCSMessage } from '../../src/hcs-10/base-client';
-import { Logger } from '../../src/utils/logger';
+import { HCS10Client, HCSMessage, Logger } from '@hashgraphonline/standards-sdk';
 import { getOrCreateBob } from './utils';
 
 interface AgentConnection {
