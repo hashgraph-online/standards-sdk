@@ -1,18 +1,12 @@
 import dotenv from 'dotenv';
-import { FeeConfigBuilder, HCS10Client } from '../../src/hcs-10/sdk';
+import { FeeConfigBuilder, HCS10Client, Logger } from '@hashgraphonline/standards-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Logger } from '../../src/utils/logger';
 import {
   ensureAgentHasEnoughHbar,
-  getAgentFromEnv,
-  createAgent,
   getOrCreateBob,
-  AgentData,
   getOrCreateAlice,
 } from './utils';
-import { AIAgentCapability } from '../../src/hcs-11';
-import { InboundTopicType } from '../../src/hcs-10/types.d';
 import { fileURLToPath } from 'url';
 
 dotenv.config();

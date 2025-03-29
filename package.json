@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.46",
+  "version": "0.0.50",
   "description": "HCS Standards SDK",
   "type": "module",
   "files": [
@@ -11,14 +11,10 @@
   "types": "./dist/es/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/es/index.d.ts",
-        "default": "./dist/es/standards-sdk.es.js"
-      },
-      "require": {
-        "types": "./dist/umd/index.d.ts",
-        "default": "./dist/umd/standards-sdk.umd.js"
-      }
+      "types": "./dist/es/index.d.ts",
+      "import": "./dist/es/standards-sdk.es.js",
+      "require": "./dist/umd/standards-sdk.umd.js",
+      "default": "./dist/es/standards-sdk.es.js"
     }
   },
   "scripts": {

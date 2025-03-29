@@ -1,4 +1,4 @@
-import { FeeConfigBuilderInterface, TopicFeeConfig } from './types.d';
+import { FeeConfigBuilderInterface, TopicFeeConfig } from './types';
 
 /**
  * FeeConfigBuilder provides a fluent interface for creating fee configurations
