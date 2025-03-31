@@ -179,7 +179,14 @@ export class HederaMirrorNode {
               }
 
               messageJson.sequence_number = message.sequence_number;
-              messages.push(messageJson);
+              messages.push({
+                ...messageJson,
+                consensus_timestamp: message.consensus_timestamp,
+                sequence_number: message.sequence_number,
+                created: new Date(
+                  Number(message.consensus_timestamp) * 1000
+                ),
+              });
             } catch (error: any) {
               this.logger.error(`Error processing message: ${error.message}`);
             }

@@ -14,16 +14,20 @@ import {
 import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
-  AgentConfig,
+  HCSClientConfig,
   NetworkType,
+  RegistrationResponse,
+  AgentConfig,
+  CreateAgentResponse,
+  InscribePfpResponse,
+  StoreHCS11ProfileResponse,
+  AgentRegistrationResult,
+  HandleConnectionRequestResponse,
+  WaitForConnectionConfirmationResponse,
   RegistrationProgressCallback,
   AgentCreationState,
-  HandleConnectionRequestResponse,
-  AgentRegistrationResult,
-  StoreHCS11ProfileResponse,
-  InscribePfpResponse,
-  GetAccountAndSignerResponse,
-} from './types.d';
+  GetAccountAndSignerResponse
+} from './types';
 import { HCS11Client, AIAgentMetadata } from '../hcs-11';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { Transaction } from '@hashgraph/sdk';

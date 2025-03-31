@@ -1,6 +1,5 @@
 import { PrivateKey, TransactionReceipt } from '@hashgraph/sdk';
 import { LogLevel } from '../utils/logger';
-import { RetrievedInscriptionResult } from '@kiloscribe/inscription-sdk';
 import { AIAgentCapability } from '../hcs-11';
 import {
   ProgressData,
@@ -172,93 +171,6 @@ export interface GetAccountAndSignerResponse {
   signer: PrivateKey;
 }
 
-export class HCSClient {
-  constructor(config: HCSClientConfig);
-
-  createAccount(): Promise<CreateAccountResponse>;
-
-  registerAgentWithGuardedRegistry(
-    accountId: string,
-    requesterTopicId: string,
-    network: string,
-    options?: {
-      progressCallback?: RegistrationProgressCallback;
-      maxAttempts?: number;
-      delayMs?: number;
-      existingState?: AgentCreationState;
-    }
-  ): Promise<AgentRegistrationResult>;
-
-  registerAgent(
-    registryTopicId: string,
-    accountId: string,
-    requesterTopicId: string,
-    metadata: { tags: string[]; [key: string]: any },
-    memo: string,
-    submitKey?: PrivateKey
-  ): Promise<void>;
-
-  handleConnectionRequest(
-    requesterTopicId: string,
-    requestingAccountId: string,
-    memo: string
-  ): Promise<string>;
-
-  confirmConnection(
-    requesterTopicId: string,
-    connectionTopicId: string,
-    connectedAccountId: string,
-    connectionId: number,
-    memo: string,
-    submitKey?: PrivateKey
-  ): Promise<void>;
-
-  sendMessage(
-    connectionTopicId: string,
-    data: string,
-    memo?: string,
-    submitKey?: PrivateKey
-  ): Promise<void>;
-
-  createThresholdTopic(
-    memo: string,
-    requesterPublicKey: string
-  ): Promise<string>;
-
-  createTopic(
-    memo: string,
-    adminKey?: boolean,
-    submitKey?: boolean
-  ): Promise<string>;
-
-  submitMessage(
-    topicId: string,
-    message: string,
-    submitKey?: PrivateKey
-  ): Promise<TransactionReceipt>;
-
-  submitPayload(
-    topicId: string,
-    payload: object,
-    submitKey?: PrivateKey
-  ): Promise<void>;
-
-  queryTopicMessages(topicId: string): Promise<string[]>;
-
-  submitConnectionRequest(
-    requesterTopicId: string,
-    requestingAccountId: string,
-    memo: string
-  ): Promise<TransactionReceipt>;
-
-  waitForConnectionConfirmation(
-    requesterTopicId: string,
-    connectionRequestId: number,
-    maxAttempts?: number,
-    delayMs?: number
-  ): Promise<WaitForConnectionConfirmationResponse>;
-}
-
 export interface AgentRegistrationResult {
   success: boolean;
   error?: string;
@@ -300,4 +212,4 @@ export interface AgentCreationState {
   error?: string;
   createdResources?: string[];
   agentMetadata?: Record<string, any>;
-}
+} 

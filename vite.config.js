@@ -23,6 +23,7 @@ export default defineConfig(() => {
     dts({
       insertTypesEntry: true,
       include: ['src/**/*.ts'],
+      exclude: ['**/*.d.ts'],
       outputDir: outputDir,
     }),
   ];
@@ -41,6 +42,8 @@ export default defineConfig(() => {
         external: format === 'es' ? externalDependencies : [],
         output: {
           globals: (id) => id,
+          preserveModules: format === 'es',
+          preserveModulesRoot: 'src',
         },
       },
       minify: 'terser',
