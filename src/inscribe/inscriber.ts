@@ -345,7 +345,7 @@ export async function retrieveInscription(
 ): Promise<RetrievedInscriptionResult> {
   const logger = Logger.getInstance({
     module: 'Inscriber',
-    ...options.logging,
+    ...options?.logging || {},
   });
 
   const formattedTransactionId = transactionId.includes('@')
@@ -362,13 +362,13 @@ export async function retrieveInscription(
   try {
     let sdk: InscriptionSDK;
 
-    if (options.apiKey) {
+    if (options?.apiKey) {
       logger.debug('Initializing InscriptionSDK with API key');
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: options.network || 'mainnet',
       });
-    } else if (options.accountId && options.privateKey) {
+    } else if (options?.accountId && options?.privateKey) {
       logger.debug('Initializing InscriptionSDK with server auth');
       sdk = await InscriptionSDK.createWithAuth({
         type: 'server',
@@ -381,9 +381,9 @@ export async function retrieveInscription(
         'Either API key or account ID and private key are required for retrieving inscriptions'
       );
       logger.error('Missing authentication credentials', {
-        hasApiKey: !!options.apiKey,
-        hasAccountId: !!options.accountId,
-        hasPrivateKey: !!options.privateKey,
+        hasApiKey: Boolean(options?.apiKey),
+        hasAccountId: Boolean(options?.accountId),
+        hasPrivateKey: Boolean(options?.privateKey),
       });
       throw error;
     }
