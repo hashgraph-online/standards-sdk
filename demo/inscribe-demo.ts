@@ -1,4 +1,4 @@
-import { inscribe } from '@hashgraphonline/standards-sdk';
+import { inscribe, retrieveInscription } from '../src/';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
@@ -29,6 +29,8 @@ const options = {
   apiKey: API_KEY,
   network: NETWORK,
   waitForConfirmation: false,
+  waitMaxAttempts: 100,
+  waitIntervalMs: 4000,
 };
 
 async function runDemo() {
@@ -60,6 +62,16 @@ async function runDemo() {
       console.log(`Content: ${textResponse.inscription.content}`);
     }
     console.log('');
+
+    const inscription = await retrieveInscription(
+      textResponse.result.transactionId,
+      {
+        ...options,
+        ...clientConfig,
+        apiKey: API_KEY,
+      }
+    );
+    console.log('Inscription:', inscription);
 
     // URL inscription
     console.log('2. URL Inscription');
