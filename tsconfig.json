@@ -2,13 +2,17 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "noImplicitAny": true,
-    "module": "esnext",
-    "target": "es5",
+    "module": "ESNext",
+    "target": "es2020",
     "jsx": "react",
     "allowJs": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "lib": ["es2015", "dom"]
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "lib": ["es2020", "dom"]
   },
   "include": ["src/**/*"]
 }

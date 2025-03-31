@@ -3,7 +3,8 @@ import {
   NetworkType,
   FeeConfigBuilderInterface,
   AgentConfiguration,
-} from './types.d';
+  AgentCreationState
+} from './types';
 import { AIAgentCapability } from '../hcs-11';
 import { AgentMetadata } from './sdk';
 

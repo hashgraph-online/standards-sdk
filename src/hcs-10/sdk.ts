@@ -42,12 +42,12 @@ import {
   TopicFeeConfig,
   FeeConfigBuilderInterface,
   AgentCreationState,
-} from './types.d';
+} from './types';
 import { HCS11Client } from '../hcs-11';
 import { AgentBuilder } from './agent-builder';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
 
-export { InboundTopicType } from './types.d';
+export { InboundTopicType } from './types';
 export { FeeConfigBuilder } from './fee-config-builder';
 
 export interface AgentMetadata {

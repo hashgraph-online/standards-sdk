@@ -1,4 +1,4 @@
-import { inscribe } from '../src/inscribe';
+import { inscribe } from '@hashgraphonline/standards-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
