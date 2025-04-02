@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
-import { HCS10Client, HCSMessage, Logger } from '@hashgraphonline/standards-sdk';
+import {
+  HCS10Client,
+  HCSMessage,
+  Logger,
+} from '@hashgraphonline/standards-sdk';
 import { getOrCreateBob } from './utils';
 
 interface AgentConnection {
@@ -359,7 +363,6 @@ async function handleConnectionRequest(
 
     await agent.client.sendMessage(
       connectionTopicId,
-      agent.operatorId,
       `Hello! I'm Bob, your friendly Hedera agent! 🤖
 
 ${generateASCIIArt('bob')}
@@ -616,12 +619,7 @@ You can ask me to perform various tasks by typing "help" to see all available co
 
   try {
     logger.info(`Sending response to topic ${connectionTopicId}`);
-    await agent.client.sendMessage(
-      connectionTopicId,
-      agent.operatorId,
-      response,
-      'Bob response'
-    );
+    await agent.client.sendMessage(connectionTopicId, response, 'Bob response');
   } catch (error) {
     logger.error(
       `Failed to send response to topic ${connectionTopicId}: ${error}`

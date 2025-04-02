@@ -500,6 +500,22 @@ export abstract class HCS10BaseClient extends Registration {
     return await this.submitPayload(outboundTopicId, payload);
   }
 
+  public async getOperatorId(): Promise<string> {
+    const accountResponse = this.getAccountAndSigner();
+
+    if (!accountResponse.accountId) {
+      throw new Error('Operator ID not found');
+    }
+
+    const profile = await this.retrieveProfile(accountResponse.accountId);
+
+    if (!profile.success) {
+      throw new Error('Failed to retrieve profile');
+    }
+
+    return `${profile.topicInfo?.inboundTopic}@${accountResponse.accountId}`;
+  }
+
   clearCache(): void {
     HCS10Cache.getInstance().clear();
   }

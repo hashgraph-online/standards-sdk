@@ -129,11 +129,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
   async sendMessage(
     connectionTopicId: string,
-    operatorId: string,
     data: string,
-    memo?: string
+    memo?: string,
+    submitKey?: PrivateKey
   ): Promise<void> {
     this.logger.info('Sending message');
+    const operatorId = await this.getOperatorId();
+
     const payload = {
       p: 'hcs-10',
       op: 'message',
@@ -183,7 +185,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     await this.submitPayload(
       connectionTopicId,
       payload,
-      undefined,
+      submitKey,
       submissionCheck.requiresFee
     );
   }
