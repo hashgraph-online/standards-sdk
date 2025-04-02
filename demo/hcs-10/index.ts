@@ -127,6 +127,8 @@ async function monitorIncomingRequests(
         );
 
         try {
+          const currentAccount = client.getClient().operatorAccountId?.toString();
+          logger.info(`Ensuring agent has enough hbar: ${currentAccount}`);
           await ensureAgentHasEnoughHbar(
             new Logger({
               module: 'HCS10Demo',
@@ -134,9 +136,10 @@ async function monitorIncomingRequests(
               prettyPrint: true,
             }),
             baseClient,
-            accountId,
-            `Agent ${accountId}-${inboundTopicId}`
+            currentAccount,
+            `Agent ${currentAccount}-${inboundTopicId}`
           );
+          logger.info('Ensured agent has enough hbar');
           const { connectionTopicId, confirmedConnectionSequenceNumber } =
             await client.handleConnectionRequest(
               inboundTopicId,
@@ -482,6 +485,7 @@ async function main() {
     logger.info(`Alice ID: ${alice.accountId}`);
     logger.info(`Bob ID: ${bob.accountId}`);
   } catch (error) {
+    console.log(error);
     logger.error('Error in demo:', error);
   }
 }

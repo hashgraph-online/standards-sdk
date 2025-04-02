@@ -1,15 +1,23 @@
 import { HederaMirrorNode } from '../services/mirror-node';
 import { Logger, LogLevel } from '../utils/logger';
-import axios from 'axios';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11';
 import { AccountResponse, NetworkType } from '../services/types';
 import { TopicInfo } from '../services/types';
+import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
+import axios from 'axios';
+
+export enum Hcs10MemoType {
+  INBOUND = 'inbound',
+  OUTBOUND = 'outbound',
+  CONNECTION = 'connection',
+}
 
 export interface HCS10Config {
   network: 'mainnet' | 'testnet';
   logLevel?: LogLevel;
   prettyPrint?: boolean;
+  feeAmount?: number;
 }
 
 export interface HCSMessage {
@@ -48,6 +56,7 @@ export abstract class HCS10BaseClient extends Registration {
   protected network: string;
   protected logger: Logger;
   protected mirrorNode: HederaMirrorNode;
+  protected feeAmount: number;
 
   constructor(config: HCS10Config) {
     super();
@@ -61,7 +70,15 @@ export abstract class HCS10BaseClient extends Registration {
       config.network as NetworkType,
       this.logger
     );
+    this.feeAmount = config.feeAmount || 0.001;
   }
+
+  abstract submitPayload(
+    topicId: string,
+    payload: object | string,
+    submitKey?: PrivateKey,
+    requiresFee?: boolean
+  ): Promise<TransactionReceipt>;
 
   abstract getAccountAndSigner(): { accountId: string; signer: any };
 
@@ -121,43 +138,83 @@ export abstract class HCS10BaseClient extends Registration {
   }
 
   /**
-   * Validates if an operator_id follows the correct format (agentTopicId@accountId)
-   * @param operatorId The operator ID to validate
-   * @returns True if the format is valid, false otherwise
+   * Checks if a user can submit to a topic and determines if a fee is required
+   * @param topicId The topic ID to check
+   * @param userAccountId The account ID of the user attempting to submit
+   * @returns Object with canSubmit, requiresFee, and optional reason
    */
-  protected isValidOperatorId(operatorId: string): boolean {
-    if (!operatorId) {
-      return false;
+  public async canSubmitToTopic(
+    topicId: string,
+    userAccountId: string
+  ): Promise<{ canSubmit: boolean; requiresFee: boolean; reason?: string }> {
+    try {
+      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
+
+      if (!topicInfo) {
+        return {
+          canSubmit: false,
+          requiresFee: false,
+          reason: 'Topic does not exist',
+        };
+      }
+
+      if (!topicInfo.submit_key?.key) {
+        return { canSubmit: true, requiresFee: false };
+      }
+
+      try {
+        const userPublicKey = await this.mirrorNode.getPublicKey(userAccountId);
+
+        if (topicInfo.submit_key._type === 'ProtobufEncoded') {
+          const keyBytes = Buffer.from(topicInfo.submit_key.key, 'hex');
+          const hasAccess = await this.mirrorNode.checkKeyListAccess(
+            keyBytes,
+            userPublicKey
+          );
+
+          if (hasAccess) {
+            return { canSubmit: true, requiresFee: false };
+          }
+        } else {
+          const topicSubmitKey = PublicKey.fromString(topicInfo.submit_key.key);
+          if (userPublicKey.toString() === topicSubmitKey.toString()) {
+            return { canSubmit: true, requiresFee: false };
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `Key validation error: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+
+      if (
+        topicInfo.fee_schedule_key?.key &&
+        topicInfo.custom_fees?.fixed_fees?.length > 0
+      ) {
+        return {
+          canSubmit: true,
+          requiresFee: true,
+          reason: 'Requires fee payment via HIP-991',
+        };
+      }
+
+      return {
+        canSubmit: false,
+        requiresFee: false,
+        reason: 'User does not have submit permission for this topic',
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Topic submission validation error: ${errorMessage}`);
+      return {
+        canSubmit: false,
+        requiresFee: false,
+        reason: `Error: ${errorMessage}`,
+      };
     }
-
-    const parts = operatorId.split('@');
-
-    if (parts.length !== 2) {
-      return false;
-    }
-
-    const agentTopicId = parts[0];
-    const accountId = parts[1];
-
-    if (!agentTopicId) {
-      return false;
-    }
-
-    if (!accountId) {
-      return false;
-    }
-
-    const hederaIdPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
-
-    if (!hederaIdPattern.test(accountId)) {
-      return false;
-    }
-
-    if (!hederaIdPattern.test(agentTopicId)) {
-      return false;
-    }
-
-    return true;
   }
 
   /**
@@ -199,34 +256,6 @@ export abstract class HCS10BaseClient extends Registration {
         this.logger.error(`Error fetching messages: ${error.message}`);
       }
       return { messages: [] };
-    }
-  }
-
-  protected async checkRegistrationStatus(
-    transactionId: string,
-    network: string,
-    baseUrl: string
-  ): Promise<{ status: 'pending' | 'success' | 'failed' }> {
-    try {
-      const response = await fetch(`${baseUrl}/api/request-confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Network': network,
-        },
-        body: JSON.stringify({ transaction_id: transactionId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to confirm registration: ${response.statusText}`
-        );
-      }
-
-      return await response.json();
-    } catch (error) {
-      this.logger.error(`Error checking registration status: ${error}`);
-      throw error;
     }
   }
 
@@ -307,7 +336,9 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
-  async retrieveOutboundConnectTopic(accountId: string): Promise<TopicInfo> {
+  public async retrieveOutboundConnectTopic(
+    accountId: string
+  ): Promise<TopicInfo> {
     this.logger.info(`Retrieving topics for account: ${accountId}`);
 
     try {
@@ -365,7 +396,7 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
-  async hasConnectionCreated(
+  public async hasConnectionCreated(
     agentAccountId: string,
     connectionId: number
   ): Promise<boolean> {
@@ -384,10 +415,6 @@ export abstract class HCS10BaseClient extends Registration {
       this.logger.error('Failed to check connection created:', error);
       return false;
     }
-  }
-
-  clearCache(): void {
-    HCS10Cache.getInstance().clear();
   }
 
   /**
@@ -434,6 +461,153 @@ export abstract class HCS10BaseClient extends Registration {
         }`
       );
     }
+  }
+
+  /**
+   * Records an outbound connection confirmation
+   * @param outboundTopicId The ID of the outbound topic
+   * @param connectionRequestId The ID of the connection request
+   * @param confirmedRequestId The ID of the confirmed request
+   * @param connectionTopicId The ID of the connection topic
+   * @param operatorId The operator ID of the message sender
+   * @param memo An optional memo for the message
+   */
+  public async recordOutboundConnectionConfirmation({
+    outboundTopicId,
+    connectionRequestId,
+    confirmedRequestId,
+    connectionTopicId,
+    operatorId,
+    memo,
+  }: {
+    outboundTopicId: string;
+    connectionRequestId: number;
+    confirmedRequestId: number;
+    connectionTopicId: string;
+    operatorId: string;
+    memo: string;
+  }): Promise<TransactionReceipt> {
+    const payload = {
+      p: 'hcs-10',
+      op: 'connection_created',
+      connection_topic_id: connectionTopicId,
+      outbound_topic_id: outboundTopicId,
+      confirmed_request_id: confirmedRequestId,
+      connection_request_id: connectionRequestId,
+      operator_id: operatorId,
+      m: memo,
+    };
+    return await this.submitPayload(outboundTopicId, payload);
+  }
+
+  clearCache(): void {
+    HCS10Cache.getInstance().clear();
+  }
+
+  /**
+   * Generates a standard HCS-10 memo string.
+   * @param type The type of topic memo ('inbound', 'outbound', 'connection').
+   * @param options Configuration options for the memo.
+   * @returns The formatted memo string.
+   * @protected
+   */
+  protected _generateHcs10Memo(
+    type: Hcs10MemoType,
+    options: {
+      ttl?: number;
+      accountId?: string;
+      inboundTopicId?: string;
+      connectionId?: number;
+    }
+  ): string {
+    const ttl = options.ttl ?? 60; // Default TTL to 60 if not provided
+
+    switch (type) {
+      case Hcs10MemoType.INBOUND:
+        if (!options.accountId) {
+          throw new Error('accountId is required for inbound memo');
+        }
+        return `hcs-10:0:${ttl}:0:${options.accountId}`;
+      case Hcs10MemoType.OUTBOUND:
+        return `hcs-10:0:${ttl}:1`;
+      case Hcs10MemoType.CONNECTION:
+        if (!options.inboundTopicId || options.connectionId === undefined) {
+          throw new Error(
+            'inboundTopicId and connectionId are required for connection memo'
+          );
+        }
+        return `hcs-10:1:${ttl}:2:${options.inboundTopicId}:${options.connectionId}`;
+      default:
+        throw new Error(`Invalid HCS-10 memo type: ${type}`);
+    }
+  }
+
+  protected async checkRegistrationStatus(
+    transactionId: string,
+    network: string,
+    baseUrl: string
+  ): Promise<{ status: 'pending' | 'success' | 'failed' }> {
+    try {
+      const response = await fetch(`${baseUrl}/api/request-confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Network': network,
+        },
+        body: JSON.stringify({ transaction_id: transactionId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to confirm registration: ${response.statusText}`
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      this.logger.error(`Error checking registration status: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Validates if an operator_id follows the correct format (agentTopicId@accountId)
+   * @param operatorId The operator ID to validate
+   * @returns True if the format is valid, false otherwise
+   */
+  protected isValidOperatorId(operatorId: string): boolean {
+    if (!operatorId) {
+      return false;
+    }
+
+    const parts = operatorId.split('@');
+
+    if (parts.length !== 2) {
+      return false;
+    }
+
+    const agentTopicId = parts[0];
+    const accountId = parts[1];
+
+    if (!agentTopicId) {
+      return false;
+    }
+
+    if (!accountId) {
+      return false;
+    }
+
+    const hederaIdPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+
+    if (!hederaIdPattern.test(accountId)) {
+      return false;
+    }
+
+    if (!hederaIdPattern.test(agentTopicId)) {
+      return false;
+    }
+
+    return true;
   }
 }
 

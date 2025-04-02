@@ -1,15 +1,20 @@
-import { HCS10Client, AgentBuilder } from '../../src/hcs-10';
-import { InboundTopicType } from '../../src/hcs-10/types.d';
-import { Logger } from '../../src/utils/logger';
+import {
+  HCS10Client,
+  AgentBuilder,
+  InboundTopicType,
+  Logger,
+  AIAgentCapability,
+  HCS11Client,
+  HederaMirrorNode,
+} from '../../src';
+import { TransferTransaction, Hbar } from '@hashgraph/sdk';
 import fs from 'fs';
 import path from 'path';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { HederaMirrorNode } from '../../src/services/mirror-node';
-import { AIAgentCapability } from '../../src/hcs-11';
 
 export const MIN_REQUIRED_USD = 2.0;
-export const MIN_REQUIRED_HBAR_USD = 5.0;
+export const MIN_REQUIRED_HBAR_USD = 10.0;
 
 export const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
@@ -32,12 +37,12 @@ export interface RegistrationProgressData {
 
 export async function ensureAgentHasEnoughHbar(
   logger: Logger,
-  client: HCS10Client,
+  baseClient: HCS10Client,
   accountId: string,
   agentName: string
 ): Promise<void> {
   try {
-    const account = await client.requestAccount(accountId);
+    const account = await baseClient.requestAccount(accountId);
     const balance = account.balance.balance;
     const hbarBalance = balance / 100_000_000;
 
@@ -55,10 +60,58 @@ export async function ensureAgentHasEnoughHbar(
           logger.warn(
             `${agentName} account ${accountId} has less than $${MIN_REQUIRED_USD} (${balanceInUsd.toFixed(
               2
-            )}). Please fund the account with at least ${(
-              MIN_REQUIRED_HBAR_USD / hbarPrice
-            ).toFixed(2)} HBAR.`
+            )}). Attempting to fund.`
           );
+
+          try {
+            const funder = baseClient.getAccountAndSigner();
+            const targetHbar = MIN_REQUIRED_HBAR_USD / hbarPrice;
+            const amountToTransferHbar = Math.max(0, targetHbar - hbarBalance);
+
+            if (amountToTransferHbar > 0) {
+              const transferTx = new TransferTransaction()
+                .addHbarTransfer(
+                  funder.accountId,
+                  Hbar.fromTinybars(
+                    Math.round(amountToTransferHbar * -100_000_000)
+                  )
+                )
+                .addHbarTransfer(
+                  accountId,
+                  Hbar.fromTinybars(
+                    Math.round(amountToTransferHbar * 100_000_000)
+                  )
+                );
+
+              logger.info(
+                `Funding ${agentName} account ${accountId} with ${amountToTransferHbar.toFixed(
+                  2
+                )} HBAR from ${funder.accountId}`
+              );
+
+              const fundTxResponse = await transferTx.execute(
+                baseClient.getClient()
+              );
+              await fundTxResponse.getReceipt(baseClient.getClient());
+              logger.info(
+                `Successfully funded ${agentName} account ${accountId}.`
+              );
+            } else {
+              logger.info(
+                `${agentName} account ${accountId} does not require additional funding.`
+              );
+            }
+          } catch (fundingError) {
+            logger.error(
+              `Failed to automatically fund ${agentName} account ${accountId}:`,
+              fundingError
+            );
+            logger.warn(
+              `Please fund the account ${accountId} manually with at least ${(
+                MIN_REQUIRED_HBAR_USD / hbarPrice
+              ).toFixed(2)} HBAR.`
+            );
+          }
         }
       } else {
         logger.warn(
@@ -174,6 +227,7 @@ export async function createAgent(
       client,
     };
   } catch (error) {
+    console.log('error', error, baseClient);
     logger.error(`Error creating ${agentName} agent:`, error);
     return null;
   }
@@ -275,6 +329,9 @@ export async function getOrCreateAlice(
     return existingAlice;
   }
 
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+
   const alicePfpPath = path.join(__dirname, 'assets', 'alice-icon.svg');
   const pfpBuffer = fs.existsSync(alicePfpPath)
     ? fs.readFileSync(alicePfpPath)
@@ -284,7 +341,6 @@ export async function getOrCreateAlice(
     logger.warn('Alice profile picture not found, using default');
   }
 
-  const AgentBuilder = require('../../src/hcs-10/agent-builder').AgentBuilder;
   const aliceBuilder = new AgentBuilder()
     .setName('Alice')
     .setDescription('A helpful AI assistant for data analysis')
@@ -306,5 +362,6 @@ export async function getOrCreateAlice(
     aliceBuilder.setProfilePicture(pfpBuffer, 'alice-icon.svg');
   }
 
+  console.log('about to create agent', aliceBuilder);
   return await createAgent(logger, baseClient, 'Alice', aliceBuilder, 'ALICE');
 }
