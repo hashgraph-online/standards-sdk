@@ -267,7 +267,6 @@ async function main() {
 
         await alice.client.sendMessage(
           connectionTopicId,
-          alice.operatorId,
           JSON.stringify(aliceSmallMessage),
           'Requesting sentiment analysis on Q4 2024 customer feedback'
         );
@@ -428,7 +427,6 @@ async function main() {
 
         await alice.client.sendMessage(
           connectionTopicId,
-          alice.operatorId,
           JSON.stringify(largeSampleData),
           'Requesting detailed analysis with many parameters'
         );
@@ -471,7 +469,6 @@ async function main() {
 
         await bob.client.sendMessage(
           connectionTopicId,
-          bob.operatorId,
           JSON.stringify(bobMessage),
           'Analysis complete. Sending results.'
         );

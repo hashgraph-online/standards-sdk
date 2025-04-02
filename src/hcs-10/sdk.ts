@@ -619,7 +619,6 @@ export class HCS10Client extends HCS10BaseClient {
 
   async sendMessage(
     connectionTopicId: string,
-    operatorId: string,
     data: string,
     memo?: string,
     submitKey?: PrivateKey
@@ -628,6 +627,8 @@ export class HCS10Client extends HCS10BaseClient {
       connectionTopicId,
       this.client.operatorAccountId?.toString() || ''
     );
+
+    const operatorId = await this.getOperatorId();
 
     const payload = {
       p: 'hcs-10',
