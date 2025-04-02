@@ -46,6 +46,7 @@ import {
 import { HCS11Client } from '../hcs-11';
 import { AgentBuilder } from './agent-builder';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
+import { Hcs10MemoType } from './base-client';
 
 export { InboundTopicType } from './types';
 export { FeeConfigBuilder } from './fee-config-builder';
@@ -91,13 +92,13 @@ export class HCS10Client extends HCS10BaseClient {
   protected declare logger: Logger;
   protected guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client;
-  private feeAmount: number;
 
   constructor(config: HCSClientConfig) {
     super({
       network: config.network,
       logLevel: config.logLevel,
-      prettyPrint: config.prettyPrint
+      prettyPrint: config.prettyPrint,
+      feeAmount: config.feeAmount,
     });
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
@@ -113,7 +114,6 @@ export class HCS10Client extends HCS10BaseClient {
     });
     this.guardedRegistryBaseUrl =
       config.guardedRegistryBaseUrl || 'https://moonscape.tech';
-    this.feeAmount = config.feeAmount || 5;
 
     this.hcs11Client = new HCS11Client({
       network: config.network,
@@ -163,46 +163,65 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   /**
-   * Creates an inbound topic with the specified configuration
-   * @param accountId Account ID associated with the topic
+   * Creates an inbound topic for an agent
+   * @param accountId The account ID associated with the inbound topic
    * @param topicType Type of inbound topic (public, controlled, or fee-based)
-   * @param feeConfig Optional fee configuration for fee-based topics
+   * @param ttl Optional Time-To-Live for the topic memo, defaults to 60
+   * @param feeConfigBuilder Optional fee configuration builder for fee-based topics
    * @returns The topic ID of the created inbound topic
    */
   async createInboundTopic(
     accountId: string,
     topicType: InboundTopicType,
-    feeConfig?: FeeConfigBuilderInterface
+    ttl: number = 60,
+    feeConfigBuilder?: FeeConfigBuilderInterface
   ): Promise<string> {
-    this.logger.info(`Creating ${topicType} inbound topic`);
-    const memo = `hcs-10:0:60:0:${accountId}`;
+    const memo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
+      accountId,
+      ttl,
+    });
+
+    let submitKey: boolean | PublicKey | KeyList | undefined;
+    let feeConfig: TopicFeeConfig | undefined;
 
     switch (topicType) {
       case InboundTopicType.PUBLIC:
-        return this.createTopic(memo, true, false);
-
+        submitKey = false;
+        break;
       case InboundTopicType.CONTROLLED:
-        return this.createTopic(memo, true, true);
-
+        submitKey = true;
+        break;
       case InboundTopicType.FEE_BASED:
-        if (!feeConfig) {
-          throw new Error('Fee configuration is required for fee-based topics');
+        submitKey = true;
+        if (!feeConfigBuilder) {
+          throw new Error(
+            'Fee configuration builder is required for fee-based topics'
+          );
         }
-        return this.createTopic(memo, true, true, feeConfig.build());
-
+        feeConfig = feeConfigBuilder.build();
+        break;
       default:
         throw new Error(`Unsupported inbound topic type: ${topicType}`);
     }
+
+    return this.createTopic(memo, true, submitKey, feeConfig);
   }
 
   /**
    * Creates a new agent with inbound and outbound topics
    * @param builder The agent builder object
+   * @param ttl Optional Time-To-Live for the topic memos, defaults to 60
    * @returns Object with topic IDs
    */
-  async createAgent(builder: AgentBuilder): Promise<CreateAgentResponse> {
+  async createAgent(
+    builder: AgentBuilder,
+    ttl: number = 60
+  ): Promise<CreateAgentResponse> {
     const config = builder.build();
-    const outboundTopicId = await this.createTopic('hcs-10:0:60:1', true, true);
+    const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+      ttl,
+    });
+    const outboundTopicId = await this.createTopic(outboundMemo, true, true);
     this.logger.info(`Created new outbound topic ID: ${outboundTopicId}`);
 
     const accountId = this.client.operatorAccountId?.toString();
@@ -213,14 +232,14 @@ export class HCS10Client extends HCS10BaseClient {
     const inboundTopicId = await this.createInboundTopic(
       accountId,
       config.inboundTopicType,
+      ttl,
       config.inboundTopicType === InboundTopicType.FEE_BASED
         ? config.feeConfig
         : undefined
     );
-    this.logger.info(`Created new inbound topic ID: ${inboundTopicId}`);
 
     let pfpTopicId = config.existingPfpTopicId || '';
-    
+
     if (!pfpTopicId && config.pfpBuffer && config.pfpBuffer.length > 0) {
       this.logger.info('Inscribing new profile picture');
       const pfpResult = await this.inscribePfp(
@@ -228,9 +247,13 @@ export class HCS10Client extends HCS10BaseClient {
         config.pfpFileName
       );
       pfpTopicId = pfpResult.pfpTopicId;
-      this.logger.info(`Profile picture inscribed with topic ID: ${pfpTopicId}`);
+      this.logger.info(
+        `Profile picture inscribed with topic ID: ${pfpTopicId}`
+      );
     } else if (config.existingPfpTopicId) {
-      this.logger.info(`Using existing profile picture with topic ID: ${config.existingPfpTopicId}`);
+      this.logger.info(
+        `Using existing profile picture with topic ID: ${config.existingPfpTopicId}`
+      );
     }
 
     const profileResult = await this.storeHCS11Profile(
@@ -240,7 +263,9 @@ export class HCS10Client extends HCS10BaseClient {
       outboundTopicId,
       config.capabilities,
       config.metadata,
-      config.pfpBuffer && config.pfpBuffer.length > 0 ? config.pfpBuffer : undefined,
+      config.pfpBuffer && config.pfpBuffer.length > 0
+        ? config.pfpBuffer
+        : undefined,
       config.pfpFileName,
       config.existingPfpTopicId
     );
@@ -248,8 +273,8 @@ export class HCS10Client extends HCS10BaseClient {
     this.logger.info(`Profile stored with topic ID: ${profileTopicId}`);
 
     return {
-      outboundTopicId,
       inboundTopicId,
+      outboundTopicId,
       pfpTopicId,
       profileTopicId,
     };
@@ -326,17 +351,21 @@ export class HCS10Client extends HCS10BaseClient {
   ): Promise<StoreHCS11ProfileResponse> {
     try {
       let pfpTopicId = existingPfpTopicId || '';
-      
+
       if (!pfpTopicId && pfpBuffer && pfpFileName) {
         this.logger.info('Inscribing profile picture for HCS-11 profile');
         const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName);
         if (!pfpResult.success) {
-          this.logger.error('Failed to inscribe profile picture, continuing without PFP');
+          this.logger.error(
+            'Failed to inscribe profile picture, continuing without PFP'
+          );
         } else {
           pfpTopicId = pfpResult.pfpTopicId;
         }
       } else if (existingPfpTopicId) {
-        this.logger.info(`Using existing profile picture with topic ID: ${existingPfpTopicId} for HCS-11 profile`);
+        this.logger.info(
+          `Using existing profile picture with topic ID: ${existingPfpTopicId} for HCS-11 profile`
+        );
       }
 
       const agentType = this.hcs11Client.getAgentTypeFromMetadata({
@@ -462,15 +491,21 @@ export class HCS10Client extends HCS10BaseClient {
    * @param requestingAccountId Requesting account ID
    * @param connectionRequestId Connection request ID
    * @param connectionFeeConfig Optional fee configuration for the connection topic
+   * @param ttl Optional ttl parameter with default
    * @returns Response with connection details
    */
   async handleConnectionRequest(
     inboundTopicId: string,
     requestingAccountId: string,
     connectionRequestId: number,
-    connectionFeeConfig?: FeeConfigBuilderInterface
+    connectionFeeConfig?: FeeConfigBuilderInterface,
+    ttl: number = 60
   ): Promise<HandleConnectionRequestResponse> {
-    const memo = `hcs-10:${inboundTopicId}:${connectionRequestId}`;
+    const memo = this._generateHcs10Memo(Hcs10MemoType.CONNECTION, {
+      ttl,
+      inboundTopicId,
+      connectionId: connectionRequestId,
+    });
     this.logger.info(
       `Handling connection request ${connectionRequestId} from ${requestingAccountId}`
     );
@@ -559,7 +594,18 @@ export class HCS10Client extends HCS10BaseClient {
       m: memo,
     };
 
-    const result = await this.submitPayload(inboundTopicId, payload, submitKey);
+    const submissionCheck = await this.canSubmitToTopic(
+      inboundTopicId,
+      this.client.operatorAccountId?.toString() || ''
+    );
+
+    const result = await this.submitPayload(
+      inboundTopicId,
+      payload,
+      submitKey,
+      submissionCheck.requiresFee
+    );
+
     const sequenceNumber = result.topicSequenceNumber?.toNumber();
 
     if (!sequenceNumber) {
@@ -578,7 +624,7 @@ export class HCS10Client extends HCS10BaseClient {
     memo?: string,
     submitKey?: PrivateKey
   ): Promise<void> {
-    const submissionCheck = await this.canSubmitToInboundTopic(
+    const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
       this.client.operatorAccountId?.toString() || ''
     );
@@ -690,25 +736,7 @@ export class HCS10Client extends HCS10BaseClient {
     return topicId;
   }
 
-  async submitMessage(
-    topicId: string,
-    message: string,
-    submitKey?: PrivateKey
-  ): Promise<TransactionReceipt> {
-    const submissionCheck = await this.canSubmitToInboundTopic(
-      topicId,
-      this.client.operatorAccountId?.toString() || ''
-    );
-
-    return this.submitPayload(
-      topicId,
-      message,
-      submitKey,
-      submissionCheck.requiresFee
-    );
-  }
-
-  private async submitPayload(
+  public async submitPayload(
     topicId: string,
     payload: object | string,
     submitKey?: PrivateKey,
@@ -761,7 +789,7 @@ export class HCS10Client extends HCS10BaseClient {
     operatorId: string,
     memo: string
   ): Promise<TransactionReceipt> {
-    const submissionCheck = await this.canSubmitToInboundTopic(
+    const submissionCheck = await this.canSubmitToTopic(
       inboundTopicId,
       requestingAccountId
     );
@@ -810,35 +838,6 @@ export class HCS10Client extends HCS10BaseClient {
     );
 
     return response;
-  }
-
-  async recordOutboundConnectionConfirmation({
-    outboundTopicId,
-    connectionRequestId,
-    confirmedRequestId,
-    connectionTopicId,
-    operatorId,
-    memo,
-  }: {
-    outboundTopicId: string;
-    connectionRequestId: number;
-    confirmedRequestId: number;
-    connectionTopicId: string;
-    operatorId: string;
-    memo: string;
-  }) {
-    const payload = {
-      p: 'hcs-10',
-      op: 'connection_created',
-      connection_topic_id: connectionTopicId,
-      outbound_topic_id: outboundTopicId,
-      confirmed_request_id: confirmedRequestId,
-      connection_request_id: connectionRequestId,
-      operator_id: operatorId,
-      m: memo,
-    };
-
-    return await this.submitPayload(outboundTopicId, payload);
   }
 
   async inscribeFile(
@@ -966,86 +965,6 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   /**
-   * Checks if a user can submit to a topic and determines if a fee is required
-   * @param topicId The topic ID to check
-   * @param userAccountId The account ID of the user attempting to submit
-   * @returns Object with canSubmit, requiresFee, and optional reason
-   */
-  async canSubmitToInboundTopic(
-    topicId: string,
-    userAccountId: string
-  ): Promise<{ canSubmit: boolean; requiresFee: boolean; reason?: string }> {
-    try {
-      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
-
-      if (!topicInfo) {
-        return {
-          canSubmit: false,
-          requiresFee: false,
-          reason: 'Topic does not exist',
-        };
-      }
-
-      if (!topicInfo.submit_key?.key) {
-        return { canSubmit: true, requiresFee: false };
-      }
-
-      try {
-        const userPublicKey = await this.mirrorNode.getPublicKey(userAccountId);
-
-        if (topicInfo.submit_key._type === 'ProtobufEncoded') {
-          const keyBytes = Buffer.from(topicInfo.submit_key.key, 'hex');
-          const hasAccess = await this.mirrorNode.checkKeyListAccess(
-            keyBytes,
-            userPublicKey
-          );
-
-          if (hasAccess) {
-            return { canSubmit: true, requiresFee: false };
-          }
-        } else {
-          const topicSubmitKey = PublicKey.fromString(topicInfo.submit_key.key);
-          if (userPublicKey.toString() === topicSubmitKey.toString()) {
-            return { canSubmit: true, requiresFee: false };
-          }
-        }
-      } catch (error) {
-        this.logger.error(
-          `Key validation error: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        );
-      }
-
-      if (
-        topicInfo.fee_schedule_key?.key &&
-        topicInfo.custom_fees?.fixed_fees?.length > 0
-      ) {
-        return {
-          canSubmit: true,
-          requiresFee: true,
-          reason: 'Requires fee payment via HIP-991',
-        };
-      }
-
-      return {
-        canSubmit: false,
-        requiresFee: false,
-        reason: 'User does not have submit permission for this topic',
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(`Topic submission validation error: ${errorMessage}`);
-      return {
-        canSubmit: false,
-        requiresFee: false,
-        reason: `Error: ${errorMessage}`,
-      };
-    }
-  }
-
-  /**
    * Creates and registers an agent with a Guarded registry.
    *
    * This function performs the following steps:
@@ -1138,7 +1057,6 @@ export class HCS10Client extends HCS10BaseClient {
           config.network,
           {
             progressCallback: (data) => {
-              // Adjust progress to fit into the 60-100% range
               const adjustedPercent = 60 + (data.progressPercent || 0) * 0.4;
               if (progressCallback) {
                 progressCallback({
