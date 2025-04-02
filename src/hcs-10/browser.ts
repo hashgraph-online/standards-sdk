@@ -4,6 +4,8 @@ import {
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
   TransactionReceipt,
+  PrivateKey,
+  Hbar,
 } from '@hashgraph/sdk';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import { Logger, LogLevel } from '../utils/logger';
@@ -26,12 +28,14 @@ import {
   WaitForConnectionConfirmationResponse,
   RegistrationProgressCallback,
   AgentCreationState,
-  GetAccountAndSignerResponse
+  GetAccountAndSignerResponse,
 } from './types';
 import { HCS11Client, AIAgentMetadata } from '../hcs-11';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { Transaction } from '@hashgraph/sdk';
 import { AgentBuilder } from './agent-builder';
+import { inscribeWithSigner } from '../inscribe/inscriber';
+import { Hcs10MemoType } from './base-client';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -42,6 +46,7 @@ export type BrowserHCSClientConfig = {
   prettyPrint?: boolean;
   guardedRegistryTopicId?: string;
   guardedRegistryBaseUrl?: string;
+  feeAmount?: number;
 };
 
 interface AgentMetadata {
@@ -88,6 +93,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       network: config.network,
       logLevel: config.logLevel,
       prettyPrint: config.prettyPrint,
+      feeAmount: config.feeAmount,
     });
 
     this.hwc = config.hwc;
@@ -136,6 +142,11 @@ export class BrowserHCSClient extends HCS10BaseClient {
       m: memo,
     };
 
+    const submissionCheck = await this.canSubmitToTopic(
+      connectionTopicId,
+      this.hwc.getAccountInfo().accountId
+    );
+
     const payloadString = JSON.stringify(payload);
     const isLargePayload = Buffer.from(payloadString).length > 1000;
 
@@ -169,14 +180,20 @@ export class BrowserHCSClient extends HCS10BaseClient {
       }
     }
 
-    await this.submitPayload(connectionTopicId, payload);
+    await this.submitPayload(
+      connectionTopicId,
+      payload,
+      undefined,
+      submissionCheck.requiresFee
+    );
   }
 
   async submitConnectionRequest(
     inboundTopicId: string,
     requestingAccountId: string,
     operatorId: string,
-    memo: string
+    memo: string,
+    ttl: number = 60
   ): Promise<TransactionReceipt | undefined> {
     this.logger.info('Submitting connection request');
     const connectionRequestMessage = {
@@ -211,8 +228,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     this.logger.info(
       `Retrieved outbound topic ID: ${outboundTopic.outboundTopic} for account ID: ${requestingAccountId}`
     );
-    const responseSequenceNumber =
-      response?.result?.topicSequenceNumber?.toNumber();
+    const responseSequenceNumber = response?.topicSequenceNumber?.toNumber();
 
     if (!responseSequenceNumber) {
       throw new Error('Failed to get response sequence number');
@@ -224,39 +240,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       connection_request_id: responseSequenceNumber,
     });
 
-    return response.result;
-  }
-
-  async recordOutboundConnectionConfirmation({
-    outboundTopicId,
-    connectionRequestId,
-    confirmedRequestId,
-    connectionTopicId,
-    operatorId,
-    memo,
-  }: {
-    outboundTopicId: string;
-    connectionRequestId: number;
-    confirmedRequestId: number;
-    connectionTopicId: string;
-    operatorId: string;
-    memo: string;
-  }): Promise<{
-    result?: TransactionReceipt;
-    error?: string;
-  }> {
-    const payload = {
-      p: 'hcs-10',
-      op: 'connection_created',
-      connection_topic_id: connectionTopicId,
-      outbound_topic_id: outboundTopicId,
-      confirmed_request_id: confirmedRequestId,
-      connection_request_id: connectionRequestId,
-      operator_id: operatorId,
-      m: memo,
-    };
-
-    return await this.submitPayload(outboundTopicId, payload);
+    return response;
   }
 
   async getPublicKey(accountId: string): Promise<PublicKey> {
@@ -267,7 +251,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
     inboundTopicId: string,
     requestingAccountId: string,
     connectionId: number,
-    connectionMemo: string = 'Connection accepted. Looking forward to collaborating!'
+    connectionMemo: string = 'Connection accepted. Looking forward to collaborating!',
+    ttl: number = 60
   ): Promise<HandleConnectionRequestResponse> {
     this.logger.info('Handling connection request');
     const userAccountId = this.hwc.getAccountInfo().accountId;
@@ -285,7 +270,11 @@ export class BrowserHCSClient extends HCS10BaseClient {
     }
 
     const thresholdKey = new KeyList([accountKey, requesterKey], 1);
-    const memo = `hcs-10:${inboundTopicId}:${connectionId}`;
+    const memo = this._generateHcs10Memo(Hcs10MemoType.CONNECTION, {
+      ttl,
+      inboundTopicId,
+      connectionId,
+    });
 
     const transaction = new TopicCreateTransaction()
       .setTopicMemo(memo)
@@ -293,22 +282,22 @@ export class BrowserHCSClient extends HCS10BaseClient {
       .setSubmitKey(thresholdKey);
 
     this.logger.debug('Executing topic creation transaction');
-    const receipt = await this.hwc.executeTransactionWithErrorHandling(
-      transaction as any,
+    const txResponse = await this.hwc.executeTransactionWithErrorHandling(
+      transaction,
       false
     );
-    if (receipt.error) {
-      this.logger.error(receipt.error);
-      throw new Error(receipt.error);
+    if (txResponse.error) {
+      this.logger.error(txResponse.error);
+      throw new Error(txResponse.error);
     }
 
-    const result = receipt.result;
-    if (!result?.topicId) {
+    const resultReceipt = txResponse.result;
+    if (!resultReceipt?.topicId) {
       this.logger.error('Failed to create topic: topicId is null');
       throw new Error('Failed to create topic: topicId is null');
     }
 
-    const connectionTopicId = result.topicId.toString();
+    const connectionTopicId = resultReceipt.topicId.toString();
     const operatorId = `${inboundTopicId}@${userAccountId}`;
     const confirmedConnectionSequenceNumber = await this.confirmConnection(
       inboundTopicId,
@@ -349,36 +338,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
       inboundTopicId,
       payload
     );
-    if (!transactionResponse?.result?.topicSequenceNumber) {
+    if (!transactionResponse?.topicSequenceNumber) {
       this.logger.error(
         'Failed to confirm connection: sequence number is null'
       );
       throw new Error('Failed to confirm connection: sequence number is null');
     }
-    return transactionResponse.result.topicSequenceNumber.toNumber();
-  }
-
-  async submitMessage(
-    topicId: string,
-    content: string,
-    metadata: object = {},
-    memo: string = ''
-  ): Promise<{
-    result?: TransactionReceipt;
-    error?: string;
-  }> {
-    this.logger.info('Submitting message');
-    const payload = {
-      p: 'hcs-10',
-      op: 'message',
-      data: {
-        content,
-        metadata,
-      },
-      m: memo,
-    };
-
-    return await this.submitPayload(topicId, payload);
+    return transactionResponse.topicSequenceNumber.toNumber();
   }
 
   /**
@@ -406,6 +372,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     options?: {
       progressCallback?: RegistrationProgressCallback;
       existingState?: AgentCreationState;
+      ttl?: number;
     }
   ): Promise<RegisteredAgent> {
     try {
@@ -430,11 +397,11 @@ export class BrowserHCSClient extends HCS10BaseClient {
           state,
         });
 
-        const outboundResult = await this.createTopic(
-          'hcs-10:0:60:1',
-          true,
-          true
-        );
+        const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+          ttl: options?.ttl,
+        });
+        const outboundResult = await this.createTopic(outboundMemo, true, true);
+
         if (!outboundResult.success || !outboundResult.topicId) {
           state.error =
             outboundResult.error || 'Failed to create outbound topic';
@@ -470,8 +437,11 @@ export class BrowserHCSClient extends HCS10BaseClient {
       }
 
       if (!state.inboundTopicId) {
-        const memo = `hcs-10:0:60:0:${accountId}`;
-        const inboundResult = await this.createTopic(memo, true, true);
+        const inboundMemo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
+          accountId,
+          ttl: options?.ttl,
+        });
+        const inboundResult = await this.createTopic(inboundMemo, true, true);
 
         if (!inboundResult.success || !inboundResult.topicId) {
           state.error = inboundResult.error || 'Failed to create inbound topic';
@@ -1220,9 +1190,9 @@ export class BrowserHCSClient extends HCS10BaseClient {
       };
     }
 
-    const result = transactionResponse.result;
+    const resultReceipt = transactionResponse.result;
 
-    if (!result?.topicId) {
+    if (!resultReceipt?.topicId) {
       this.logger.error('Failed to create topic: topicId is null');
       return {
         success: false,
@@ -1232,27 +1202,73 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
     return {
       success: true,
-      topicId: result.topicId.toString(),
+      topicId: resultReceipt.topicId.toString(),
     };
   }
 
-  private async submitPayload(
+  public async submitPayload(
     topicId: string,
-    payload: object
-  ): Promise<{
-    result?: TransactionReceipt;
-    error?: string;
-  }> {
-    this.logger.debug('Submitting payload');
+    payload: object | string,
+    submitKey?: PrivateKey,
+    requiresFee?: boolean
+  ): Promise<TransactionReceipt> {
+    this.logger.debug(`Submitting payload to topic ${topicId}`);
+
+    let message: string;
+    if (typeof payload === 'string') {
+      message = payload;
+    } else {
+      message = JSON.stringify(payload);
+    }
 
     const transaction = new TopicMessageSubmitTransaction()
       .setTopicId(topicId)
-      .setMessage(JSON.stringify(payload));
+      .setMessage(message);
 
-    return await this.hwc.executeTransactionWithErrorHandling(
-      transaction,
-      false
-    );
+    let transactionResponse: {
+      result?: TransactionReceipt;
+      error?: string;
+    };
+
+    if (requiresFee) {
+      this.logger.info(
+        'Topic requires fee payment, setting max transaction fee'
+      );
+      transaction.setMaxTransactionFee(new Hbar(this.feeAmount));
+      transaction.setTransactionMemo('HIP-991 Fee Payment');
+    }
+
+    if (submitKey) {
+      const { accountId, signer } = this.getAccountAndSigner();
+      transaction.freezeWithSigner(signer as any);
+      const signedTransaction = await transaction.sign(submitKey);
+      transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
+        signedTransaction,
+        true
+      );
+    } else {
+      transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
+        transaction,
+        false
+      );
+    }
+
+    if (transactionResponse?.error) {
+      this.logger.error(
+        `Failed to submit payload: ${transactionResponse.error}`
+      );
+      throw new Error(`Failed to submit payload: ${transactionResponse.error}`);
+    }
+
+    if (!transactionResponse?.result) {
+      this.logger.error(
+        'Failed to submit message: receipt is null or undefined'
+      );
+      throw new Error('Failed to submit message: receipt is null or undefined');
+    }
+
+    this.logger.debug('Payload submitted successfully via HWC');
+    return transactionResponse.result;
   }
 
   async inscribeFile(
