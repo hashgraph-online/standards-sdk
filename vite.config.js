@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import path from 'path';
 import StringReplace from 'vite-plugin-string-replace';
 import dts from 'vite-plugin-dts';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig(() => {
   const format = process.env.BUILD_FORMAT || 'es';
@@ -25,6 +26,14 @@ export default defineConfig(() => {
       include: ['src/**/*.ts'],
       exclude: ['**/*.d.ts'],
       outputDir: outputDir,
+    }),
+    nodePolyfills({
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+      protocolImports: true,
     }),
   ];
 
