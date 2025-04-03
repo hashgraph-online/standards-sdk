@@ -7,7 +7,7 @@ import {
   InscriptionNumberDetails,
 } from '@kiloscribe/inscription-sdk';
 import { LoggerOptions, LogLevel } from '../utils/logger';
-import { RegistrationProgressCallback } from '../hcs-10/types.d';
+import { RegistrationProgressCallback } from '../hcs-10/types';
 
 export type {
   StartInscriptionRequest,

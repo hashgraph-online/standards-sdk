@@ -42,6 +42,8 @@ import {
   TopicFeeConfig,
   FeeConfigBuilderInterface,
   AgentCreationState,
+  RegistrationProgressCallback,
+  AgentMetadata,
 } from './types';
 import { HCS11Client } from '../hcs-11';
 import { AgentBuilder } from './agent-builder';
@@ -50,40 +52,6 @@ import { Hcs10MemoType } from './base-client';
 
 export { InboundTopicType } from './types';
 export { FeeConfigBuilder } from './fee-config-builder';
-
-export interface AgentMetadata {
-  type: 'autonomous' | 'manual';
-  model?: string;
-  socials?: {
-    twitter?: string;
-    discord?: string;
-    github?: string;
-    website?: string;
-    x?: string;
-    linkedin?: string;
-    youtube?: string;
-    telegram?: string;
-  };
-  creator?: string;
-  properties?: Record<string, any>;
-}
-
-/**
- * Progress report data for registration operations
- */
-export interface RegistrationProgressData {
-  stage: 'preparing' | 'submitting' | 'confirming' | 'verifying' | 'completed';
-  message: string;
-  progressPercent?: number;
-  details?: Record<string, any>;
-}
-
-/**
- * Progress callback function type for registration operations
- */
-export type RegistrationProgressCallback = (
-  data: RegistrationProgressData
-) => void;
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -622,7 +590,7 @@ export class HCS10Client extends HCS10BaseClient {
     data: string,
     memo?: string,
     submitKey?: PrivateKey
-  ): Promise<void> {
+  ): Promise<TransactionReceipt> {
     const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
       this.client.operatorAccountId?.toString() || ''
@@ -672,7 +640,7 @@ export class HCS10Client extends HCS10BaseClient {
     }
 
     this.logger.info('Submitting message to connection topic', payload);
-    await this.submitPayload(
+    return await this.submitPayload(
       connectionTopicId,
       payload,
       submitKey,
@@ -768,8 +736,8 @@ export class HCS10Client extends HCS10BaseClient {
 
     let transactionResponse: TransactionResponse;
     if (submitKey) {
-      transaction.freezeWith(this.client);
-      const signedTransaction = await transaction.sign(submitKey);
+      const frozenTransaction = transaction.freezeWith(this.client);
+      const signedTransaction = await frozenTransaction.sign(submitKey);
       transactionResponse = await signedTransaction.execute(this.client);
     } else {
       transactionResponse = await transaction.execute(this.client);
@@ -828,15 +796,11 @@ export class HCS10Client extends HCS10BaseClient {
       throw new Error('Failed to get response sequence number');
     }
 
-    await this.submitPayload(
-      outboundTopic.outboundTopic,
-      {
-        ...connectionRequestMessage,
-        outbound_topic_id: outboundTopic.outboundTopic,
-        connection_request_id: responseSequenceNumber,
-      },
-      this.operatorPrivateKey
-    );
+    await this.submitPayload(outboundTopic.outboundTopic, {
+      ...connectionRequestMessage,
+      outbound_topic_id: outboundTopic.outboundTopic,
+      connection_request_id: responseSequenceNumber,
+    });
 
     return response;
   }

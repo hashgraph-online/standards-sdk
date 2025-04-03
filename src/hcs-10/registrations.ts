@@ -1,72 +1,13 @@
-import { AgentMetadata } from './sdk';
 import { Logger } from '../utils/logger';
 import { HCS11Client } from '../hcs-11';
 import { sleep } from '../utils/sleep';
-
-export interface RegistrationSearchOptions {
-  tags?: string[];
-  accountId?: string;
-  network?: string;
-}
-
-export interface RegistrationSearchResult {
-  registrations: Array<{
-    id: string;
-    transaction_id: string;
-    status: 'pending' | 'success' | 'failed';
-    network: string;
-    account_id: string;
-    inbound_topic_id: string;
-    outbound_topic_id: string;
-    operator_id: string;
-    metadata: AgentMetadata;
-    registry_topic_id: string;
-    created_at: string;
-    updated_at: string;
-  }>;
-  error?: string;
-  success: boolean;
-}
-
-export interface RegistrationsApiResponse {
-  registrations: Array<{
-    id: string;
-    transaction_id: string;
-    status: 'pending' | 'success' | 'failed';
-    network: string;
-    account_id: string;
-    inbound_topic_id: string;
-    outbound_topic_id: string;
-    operator_id: string;
-    metadata: AgentMetadata;
-    registry_topic_id: string;
-    created_at: string;
-    updated_at: string;
-  }>;
-  error?: string;
-}
-
-export type RegistrationResult = {
-  transaction?: any;
-  transactionId?: string;
-  success: boolean;
-  error?: string;
-  validationErrors?: ValidationError[];
-};
-
-export interface ValidationError {
-  message: string;
-  path?: string[];
-  type?: string;
-  context?: any;
-}
-
-export interface RegistrationApiResponse {
-  transaction_id: string;
-  transaction: string;
-  error?: string;
-  details?: ValidationError[];
-}
+import {
+  RegistrationSearchResult,
+  AgentMetadata,
+  RegistrationResult,
+  RegistrationsApiResponse,
+  RegistrationSearchOptions,
+} from './types';
 
 export interface RegistrationStatusResponse {
   status: 'pending' | 'success' | 'failed';
@@ -281,7 +222,7 @@ export abstract class Registration {
         }),
       });
 
-      const data = (await response.json()) as RegistrationApiResponse;
+      const data = (await response.json()) as RegistrationsApiResponse;
 
       if (!response.ok) {
         if (data.details?.length > 0) {

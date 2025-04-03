@@ -132,7 +132,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     data: string,
     memo?: string,
     submitKey?: PrivateKey
-  ): Promise<void> {
+  ): Promise<TransactionReceipt> {
     this.logger.info('Sending message');
     const operatorId = await this.getOperatorId();
 
@@ -182,7 +182,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       }
     }
 
-    await this.submitPayload(
+    return await this.submitPayload(
       connectionTopicId,
       payload,
       submitKey,
