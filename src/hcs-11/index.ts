@@ -18,7 +18,7 @@ import * as mime from 'mime-types';
 import { z } from 'zod';
 import type { Signer } from '@hashgraph/sdk';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
-import { RegistrationProgressCallback } from '../hcs-10/types.d';
+import { RegistrationProgressCallback } from '../hcs-10/types';
 import * as fileType from 'file-type';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';

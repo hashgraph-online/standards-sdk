@@ -5,3 +5,4 @@ export * from './base-client';
 export * from './registrations';
 export * from './browser';
 export * from './fee-config-builder';
+export * from './types';

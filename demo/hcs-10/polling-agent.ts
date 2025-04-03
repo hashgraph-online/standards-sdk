@@ -1,11 +1,15 @@
 import dotenv from 'dotenv';
-import { HCS10Client, HCSMessage, Logger } from '@hashgraphonline/standards-sdk';
+import {
+  HCS10Client,
+  HCSMessage,
+  Logger,
+} from '@hashgraphonline/standards-sdk';
 import { getOrCreateBob } from './utils';
 
 interface AgentConnection {
   agentId: string;
   topicId: string;
-  timestamp: string;
+  timestamp: Date;
 }
 
 const logger = new Logger({
@@ -232,42 +236,41 @@ async function loadConnectionsFromOutboundTopic(agent: {
   inboundTopicId: string;
 }): Promise<{
   connections: Map<string, AgentConnection>;
-  lastProcessedTimestamp: string;
+  lastProcessedTimestamp: Date;
 }> {
   logger.info('Loading existing connections from outbound topic');
 
-  const outboundMessages = await agent.client.getMessages(
+  const outboundMessagesResponse = await agent.client.getMessages(
     agent.outboundTopicId
   );
+  const outboundMessages = outboundMessagesResponse.messages;
   const connections = new Map<string, AgentConnection>();
-  let lastTimestamp = '1970-01-01T00:00:00.000000000Z';
+  let lastTimestamp = new Date(0);
 
   logger.info(
-    `Found ${outboundMessages.messages.length} messages in outbound topic`
+    `Found ${outboundMessages.length} messages in outbound topic`
   );
 
-  outboundMessages.messages.sort((a, b) => {
-    if (!a.consensus_timestamp || !b.consensus_timestamp) return 0;
-    return a.consensus_timestamp.localeCompare(b.consensus_timestamp);
+  outboundMessages.sort((a: HCSMessage, b: HCSMessage) => {
+    if (!a.created || !b.created) return 0;
+    return a.created.getTime() - b.created.getTime();
   });
 
-  for (const message of outboundMessages.messages) {
-    if (
-      message.consensus_timestamp &&
-      message.consensus_timestamp > lastTimestamp
-    ) {
-      lastTimestamp = message.consensus_timestamp;
+  for (const message of outboundMessages) {
+    if (message.created.getTime() > lastTimestamp.getTime()) {
+      lastTimestamp = message.created;
     }
 
     if (message.op === 'connection_created' && message.connection_topic_id) {
       let connectedAgentId = '';
 
       if (message.connection_request_id) {
-        const inboundMessages = await agent.client.getMessages(
+        const inboundMessagesResponse = await agent.client.getMessages(
           agent.inboundTopicId
         );
-        const connectionRequest = inboundMessages.messages.find(
-          (m) =>
+        const inboundMessages = inboundMessagesResponse.messages;
+        const connectionRequest = inboundMessages.find(
+          (m: HCSMessage) =>
             m.sequence_number === message.connection_request_id &&
             m.op === 'connection_request'
         );
@@ -289,7 +292,7 @@ async function loadConnectionsFromOutboundTopic(agent: {
         connections.set(connectedAgentId, {
           agentId: connectedAgentId,
           topicId: message.connection_topic_id,
-          timestamp: message.consensus_timestamp || lastTimestamp,
+          timestamp: message.created || lastTimestamp,
         });
 
         logger.info(
@@ -359,7 +362,6 @@ async function handleConnectionRequest(
 
     await agent.client.sendMessage(
       connectionTopicId,
-      agent.operatorId,
       `Hello! I'm Bob, your friendly Hedera agent! 🤖
 
 ${generateASCIIArt('bob')}
@@ -616,12 +618,7 @@ You can ask me to perform various tasks by typing "help" to see all available co
 
   try {
     logger.info(`Sending response to topic ${connectionTopicId}`);
-    await agent.client.sendMessage(
-      connectionTopicId,
-      agent.operatorId,
-      response,
-      'Bob response'
-    );
+    await agent.client.sendMessage(connectionTopicId, response, 'Bob response');
   } catch (error) {
     logger.error(
       `Failed to send response to topic ${connectionTopicId}: ${error}`
@@ -699,8 +696,8 @@ async function monitorTopics(agent: {
 
           if (message.op === 'connection_request') {
             if (
-              message.consensus_timestamp &&
-              message.consensus_timestamp <= lastProcessedTimestamp
+              message.created.getTime() &&
+              message.created.getTime() <= lastProcessedTimestamp.getTime()
             ) {
               logger.info(
                 `Skipping historical connection request: ${message.sequence_number}`
@@ -728,8 +725,8 @@ async function monitorTopics(agent: {
               processedSet.add(message.sequence_number);
 
               if (
-                message.consensus_timestamp &&
-                message.consensus_timestamp <= lastProcessedTimestamp
+                message.created.getTime() &&
+                message.created.getTime() <= lastProcessedTimestamp.getTime()
               ) {
                 continue;
               }

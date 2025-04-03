@@ -7,13 +7,6 @@ import {
   ProgressCallback,
 } from '../utils/progress-reporter';
 
-export type RegistrationResult = {
-  success: boolean;
-  error?: string;
-  transactionId?: string;
-  transaction?: string;
-};
-
 export interface ValidationError {
   validation: string;
   code: string;
@@ -37,7 +30,13 @@ export type FeeAmount = {
 
 // For backward compatibility
 export interface RegistrationProgressData {
-  stage: 'preparing' | 'submitting' | 'confirming' | 'completed' | 'verifying' | 'failed';
+  stage:
+    | 'preparing'
+    | 'submitting'
+    | 'confirming'
+    | 'completed'
+    | 'verifying'
+    | 'failed';
   message: string;
   progressPercent?: number;
   details?: Record<string, any>;
@@ -207,9 +206,111 @@ export interface AgentCreationState {
   inboundTopicId?: string;
   outboundTopicId?: string;
   profileTopicId?: string;
-  currentStage: 'init' | 'pfp' | 'topics' | 'profile' | 'registration' | 'complete';
+  currentStage:
+    | 'init'
+    | 'pfp'
+    | 'topics'
+    | 'profile'
+    | 'registration'
+    | 'complete';
   completedPercentage: number;
   error?: string;
   createdResources?: string[];
   agentMetadata?: Record<string, any>;
-} 
+}
+
+export interface RegistrationSearchOptions {
+  tags?: string[];
+  accountId?: string;
+  network?: string;
+}
+
+export interface RegistrationSearchResult {
+  registrations: Array<{
+    id: string;
+    transaction_id: string;
+    status: 'pending' | 'success' | 'failed';
+    network: string;
+    account_id: string;
+    inbound_topic_id: string;
+    outbound_topic_id: string;
+    operator_id: string;
+    metadata: AgentMetadata;
+    registry_topic_id: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  error?: string;
+  success: boolean;
+}
+
+export type RegistrationResult = {
+  transaction?: any;
+  transactionId?: string;
+  success: boolean;
+  error?: string;
+  validationErrors?: ValidationError[];
+};
+
+export interface AgentMetadata {
+  type: 'autonomous' | 'manual';
+  model?: string;
+  socials?: {
+    twitter?: string;
+    discord?: string;
+    github?: string;
+    website?: string;
+    x?: string;
+    linkedin?: string;
+    youtube?: string;
+    telegram?: string;
+  };
+  creator?: string;
+  properties?: Record<string, any>;
+}
+
+export interface RegistrationSearchOptions {
+  tags?: string[];
+  accountId?: string;
+  network?: string;
+}
+
+export interface RegistrationSearchResult {
+  registrations: Array<{
+    id: string;
+    transaction_id: string;
+    status: 'pending' | 'success' | 'failed';
+    network: string;
+    account_id: string;
+    inbound_topic_id: string;
+    outbound_topic_id: string;
+    operator_id: string;
+    metadata: AgentMetadata;
+    registry_topic_id: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  error?: string;
+  success: boolean;
+}
+
+export interface RegistrationsApiResponse {
+  registrations: Array<{
+    id: string;
+    transaction_id: string;
+    status: 'pending' | 'success' | 'failed';
+    network: string;
+    account_id: string;
+    inbound_topic_id: string;
+    outbound_topic_id: string;
+    operator_id: string;
+    metadata: AgentMetadata;
+    registry_topic_id: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  transaction_id?: string;
+  transaction?: string;
+  error?: string;
+  details?: ValidationError[];
+}
