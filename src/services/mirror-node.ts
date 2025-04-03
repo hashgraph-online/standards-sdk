@@ -132,7 +132,7 @@ export class HederaMirrorNode {
   }
 
   async getTopicMessages(topicId: string): Promise<HCSMessage[]> {
-    this.logger.info(`Querying messages for topic ${topicId}`);
+    this.logger.trace(`Querying messages for topic ${topicId}`);
 
     let nextUrl = `${this.baseUrl}/api/v1/topics/${topicId}/messages`;
     const messages: HCSMessage[] = [];
