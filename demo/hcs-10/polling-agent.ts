@@ -1,10 +1,7 @@
 import dotenv from 'dotenv';
-import {
-  HCS10Client,
-  HCSMessage,
-  Logger,
-} from '@hashgraphonline/standards-sdk';
-import { getOrCreateBob } from './utils';
+import { OpenAI } from 'openai';
+import { HCS10Client, HCSMessage, Logger } from '../../src';
+import { getOrCreateBob } from './utils.js';
 
 interface AgentConnection {
   agentId: string;
@@ -247,9 +244,7 @@ async function loadConnectionsFromOutboundTopic(agent: {
   const connections = new Map<string, AgentConnection>();
   let lastTimestamp = new Date(0);
 
-  logger.info(
-    `Found ${outboundMessages.length} messages in outbound topic`
-  );
+  logger.info(`Found ${outboundMessages.length} messages in outbound topic`);
 
   outboundMessages.sort((a: HCSMessage, b: HCSMessage) => {
     if (!a.created || !b.created) return 0;
@@ -427,6 +422,10 @@ function generateRandomNumber(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || '',
+});
+
 async function handleStandardMessage(
   agent: {
     client: HCS10Client;
@@ -602,17 +601,39 @@ ${generateASCIIArt('bob')}
 
 You can ask me to perform various tasks by typing "help" to see all available commands. I'm always happy to assist!`;
     } else {
-      const responses = [
-        `Interesting! Have you tried asking me to "draw: hashgraph"?`,
-        `That's cool! Did you know I can calculate things? Try "calc: 42 * 1337"`,
-        `Thanks for your message! Want to hear a joke? Just type "joke"`,
-        `Got it! If you want to see all my capabilities, type "help"`,
-        `I see! By the way, I can tell your crypto fortune - just type "fortune"`,
-        `Awesome! Need to make a decision? Try "flip" for a coin toss`,
-        `Great! Looking for some randomness? Try "roll" to roll a die`,
-        `Noted! Need a random number? Try "random: 1-1000" for a number between 1 and 1000`,
-      ];
-      response = responses[Math.floor(Math.random() * responses.length)];
+      // Fallback to OpenAI for unrecognized commands
+      try {
+        logger.info(
+          `Command not recognized, forwarding to OpenAI: "${messageContent}"`
+        );
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                "You are Bob, a helpful and slightly quirky AI agent living on the Hedera network. You received a message you don't have a specific command for. Respond in a friendly, helpful, and concise way, keeping in character as Bob.",
+            },
+            {
+              role: 'user',
+              content: messageContent,
+            },
+          ],
+          max_tokens: 100,
+          temperature: 0.7,
+        });
+
+        const aiResponse = completion.choices[0]?.message?.content;
+        if (aiResponse) {
+          response = aiResponse.trim();
+        } else {
+          logger.warn('OpenAI response was empty.');
+          response = `I'm not quite sure how to respond to that! Try typing "help" to see what I can do.`;
+        }
+      } catch (error) {
+        logger.error(`Error calling OpenAI API: ${error}`);
+        response = `I had a little trouble processing that. Maybe try rephrasing, or type "help" for my commands?`;
+      }
     }
   }
 
