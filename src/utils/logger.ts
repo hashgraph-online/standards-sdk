@@ -62,34 +62,18 @@ export class Logger {
   }
 
   debug(message: string, data?: any): void {
-    if (data) {
-      this.logger.debug({ module: this.moduleContext, ...data }, message);
-    } else {
-      this.logger.debug({ module: this.moduleContext }, message);
-    }
+    this.logger.debug({ module: this.moduleContext }, message, data);
   }
 
   info(message: string, data?: any): void {
-    if (data) {
-      this.logger.info({ module: this.moduleContext, ...data }, message);
-    } else {
-      this.logger.info({ module: this.moduleContext }, message);
-    }
+    this.logger.info({ module: this.moduleContext }, message, data);
   }
 
   warn(message: string, data?: any): void {
-    if (data) {
-      this.logger.warn({ module: this.moduleContext, ...data }, message);
-    } else {
-      this.logger.warn({ module: this.moduleContext }, message);
-    }
+    this.logger.warn({ module: this.moduleContext }, message, data);
   }
 
   error(message: string, data?: any): void {
-    if (data) {
-      this.logger.error({ module: this.moduleContext, ...data }, message);
-    } else {
-      this.logger.error({ module: this.moduleContext }, message);
-    }
+    this.logger.error({ module: this.moduleContext }, message, data);
   }
 }
