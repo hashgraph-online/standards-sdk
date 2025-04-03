@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
-import { FeeConfigBuilder, HCS10Client, Logger } from '@hashgraphonline/standards-sdk';
+import {
+  FeeConfigBuilder,
+  HCS10Client,
+  Logger,
+} from '@hashgraphonline/standards-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -127,7 +131,9 @@ async function monitorIncomingRequests(
         );
 
         try {
-          const currentAccount = client.getClient().operatorAccountId?.toString();
+          const currentAccount = client
+            .getClient()
+            .operatorAccountId?.toString();
           logger.info(`Ensuring agent has enough hbar: ${currentAccount}`);
           await ensureAgentHasEnoughHbar(
             new Logger({
@@ -156,8 +162,8 @@ async function monitorIncomingRequests(
         } catch (error) {
           logger.error(
             `Error handling request #${connectionRequestId}:`,
-            error
           );
+          logger.error(error);
         }
       }
     } catch (error) {
@@ -228,8 +234,6 @@ async function main() {
     logger.info('Alice submitting connection request to Bob');
     const aliceConnectionResponse = await alice.client.submitConnectionRequest(
       bob.inboundTopicId,
-      alice.accountId,
-      alice.operatorId,
       'Hello Bob, I would like to collaborate on data analysis.'
     );
 
@@ -267,7 +271,6 @@ async function main() {
 
         await alice.client.sendMessage(
           connectionTopicId,
-          alice.operatorId,
           JSON.stringify(aliceSmallMessage),
           'Requesting sentiment analysis on Q4 2024 customer feedback'
         );
@@ -428,7 +431,6 @@ async function main() {
 
         await alice.client.sendMessage(
           connectionTopicId,
-          alice.operatorId,
           JSON.stringify(largeSampleData),
           'Requesting detailed analysis with many parameters'
         );
@@ -471,7 +473,6 @@ async function main() {
 
         await bob.client.sendMessage(
           connectionTopicId,
-          bob.operatorId,
           JSON.stringify(bobMessage),
           'Analysis complete. Sending results.'
         );

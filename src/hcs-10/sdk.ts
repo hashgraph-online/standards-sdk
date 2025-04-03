@@ -42,6 +42,8 @@ import {
   TopicFeeConfig,
   FeeConfigBuilderInterface,
   AgentCreationState,
+  RegistrationProgressCallback,
+  AgentMetadata,
 } from './types';
 import { HCS11Client } from '../hcs-11';
 import { AgentBuilder } from './agent-builder';
@@ -50,40 +52,6 @@ import { Hcs10MemoType } from './base-client';
 
 export { InboundTopicType } from './types';
 export { FeeConfigBuilder } from './fee-config-builder';
-
-export interface AgentMetadata {
-  type: 'autonomous' | 'manual';
-  model?: string;
-  socials?: {
-    twitter?: string;
-    discord?: string;
-    github?: string;
-    website?: string;
-    x?: string;
-    linkedin?: string;
-    youtube?: string;
-    telegram?: string;
-  };
-  creator?: string;
-  properties?: Record<string, any>;
-}
-
-/**
- * Progress report data for registration operations
- */
-export interface RegistrationProgressData {
-  stage: 'preparing' | 'submitting' | 'confirming' | 'verifying' | 'completed';
-  message: string;
-  progressPercent?: number;
-  details?: Record<string, any>;
-}
-
-/**
- * Progress callback function type for registration operations
- */
-export type RegistrationProgressCallback = (
-  data: RegistrationProgressData
-) => void;
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -563,7 +531,6 @@ export class HCS10Client extends HCS10BaseClient {
       connectionTopicId,
       requestingAccountId,
       connectionRequestId,
-      operatorId,
       'Connection accepted. Looking forward to collaborating!'
     );
 
@@ -579,10 +546,10 @@ export class HCS10Client extends HCS10BaseClient {
     connectionTopicId: string,
     connectedAccountId: string,
     connectionId: number,
-    operatorId: string,
     memo: string,
     submitKey?: PrivateKey
   ): Promise<number> {
+    const operatorId = await this.getOperatorId();
     this.logger.info(`Confirming connection with ID ${connectionId}`);
     const payload = {
       p: 'hcs-10',
@@ -619,15 +586,16 @@ export class HCS10Client extends HCS10BaseClient {
 
   async sendMessage(
     connectionTopicId: string,
-    operatorId: string,
     data: string,
     memo?: string,
     submitKey?: PrivateKey
-  ): Promise<void> {
+  ): Promise<TransactionReceipt> {
     const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
       this.client.operatorAccountId?.toString() || ''
     );
+
+    const operatorId = await this.getOperatorId();
 
     const payload = {
       p: 'hcs-10',
@@ -671,7 +639,7 @@ export class HCS10Client extends HCS10BaseClient {
     }
 
     this.logger.info('Submitting message to connection topic', payload);
-    await this.submitPayload(
+    return await this.submitPayload(
       connectionTopicId,
       payload,
       submitKey,
@@ -767,8 +735,8 @@ export class HCS10Client extends HCS10BaseClient {
 
     let transactionResponse: TransactionResponse;
     if (submitKey) {
-      transaction.freezeWith(this.client);
-      const signedTransaction = await transaction.sign(submitKey);
+      const frozenTransaction = transaction.freezeWith(this.client);
+      const signedTransaction = await frozenTransaction.sign(submitKey);
       transactionResponse = await signedTransaction.execute(this.client);
     } else {
       transactionResponse = await transaction.execute(this.client);
@@ -785,13 +753,18 @@ export class HCS10Client extends HCS10BaseClient {
 
   async submitConnectionRequest(
     inboundTopicId: string,
-    requestingAccountId: string,
-    operatorId: string,
     memo: string
   ): Promise<TransactionReceipt> {
+    const accountResponse = this.getAccountAndSigner();
+    if (!accountResponse.accountId) {
+      throw new Error('Operator account ID is not set');
+    }
+    const operatorId = await this.getOperatorId();
+    const accountId = accountResponse.accountId;
+
     const submissionCheck = await this.canSubmitToTopic(
       inboundTopicId,
-      requestingAccountId
+      accountId
     );
 
     if (!submissionCheck.canSubmit) {
@@ -802,7 +775,7 @@ export class HCS10Client extends HCS10BaseClient {
       p: 'hcs-10',
       op: 'connection_request',
       operator_id: operatorId,
-      memo: memo,
+      m: memo,
     };
 
     const requiresFee = submissionCheck.requiresFee;
@@ -817,9 +790,7 @@ export class HCS10Client extends HCS10BaseClient {
       `Submitted connection request to topic ID: ${inboundTopicId}`
     );
 
-    const outboundTopic = await this.retrieveOutboundConnectTopic(
-      requestingAccountId
-    );
+    const outboundTopic = await this.retrieveOutboundConnectTopic(accountId);
 
     const responseSequenceNumber = response.topicSequenceNumber?.toNumber();
 
@@ -827,15 +798,11 @@ export class HCS10Client extends HCS10BaseClient {
       throw new Error('Failed to get response sequence number');
     }
 
-    await this.submitPayload(
-      outboundTopic.outboundTopic,
-      {
-        ...connectionRequestMessage,
-        outbound_topic_id: outboundTopic.outboundTopic,
-        connection_request_id: responseSequenceNumber,
-      },
-      this.operatorPrivateKey
-    );
+    await this.submitPayload(outboundTopic.outboundTopic, {
+      ...connectionRequestMessage,
+      outbound_topic_id: outboundTopic.outboundTopic,
+      connection_request_id: responseSequenceNumber,
+    });
 
     return response;
   }
