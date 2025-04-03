@@ -76,4 +76,8 @@ export class Logger {
   error(...args: any[]): void {
     this.logger.error({ module: this.moduleContext }, ...args);
   }
+
+  trace(...args: any[]): void {
+    this.logger.trace({ module: this.moduleContext }, ...args);
+  }
 }
