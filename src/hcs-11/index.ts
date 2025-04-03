@@ -393,7 +393,7 @@ export class HCS11Client {
       }
       return parsedProfile as HCS11Profile;
     } catch (error) {
-      this.logger.error('Error parsing profile:', error);
+      this.logger.error('Error parsing profile:');
       return null;
     }
   }

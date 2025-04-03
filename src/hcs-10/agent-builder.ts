@@ -3,10 +3,10 @@ import {
   NetworkType,
   FeeConfigBuilderInterface,
   AgentConfiguration,
-  AgentCreationState
 } from './types';
 import { AIAgentCapability } from '../hcs-11';
 import { AgentMetadata } from './types';
+import { Logger } from '../utils/logger';
 
 type SocialPlatform =
   | 'twitter'
@@ -38,6 +38,13 @@ type SocialPlatform =
  */
 export class AgentBuilder {
   private config: Partial<AgentConfiguration> = {};
+  private logger: Logger;
+
+  constructor() {
+    this.logger = Logger.getInstance({
+      module: 'AgentBuilder',
+    });
+  }
 
   setName(name: string): AgentBuilder {
     this.config.name = name;
@@ -156,7 +163,7 @@ export class AgentBuilder {
     }
 
     if (!this.config.pfpBuffer || !this.config.pfpFileName) {
-      throw new Error('Profile picture is required');
+      this.logger.warn('No profile picture provided, skipping...');
     }
 
     if (!this.config.network) {
