@@ -6,7 +6,7 @@ import {
   AgentCreationState
 } from './types';
 import { AIAgentCapability } from '../hcs-11';
-import { AgentMetadata } from './sdk';
+import { AgentMetadata } from './types';
 
 type SocialPlatform =
   | 'twitter'
