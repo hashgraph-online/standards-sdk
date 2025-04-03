@@ -58,6 +58,8 @@ export abstract class HCS10BaseClient extends Registration {
   protected mirrorNode: HederaMirrorNode;
   protected feeAmount: number;
 
+  protected operatorId: string;
+
   constructor(config: HCS10Config) {
     super();
     this.network = config.network;
@@ -500,7 +502,11 @@ export abstract class HCS10BaseClient extends Registration {
     return await this.submitPayload(outboundTopicId, payload);
   }
 
-  public async getOperatorId(): Promise<string> {
+  public async getOperatorId(disableCache?: boolean): Promise<string> {
+    if (this.operatorId && !disableCache) {
+      return this.operatorId;
+    }
+
     const accountResponse = this.getAccountAndSigner();
 
     if (!accountResponse.accountId) {
@@ -513,7 +519,9 @@ export abstract class HCS10BaseClient extends Registration {
       throw new Error('Failed to retrieve profile');
     }
 
-    return `${profile.topicInfo?.inboundTopic}@${accountResponse.accountId}`;
+    const operatorId = `${profile.topicInfo?.inboundTopic}@${accountResponse.accountId}`;
+    this.operatorId = operatorId;
+    return operatorId;
   }
 
   clearCache(): void {

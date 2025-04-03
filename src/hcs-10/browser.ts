@@ -192,16 +192,18 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
   async submitConnectionRequest(
     inboundTopicId: string,
-    requestingAccountId: string,
-    operatorId: string,
-    memo: string,
-    ttl: number = 60
+    memo: string
   ): Promise<TransactionReceipt | undefined> {
     this.logger.info('Submitting connection request');
+    const accountResponse = this.getAccountAndSigner();
+    if (!accountResponse.accountId) {
+      throw new Error('Failed to retrieve user account ID');
+    }
+    const operatorId = await this.getOperatorId();
+    const accountId = accountResponse.accountId;
     const connectionRequestMessage = {
       p: 'hcs-10',
       op: 'connection_request',
-      requesting_account_id: requestingAccountId,
       operator_id: operatorId,
       m: memo,
     };
@@ -214,21 +216,19 @@ export class BrowserHCSClient extends HCS10BaseClient {
       `Submitted connection request to topic ID: ${inboundTopicId}`
     );
 
-    const outboundTopic = await this.retrieveOutboundConnectTopic(
-      requestingAccountId
-    );
+    const outboundTopic = await this.retrieveOutboundConnectTopic(accountId);
 
     if (!outboundTopic?.outboundTopic) {
       this.logger.error(
-        `Failed to retrieve outbound topic for account ID: ${requestingAccountId}`
+        `Failed to retrieve outbound topic for account ID: ${accountId}`
       );
       throw new Error(
-        `Failed to retrieve outbound topic for account ID: ${requestingAccountId}`
+        `Failed to retrieve outbound topic for account ID: ${accountId}`
       );
     }
 
     this.logger.info(
-      `Retrieved outbound topic ID: ${outboundTopic.outboundTopic} for account ID: ${requestingAccountId}`
+      `Retrieved outbound topic ID: ${outboundTopic.outboundTopic} for account ID: ${accountId}`
     );
     const responseSequenceNumber = response?.topicSequenceNumber?.toNumber();
 
