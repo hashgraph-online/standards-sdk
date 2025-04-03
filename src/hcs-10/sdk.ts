@@ -531,7 +531,6 @@ export class HCS10Client extends HCS10BaseClient {
       connectionTopicId,
       requestingAccountId,
       connectionRequestId,
-      operatorId,
       'Connection accepted. Looking forward to collaborating!'
     );
 
@@ -547,10 +546,10 @@ export class HCS10Client extends HCS10BaseClient {
     connectionTopicId: string,
     connectedAccountId: string,
     connectionId: number,
-    operatorId: string,
     memo: string,
     submitKey?: PrivateKey
   ): Promise<number> {
+    const operatorId = await this.getOperatorId();
     this.logger.info(`Confirming connection with ID ${connectionId}`);
     const payload = {
       p: 'hcs-10',
@@ -754,13 +753,18 @@ export class HCS10Client extends HCS10BaseClient {
 
   async submitConnectionRequest(
     inboundTopicId: string,
-    requestingAccountId: string,
-    operatorId: string,
     memo: string
   ): Promise<TransactionReceipt> {
+    const accountResponse = this.getAccountAndSigner();
+    if (!accountResponse.accountId) {
+      throw new Error('Operator account ID is not set');
+    }
+    const operatorId = await this.getOperatorId();
+    const accountId = accountResponse.accountId;
+
     const submissionCheck = await this.canSubmitToTopic(
       inboundTopicId,
-      requestingAccountId
+      accountId
     );
 
     if (!submissionCheck.canSubmit) {
@@ -771,7 +775,7 @@ export class HCS10Client extends HCS10BaseClient {
       p: 'hcs-10',
       op: 'connection_request',
       operator_id: operatorId,
-      memo: memo,
+      m: memo,
     };
 
     const requiresFee = submissionCheck.requiresFee;
@@ -786,9 +790,7 @@ export class HCS10Client extends HCS10BaseClient {
       `Submitted connection request to topic ID: ${inboundTopicId}`
     );
 
-    const outboundTopic = await this.retrieveOutboundConnectTopic(
-      requestingAccountId
-    );
+    const outboundTopic = await this.retrieveOutboundConnectTopic(accountId);
 
     const responseSequenceNumber = response.topicSequenceNumber?.toNumber();
 
