@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.64",
+  "version": "0.0.65",
   "description": "HCS Standards SDK",
   "type": "module",
   "files": [
