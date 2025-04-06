@@ -7,11 +7,10 @@ import {
   AccountResponse,
   CustomFees,
   HBARPrice,
-  NetworkType,
   TopicMessagesResponse,
   TopicResponse,
 } from './types';
-
+import { NetworkType } from '../utils/types';
 export class HederaMirrorNode {
   private network: NetworkType;
   private baseUrl: string;

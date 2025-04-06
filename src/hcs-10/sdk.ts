@@ -29,29 +29,30 @@ import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
   HCSClientConfig,
-  AgentConfig,
   CreateAccountResponse,
   CreateAgentResponse,
-  InscribePfpResponse,
   StoreHCS11ProfileResponse,
   AgentRegistrationResult,
   HandleConnectionRequestResponse,
   WaitForConnectionConfirmationResponse,
   GetAccountAndSignerResponse,
-  InboundTopicType,
-  TopicFeeConfig,
-  FeeConfigBuilderInterface,
   AgentCreationState,
   RegistrationProgressCallback,
-  AgentMetadata,
+  InscribePfpResponse,
 } from './types';
-import { HCS11Client } from '../hcs-11';
-import { AgentBuilder } from './agent-builder';
+import {
+  HCS11Client,
+  AgentMetadata as HCS11AgentMetadata,
+  SocialLink,
+  SocialPlatform,
+  InboundTopicType,
+  AgentMetadata,
+} from '../hcs-11';
+import { FeeConfigBuilderInterface, TopicFeeConfig } from '../fees';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
 import { Hcs10MemoType } from './base-client';
-
-export { InboundTopicType } from './types';
-export { FeeConfigBuilder } from './fee-config-builder';
+import { AgentBuilder } from '../hcs-11/agent-builder';
+import { inscribe } from '../inscribe/inscriber';
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -226,7 +227,7 @@ export class HCS10Client extends HCS10BaseClient {
 
     const profileResult = await this.storeHCS11Profile(
       config.name,
-      config.description,
+      config.bio,
       inboundTopicId,
       outboundTopicId,
       config.capabilities,
@@ -297,7 +298,7 @@ export class HCS10Client extends HCS10BaseClient {
   /**
    * Stores an HCS-11 profile for an agent
    * @param agentName Agent name
-   * @param agentDescription Agent description
+   * @param agentBio Agent description
    * @param inboundTopicId Inbound topic ID
    * @param outboundTopicId Outbound topic ID
    * @param capabilities Agent capability tags
@@ -308,7 +309,7 @@ export class HCS10Client extends HCS10BaseClient {
    */
   async storeHCS11Profile(
     agentName: string,
-    agentDescription: string,
+    agentBio: string,
     inboundTopicId: string,
     outboundTopicId: string,
     capabilities: number[] = [],
@@ -324,8 +325,8 @@ export class HCS10Client extends HCS10BaseClient {
         this.logger.info('Inscribing profile picture for HCS-11 profile');
         const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName);
         if (!pfpResult.success) {
-          this.logger.error(
-            'Failed to inscribe profile picture, continuing without PFP'
+          this.logger.warn(
+            `Failed to inscribe profile picture: ${pfpResult.error}, proceeding without pfp`
           );
         } else {
           pfpTopicId = pfpResult.pfpTopicId;
@@ -334,19 +335,20 @@ export class HCS10Client extends HCS10BaseClient {
         this.logger.info(
           `Using existing profile picture with topic ID: ${existingPfpTopicId} for HCS-11 profile`
         );
+        pfpTopicId = existingPfpTopicId;
       }
 
       const agentType = this.hcs11Client.getAgentTypeFromMetadata({
         type: metadata.type || 'autonomous',
-      } as AgentMetadata);
+      } as HCS11AgentMetadata);
 
-      const formattedSocials = metadata.socials
-        ? Object.entries(metadata.socials)
+      const formattedSocials: SocialLink[] | undefined = metadata.socials
+        ? (Object.entries(metadata.socials)
             .filter(([_, handle]) => handle)
             .map(([platform, handle]) => ({
-              platform: platform === 'x' ? 'twitter' : platform,
-              handle,
-            }))
+              platform: platform as SocialPlatform,
+              handle: handle as string,
+            })) as SocialLink[])
         : undefined;
 
       const profile = this.hcs11Client.createAIAgentProfile(
@@ -356,7 +358,7 @@ export class HCS10Client extends HCS10BaseClient {
         metadata.model || 'unknown',
         {
           alias: agentName.toLowerCase().replace(/\s+/g, '_'),
-          bio: agentDescription,
+          bio: agentBio,
           profileImage: pfpTopicId ? `hcs://1/${pfpTopicId}` : undefined,
           socials: formattedSocials,
           properties: metadata.properties,
@@ -588,7 +590,12 @@ export class HCS10Client extends HCS10BaseClient {
     connectionTopicId: string,
     data: string,
     memo?: string,
-    submitKey?: PrivateKey
+    submitKey?: PrivateKey,
+    options?: {
+      progressCallback?: RegistrationProgressCallback;
+      waitMaxAttempts?: number;
+      waitIntervalMs?: number;
+    }
   ): Promise<TransactionReceipt> {
     const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
@@ -617,7 +624,12 @@ export class HCS10Client extends HCS10BaseClient {
         const fileName = `message-${Date.now()}.json`;
         const inscriptionResult = await this.inscribeFile(
           contentBuffer,
-          fileName
+          fileName,
+          {
+            progressCallback: options?.progressCallback,
+            waitMaxAttempts: options?.waitMaxAttempts,
+            waitIntervalMs: options?.waitIntervalMs,
+          }
         );
 
         if (inscriptionResult?.topic_id) {
@@ -809,7 +821,12 @@ export class HCS10Client extends HCS10BaseClient {
 
   async inscribeFile(
     buffer: Buffer,
-    fileName: string
+    fileName: string,
+    options?: {
+      progressCallback?: RegistrationProgressCallback;
+      waitMaxAttempts?: number;
+      waitIntervalMs?: number;
+    }
   ): Promise<RetrievedInscriptionResult> {
     this.logger.info('Inscribing file');
     if (!this.client.operatorAccountId) {
@@ -831,38 +848,38 @@ export class HCS10Client extends HCS10BaseClient {
       network: this.network as 'testnet' | 'mainnet',
     });
 
-    const result = await sdk.inscribeAndExecute(
+    const inscriptionOptions = {
+      mode: 'file' as const,
+      waitForConfirmation: true,
+      waitMaxAttempts: options?.waitMaxAttempts || 30,
+      waitIntervalMs: options?.waitIntervalMs || 4000,
+      progressCallback: options?.progressCallback,
+      logging: {
+        level: this.logger.getLevel ? this.logger.getLevel() : 'info',
+      },
+    };
+
+    const response = await inscribe(
       {
-        file: {
-          type: 'base64',
-          base64: buffer.toString('base64'),
-          fileName,
-          mimeType,
-        },
-        holderId: this.client.operatorAccountId.toString(),
-        mode: 'file',
-        network: this.network as 'testnet' | 'mainnet',
+        type: 'buffer',
+        buffer,
+        fileName,
+        mimeType,
       },
       {
         accountId: this.client.operatorAccountId.toString(),
         privateKey: this.operatorPrivateKey.toString(),
         network: this.network as 'testnet' | 'mainnet',
-      }
+      },
+      inscriptionOptions,
+      sdk
     );
 
-    if (!result.transactionId || !result.jobId) {
-      this.logger.error('Failed to inscribe, no transaction ID or job ID.');
-      throw new Error('Failed to inscribe, no transaction ID or job ID.');
+    if (!response.confirmed || !response.inscription) {
+      throw new Error('Inscription was not confirmed');
     }
 
-    if (result.transactionId && result.jobId) {
-      this.logger.info(
-        `Transaction ID: ${result.transactionId}, Job ID: ${result.jobId}`
-      );
-    }
-
-    const status = await sdk.waitForInscription(result.jobId, 30, 4000, true);
-    return status;
+    return response.inscription;
   }
 
   /**
