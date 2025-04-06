@@ -84,8 +84,6 @@ export interface Links {
   next: string;
 }
 
-export type NetworkType = 'mainnet' | 'testnet';
-
 export interface TopicInfo {
   inboundTopic: string;
   outboundTopic: string;

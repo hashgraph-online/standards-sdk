@@ -5,3 +5,4 @@ export * from './hcs-11';
 export * from './utils';
 export * from './inscribe';
 export * from './services';
+export * from './fees';
