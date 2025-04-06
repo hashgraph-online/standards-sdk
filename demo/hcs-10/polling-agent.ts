@@ -54,9 +54,13 @@ function generateASCIIArt(type: string): string {
   return arts[type.toLowerCase()] || arts.robot;
 }
 
+function stripAnsiCodes(text: string): string {
+  return text.replace(/\u001b\[\d+m/g, '');
+}
+
 function evaluateMathExpression(expression: string): number | string {
   try {
-    const sanitized = expression.replace(/[^0-9+\-*/().%\s]/g, '');
+    const sanitized = stripAnsiCodes(expression).replace(/[^0-9+\-*/().%\s]/g, '');
     const result = new Function(`return ${sanitized}`)();
     if (isNaN(result) || !isFinite(result)) {
       return "I can't calculate that...";
@@ -456,6 +460,22 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
 });
 
+function extractAllText(obj: any): string {
+  if (typeof obj === 'string') return stripAnsiCodes(obj);
+  if (!obj || typeof obj !== 'object') return '';
+  
+  if (Array.isArray(obj)) {
+    return obj.map(extractAllText).filter(Boolean).join(' ');
+  }
+  
+  if (obj.text && typeof obj.text === 'string') return stripAnsiCodes(obj.text);
+  
+  return Object.values(obj)
+    .map(extractAllText)
+    .filter(Boolean)
+    .join(' ');
+}
+
 async function handleStandardMessage(
   agent: {
     client: HCS10Client;
@@ -477,15 +497,30 @@ async function handleStandardMessage(
     return;
   }
 
-  let messageContent: string = message.data;
+  let rawContent: string = message.data;
 
-  if (messageContent.startsWith('hcs://')) {
+  if (rawContent.startsWith('hcs://')) {
     try {
-      const content = await agent.client.getMessageContent(messageContent);
-      messageContent = content as string;
+      const content = await agent.client.getMessageContent(rawContent);
+      rawContent = content as string;
     } catch (error) {
       logger.error(`Failed to resolve message content: ${error}`);
       return;
+    }
+  }
+  
+  let messageContent = rawContent;
+  
+  if (isJson(rawContent)) {
+    try {
+      const parsed = JSON.parse(rawContent);
+      const extracted = extractAllText(parsed);
+      if (extracted.trim()) {
+        messageContent = extracted;
+        logger.debug(`Extracted from JSON: "${messageContent}" (original: "${rawContent.substring(0, 50)}${rawContent.length > 50 ? '...' : ''}")`);
+      }
+    } catch {
+      messageContent = rawContent;
     }
   }
 
@@ -497,7 +532,7 @@ async function handleStandardMessage(
     lowerContent.startsWith('calculate:') ||
     lowerContent.startsWith('math:')
   ) {
-    const expression = messageContent
+    const expression = stripAnsiCodes(messageContent)
       .substring(messageContent.indexOf(':') + 1)
       .trim();
     const result = evaluateMathExpression(expression);
@@ -571,7 +606,7 @@ async function handleStandardMessage(
     const result = evaluateMathExpression(messageContent);
     response = `Looks like a math expression! Result: ${result}`;
   } else {
-    const patternResult = detectPatterns(messageContent);
+    const patternResult = detectPatterns(stripAnsiCodes(messageContent));
     if (patternResult) {
       response = patternResult;
     } else if (isJson(messageContent)) {

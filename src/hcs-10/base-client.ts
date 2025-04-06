@@ -1,11 +1,13 @@
-import { HederaMirrorNode } from '../services/mirror-node';
+
 import { Logger, LogLevel } from '../utils/logger';
 import { Registration } from './registrations';
-import { HCS11Client } from '../hcs-11';
-import { AccountResponse, NetworkType } from '../services/types';
+import { HCS11Client } from '../hcs-11/client';
+import { AccountResponse } from '../services/types';
 import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import axios from 'axios';
+import { NetworkType } from '../utils/types';
+import { HederaMirrorNode } from '../services';
 
 export enum Hcs10MemoType {
   INBOUND = 'inbound',

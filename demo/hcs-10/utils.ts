@@ -264,14 +264,15 @@ export async function updateEnvFile(
 export function createBobBuilder(pfpBuffer?: Buffer): any {
   const bobBuilder = new AgentBuilder()
     .setName('Bob')
-    .setDescription('A language processing agent')
+    .setAlias('bob')
+    .setBio('A language processing agent')
     .setCapabilities([
       AIAgentCapability.TEXT_GENERATION,
       AIAgentCapability.CODE_GENERATION,
       AIAgentCapability.DATA_INTEGRATION,
       AIAgentCapability.KNOWLEDGE_RETRIEVAL,
     ])
-    .setAgentType('autonomous')
+    .setType('autonomous')
     .setModel('agent-model-2024')
     .addSocial('x', '@bob')
     .addProperty('name', 'Bob')
@@ -348,7 +349,7 @@ export async function getOrCreateAlice(
       AIAgentCapability.TEXT_GENERATION,
       AIAgentCapability.KNOWLEDGE_RETRIEVAL,
     ])
-    .setAgentType('manual')
+    .setType('manual')
     .setModel('agent-model-2024')
     .addSocial('x', '@alice')
     .addProperty('name', 'Alice')

@@ -1,11 +1,7 @@
-import { PrivateKey, TransactionReceipt } from '@hashgraph/sdk';
+import { PrivateKey } from '@hashgraph/sdk';
 import { LogLevel } from '../utils/logger';
-import { AIAgentCapability } from '../hcs-11';
-import {
-  ProgressData,
-  ProgressStage,
-  ProgressCallback,
-} from '../utils/progress-reporter';
+import { AgentMetadata } from '../hcs-11';
+import { NetworkType } from '../utils/types';
 
 export interface ValidationError {
   validation: string;
@@ -14,21 +10,6 @@ export interface ValidationError {
   path: string[];
 }
 
-export type NetworkType = 'mainnet' | 'testnet';
-
-export enum InboundTopicType {
-  PUBLIC = 'PUBLIC',
-  CONTROLLED = 'CONTROLLED',
-  FEE_BASED = 'FEE_BASED',
-}
-
-export type FeeAmount = {
-  amount: number; // Amount in tinybars
-  decimals?: number; // Decimal places for fixed point representation
-  tokenId?: string; // Optional token ID for token fees
-};
-
-// For backward compatibility
 export interface RegistrationProgressData {
   stage:
     | 'preparing'
@@ -45,30 +26,6 @@ export interface RegistrationProgressData {
 export type RegistrationProgressCallback = (
   data: RegistrationProgressData
 ) => void;
-
-export interface TopicFeeConfig {
-  feeAmount: FeeAmount;
-  feeCollectorAccountId: string;
-  exemptAccounts?: string[];
-}
-
-export interface FeeConfigBuilderInterface {
-  setHbarAmount(hbarAmount: number): FeeConfigBuilderInterface;
-  setFeeAmount(amount: number, decimals?: number): FeeConfigBuilderInterface;
-  setFeeCollector(accountId: string): FeeConfigBuilderInterface;
-  addExemptAccount(accountId: string): FeeConfigBuilderInterface;
-  addExemptAccounts(accountIds: string[]): FeeConfigBuilderInterface;
-  build(): TopicFeeConfig;
-}
-
-export interface FeeConfigBuilderStatic {
-  new (): FeeConfigBuilderInterface;
-  forHbar(
-    hbarAmount: number,
-    collectorAccountId: string,
-    exemptAccounts?: string[]
-  ): FeeConfigBuilderInterface;
-}
 
 export interface AgentConfig<T> {
   accountId: string;
@@ -183,24 +140,6 @@ export interface AgentRegistrationResult {
   };
 }
 
-export interface AgentConfiguration {
-  name: string;
-  description: string;
-  capabilities: AIAgentCapability[];
-  metadata: any;
-  pfpBuffer: Buffer;
-  pfpFileName: string;
-  network: NetworkType;
-  inboundTopicType: InboundTopicType;
-  feeConfig?: FeeConfigBuilderInterface;
-  connectionFeeConfig?: FeeConfigBuilderInterface;
-  existingAccount?: {
-    accountId: string;
-    privateKey: string;
-  };
-  existingPfpTopicId?: string;
-}
-
 export interface AgentCreationState {
   pfpTopicId?: string;
   inboundTopicId?: string;
@@ -251,23 +190,6 @@ export type RegistrationResult = {
   error?: string;
   validationErrors?: ValidationError[];
 };
-
-export interface AgentMetadata {
-  type: 'autonomous' | 'manual';
-  model?: string;
-  socials?: {
-    twitter?: string;
-    discord?: string;
-    github?: string;
-    website?: string;
-    x?: string;
-    linkedin?: string;
-    youtube?: string;
-    telegram?: string;
-  };
-  creator?: string;
-  properties?: Record<string, any>;
-}
 
 export interface RegistrationSearchOptions {
   tags?: string[];
