@@ -1,22 +1,13 @@
 import {
   InboundTopicType,
-  NetworkType,
-  FeeConfigBuilderInterface,
   AgentConfiguration,
+  AgentMetadata,
+  AIAgentCapability,
+  SocialPlatform,
 } from './types';
-import { AIAgentCapability } from '../hcs-11';
-import { AgentMetadata } from './types';
 import { Logger } from '../utils/logger';
-
-type SocialPlatform =
-  | 'twitter'
-  | 'discord'
-  | 'github'
-  | 'website'
-  | 'x'
-  | 'linkedin'
-  | 'youtube'
-  | 'telegram';
+import { FeeConfigBuilderInterface } from '../fees';
+import { NetworkType } from '../utils/types';
 
 /**
  * AgentBuilder is a builder class for creating agent configurations.
@@ -46,22 +37,38 @@ export class AgentBuilder {
     });
   }
 
-  setName(name: string): AgentBuilder {
+  setName(name: string): this {
     this.config.name = name;
     return this;
   }
 
-  setDescription(description: string): AgentBuilder {
-    this.config.description = description;
+  setAlias(alias: string): this {
+    this.config.alias = alias;
     return this;
   }
 
-  setCapabilities(capabilities: AIAgentCapability[]): AgentBuilder {
+  setBio(bio: string): this {
+    this.config.bio = bio;
+    return this;
+  }
+
+  /**
+   * @deprecated Use setBio instead
+   */
+  setDescription(description: string): this {
+    this.config.bio = description;
+    return this;
+  }
+
+  setCapabilities(capabilities: AIAgentCapability[]): this {
     this.config.capabilities = capabilities;
     return this;
   }
 
-  setAgentType(type: 'autonomous' | 'manual'): AgentBuilder {
+  /**
+   * @deprecated Use setType instead
+   */
+  setAgentType(type: 'autonomous' | 'manual'): this {
     if (!this.config.metadata) {
       this.config.metadata = { type };
     } else {
@@ -70,100 +77,105 @@ export class AgentBuilder {
     return this;
   }
 
-  setModel(model: string): AgentBuilder {
+  setType(type: 'autonomous' | 'manual'): this {
     if (!this.config.metadata) {
-      this.config.metadata = { type: 'autonomous', model };
+      this.config.metadata = { type };
     } else {
-      this.config.metadata.model = model;
+      this.config.metadata.type = type;
     }
     return this;
   }
 
-  setCreator(creator: string): AgentBuilder {
+  setModel(model: string): this {
     if (!this.config.metadata) {
-      this.config.metadata = { type: 'autonomous', creator };
-    } else {
-      this.config.metadata.creator = creator;
+      this.config.metadata = { type: 'manual' };
     }
+    this.config.metadata.model = model;
     return this;
   }
 
-  addSocial(platform: SocialPlatform, handle: string): AgentBuilder {
+  setCreator(creator: string): this {
     if (!this.config.metadata) {
-      this.config.metadata = { type: 'autonomous', socials: {} };
-    } else if (!this.config.metadata.socials) {
+      this.config.metadata = { type: 'manual' };
+    }
+    this.config.metadata.creator = creator;
+    return this;
+  }
+
+  addSocial(platform: SocialPlatform, handle: string): this {
+    if (!this.config.metadata) {
+      this.config.metadata = { type: 'manual' };
+    }
+    if (!this.config.metadata.socials) {
       this.config.metadata.socials = {};
     }
-
     this.config.metadata.socials[platform] = handle;
     return this;
   }
 
-  addProperty(key: string, value: any): AgentBuilder {
+  addProperty(key: string, value: any): this {
     if (!this.config.metadata) {
-      this.config.metadata = { type: 'autonomous', properties: {} };
-    } else if (!this.config.metadata.properties) {
+      this.config.metadata = { type: 'manual' };
+    }
+    if (!this.config.metadata.properties) {
       this.config.metadata.properties = {};
     }
-
     this.config.metadata.properties[key] = value;
     return this;
   }
 
-  setMetadata(metadata: AgentMetadata): AgentBuilder {
+  setMetadata(metadata: AgentMetadata): this {
     this.config.metadata = metadata;
     return this;
   }
 
-  setProfilePicture(pfpBuffer: Buffer, pfpFileName: string): AgentBuilder {
+  setProfilePicture(pfpBuffer: Buffer, pfpFileName: string): this {
     this.config.pfpBuffer = pfpBuffer;
     this.config.pfpFileName = pfpFileName;
     return this;
   }
 
-  setExistingProfilePicture(pfpTopicId: string): AgentBuilder {
+  setExistingProfilePicture(pfpTopicId: string): this {
     this.config.existingPfpTopicId = pfpTopicId;
     return this;
   }
 
-  setNetwork(network: NetworkType): AgentBuilder {
+  setNetwork(network: NetworkType): this {
     this.config.network = network;
     return this;
   }
 
-  setInboundTopicType(inboundTopicType: InboundTopicType): AgentBuilder {
+  setInboundTopicType(inboundTopicType: InboundTopicType): this {
     this.config.inboundTopicType = inboundTopicType;
     return this;
   }
 
-  setFeeConfig(feeConfigBuilder: FeeConfigBuilderInterface): AgentBuilder {
+  setFeeConfig(feeConfigBuilder: FeeConfigBuilderInterface): this {
     this.config.feeConfig = feeConfigBuilder;
     return this;
   }
 
-  setConnectionFeeConfig(
-    feeConfigBuilder: FeeConfigBuilderInterface
-  ): AgentBuilder {
+  setConnectionFeeConfig(feeConfigBuilder: FeeConfigBuilderInterface): this {
     this.config.connectionFeeConfig = feeConfigBuilder;
     return this;
   }
 
-  setExistingAccount(accountId: string, privateKey: string): AgentBuilder {
+  setExistingAccount(accountId: string, privateKey: string): this {
     this.config.existingAccount = { accountId, privateKey };
     return this;
   }
 
   build(): AgentConfiguration {
     if (!this.config.name) {
-      throw new Error('Agent name is required');
+      throw new Error('Agent display name is required');
     }
 
-    if (!this.config.description) {
-      throw new Error('Agent description is required');
+    if (!this.config.bio) {
+      this.logger?.warn('Agent description is not set');
     }
 
-    if (!this.config.pfpBuffer || !this.config.pfpFileName) {
-      this.logger.warn('No profile picture provided, skipping...');
+    if (!this.config.pfpBuffer && !this.config.existingPfpTopicId) {
+      this.logger.warn('No profile picture provided or referenced.');
     }
 
     if (!this.config.network) {
@@ -179,7 +191,9 @@ export class AgentBuilder {
     }
 
     if (!this.config.metadata) {
-      this.config.metadata = { type: 'autonomous' };
+      this.config.metadata = { type: 'manual' };
+    } else if (!this.config.metadata.type) {
+      this.config.metadata.type = 'manual';
     }
 
     if (

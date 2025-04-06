@@ -16,26 +16,31 @@ import {
 import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
-  HCSClientConfig,
-  NetworkType,
-  RegistrationResponse,
   AgentConfig,
-  CreateAgentResponse,
   InscribePfpResponse,
   StoreHCS11ProfileResponse,
   AgentRegistrationResult,
   HandleConnectionRequestResponse,
-  WaitForConnectionConfirmationResponse,
   RegistrationProgressCallback,
   AgentCreationState,
   GetAccountAndSignerResponse,
 } from './types';
-import { HCS11Client, AIAgentMetadata } from '../hcs-11';
-import { ProgressReporter } from '../utils/progress-reporter';
+import {
+  HCS11Client,
+  AgentMetadata as AIAgentMetadata,
+  InscribeProfileResponse,
+  HCS11Profile,
+  AIAgentProfile,
+  PersonalProfile,
+  SocialLink,
+  SocialPlatform,
+} from '../hcs-11';
+import { ProgressReporter, ProgressData } from '../utils/progress-reporter';
 import { Transaction } from '@hashgraph/sdk';
-import { AgentBuilder } from './agent-builder';
-import { inscribeWithSigner } from '../inscribe/inscriber';
+import { AgentBuilder } from '../hcs-11/agent-builder';
+import { PersonBuilder } from '../hcs-11/person-builder';
 import { Hcs10MemoType } from './base-client';
+import { inscribe, inscribeWithSigner } from '../inscribe/inscriber';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -49,17 +54,8 @@ export type BrowserHCSClientConfig = {
   feeAmount?: number;
 };
 
-interface AgentMetadata {
-  name: string;
-  description: string;
-  version?: string;
-  type?: string;
-  logo?: string;
-  socials?: SocialLinks;
-}
-
 interface SocialLinks {
-  twitter?: string;
+  x?: string;
   discord?: string;
   github?: string;
   website?: string;
@@ -97,10 +93,21 @@ export class BrowserHCSClient extends HCS10BaseClient {
     });
 
     this.hwc = config.hwc;
-    this.guardedRegistryBaseUrl =
-      config.guardedRegistryBaseUrl || 'https://moonscape.tech';
+    if (!config.guardedRegistryBaseUrl) {
+      this.guardedRegistryBaseUrl = 'https://moonscape.tech';
+    } else {
+      this.guardedRegistryBaseUrl = config.guardedRegistryBaseUrl;
+    }
+
+    let logLevel: LogLevel;
+    if (config.logLevel) {
+      logLevel = config.logLevel;
+    } else {
+      logLevel = 'info';
+    }
+
     this.logger = Logger.getInstance({
-      level: config.logLevel || 'info',
+      level: logLevel,
       module: 'HCS-Browser',
       prettyPrint: config.prettyPrint,
     });
@@ -131,7 +138,12 @@ export class BrowserHCSClient extends HCS10BaseClient {
     connectionTopicId: string,
     data: string,
     memo?: string,
-    submitKey?: PrivateKey
+    submitKey?: PrivateKey,
+    options?: {
+      progressCallback?: RegistrationProgressCallback;
+      waitMaxAttempts?: number;
+      waitIntervalMs?: number;
+    }
   ): Promise<TransactionReceipt> {
     this.logger.info('Sending message');
     const operatorId = await this.getOperatorId();
@@ -161,7 +173,12 @@ export class BrowserHCSClient extends HCS10BaseClient {
         const fileName = `message-${Date.now()}.json`;
         const inscriptionResult = await this.inscribeFile(
           contentBuffer,
-          fileName
+          fileName,
+          {
+            progressCallback: options?.progressCallback,
+            waitMaxAttempts: options?.waitMaxAttempts,
+            waitIntervalMs: options?.waitIntervalMs,
+          }
         );
 
         if (inscriptionResult?.topic_id) {
@@ -349,300 +366,348 @@ export class BrowserHCSClient extends HCS10BaseClient {
     return transactionResponse.topicSequenceNumber.toNumber();
   }
 
-  /**
-   * Creates an agent directly, but does not register.
-   * We highly recommend calling createAndRegisterAgent instead.
-   *
-   * @param pfpBuffer - The buffer containing the PFP image.
-   * @param pfpFileName - The name of the file containing the PFP image.
-   * @param agentName - The name of the agent.
-   * @param agentDescription - The description of the agent.
-   * @param capabilities - The capabilities of the agent.
-   * @param metadata - The metadata of the agent.
-   * @param existingPfpTopicId - The topic ID of the existing PFP.
-   * @param options - Optional configuration options.
-   * @returns A promise that resolves to the agent creation state.
-   */
-  async createAgent(
-    pfpBuffer: Buffer,
-    pfpFileName: string,
-    agentName: string,
-    agentDescription: string,
-    capabilities: number[],
-    metadata: AgentMetadata,
-    existingPfpTopicId?: string,
+  async create(
+    builder: AgentBuilder | PersonBuilder,
     options?: {
       progressCallback?: RegistrationProgressCallback;
       existingState?: AgentCreationState;
       ttl?: number;
+      updateAccountMemo?: boolean;
     }
-  ): Promise<RegisteredAgent> {
-    try {
-      const progressCallback = options?.progressCallback;
-      const progressReporter = new ProgressReporter({
-        module: 'AgentCreate',
-        logger: this.logger,
-        callback: progressCallback as any,
-      });
+  ): Promise<RegisteredAgent | InscribeProfileResponse> {
+    const progressCallback = options?.progressCallback;
+    const progressReporter = new ProgressReporter({
+      module: 'ProfileCreate',
+      logger: this.logger,
+      callback: progressCallback as any,
+    });
 
-      let state =
-        options?.existingState ||
-        ({
+    try {
+      const isAgentBuilder = builder instanceof AgentBuilder;
+
+      let state;
+      if (options?.existingState) {
+        state = options.existingState;
+      } else {
+        state = {
           currentStage: 'init',
           completedPercentage: 0,
           createdResources: [],
-        } as AgentCreationState);
-
-      if (!state.outboundTopicId) {
-        state.currentStage = 'topics';
-        progressReporter.preparing('Creating agent outbound topic', 0, {
-          state,
-        });
-
-        const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
-          ttl: options?.ttl,
-        });
-        const outboundResult = await this.createTopic(outboundMemo, true, true);
-
-        if (!outboundResult.success || !outboundResult.topicId) {
-          state.error =
-            outboundResult.error || 'Failed to create outbound topic';
-          progressReporter.failed(
-            `Failed to create outbound topic: ${state.error}`,
-            { state }
-          );
-          return {
-            outboundTopicId: '',
-            inboundTopicId: '',
-            pfpTopicId: '',
-            profileTopicId: '',
-            success: false,
-            error: state.error,
-            state,
-          };
-        }
-
-        state.outboundTopicId = outboundResult.topicId;
-        if (state.createdResources) {
-          state.createdResources.push(`outbound:${state.outboundTopicId}`);
-        }
-        progressReporter.preparing('Outbound topic created', 20, { state });
-      } else {
-        progressReporter.preparing('Using existing outbound topic', 20, {
-          state,
-        });
+        } as AgentCreationState;
       }
 
-      const accountId = this.hwc.getAccountInfo().accountId;
-      if (!accountId) {
-        throw new Error('Failed to retrieve user account ID');
+      if (isAgentBuilder) {
+        this.logger.info('Creating Agent Profile and HCS-10 Topics');
+        const agentConfig = (builder as AgentBuilder).build();
+        state.agentMetadata = agentConfig.metadata;
+      } else {
+        this.logger.info('Creating Person HCS-11 Profile');
       }
 
-      if (!state.inboundTopicId) {
-        const inboundMemo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
-          accountId,
-          ttl: options?.ttl,
-        });
-        const inboundResult = await this.createTopic(inboundMemo, true, true);
-
-        if (!inboundResult.success || !inboundResult.topicId) {
-          state.error = inboundResult.error || 'Failed to create inbound topic';
-          progressReporter.failed(
-            `Failed to create inbound topic: ${state.error}`,
-            { state }
-          );
-          return {
-            outboundTopicId: state.outboundTopicId || '',
-            inboundTopicId: '',
-            pfpTopicId: '',
-            profileTopicId: '',
-            success: false,
-            error: state.error,
-            state,
-          };
-        }
-
-        state.inboundTopicId = inboundResult.topicId;
-        if (state.createdResources) {
-          state.createdResources.push(`inbound:${state.inboundTopicId}`);
-        }
-        progressReporter.preparing('Inbound topic created', 40, { state });
-      } else {
-        progressReporter.preparing('Using existing inbound topic', 40, {
+      progressReporter.preparing(
+        `Starting ${isAgentBuilder ? 'agent' : 'person'} resource creation`,
+        0,
+        {
           state,
-        });
+        }
+      );
+
+      const {
+        inboundTopicId,
+        outboundTopicId,
+        state: updatedState,
+      } = await this.createCommunicationTopics(options, progressReporter);
+
+      state = updatedState;
+
+      if (!isAgentBuilder) {
+        (builder as PersonBuilder).setInboundTopicId(inboundTopicId);
+        (builder as PersonBuilder).setOutboundTopicId(outboundTopicId);
       }
 
-      if (!state.pfpTopicId && !existingPfpTopicId) {
-        state.currentStage = 'pfp';
-        progressReporter.preparing('Creating agent profile picture', 40, {
-          state,
-        });
+      let pfpTopicId: string | undefined;
+      let hasPfpBuffer: Buffer | undefined;
+      let pfpFileName: string | undefined;
 
-        const pfpProgress = progressReporter.createSubProgress({
-          minPercent: 40,
-          maxPercent: 60,
-          logPrefix: 'PFP',
-        });
-
-        const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName, {
-          progressCallback: (data) => {
-            pfpProgress.report({
-              stage: data.stage,
-              message: data.message,
-              progressPercent: data.progressPercent || 0,
-              details: { ...data.details, state },
-            });
-          },
-        });
-
-        if (!pfpResult.success) {
-          state.error = pfpResult.error || 'Failed to inscribe profile picture';
-          progressReporter.failed(
-            `Failed to inscribe profile picture: ${state.error}`,
-            { state }
-          );
-          return {
-            outboundTopicId: state.outboundTopicId || '',
-            inboundTopicId: state.inboundTopicId || '',
-            pfpTopicId: '',
-            profileTopicId: '',
-            success: false,
-            error: state.error,
-            state,
-          };
-        }
-
-        state.pfpTopicId = pfpResult.pfpTopicId;
-        state.completedPercentage = 60;
-        if (state.createdResources) {
-          state.createdResources.push(`pfp:${state.pfpTopicId}`);
-        }
-
-        progressReporter.preparing('Profile picture created', 60, { state });
+      if (isAgentBuilder) {
+        const agentProfile = (builder as AgentBuilder).build();
+        pfpTopicId = agentProfile.existingPfpTopicId || state.pfpTopicId;
+        hasPfpBuffer = agentProfile.pfpBuffer;
+        pfpFileName = agentProfile.pfpFileName || 'pfp.png';
       } else {
-        state.pfpTopicId = existingPfpTopicId || state.pfpTopicId;
+        const personProfile = (builder as PersonBuilder).build();
+        pfpTopicId = state.pfpTopicId;
+        hasPfpBuffer = personProfile.pfpBuffer;
+        pfpFileName = personProfile.pfpFileName;
+      }
+
+      if (!pfpTopicId && hasPfpBuffer && pfpFileName) {
+        pfpTopicId = await this.handleProfilePictureCreation(
+          hasPfpBuffer,
+          pfpFileName,
+          state,
+          progressReporter
+        );
+      } else if (pfpTopicId) {
         progressReporter.preparing(
-          `Using existing profile picture: ${state.pfpTopicId}`,
-          60,
-          {
-            state,
-          }
+          `Using existing profile picture: ${pfpTopicId}`,
+          50,
+          { state }
         );
+        state.pfpTopicId = pfpTopicId;
       }
 
-      if (!state.profileTopicId) {
-        state.currentStage = 'profile';
-        progressReporter.preparing('Creating agent profile', 60, { state });
-
-        const profileProgress = progressReporter.createSubProgress({
-          minPercent: 60,
-          maxPercent: 100,
-          logPrefix: 'Profile',
-        });
-
-        if (!this.hcs11Client) {
-          state.error = 'HCS11Client is not available in this environment';
-          progressReporter.failed(state.error, { state });
-          return {
-            outboundTopicId: state.outboundTopicId || '',
-            inboundTopicId: state.inboundTopicId || '',
-            pfpTopicId: state.pfpTopicId || '',
-            profileTopicId: '',
-            success: false,
-            error: state.error,
-            state,
-          };
-        }
-
-        const storeProfileResult = await this.storeHCS11Profile(
-          agentName,
-          agentDescription,
-          state.inboundTopicId!,
-          state.outboundTopicId!,
-          capabilities,
-          metadata,
-          undefined,
-          undefined,
-          state.pfpTopicId,
-          {
-            progressCallback: (data) => {
-              profileProgress.report({
-                stage: data.stage,
-                message: data.message,
-                progressPercent: data.progressPercent || 0,
-                details: { ...data.details, state },
-              });
-            },
-          }
-        );
-
-        if (!storeProfileResult.success) {
-          state.error =
-            storeProfileResult.error || 'Failed to store agent profile';
-          progressReporter.failed(
-            `Failed to store agent profile: ${state.error}`,
-            { state }
-          );
-          return {
-            outboundTopicId: state.outboundTopicId || '',
-            inboundTopicId: state.inboundTopicId || '',
-            pfpTopicId: state.pfpTopicId || '',
-            profileTopicId: '',
-            success: false,
-            error: state.error,
-            state,
-          };
-        }
-
-        state.profileTopicId = storeProfileResult.profileTopicId;
-        if (state.createdResources) {
-          state.createdResources.push(`profile:${state.profileTopicId}`);
-        }
-
-        state.currentStage = 'complete';
-        state.completedPercentage = 100;
-      } else {
-        progressReporter.preparing('Using existing agent profile', 100, {
-          state,
-        });
-        if (state.currentStage !== 'complete') {
-          state.currentStage = 'complete';
-          state.completedPercentage = 100;
-        }
-      }
-
-      progressReporter.completed('Agent successfully created', {
-        inboundTopicId: state.inboundTopicId,
-        outboundTopicId: state.outboundTopicId,
-        pfpTopicId: state.pfpTopicId,
-        profileTopicId: state.profileTopicId,
+      await this.createAndInscribeProfile(
+        isAgentBuilder,
+        builder as any,
+        pfpTopicId,
         state,
-      });
+        inboundTopicId,
+        outboundTopicId,
+        options,
+        progressReporter
+      );
+
+      state.currentStage = 'complete';
+      state.completedPercentage = 100;
+      progressReporter.completed(
+        `${isAgentBuilder ? 'Agent' : 'Person'} profile created successfully`,
+        {
+          profileTopicId: state.profileTopicId,
+          inboundTopicId,
+          outboundTopicId,
+          pfpTopicId,
+          state,
+        }
+      );
+
+      let outTopicId = '';
+      if (state.outboundTopicId) {
+        outTopicId = state.outboundTopicId;
+      }
+
+      let inTopicId = '';
+      if (state.inboundTopicId) {
+        inTopicId = state.inboundTopicId;
+      }
+
+      let profilePicTopicId = '';
+      if (state.pfpTopicId) {
+        profilePicTopicId = state.pfpTopicId;
+      }
+
+      let profTopicId = '';
+      if (state.profileTopicId) {
+        profTopicId = state.profileTopicId;
+      }
 
       return {
-        outboundTopicId: state.outboundTopicId || '',
-        inboundTopicId: state.inboundTopicId || '',
-        pfpTopicId: state.pfpTopicId || '',
-        profileTopicId: state.profileTopicId || '',
+        outboundTopicId: outTopicId,
+        inboundTopicId: inTopicId,
+        pfpTopicId: profilePicTopicId,
+        profileTopicId: profTopicId,
         success: true,
         state,
-      };
+      } as RegisteredAgent | InscribeProfileResponse;
     } catch (error: any) {
-      this.logger.error(`Error creating agent: ${error.message}`);
+      progressReporter.failed('Error during profile creation', {
+        error: error.message,
+      });
       return {
         outboundTopicId: '',
         inboundTopicId: '',
         pfpTopicId: '',
         profileTopicId: '',
         success: false,
-        error: `Error creating agent: ${error.message}`,
+        error: error.message,
         state: {
           currentStage: 'init',
           completedPercentage: 0,
           error: error.message,
-        },
-      };
+        } as AgentCreationState,
+      } as RegisteredAgent;
+    }
+  }
+
+  private async handleProfilePictureCreation(
+    pfpBuffer: Buffer,
+    pfpFileName: string,
+    state: AgentCreationState,
+    progressReporter: ProgressReporter
+  ): Promise<string> {
+    state.currentStage = 'pfp';
+    progressReporter.preparing('Creating profile picture', 30, {
+      state,
+    });
+
+    const pfpProgress = progressReporter.createSubProgress({
+      minPercent: 30,
+      maxPercent: 50,
+      logPrefix: 'PFP',
+    });
+
+    const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName, {
+      progressCallback: (data) =>
+        pfpProgress.report({
+          ...data,
+          progressPercent: data.progressPercent ?? 0,
+          details: { ...data.details, state },
+        }),
+    });
+
+    if (!pfpResult.success) {
+      let errorMessage = 'Failed to inscribe profile picture';
+      if (pfpResult.error) {
+        errorMessage = pfpResult.error;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const pfpTopicId = pfpResult.pfpTopicId;
+    state.pfpTopicId = pfpTopicId;
+
+    if (state.createdResources) {
+      state.createdResources.push(`pfp:${state.pfpTopicId}`);
+    }
+
+    progressReporter.preparing('Profile picture created', 50, { state });
+
+    return pfpTopicId;
+  }
+
+  private async createAndInscribeProfile(
+    isAgentBuilder: boolean,
+    builder: AgentBuilder | PersonBuilder,
+    pfpTopicId: string | undefined,
+    state: AgentCreationState,
+    inboundTopicId: string,
+    outboundTopicId: string,
+    options?: {
+      updateAccountMemo?: boolean;
+    },
+    progressReporter?: ProgressReporter
+  ): Promise<void> {
+    if (!this.hcs11Client) {
+      if (progressReporter) {
+        progressReporter.failed('HCS11Client is not available');
+      }
+      throw new Error('HCS11Client is not available');
+    }
+
+    this.logger.info('Creating and inscribing profile');
+    if (!state.profileTopicId) {
+      if (progressReporter) {
+        progressReporter.preparing(
+          `Storing HCS-11 ${isAgentBuilder ? 'agent' : 'person'} profile`,
+          80
+        );
+      }
+
+      const profileProgress = progressReporter?.createSubProgress({
+        minPercent: 80,
+        maxPercent: 95,
+        logPrefix: 'StoreProfile',
+      });
+
+      let hcs11Profile;
+
+      if (isAgentBuilder) {
+        const agentProfile = (builder as AgentBuilder).build();
+
+        const socialLinks = agentProfile.metadata?.socials
+          ? Object.entries(agentProfile.metadata.socials).map(
+              ([platform, handle]) => ({
+                platform: platform as SocialPlatform,
+                handle: handle as string,
+              })
+            )
+          : [];
+
+        hcs11Profile = this.hcs11Client.createAIAgentProfile(
+          agentProfile.name,
+          agentProfile.metadata?.type === 'manual' ? 0 : 1,
+          agentProfile.capabilities || [],
+          agentProfile.metadata?.model || 'unknown',
+          {
+            alias: agentProfile.name.toLowerCase().replace(/\s+/g, '_'),
+            bio: agentProfile.bio,
+            profileImage: pfpTopicId ? `hcs://1/${pfpTopicId}` : undefined,
+            socials: socialLinks,
+            properties: agentProfile.metadata?.properties || {},
+            inboundTopicId,
+            outboundTopicId,
+            creator: agentProfile.metadata?.creator,
+          }
+        );
+      } else {
+        const personProfile = (builder as PersonBuilder).build();
+
+        const { pfpBuffer, pfpFileName, ...cleanProfile } = personProfile;
+
+        hcs11Profile = this.hcs11Client.createPersonalProfile(
+          personProfile.display_name,
+          {
+            alias: personProfile.alias,
+            bio: personProfile.bio,
+            socials: personProfile.socials,
+            profileImage: pfpTopicId
+              ? `hcs://1/${pfpTopicId}`
+              : personProfile.profileImage,
+            properties: personProfile.properties,
+            inboundTopicId,
+            outboundTopicId,
+          }
+        );
+      }
+
+      const profileResult = await this.hcs11Client.createAndInscribeProfile(
+        hcs11Profile,
+        options?.updateAccountMemo ?? true,
+        {
+          progressCallback: (data) =>
+            profileProgress?.report({
+              ...data,
+              progressPercent: data.progressPercent ?? 0,
+            }),
+        }
+      );
+
+      if (!profileResult.success) {
+        if (progressReporter) {
+          progressReporter.failed(
+            `Failed to inscribe ${isAgentBuilder ? 'agent' : 'person'} profile`,
+            {
+              error: profileResult.error,
+            }
+          );
+        }
+
+        let errorMessage = `Failed to inscribe ${
+          isAgentBuilder ? 'agent' : 'person'
+        } profile`;
+        if (profileResult.error) {
+          errorMessage = profileResult.error;
+        }
+        throw new Error(errorMessage);
+      }
+
+      state.profileTopicId = profileResult.profileTopicId;
+
+      if (state.createdResources) {
+        state.createdResources.push(`profile:${profileResult.profileTopicId}`);
+      }
+
+      if (progressReporter) {
+        progressReporter.preparing('HCS-11 Profile stored', 95, { state });
+      }
+    } else if (progressReporter) {
+      progressReporter.preparing(
+        `Using existing ${isAgentBuilder ? 'agent' : 'person'} profile`,
+        95,
+        {
+          state,
+        }
+      );
     }
   }
 
@@ -806,7 +871,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     }
   ): Promise<AgentRegistrationResult> {
     try {
-      const config = builder.build();
+      const agentConfig = builder.build();
       const progressCallback = options?.progressCallback;
       const progressReporter = new ProgressReporter({
         module: 'AgentCreateRegister',
@@ -822,7 +887,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
           createdResources: [],
         } as AgentCreationState);
 
-      state.agentMetadata = config.metadata;
+      state.agentMetadata = agentConfig.metadata;
 
       progressReporter.preparing('Starting agent creation process', 0, {
         state,
@@ -834,39 +899,34 @@ export class BrowserHCSClient extends HCS10BaseClient {
         !state.outboundTopicId ||
         !state.profileTopicId
       ) {
-        const agentResult = await this.createAgent(
-          config.pfpBuffer || Buffer.from([]),
-          config.pfpFileName || 'default.png',
-          config.name,
-          config.description,
-          config.capabilities,
-          config.metadata,
-          config.existingPfpTopicId,
-          {
-            progressCallback: (progress) => {
-              const adjustedPercent = (progress.progressPercent || 0) * 0.3;
-              progressReporter.report({
-                stage: progress.stage,
-                message: progress.message,
-                progressPercent: adjustedPercent,
-                details: {
-                  ...progress.details,
-                  state: progress.details?.state || state,
-                },
-              });
-            },
-            existingState: state,
-          }
-        );
+        const createResult = await this.create(builder, {
+          progressCallback: (progress: any) => {
+            const adjustedPercent = (progress.progressPercent || 0) * 0.3;
+            progressReporter.report({
+              ...progress,
+              progressPercent: adjustedPercent,
+              details: {
+                ...progress.details,
+                state: progress.details?.state || state,
+              },
+            });
+          },
+          existingState: state,
+          updateAccountMemo: false,
+        });
 
-        if (!agentResult.success) {
+        if (!('state' in createResult)) {
+          throw new Error('Create method did not return expected agent state.');
+        }
+
+        if (!createResult.success) {
           throw new Error(
-            agentResult.error || 'Failed to create agent with topics'
+            createResult.error || 'Failed to create agent resources'
           );
         }
 
-        state = agentResult.state;
-        state.agentMetadata = config.metadata;
+        state = createResult.state;
+        state.agentMetadata = agentConfig.metadata;
       }
 
       progressReporter.preparing(
@@ -889,14 +949,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
         const registrationResult = await this.registerAgentWithGuardedRegistry(
           accountId,
-          config.network,
+          agentConfig.network,
           {
             progressCallback: (progress) => {
               const adjustedPercent =
                 30 + (progress.progressPercent || 0) * 0.7;
               progressReporter.report({
-                stage: progress.stage,
-                message: progress.message,
+                ...progress,
                 progressPercent: adjustedPercent,
                 details: {
                   ...progress.details,
@@ -917,6 +976,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
         }
 
         state = registrationResult.state;
+
+        if (state.profileTopicId) {
+          await this.hcs11Client?.updateAccountMemoWithProfile(
+            accountId,
+            state.profileTopicId
+          );
+        }
       }
 
       progressReporter.completed('Agent creation and registration complete', {
@@ -938,13 +1004,26 @@ export class BrowserHCSClient extends HCS10BaseClient {
         },
       };
     } catch (error: any) {
-      throw new Error(`Failed to create and register agent: ${error.message}`);
+      this.logger.error(
+        `Failed to create and register agent: ${error.message}`
+      );
+      return {
+        success: false,
+        error: `Failed to create and register agent: ${error.message}`,
+        state:
+          options?.existingState ||
+          ({
+            currentStage: 'init',
+            completedPercentage: 0,
+            error: error.message,
+          } as AgentCreationState),
+      };
     }
   }
 
   async storeHCS11Profile(
     agentName: string,
-    agentDescription: string,
+    agentBio: string,
     inboundTopicId: string,
     outboundTopicId: string,
     capabilities: number[] = [],
@@ -1002,64 +1081,6 @@ export class BrowserHCSClient extends HCS10BaseClient {
         progressReporter.preparing('No profile picture provided', 30);
       }
 
-      const agentType = this.hcs11Client?.getAgentTypeFromMetadata({
-        type: metadata.type || 'autonomous',
-      } as AIAgentMetadata);
-
-      progressReporter.preparing('Building agent profile', 65);
-
-      const formattedSocials = [];
-      if (metadata.socials) {
-        if (metadata.socials.twitter) {
-          formattedSocials.push({
-            platform: 'twitter',
-            handle: metadata.socials.twitter,
-          });
-        }
-        if (metadata.socials.discord) {
-          formattedSocials.push({
-            platform: 'discord',
-            handle: metadata.socials.discord,
-          });
-        }
-        if (metadata.socials.github) {
-          formattedSocials.push({
-            platform: 'github',
-            handle: metadata.socials.github,
-          });
-        }
-        if (metadata.socials.website) {
-          formattedSocials.push({
-            platform: 'website',
-            handle: metadata.socials.website,
-          });
-        }
-        if (metadata.socials.x) {
-          formattedSocials.push({
-            platform: 'twitter',
-            handle: metadata.socials.x,
-          });
-        }
-        if (metadata.socials.linkedin) {
-          formattedSocials.push({
-            platform: 'linkedin',
-            handle: metadata.socials.linkedin,
-          });
-        }
-        if (metadata.socials.youtube) {
-          formattedSocials.push({
-            platform: 'youtube',
-            handle: metadata.socials.youtube,
-          });
-        }
-        if (metadata.socials.telegram) {
-          formattedSocials.push({
-            platform: 'telegram',
-            handle: metadata.socials.telegram,
-          });
-        }
-      }
-
       if (!this.hcs11Client) {
         progressReporter.failed(
           'HCS11Client is not available in this environment'
@@ -1072,18 +1093,32 @@ export class BrowserHCSClient extends HCS10BaseClient {
         };
       }
 
+      const agentType = this.hcs11Client.getAgentTypeFromMetadata({
+        type: metadata.type || 'autonomous',
+      } as AIAgentMetadata);
+
+      progressReporter.preparing('Building agent profile', 65);
+
+      const formattedSocials: SocialLink[] | undefined = metadata.socials
+        ? Object.entries(metadata.socials)
+            .filter(([_, handle]) => handle)
+            .map(([platform, handle]) => ({
+              platform: platform as SocialPlatform,
+              handle: handle as string,
+            }))
+        : undefined;
+
       const profile = this.hcs11Client.createAIAgentProfile(
         agentName,
-        agentType!,
+        agentType,
         capabilities,
         metadata.model || 'unknown',
         {
           alias: agentName.toLowerCase().replace(/\s+/g, '_'),
-          bio: agentDescription,
+          bio: agentBio,
           profileImage: pfpTopicId ? `hcs://1/${pfpTopicId}` : undefined,
-          socials: formattedSocials.length > 0 ? formattedSocials : undefined,
+          socials: formattedSocials,
           properties: {
-            description: agentDescription,
             version: metadata.version || '1.0.0',
             creator: metadata.creator || 'Unknown',
             supported_languages: metadata.supported_languages || ['en'],
@@ -1275,7 +1310,12 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
   async inscribeFile(
     buffer: Buffer,
-    fileName: string
+    fileName: string,
+    options?: {
+      progressCallback?: RegistrationProgressCallback;
+      waitMaxAttempts?: number;
+      waitIntervalMs?: number;
+    }
   ): Promise<RetrievedInscriptionResult> {
     const { accountId, signer } = this.getAccountAndSigner();
 
@@ -1288,34 +1328,37 @@ export class BrowserHCSClient extends HCS10BaseClient {
       network: this.network as 'testnet' | 'mainnet',
     });
 
-    const result = await sdk.inscribe(
+    const inscriptionOptions = {
+      mode: 'file' as const,
+      waitForConfirmation: true,
+      waitMaxAttempts: options?.waitMaxAttempts || 30,
+      waitIntervalMs: options?.waitIntervalMs || 4000,
+      progressCallback: options?.progressCallback,
+      logging: {
+        level: this.logger.getLevel ? this.logger.getLevel() : 'info',
+      },
+    };
+
+    const response = await inscribeWithSigner(
       {
-        file: {
-          type: 'base64',
-          base64: buffer.toString('base64'),
-          fileName,
-          mimeType,
-        },
-        holderId: accountId.toString(),
-        mode: 'file',
+        type: 'buffer',
+        buffer,
+        fileName,
+        mimeType,
+      },
+      signer as any,
+      {
+        ...inscriptionOptions,
         network: this.network as 'testnet' | 'mainnet',
       },
-      signer as any
+      sdk
     );
 
-    if (!result.transactionId || !result.jobId) {
-      this.logger.error('Failed to inscribe, no transaction ID or job ID.');
-      throw new Error('Failed to inscribe, no transaction ID or job ID.');
+    if (!response.confirmed || !response.inscription) {
+      throw new Error('Inscription was not confirmed');
     }
 
-    if (result.transactionId && result.jobId) {
-      this.logger.info(
-        `Transaction ID: ${result.transactionId}, Job ID: ${result.jobId}`
-      );
-    }
-
-    const status = await sdk.waitForInscription(result.jobId, 30, 4000, true);
-    return status;
+    return response.inscription;
   }
 
   getAccountAndSigner(): GetAccountAndSignerResponse {
@@ -1387,17 +1430,21 @@ export class BrowserHCSClient extends HCS10BaseClient {
       );
 
       if (!imageResult.success) {
-        progressReporter.failed(
-          `Failed to inscribe profile picture: ${imageResult.error}`
-        );
-        this.logger.error(
-          `Failed to inscribe profile picture: ${imageResult.error}`
-        );
+        let errorMessage = 'Failed to inscribe profile picture';
+        if (imageResult.error) {
+          errorMessage = imageResult.error;
+        }
+
+        let txId = '';
+        if (imageResult.transactionId) {
+          txId = imageResult.transactionId;
+        }
+
         return {
           pfpTopicId: '',
           success: false,
-          error: imageResult.error || 'Failed to inscribe profile picture',
-          transactionId: imageResult.transactionId || '',
+          error: errorMessage,
+          transactionId: txId,
         };
       }
 
@@ -1422,5 +1469,82 @@ export class BrowserHCSClient extends HCS10BaseClient {
         transactionId: '',
       };
     }
+  }
+
+  private async createCommunicationTopics(
+    options?: {
+      existingState?: AgentCreationState;
+      ttl?: number;
+    },
+    progressReporter?: ProgressReporter
+  ): Promise<{
+    inboundTopicId: string;
+    outboundTopicId: string;
+    state: AgentCreationState;
+  }> {
+    let state =
+      options?.existingState ||
+      ({
+        currentStage: 'init',
+        completedPercentage: 0,
+        createdResources: [],
+      } as AgentCreationState);
+
+    if (progressReporter) {
+      progressReporter.preparing('Starting communication topic creation', 0, {
+        state,
+      });
+    }
+
+    const { accountId } = this.getAccountAndSigner();
+    if (!state.outboundTopicId) {
+      state.currentStage = 'topics';
+      if (progressReporter) {
+        progressReporter.preparing('Creating outbound topic', 5, {
+          state,
+        });
+      }
+      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+        ttl: options?.ttl,
+        accountId,
+      });
+      const outboundResult = await this.createTopic(outboundMemo, true, true);
+      if (!outboundResult.success || !outboundResult.topicId) {
+        throw new Error(
+          outboundResult.error || 'Failed to create outbound topic'
+        );
+      }
+      state.outboundTopicId = outboundResult.topicId;
+      if (state.createdResources)
+        state.createdResources.push(`outbound:${state.outboundTopicId}`);
+    }
+
+    if (!state.inboundTopicId) {
+      state.currentStage = 'topics';
+      if (progressReporter) {
+        progressReporter.preparing('Creating inbound topic', 10, {
+          state,
+        });
+      }
+      const inboundMemo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
+        ttl: options?.ttl,
+        accountId,
+      });
+      const inboundResult = await this.createTopic(inboundMemo, true, true);
+      if (!inboundResult.success || !inboundResult.topicId) {
+        throw new Error(
+          inboundResult.error || 'Failed to create inbound topic'
+        );
+      }
+      state.inboundTopicId = inboundResult.topicId;
+      if (state.createdResources)
+        state.createdResources.push(`inbound:${state.inboundTopicId}`);
+    }
+
+    return {
+      inboundTopicId: state.inboundTopicId,
+      outboundTopicId: state.outboundTopicId,
+      state,
+    };
   }
 }

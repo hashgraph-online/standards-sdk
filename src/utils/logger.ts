@@ -51,6 +51,10 @@ export class Logger {
     this.logger.level = level;
   }
 
+  getLevel(): LogLevel {
+    return this.logger.level as LogLevel;
+  }
+
   setSilent(silent: boolean): void {
     if (silent) {
       this.logger.level = 'silent';

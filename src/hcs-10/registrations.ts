@@ -1,9 +1,8 @@
 import { Logger } from '../utils/logger';
-import { HCS11Client } from '../hcs-11';
+import { HCS11Client } from '../hcs-11/client';
 import { sleep } from '../utils/sleep';
 import {
   RegistrationSearchResult,
-  AgentMetadata,
   RegistrationResult,
   RegistrationsApiResponse,
   RegistrationSearchOptions,
