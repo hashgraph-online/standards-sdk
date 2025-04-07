@@ -1530,7 +1530,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
         ttl: options?.ttl,
         accountId,
       });
-      const inboundResult = await this.createTopic(inboundMemo, true, true);
+      // TODO: mimic SDK's createInboundTopic
+      const inboundResult = await this.createTopic(inboundMemo, true, false);
       if (!inboundResult.success || !inboundResult.topicId) {
         throw new Error(
           inboundResult.error || 'Failed to create inbound topic'
