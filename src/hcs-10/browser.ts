@@ -233,7 +233,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       `Submitted connection request to topic ID: ${inboundTopicId}`
     );
 
-    const outboundTopic = await this.retrieveOutboundConnectTopic(accountId);
+    const outboundTopic = await this.retrieveCommunicationTopics(accountId);
 
     if (!outboundTopic?.outboundTopic) {
       this.logger.error(
