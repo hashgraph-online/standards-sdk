@@ -327,6 +327,24 @@ export class BrowserHCSClient extends HCS10BaseClient {
       connectionMemo
     );
 
+    const accountTopics = await this.retrieveCommunicationTopics(userAccountId);
+
+    const requestingAccountTopics = await this.retrieveCommunicationTopics(
+      requestingAccountId
+    );
+
+    const requestingAccountOperatorId = `${requestingAccountTopics.inboundTopic}@${requestingAccountId}`;
+
+    await this.recordOutboundConnectionConfirmation({
+      outboundTopicId: accountTopics.outboundTopic,
+      requestorOutboundTopicId: requestingAccountTopics.outboundTopic,
+      connectionRequestId: connectionId,
+      confirmedRequestId: confirmedConnectionSequenceNumber,
+      connectionTopicId,
+      operatorId: requestingAccountOperatorId,
+      memo: `Connection established with ${requestingAccountId}`,
+    });
+
     return {
       connectionTopicId,
       confirmedConnectionSequenceNumber,
