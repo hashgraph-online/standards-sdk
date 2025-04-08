@@ -1,9 +1,5 @@
 import dotenv from 'dotenv';
-import {
-  FeeConfigBuilder,
-  HCS10Client,
-  Logger,
-} from '@hashgraphonline/standards-sdk';
+import { FeeConfigBuilder, HCS10Client, Logger } from '../../src';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -45,15 +41,6 @@ async function monitorConnectionConfirmation(
     logger.info(
       `Connection confirmation received with ID: ${confirmation.connectionTopicId}`
     );
-
-    await client.recordOutboundConnectionConfirmation({
-      outboundTopicId: aliceOutboundTopicId,
-      connectionRequestId,
-      confirmedRequestId: confirmation.sequence_number,
-      connectionTopicId: confirmation.connectionTopicId,
-      operatorId: confirmation.confirmedBy,
-      memo: confirmation.memo || 'Connection confirmed',
-    });
 
     return confirmation.connectionTopicId;
   } catch (error) {
@@ -160,9 +147,7 @@ async function monitorIncomingRequests(
             `Connection confirmed with topic ID: ${connectionTopicId}`
           );
         } catch (error) {
-          logger.error(
-            `Error handling request #${connectionRequestId}:`,
-          );
+          logger.error(`Error handling request #${connectionRequestId}:`);
           logger.error(error);
         }
       }
