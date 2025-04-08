@@ -457,7 +457,7 @@ export class HCS10Client extends HCS10BaseClient {
 
   /**
    * Handles a connection request from another account
-   * @param inboundTopicId Inbound topic ID
+   * @param inboundTopicId Inbound topic ID of your agent
    * @param requestingAccountId Requesting account ID
    * @param connectionRequestId Connection request ID
    * @param connectionFeeConfig Optional fee configuration for the connection topic
@@ -536,6 +536,24 @@ export class HCS10Client extends HCS10BaseClient {
       'Connection accepted. Looking forward to collaborating!'
     );
 
+    const accountTopics = await this.retrieveCommunicationTopics(accountId);
+
+    const requestingAccountTopics = await this.retrieveCommunicationTopics(
+      requestingAccountId
+    );
+
+    const requestingAccountOperatorId = `${requestingAccountTopics.inboundTopic}@${requestingAccountId}`;
+
+    await this.recordOutboundConnectionConfirmation({
+      outboundTopicId: accountTopics.outboundTopic,
+      requestorOutboundTopicId: requestingAccountTopics.outboundTopic,
+      connectionRequestId: connectionRequestId,
+      confirmedRequestId: confirmedConnectionSequenceNumber,
+      connectionTopicId,
+      operatorId: requestingAccountOperatorId,
+      memo: `Connection established with ${requestingAccountId}`,
+    });
+
     return {
       connectionTopicId,
       confirmedConnectionSequenceNumber,
@@ -543,6 +561,16 @@ export class HCS10Client extends HCS10BaseClient {
     };
   }
 
+  /**
+   * Confirms a connection request from another account
+   * @param inboundTopicId Inbound topic ID
+   * @param connectionTopicId Connection topic ID
+   * @param connectedAccountId Connected account ID
+   * @param connectionId Connection ID
+   * @param memo Memo for the connection request
+   * @param submitKey Optional submit key
+   * @returns Sequence number of the confirmed connection
+   */
   async confirmConnection(
     inboundTopicId: string,
     connectionTopicId: string,
@@ -802,7 +830,7 @@ export class HCS10Client extends HCS10BaseClient {
       `Submitted connection request to topic ID: ${inboundTopicId}`
     );
 
-    const outboundTopic = await this.retrieveOutboundConnectTopic(accountId);
+    const outboundTopic = await this.retrieveCommunicationTopics(accountId);
 
     const responseSequenceNumber = response.topicSequenceNumber?.toNumber();
 
@@ -894,7 +922,8 @@ export class HCS10Client extends HCS10BaseClient {
     inboundTopicId: string,
     connectionRequestId: number,
     maxAttempts = 60,
-    delayMs = 2000
+    delayMs = 2000,
+    recordConfirmation = true
   ): Promise<WaitForConnectionConfirmationResponse> {
     this.logger.info(
       `Waiting for connection confirmation on inbound topic ${inboundTopicId} for request ID ${connectionRequestId}`
@@ -917,13 +946,47 @@ export class HCS10Client extends HCS10BaseClient {
       if (connectionCreatedMessages.length > 0) {
         for (const message of connectionCreatedMessages) {
           if (Number(message.connection_id) === Number(connectionRequestId)) {
-            this.logger.info('Connection confirmation found');
-            return {
+            const confirmationResult = {
               connectionTopicId: message.connection_topic_id,
               sequence_number: Number(message.sequence_number),
               confirmedBy: message.operator_id,
               memo: message.m,
             };
+
+            const confirmedByAccountId = this.extractAccountFromOperatorId(
+              confirmationResult.confirmedBy
+            );
+
+            const account = this.getAccountAndSigner();
+            const confirmedByConnectionTopics =
+              await this.retrieveCommunicationTopics(confirmedByAccountId);
+
+            const agentConnectionTopics =
+              await this.retrieveCommunicationTopics(account.accountId);
+
+            this.logger.info(
+              'Connection confirmation found',
+              confirmationResult
+            );
+
+            if (recordConfirmation) {
+              /**
+               * Record's the confirmation of the connection request from the
+               * confirmedBy account to the agent account.
+               */
+              await this.recordOutboundConnectionConfirmation({
+                requestorOutboundTopicId:
+                  confirmedByConnectionTopics.outboundTopic,
+                outboundTopicId: agentConnectionTopics.outboundTopic,
+                connectionRequestId,
+                confirmedRequestId: confirmationResult.sequence_number,
+                connectionTopicId: confirmationResult.connectionTopicId,
+                operatorId: confirmationResult.confirmedBy,
+                memo: confirmationResult.memo || 'Connection confirmed',
+              });
+            }
+
+            return confirmationResult;
           }
         }
       }
