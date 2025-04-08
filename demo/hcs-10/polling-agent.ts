@@ -60,7 +60,10 @@ function stripAnsiCodes(text: string): string {
 
 function evaluateMathExpression(expression: string): number | string {
   try {
-    const sanitized = stripAnsiCodes(expression).replace(/[^0-9+\-*/().%\s]/g, '');
+    const sanitized = stripAnsiCodes(expression).replace(
+      /[^0-9+\-*/().%\s]/g,
+      ''
+    );
     const result = new Function(`return ${sanitized}`)();
     if (isNaN(result) || !isFinite(result)) {
       return "I can't calculate that...";
@@ -363,15 +366,6 @@ async function handleConnectionRequest(
         message.sequence_number
       );
 
-    await agent.client.recordOutboundConnectionConfirmation({
-      outboundTopicId: agent.outboundTopicId,
-      connectionRequestId: message.sequence_number,
-      confirmedRequestId: confirmedConnectionSequenceNumber,
-      connectionTopicId,
-      operatorId: agent.operatorId,
-      memo: `Connection established with ${requesterOperatorId}`,
-    });
-
     const newConnectionTimestamp = new Date();
     const newConnection: AgentConnection = {
       agentId: requesterAccountId,
@@ -463,17 +457,14 @@ const openai = new OpenAI({
 function extractAllText(obj: any): string {
   if (typeof obj === 'string') return stripAnsiCodes(obj);
   if (!obj || typeof obj !== 'object') return '';
-  
+
   if (Array.isArray(obj)) {
     return obj.map(extractAllText).filter(Boolean).join(' ');
   }
-  
+
   if (obj.text && typeof obj.text === 'string') return stripAnsiCodes(obj.text);
-  
-  return Object.values(obj)
-    .map(extractAllText)
-    .filter(Boolean)
-    .join(' ');
+
+  return Object.values(obj).map(extractAllText).filter(Boolean).join(' ');
 }
 
 async function handleStandardMessage(
@@ -508,16 +499,21 @@ async function handleStandardMessage(
       return;
     }
   }
-  
+
   let messageContent = rawContent;
-  
+
   if (isJson(rawContent)) {
     try {
       const parsed = JSON.parse(rawContent);
       const extracted = extractAllText(parsed);
       if (extracted.trim()) {
         messageContent = extracted;
-        logger.debug(`Extracted from JSON: "${messageContent}" (original: "${rawContent.substring(0, 50)}${rawContent.length > 50 ? '...' : ''}")`);
+        logger.debug(
+          `Extracted from JSON: "${messageContent}" (original: "${rawContent.substring(
+            0,
+            50
+          )}${rawContent.length > 50 ? '...' : ''}")`
+        );
       }
     } catch {
       messageContent = rawContent;
@@ -785,9 +781,8 @@ async function monitorTopics(agent: {
 
   while (true) {
     try {
-      const {
-        connections: updatedConnections,
-      } = await loadConnectionsFromOutboundTopic(agent);
+      const { connections: updatedConnections } =
+        await loadConnectionsFromOutboundTopic(agent);
 
       const currentTrackedTopics = new Set(connections.keys());
       for (const [topicId, connection] of updatedConnections.entries()) {

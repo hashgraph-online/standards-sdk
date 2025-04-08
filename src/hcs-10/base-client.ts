@@ -1,4 +1,3 @@
-
 import { Logger, LogLevel } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
@@ -85,6 +84,28 @@ export abstract class HCS10BaseClient extends Registration {
   ): Promise<TransactionReceipt>;
 
   abstract getAccountAndSigner(): { accountId: string; signer: any };
+
+  public extractTopicFromOperatorId(operatorId: string): string {
+    if (!operatorId) {
+      return '';
+    }
+    const parts = operatorId.split('@');
+    if (parts.length > 0) {
+      return parts[0];
+    }
+    return '';
+  }
+
+  public extractAccountFromOperatorId(operatorId: string): string {
+    if (!operatorId) {
+      return '';
+    }
+    const parts = operatorId.split('@');
+    if (parts.length > 1) {
+      return parts[1];
+    }
+    return '';
+  }
 
   /**
    * Get a stream of messages from a connection topic
@@ -276,8 +297,25 @@ export abstract class HCS10BaseClient extends Registration {
     return await this.mirrorNode.getAccountMemo(accountId);
   }
 
-  public async retrieveProfile(accountId: string): Promise<ProfileResponse> {
+  public async retrieveProfile(
+    accountId: string,
+    disableCache?: boolean
+  ): Promise<ProfileResponse> {
     this.logger.info(`Retrieving profile for account: ${accountId}`);
+
+    const cacheKey = `${accountId}-${this.network}`;
+
+    if (!disableCache) {
+      const cachedProfileResponse = HCS10Cache.getInstance().get(cacheKey);
+      if (cachedProfileResponse) {
+        this.logger.info(`Cache hit for profile: ${accountId}`);
+        return cachedProfileResponse;
+      }
+    }
+
+    this.logger.info(
+      `Cache miss for profile: ${accountId}, fetching from network`
+    );
 
     try {
       const hcs11Client = new HCS11Client({
@@ -308,7 +346,7 @@ export abstract class HCS10BaseClient extends Registration {
       }
 
       const profile = profileResult.profile;
-      let topicInfo = null;
+      let topicInfo: TopicInfo | null = null;
 
       if (
         profileResult.topicInfo?.inboundTopic &&
@@ -320,16 +358,15 @@ export abstract class HCS10BaseClient extends Registration {
           outboundTopic: profileResult.topicInfo.outboundTopic,
           profileTopicId: profileResult.topicInfo.profileTopicId,
         };
-
-        const cacheKey = `${accountId}-${this.network}`;
-        HCS10Cache.getInstance().set(cacheKey, topicInfo);
       }
 
-      return {
+      const responseToCache: ProfileResponse = {
         profile,
         topicInfo,
         success: true,
       };
+      HCS10Cache.getInstance().set(cacheKey, responseToCache);
+      return responseToCache;
     } catch (error) {
       this.logger.error('Failed to retrieve profile:', error);
       return {
@@ -340,13 +377,35 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
+  /**
+   * @deprecated Use retrieveCommunicationTopics instead
+   * @param accountId The account ID to retrieve the outbound connect topic for
+   * @returns {TopicInfo} Topic Info from target profile.
+   */
   public async retrieveOutboundConnectTopic(
     accountId: string
   ): Promise<TopicInfo> {
+    return await this.retrieveCommunicationTopics(accountId, true);
+  }
+
+  /**
+   * Retrieves the communication topics for an account
+   * @param accountId The account ID to retrieve the communication topics for
+   * @param disableCache Whether to disable caching of the result
+   * @returns {TopicInfo} Topic Info from target profile.
+   */
+  public async retrieveCommunicationTopics(
+    accountId: string,
+    disableCache?: boolean
+  ): Promise<TopicInfo> {
     this.logger.info(`Retrieving topics for account: ${accountId}`);
+    const cacheKey = `${accountId}-${this.network}`;
 
     try {
-      const profileResponse = await this.retrieveProfile(accountId);
+      const profileResponse = await this.retrieveProfile(
+        accountId,
+        disableCache
+      );
 
       if (!profileResponse?.success) {
         throw new Error(profileResponse.error || 'Failed to retrieve profile');
@@ -360,15 +419,13 @@ export abstract class HCS10BaseClient extends Registration {
         );
       }
 
-      const topicInfo = {
-        inboundTopic: profile.inboundTopicId,
-        outboundTopic: profile.outboundTopicId,
-        profileTopicId: profile.profileTopicId,
-      };
+      if (!profileResponse.topicInfo) {
+        throw new Error(
+          `TopicInfo is missing in the profile for account ${accountId}`
+        );
+      }
 
-      const cacheKey = `${accountId}-${this.network}`;
-      HCS10Cache.getInstance().set(cacheKey, topicInfo);
-      return topicInfo;
+      return profileResponse.topicInfo;
     } catch (error) {
       this.logger.error('Failed to retrieve topic info:', error);
       throw error;
@@ -379,7 +436,7 @@ export abstract class HCS10BaseClient extends Registration {
     agentAccountId: string
   ): Promise<HCSMessage[]> {
     try {
-      const topicInfo = await this.retrieveOutboundConnectTopic(agentAccountId);
+      const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
       if (!topicInfo) {
         this.logger.warn(
           `No outbound connect topic found for agentAccountId: ${agentAccountId}`
@@ -405,7 +462,7 @@ export abstract class HCS10BaseClient extends Registration {
     connectionId: number
   ): Promise<boolean> {
     try {
-      const outBoundTopic = await this.retrieveOutboundConnectTopic(
+      const outBoundTopic = await this.retrieveCommunicationTopics(
         agentAccountId
       );
       const messages = await this.retrieveOutboundMessages(
@@ -473,11 +530,12 @@ export abstract class HCS10BaseClient extends Registration {
    * @param connectionRequestId The ID of the connection request
    * @param confirmedRequestId The ID of the confirmed request
    * @param connectionTopicId The ID of the connection topic
-   * @param operatorId The operator ID of the message sender
+   * @param operatorId The operator ID of the original message sender.
    * @param memo An optional memo for the message
    */
   public async recordOutboundConnectionConfirmation({
     outboundTopicId,
+    requestorOutboundTopicId,
     connectionRequestId,
     confirmedRequestId,
     connectionTopicId,
@@ -485,6 +543,7 @@ export abstract class HCS10BaseClient extends Registration {
     memo,
   }: {
     outboundTopicId: string;
+    requestorOutboundTopicId: string;
     connectionRequestId: number;
     confirmedRequestId: number;
     connectionTopicId: string;
@@ -496,6 +555,7 @@ export abstract class HCS10BaseClient extends Registration {
       op: 'connection_created',
       connection_topic_id: connectionTopicId,
       outbound_topic_id: outboundTopicId,
+      requestor_outbound_topic_id: requestorOutboundTopicId,
       confirmed_request_id: confirmedRequestId,
       connection_request_id: connectionRequestId,
       operator_id: operatorId,
@@ -639,7 +699,7 @@ export abstract class HCS10BaseClient extends Registration {
 
 export class HCS10Cache {
   private static instance: HCS10Cache;
-  private cache: Map<string, TopicInfo>;
+  private cache: Map<string, ProfileResponse>;
   private cacheExpiry: Map<string, number>;
   private readonly CACHE_TTL = 3600000;
 
@@ -655,12 +715,12 @@ export class HCS10Cache {
     return HCS10Cache.instance;
   }
 
-  set(key: string, value: TopicInfo): void {
+  set(key: string, value: ProfileResponse): void {
     this.cache.set(key, value);
     this.cacheExpiry.set(key, Date.now() + this.CACHE_TTL);
   }
 
-  get(key: string): TopicInfo | undefined {
+  get(key: string): ProfileResponse | undefined {
     const expiry = this.cacheExpiry.get(key);
     if (expiry && expiry > Date.now()) {
       return this.cache.get(key);
