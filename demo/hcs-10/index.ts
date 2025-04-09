@@ -6,6 +6,7 @@ import {
   ensureAgentHasEnoughHbar,
   getOrCreateBob,
   getOrCreateAlice,
+  monitorIncomingRequests,
 } from './utils';
 import { fileURLToPath } from 'url';
 
@@ -46,116 +47,6 @@ async function monitorConnectionConfirmation(
   } catch (error) {
     logger.error(`Error monitoring connection confirmation:`, error);
     throw error;
-  }
-}
-
-async function monitorIncomingRequests(
-  baseClient: HCS10Client,
-  client: HCS10Client,
-  inboundTopicId: string
-): Promise<void> {
-  if (!inboundTopicId) {
-    throw new Error(
-      'Cannot monitor incoming requests: inboundTopicId is undefined'
-    );
-  }
-
-  let lastProcessedMessage = 0;
-  const processedRequestIds = new Set<number>();
-
-  logger.info(`Monitoring incoming requests on topic ${inboundTopicId}`);
-  const operatorAccountId = client.getClient().operatorAccountId?.toString();
-
-  if (!operatorAccountId) {
-    throw new Error('Operator account ID is not set');
-  }
-
-  while (true) {
-    try {
-      const messages = await client.getMessages(inboundTopicId);
-
-      const connectionCreatedMessages = messages.messages.filter(
-        (msg) => msg.op === 'connection_created'
-      );
-
-      connectionCreatedMessages.forEach((msg) => {
-        if (msg.connection_id) {
-          processedRequestIds.add(msg.connection_id);
-        }
-      });
-
-      const connectionRequests = messages.messages.filter(
-        (msg) =>
-          msg.op === 'connection_request' &&
-          msg.sequence_number > lastProcessedMessage
-      );
-
-      for (const message of connectionRequests) {
-        lastProcessedMessage = Math.max(
-          lastProcessedMessage,
-          message.sequence_number
-        );
-
-        const operator_id = message.operator_id || '';
-        const accountId = operator_id.split('@')[1] || '';
-
-        if (!accountId) {
-          logger.warn('Invalid operator_id format, missing account ID');
-          continue;
-        }
-
-        const connectionRequestId = message.sequence_number;
-
-        if (processedRequestIds.has(connectionRequestId)) {
-          logger.info(
-            `Request #${connectionRequestId} already processed, skipping`
-          );
-          continue;
-        }
-
-        logger.info(
-          `Processing connection request #${connectionRequestId} from ${accountId}`
-        );
-
-        try {
-          const currentAccount = client
-            .getClient()
-            .operatorAccountId?.toString();
-          logger.info(`Ensuring agent has enough hbar: ${currentAccount}`);
-          await ensureAgentHasEnoughHbar(
-            new Logger({
-              module: 'HCS10Demo',
-              level: 'debug',
-              prettyPrint: true,
-            }),
-            baseClient,
-            currentAccount,
-            `Agent ${currentAccount}-${inboundTopicId}`
-          );
-          logger.info('Ensured agent has enough hbar');
-          const { connectionTopicId, confirmedConnectionSequenceNumber } =
-            await client.handleConnectionRequest(
-              inboundTopicId,
-              accountId,
-              connectionRequestId,
-              FeeConfigBuilder.forHbar(1, operatorAccountId)
-            );
-
-          processedRequestIds.add(connectionRequestId);
-
-          logger.info(
-            `Connection confirmed with topic ID: ${connectionTopicId}`
-          );
-        } catch (error) {
-          logger.error(`Error handling request #${connectionRequestId}:`);
-          logger.error(error);
-        }
-      }
-    } catch (error) {
-      logger.error('Error monitoring requests:', error);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 }
 
@@ -211,7 +102,11 @@ async function main() {
     const bobMonitor = monitorIncomingRequests(
       baseClient,
       bob.client,
-      bob.inboundTopicId
+      bob.inboundTopicId,
+      logger,
+      new FeeConfigBuilder({ network: 'testnet', logger })
+        .addHbarFee(1, bob.accountId)
+        .addHbarFee(2, '0.0.800')
     );
 
     await new Promise((resolve) => setTimeout(resolve, 2000));

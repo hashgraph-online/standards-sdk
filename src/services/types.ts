@@ -154,3 +154,33 @@ export interface HBARPrice {
   next_rate: TRate;
   timestamp: string;
 }
+
+export interface TokenInfoResponse {
+  admin_key: Key | null;
+  auto_renew_account: string | null;
+  auto_renew_period: number | null;
+  created_timestamp: string;
+  decimals: string;
+  deleted: boolean;
+  expiry_timestamp: string | null;
+  fee_schedule_key: Key | null;
+  freeze_default: boolean;
+  freeze_key: Key | null;
+  initial_supply: string;
+  kyc_key: Key | null;
+  max_supply: string;
+  memo: string;
+  modified_timestamp: string;
+  name: string;
+  pause_key: Key | null;
+  pause_status: string;
+  supply_key: Key | null;
+  supply_type: string;
+  symbol: string;
+  token_id: string;
+  total_supply: string;
+  treasury_account_id: string;
+  type: string;
+  wipe_key: Key | null;
+  custom_fees?: CustomFees;
+}

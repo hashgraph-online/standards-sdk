@@ -4,35 +4,34 @@ import {
   InboundTopicType,
   Logger,
   AIAgentCapability,
-  HCS11Client,
   HederaMirrorNode,
+  NetworkType,
+  TopicFeeConfig,
+  FeeConfigBuilder,
 } from '../../src';
 import { TransferTransaction, Hbar } from '@hashgraph/sdk';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 export const MIN_REQUIRED_USD = 2.0;
-export const MIN_REQUIRED_HBAR_USD = 10.0;
+export const MIN_REQUIRED_HBAR_USD = 30.0;
 
 export const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
 export interface AgentData {
   accountId: string;
-  operatorId: string;
   inboundTopicId: string;
   outboundTopicId: string;
   client: HCS10Client;
 }
 
-export interface RegistrationProgressData {
-  registered: boolean;
-  accountId?: string;
-  privateKey?: string;
-  publicKey?: string;
-  inboundTopicId?: string;
-  outboundTopicId?: string;
+export interface CreateAgentResult {
+  client: HCS10Client;
+  accountId: string;
+  inboundTopicId: string;
+  outboundTopicId: string;
 }
 
 export async function ensureAgentHasEnoughHbar(
@@ -167,7 +166,6 @@ export async function getAgentFromEnv(
 
   return {
     accountId,
-    operatorId: `${inboundTopicId}@${accountId}`,
     inboundTopicId,
     outboundTopicId,
     client,
@@ -178,56 +176,56 @@ export async function createAgent(
   logger: Logger,
   baseClient: HCS10Client,
   agentName: string,
-  agentBuilder: any,
-  envPrefix: string
+  agentBuilder: AgentBuilder,
+  envPrefix: string,
+  options: { initialBalance?: number } = {}
 ): Promise<AgentData | null> {
   try {
     logger.info(`Creating ${agentName} agent...`);
 
-    const result = await baseClient.createAndRegisterAgent(agentBuilder);
+    const result = await baseClient.createAndRegisterAgent(
+      agentBuilder,
+      options
+    );
 
     if (!result.metadata) {
       logger.error(`${agentName} agent creation failed`);
       return null;
     }
 
+    const metadata = result.metadata;
+
     logger.info(`${agentName} agent created successfully`);
-    logger.info(`${agentName} account ID: ${result.metadata.accountId}`);
-    logger.info(`${agentName} private key: ${result.metadata.privateKey}`);
-    logger.info(
-      `${agentName} inbound topic ID: ${result.metadata.inboundTopicId}`
-    );
-    logger.info(
-      `${agentName} outbound topic ID: ${result.metadata.outboundTopicId}`
-    );
+    logger.info(`${agentName} account ID: ${metadata.accountId}`);
+    logger.info(`${agentName} private key: ${metadata.privateKey}`);
+    logger.info(`${agentName} inbound topic ID: ${metadata.inboundTopicId}`);
+    logger.info(`${agentName} outbound topic ID: ${metadata.outboundTopicId}`);
 
     const envVars = {
-      [`${envPrefix}_ACCOUNT_ID`]: result.metadata.accountId,
-      [`${envPrefix}_PRIVATE_KEY`]: result.metadata.privateKey,
-      [`${envPrefix}_INBOUND_TOPIC_ID`]: result.metadata.inboundTopicId,
-      [`${envPrefix}_OUTBOUND_TOPIC_ID`]: result.metadata.outboundTopicId,
+      [`${envPrefix}_ACCOUNT_ID`]: metadata.accountId,
+      [`${envPrefix}_PRIVATE_KEY`]: metadata.privateKey,
+      [`${envPrefix}_INBOUND_TOPIC_ID`]: metadata.inboundTopicId,
+      [`${envPrefix}_OUTBOUND_TOPIC_ID`]: metadata.outboundTopicId,
     };
 
     await updateEnvFile(ENV_FILE_PATH, envVars);
 
     const client = new HCS10Client({
       network: 'testnet',
-      operatorId: result.metadata.accountId,
-      operatorPrivateKey: result.metadata.privateKey,
+      operatorId: metadata.accountId,
+      operatorPrivateKey: metadata.privateKey,
       guardedRegistryBaseUrl: process.env.REGISTRY_URL,
       prettyPrint: true,
       logLevel: 'debug',
     });
 
     return {
-      accountId: result.metadata.accountId,
-      operatorId: `${result.metadata.inboundTopicId}@${result.metadata.accountId}`,
-      inboundTopicId: result.metadata.inboundTopicId,
-      outboundTopicId: result.metadata.outboundTopicId,
+      accountId: metadata.accountId,
+      inboundTopicId: metadata.inboundTopicId,
+      outboundTopicId: metadata.outboundTopicId,
       client,
     };
   } catch (error) {
-    console.log('error', error, baseClient);
     logger.error(`Error creating ${agentName} agent:`, error);
     return null;
   }
@@ -258,10 +256,54 @@ export async function updateEnvFile(
     }
   }
 
+  if (updatedLines[updatedLines.length - 1] !== '') {
+    updatedLines.push('');
+  }
+
   fs.writeFileSync(envFilePath, updatedLines.join('\n'));
 }
 
-export function createBobBuilder(pfpBuffer?: Buffer): any {
+export function createFooBuilder(
+  network: NetworkType,
+  feeConfigBuilder: FeeConfigBuilder,
+  pfpBuffer?: Buffer
+): AgentBuilder {
+  const builder = new AgentBuilder()
+    .setName('Foo Agent')
+    .setBio('Agent Foo - HBAR Fee Demo')
+    .setCapabilities([AIAgentCapability.TEXT_GENERATION])
+    .setInboundTopicType(InboundTopicType.FEE_BASED)
+    .setType('autonomous')
+    .setNetwork(network)
+    .setFeeConfig(feeConfigBuilder);
+
+  if (pfpBuffer) {
+    builder.setProfilePicture(pfpBuffer, 'foo-icon.svg');
+  }
+  return builder;
+}
+
+export function createBarBuilder(
+  network: NetworkType,
+  feeConfigBuilder: FeeConfigBuilder,
+  pfpBuffer?: Buffer
+): AgentBuilder {
+  const builder = new AgentBuilder()
+    .setName('Bar Agent')
+    .setBio('Agent Bar - HBAR Fee Demo')
+    .setCapabilities([AIAgentCapability.KNOWLEDGE_RETRIEVAL])
+    .setInboundTopicType(InboundTopicType.FEE_BASED)
+    .setType('autonomous')
+    .setNetwork(network)
+    .setFeeConfig(feeConfigBuilder);
+
+  if (pfpBuffer) {
+    builder.setProfilePicture(pfpBuffer, 'bar-icon.svg');
+  }
+  return builder;
+}
+
+export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
   const bobBuilder = new AgentBuilder()
     .setName('Bob')
     .setAlias('bob')
@@ -344,7 +386,7 @@ export async function getOrCreateAlice(
 
   const aliceBuilder = new AgentBuilder()
     .setName('Alice')
-    .setDescription('A helpful AI assistant for data analysis')
+    .setBio('A helpful AI assistant for data analysis')
     .setCapabilities([
       AIAgentCapability.TEXT_GENERATION,
       AIAgentCapability.KNOWLEDGE_RETRIEVAL,
@@ -363,6 +405,200 @@ export async function getOrCreateAlice(
     aliceBuilder.setProfilePicture(pfpBuffer, 'alice-icon.svg');
   }
 
-  console.log('about to create agent', aliceBuilder);
   return await createAgent(logger, baseClient, 'Alice', aliceBuilder, 'ALICE');
+}
+
+export async function getOrCreateFoo(
+  logger: Logger,
+  baseClient: HCS10Client
+): Promise<AgentData | null> {
+  const existingFoo = await getAgentFromEnv(logger, baseClient, 'Foo', 'FOO');
+
+  if (existingFoo) {
+    return existingFoo;
+  }
+
+  logger.info('Creating Foo agent as it was not found in env...');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const network = baseClient.getNetwork() as NetworkType;
+
+  const fooPfpPath = path.join(__dirname, 'assets', 'foo-icon.svg');
+  const pfpBuffer = fs.existsSync(fooPfpPath)
+    ? fs.readFileSync(fooPfpPath)
+    : undefined;
+
+  if (!pfpBuffer) {
+    logger.warn('Foo profile picture not found, proceeding without it');
+  }
+
+  const feeConfigBuilder = FeeConfigBuilder.forHbar(
+    0.5,
+    undefined,
+    network,
+    logger
+  );
+
+  const fooBuilder = createFooBuilder(network, feeConfigBuilder, pfpBuffer);
+  return await createAgent(logger, baseClient, 'Foo', fooBuilder, 'FOO');
+}
+
+export async function getOrCreateBar(
+  logger: Logger,
+  baseClient: HCS10Client
+): Promise<AgentData | null> {
+  const existingBar = await getAgentFromEnv(logger, baseClient, 'Bar', 'BAR');
+
+  if (existingBar) {
+    return existingBar;
+  }
+
+  logger.info('Creating Bar agent as it was not found in env...');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const network = baseClient.getNetwork() as NetworkType;
+
+  const barPfpPath = path.join(__dirname, 'assets', 'bar-icon.svg');
+  const pfpBuffer = fs.existsSync(barPfpPath)
+    ? fs.readFileSync(barPfpPath)
+    : undefined;
+
+  if (!pfpBuffer) {
+    logger.warn('Bar profile picture not found, proceeding without it.');
+  }
+
+  const feeConfigBuilder = FeeConfigBuilder.forHbar(
+    1.0,
+    undefined,
+    network,
+    logger
+  );
+
+  const barBuilder = createBarBuilder(network, feeConfigBuilder, pfpBuffer);
+  return await createAgent(logger, baseClient, 'Bar', barBuilder, 'BAR', {
+    initialBalance: 60,
+  });
+}
+
+export async function monitorIncomingRequests(
+  baseClient: HCS10Client,
+  client: HCS10Client,
+  inboundTopicId: string,
+  logger: Logger,
+  connectionFeeConfig?: FeeConfigBuilder
+): Promise<void> {
+  if (!inboundTopicId) {
+    throw new Error(
+      'Cannot monitor incoming requests: inboundTopicId is undefined'
+    );
+  }
+
+  let lastProcessedMessage = 0;
+  const processedRequestIds = new Set<number>();
+
+  logger.info(`Monitoring incoming requests on topic ${inboundTopicId}`);
+  const operatorAccountId = client.getClient().operatorAccountId?.toString();
+
+  if (!operatorAccountId) {
+    throw new Error('Operator account ID is not set');
+  }
+
+  while (true) {
+    try {
+      const messages = await client.getMessages(inboundTopicId);
+
+      const connectionCreatedMessages = messages.messages.filter(
+        (msg) => msg.op === 'connection_created'
+      );
+
+      connectionCreatedMessages.forEach((msg) => {
+        if (msg.connection_id) {
+          processedRequestIds.add(msg.connection_id);
+        }
+      });
+
+      const connectionRequests = messages.messages.filter(
+        (msg) =>
+          msg.op === 'connection_request' &&
+          msg.sequence_number > lastProcessedMessage
+      );
+
+      for (const message of connectionRequests) {
+        lastProcessedMessage = Math.max(
+          lastProcessedMessage,
+          message.sequence_number
+        );
+
+        const operator_id = message.operator_id || '';
+        const accountId = operator_id.split('@')[1] || '';
+
+        if (!accountId) {
+          logger.warn('Invalid operator_id format, missing account ID');
+          continue;
+        }
+
+        const connectionRequestId = message.sequence_number;
+
+        if (processedRequestIds.has(connectionRequestId)) {
+          logger.info(
+            `Request #${connectionRequestId} already processed, skipping`
+          );
+          continue;
+        }
+
+        logger.info(
+          `Processing connection request #${connectionRequestId} from ${accountId}`
+        );
+
+        try {
+          const currentAccount = client
+            .getClient()
+            .operatorAccountId?.toString();
+          logger.info(`Ensuring agent has enough hbar: ${currentAccount}`);
+          await ensureAgentHasEnoughHbar(
+            new Logger({
+              module: 'HCS10Demo',
+              level: 'debug',
+              prettyPrint: true,
+            }),
+            baseClient,
+            currentAccount,
+            `Agent ${currentAccount}-${inboundTopicId}`
+          );
+          logger.info('Ensured agent has enough hbar');
+          const operatorAccountId = client
+            .getClient()
+            .operatorAccountId?.toString();
+
+          if (!operatorAccountId) {
+            logger.error(
+              'Operator account ID is not defined, cannot proceed with handling request'
+            );
+            continue;
+          }
+
+          const { connectionTopicId, confirmedConnectionSequenceNumber } =
+            await client.handleConnectionRequest(
+              inboundTopicId,
+              accountId,
+              connectionRequestId,
+              connectionFeeConfig
+            );
+
+          processedRequestIds.add(connectionRequestId);
+
+          logger.info(
+            `Connection confirmed with topic ID: ${connectionTopicId}`
+          );
+        } catch (error) {
+          logger.error(`Error handling request #${connectionRequestId}:`);
+          logger.error(error);
+        }
+      }
+    } catch (error) {
+      logger.error('Error monitoring requests:', error);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
 }

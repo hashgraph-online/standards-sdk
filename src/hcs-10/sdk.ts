@@ -13,6 +13,7 @@ import {
   PublicKey,
   AccountId,
   CustomFixedFee,
+  TokenId,
 } from '@hashgraph/sdk';
 import {
   PayloadSizeError,
@@ -49,10 +50,12 @@ import {
   AgentMetadata,
 } from '../hcs-11';
 import { FeeConfigBuilderInterface, TopicFeeConfig } from '../fees';
+import { TopicResponse } from '../services/types';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
 import { Hcs10MemoType } from './base-client';
 import { AgentBuilder } from '../hcs-11/agent-builder';
 import { inscribe } from '../inscribe/inscriber';
+import { TokenFeeConfig } from '../fees/types';
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -100,15 +103,20 @@ export class HCS10Client extends HCS10BaseClient {
 
   /**
    * Creates a new Hedera account
+   * @param initialBalance Optional initial balance in HBAR (default: 50)
    * @returns Object with account ID and private key
    */
-  async createAccount(): Promise<CreateAccountResponse> {
-    this.logger.info('Creating new account');
+  async createAccount(
+    initialBalance: number = 50
+  ): Promise<CreateAccountResponse> {
+    this.logger.info(
+      `Creating new account with ${initialBalance} HBAR initial balance`
+    );
     const newKey = PrivateKey.generate();
 
     const accountTransaction = new AccountCreateTransaction()
       .setKey(newKey.publicKey)
-      .setInitialBalance(new Hbar(10));
+      .setInitialBalance(new Hbar(initialBalance));
 
     this.logger.debug('Executing account creation transaction');
     const accountResponse = await accountTransaction.execute(this.client);
@@ -151,7 +159,7 @@ export class HCS10Client extends HCS10BaseClient {
     });
 
     let submitKey: boolean | PublicKey | KeyList | undefined;
-    let feeConfig: TopicFeeConfig | undefined;
+    let finalFeeConfig: TopicFeeConfig | undefined;
 
     switch (topicType) {
       case InboundTopicType.PUBLIC:
@@ -161,19 +169,33 @@ export class HCS10Client extends HCS10BaseClient {
         submitKey = true;
         break;
       case InboundTopicType.FEE_BASED:
-        submitKey = true;
+        submitKey = false;
         if (!feeConfigBuilder) {
           throw new Error(
             'Fee configuration builder is required for fee-based topics'
           );
         }
-        feeConfig = feeConfigBuilder.build();
+
+        const internalFees = (feeConfigBuilder as any)
+          .customFees as TokenFeeConfig[];
+        internalFees.forEach((fee) => {
+          if (!fee.feeCollectorAccountId) {
+            this.logger.debug(
+              `Defaulting fee collector for token ${
+                fee.feeTokenId || 'HBAR'
+              } to agent ${accountId}`
+            );
+            fee.feeCollectorAccountId = accountId;
+          }
+        });
+
+        finalFeeConfig = feeConfigBuilder.build();
         break;
       default:
         throw new Error(`Unsupported inbound topic type: ${topicType}`);
     }
 
-    return this.createTopic(memo, true, submitKey, feeConfig);
+    return this.createTopic(memo, true, submitKey, finalFeeConfig);
   }
 
   /**
@@ -404,55 +426,103 @@ export class HCS10Client extends HCS10BaseClient {
     transaction: TopicCreateTransaction,
     feeConfig: TopicFeeConfig,
     additionalExemptAccounts: string[] = []
-  ): Promise<void> {
+  ): Promise<TopicCreateTransaction> {
+    let modifiedTransaction = transaction;
     if (!this.client.operatorPublicKey) {
-      return;
+      return modifiedTransaction;
     }
 
-    this.logger.info('Setting up topic with custom fees');
+    if (!feeConfig.customFees || feeConfig.customFees.length === 0) {
+      this.logger.warn('No custom fees provided in fee config for setupFees');
+      return modifiedTransaction;
+    }
 
-    const customFee = new CustomFixedFee()
-      .setAmount(Number(feeConfig.feeAmount.amount))
-      .setFeeCollectorAccountId(
-        AccountId.fromString(feeConfig.feeCollectorAccountId)
+    if (feeConfig.customFees.length > 10) {
+      this.logger.warn(
+        'More than 10 custom fees provided, only the first 10 will be used'
       );
+      feeConfig.customFees = feeConfig.customFees.slice(0, 10);
+    }
 
-    let exemptAccountIds = [
+    const customFees = feeConfig.customFees
+      .map((fee) => {
+        if (!fee.feeCollectorAccountId) {
+          this.logger.error(
+            'Internal Error: Fee collector ID missing in setupFees'
+          );
+          return null;
+        }
+        if (fee.type === 'FIXED_FEE') {
+          const customFee = new CustomFixedFee()
+            .setAmount(Number(fee.feeAmount.amount))
+            .setFeeCollectorAccountId(
+              AccountId.fromString(fee.feeCollectorAccountId)
+            );
+
+          if (fee.feeTokenId) {
+            customFee.setDenominatingTokenId(
+              TokenId.fromString(fee.feeTokenId)
+            );
+          }
+
+          return customFee;
+        }
+        return null;
+      })
+      .filter(Boolean) as CustomFixedFee[];
+
+    if (customFees.length === 0) {
+      this.logger.warn('No valid custom fees to apply in setupFees');
+      return modifiedTransaction;
+    }
+
+    const exemptAccountIds = [
       ...(feeConfig.exemptAccounts || []),
       ...additionalExemptAccounts,
     ];
 
-    console.log('exemptAccountIds', exemptAccountIds);
-
     if (exemptAccountIds.length > 0) {
-      const uniqueExemptAccountIds = Array.from(new Set(exemptAccountIds));
-      const filteredExemptAccounts = uniqueExemptAccountIds.filter(
-        (account) => account !== this.client.operatorAccountId?.toString()
+      modifiedTransaction = await this.setupExemptKeys(
+        transaction,
+        exemptAccountIds
       );
+    }
 
-      let exemptKeys: PublicKey[] = [];
-      if (filteredExemptAccounts.length > 0) {
-        try {
-          exemptKeys = await accountIdsToExemptKeys(
-            filteredExemptAccounts,
-            this.network,
-            this.logger
-          );
-        } catch (error) {
-          this.logger.warn(
-            `Error getting exempt keys: ${error}, continuing without exempt keys`
-          );
-        }
-      }
+    return modifiedTransaction
+      .setFeeScheduleKey(this.client.operatorPublicKey)
+      .setCustomFees(customFees);
+  }
 
-      if (exemptKeys.length > 0) {
-        transaction.setFeeExemptKeys(exemptKeys);
+  private async setupExemptKeys(
+    transaction: TopicCreateTransaction,
+    exemptAccountIds: string[]
+  ): Promise<TopicCreateTransaction> {
+    let modifiedTransaction = transaction;
+    const uniqueExemptAccountIds = Array.from(new Set(exemptAccountIds));
+    const filteredExemptAccounts = uniqueExemptAccountIds.filter(
+      (account) => account !== this.client.operatorAccountId?.toString()
+    );
+
+    let exemptKeys: PublicKey[] = [];
+    if (filteredExemptAccounts.length > 0) {
+      try {
+        exemptKeys = await accountIdsToExemptKeys(
+          filteredExemptAccounts,
+          this.network,
+          this.logger
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Error getting exempt keys: ${error}, continuing without exempt keys`
+        );
       }
     }
 
-    transaction
-      .setFeeScheduleKey(this.client.operatorPublicKey)
-      .setCustomFees([customFee]);
+    if (exemptKeys.length > 0) {
+      modifiedTransaction = modifiedTransaction.setFeeExemptKeys(exemptKeys);
+    }
+
+    return modifiedTransaction;
   }
 
   /**
@@ -770,7 +840,6 @@ export class HCS10Client extends HCS10BaseClient {
         'Topic requires fee payment, setting max transaction fee'
       );
       transaction.setMaxTransactionFee(new Hbar(this.feeAmount));
-      transaction.setTransactionMemo('HIP-991 Fee Payment');
     }
 
     let transactionResponse: TransactionResponse;
@@ -1030,6 +1099,7 @@ export class HCS10Client extends HCS10BaseClient {
       baseUrl?: string;
       progressCallback?: RegistrationProgressCallback;
       existingState?: AgentCreationState;
+      initialBalance?: number;
     }
   ): Promise<AgentRegistrationResult> {
     try {
@@ -1047,7 +1117,9 @@ export class HCS10Client extends HCS10BaseClient {
         });
       }
 
-      const account = config.existingAccount || (await this.createAccount());
+      const account =
+        config.existingAccount ||
+        (await this.createAccount(options?.initialBalance));
 
       if (progressCallback) {
         progressCallback({
@@ -1374,11 +1446,37 @@ export class HCS10Client extends HCS10BaseClient {
     }
   }
 
+  /**
+   * Public method to retrieve topic information using the internal mirror node client.
+   *
+   * @param topicId The ID of the topic to query.
+   * @returns Topic information or null if not found or an error occurs.
+   */
+  async getPublicTopicInfo(topicId: string): Promise<TopicResponse | null> {
+    try {
+      return await this.mirrorNode.getTopicInfo(topicId);
+    } catch (error) {
+      this.logger.error(
+        `Error getting public topic info for ${topicId}:`,
+        error
+      );
+      return null;
+    }
+  }
+
   getNetwork(): string {
     return this.network;
   }
 
   getLogger(): Logger {
     return this.logger;
+  }
+
+  /**
+   * Public method to get the operator account ID configured for this client instance.
+   * @returns The operator account ID string, or null if not set.
+   */
+  getOperatorAccountId(): string | null {
+    return this.client.operatorAccountId?.toString() ?? null;
   }
 }

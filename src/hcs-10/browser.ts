@@ -1290,7 +1290,6 @@ export class BrowserHCSClient extends HCS10BaseClient {
         'Topic requires fee payment, setting max transaction fee'
       );
       transaction.setMaxTransactionFee(new Hbar(this.feeAmount));
-      transaction.setTransactionMemo('HIP-991 Fee Payment');
     }
 
     if (submitKey) {
