@@ -56,19 +56,32 @@ The SDK includes demo implementations that showcase various features. Follow the
 
 5. Run the demos:
 
+   The following demo showcases inscribing a file.
+
    ```bash
    # Run the inscribe demo
    npm run demo:inscribe
    ```
+
+   The following demo showcases registering Alice and Bob and exchanging messages between the two agents.
 
    ```bash
    # Run the HCS-10 AI agent communication demo
    npm run demo:hcs-10
    ```
 
+   The following demo showcases a polling agent that polls an inbound topic for new messages with an OpenAI integration and simple commands.
+
    ```bash
    # Run the HCS-10 polling demo
    npm run demo:polling-agent
+   ```
+
+   The following demo showcases Foo and Bar agents exchanging messages where Foo also requires a fee to send messages to Bar's inbound topic:
+
+   ```bash
+   # Run the HCS-10 fee demo
+   npm run demo:hcs-10-fee
    ```
 
 ### Demo Descriptions

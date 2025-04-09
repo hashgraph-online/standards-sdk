@@ -7,6 +7,7 @@ import {
   AccountResponse,
   CustomFees,
   HBARPrice,
+  TokenInfoResponse,
   TopicMessagesResponse,
   TopicResponse,
 } from './types';
@@ -130,6 +131,26 @@ export class HederaMirrorNode {
     }
   }
 
+  async getTokenInfo(tokenId: string): Promise<TokenInfoResponse | null> {
+    this.logger.debug(`Fetching token info for ${tokenId}`);
+    try {
+      const tokenInfoUrl = `${this.baseUrl}/api/v1/tokens/${tokenId}`;
+      const response = await axios.get<TokenInfoResponse>(tokenInfoUrl);
+      if (response.data) {
+        this.logger.trace(`Token info found for ${tokenId}:`, response.data);
+        return response.data;
+      }
+      this.logger.warn(`No token info found for ${tokenId}`);
+      return null;
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching token info for ${tokenId}: ${error.message}`
+      );
+
+      return null;
+    }
+  }
+
   async getTopicMessages(topicId: string): Promise<HCSMessage[]> {
     this.logger.trace(`Querying messages for topic ${topicId}`);
 
@@ -182,9 +203,7 @@ export class HederaMirrorNode {
                 ...messageJson,
                 consensus_timestamp: message.consensus_timestamp,
                 sequence_number: message.sequence_number,
-                created: new Date(
-                  Number(message.consensus_timestamp) * 1000
-                ),
+                created: new Date(Number(message.consensus_timestamp) * 1000),
               });
             } catch (error: any) {
               this.logger.error(`Error processing message: ${error.message}`);

@@ -1,26 +1,39 @@
 export interface FeeConfigBuilderInterface {
-  setHbarAmount(hbarAmount: number): FeeConfigBuilderInterface;
-  setFeeAmount(amount: number, decimals?: number): FeeConfigBuilderInterface;
-  setFeeCollector(accountId: string): FeeConfigBuilderInterface;
-  addExemptAccount(accountId: string): FeeConfigBuilderInterface;
-  addExemptAccounts(accountIds: string[]): FeeConfigBuilderInterface;
+  addHbarFee(
+    hbarAmount: number,
+    collectorAccountId?: string,
+    exemptAccountIds?: string[]
+  ): FeeConfigBuilderInterface;
+  addTokenFee(
+    tokenAmount: number,
+    feeTokenId: string,
+    collectorAccountId?: string,
+    decimals?: number,
+    exemptAccountIds?: string[]
+  ): Promise<FeeConfigBuilderInterface>;
   build(): TopicFeeConfig;
 }
 
-export interface TopicFeeConfig {
-  feeAmount: FeeAmount;
-  feeCollectorAccountId: string;
-  exemptAccounts?: string[];
+export enum CustomFeeType {
+  FIXED_FEE = 'FIXED_FEE',
+  FRACTIONAL_FEE = 'FRACTIONAL_FEE',
+  ROYALTY_FEE = 'ROYALTY_FEE'
 }
 
 export type FeeAmount = {
   amount: number;
   decimals?: number;
-  tokenId?: string;
 };
 
-export interface TopicFeeConfig {
+export interface TokenFeeConfig {
   feeAmount: FeeAmount;
   feeCollectorAccountId: string;
-  exemptAccounts?: string[];
+  feeTokenId?: string;
+  exemptAccounts: string[];
+  type: CustomFeeType;
+}
+
+export interface TopicFeeConfig {
+  customFees: TokenFeeConfig[];
+  exemptAccounts: string[];
 }
