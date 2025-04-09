@@ -1446,24 +1446,6 @@ export class HCS10Client extends HCS10BaseClient {
     }
   }
 
-  /**
-   * Public method to retrieve topic information using the internal mirror node client.
-   *
-   * @param topicId The ID of the topic to query.
-   * @returns Topic information or null if not found or an error occurs.
-   */
-  async getPublicTopicInfo(topicId: string): Promise<TopicResponse | null> {
-    try {
-      return await this.mirrorNode.getTopicInfo(topicId);
-    } catch (error) {
-      this.logger.error(
-        `Error getting public topic info for ${topicId}:`,
-        error
-      );
-      return null;
-    }
-  }
-
   getNetwork(): string {
     return this.network;
   }
