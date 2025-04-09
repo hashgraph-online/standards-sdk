@@ -35,6 +35,12 @@ export class HederaMirrorNode {
     return this.baseUrl;
   }
 
+  /**
+   * Retrieves the public key for a given account ID from the mirror node.
+   * @param accountId The ID of the account to retrieve the public key for.
+   * @returns A promise that resolves to the public key for the given account.
+   * @throws An error if the account ID is invalid or the public key cannot be retrieved.
+   */
   async getPublicKey(accountId: string): Promise<PublicKey> {
     this.logger.info(`Getting public key for account ${accountId}`);
 
@@ -55,6 +61,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Retrieves the memo for a given account ID from the mirror node.
+   * @param accountId The ID of the account to retrieve the memo for.
+   * @returns A promise that resolves to the memo for the given account.
+   * @throws An error if the account ID is invalid or the memo cannot be retrieved.
+   */
   async getAccountMemo(accountId: string): Promise<string | null> {
     const maxRetries = 3;
 
@@ -90,6 +102,12 @@ export class HederaMirrorNode {
     return null;
   }
 
+  /**
+   * Retrieves topic information for a given topic ID from the mirror node.
+   * @param topicId The ID of the topic to retrieve information for.
+   * @returns A promise that resolves to the topic information.
+   * @throws An error if the topic ID is invalid or the information cannot be retrieved.
+   */
   async getTopicInfo(topicId: string): Promise<TopicResponse> {
     try {
       const topicInfoUrl = `${this.baseUrl}/api/v1/topics/${topicId}`;
@@ -101,6 +119,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Retrieves custom fees for a given topic ID from the mirror node.
+   * @param topicId The ID of the topic to retrieve custom fees for.
+   * @returns A promise that resolves to the custom fees for the given topic.
+   * @throws An error if the topic ID is invalid or the custom fees cannot be retrieved.
+   */
   async getTopicFees(topicId: string): Promise<CustomFees | null> {
     try {
       const topicInfo = await this.getTopicInfo(topicId);
@@ -111,6 +135,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Retrieves the current HBAR price from the mirror node.
+   * @param date The date to retrieve the HBAR price for.
+   * @returns A promise that resolves to the HBAR price for the given date.
+   * @throws An error if the date is invalid or the price cannot be retrieved.
+   */
   async getHBARPrice(date: Date): Promise<number | null> {
     try {
       const timestamp = Timestamp.fromDate(date).toString();
@@ -131,6 +161,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Retrieves token information for a given token ID from the mirror node.
+   * @param tokenId The ID of the token to retrieve information for.
+   * @returns A promise that resolves to the token information.
+   * @throws An error if the token ID is invalid or the information cannot be retrieved.
+   */
   async getTokenInfo(tokenId: string): Promise<TokenInfoResponse | null> {
     this.logger.debug(`Fetching token info for ${tokenId}`);
     try {
@@ -151,6 +187,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Retrieves messages for a given topic ID from the mirror node.
+   * @param topicId The ID of the topic to retrieve messages for.
+   * @returns A promise that resolves to the messages for the given topic.
+   * @throws An error if the topic ID is invalid or the messages cannot be retrieved.
+   */
   async getTopicMessages(topicId: string): Promise<HCSMessage[]> {
     this.logger.trace(`Querying messages for topic ${topicId}`);
 
@@ -221,6 +263,12 @@ export class HederaMirrorNode {
     return messages;
   }
 
+  /**
+   * Requests account information for a given account ID from the mirror node.
+   * @param accountId The ID of the account to retrieve information for.
+   * @returns A promise that resolves to the account information.
+   * @throws An error if the account ID is invalid or the information cannot be retrieved.
+   */
   async requestAccount(accountId: string): Promise<AccountResponse> {
     try {
       const accountInfoUrl = `${this.baseUrl}/api/v1/accounts/${accountId}`;
@@ -237,6 +285,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Checks if a user has access to a given key list.
+   * @param keyBytes The key list to check access for.
+   * @param userPublicKey The public key of the user to check access for.
+   * @returns A promise that resolves to true if the user has access, false otherwise.
+   */
   async checkKeyListAccess(
     keyBytes: Buffer,
     userPublicKey: PublicKey
@@ -254,6 +308,12 @@ export class HederaMirrorNode {
     }
   }
 
+  /**
+   * Evaluates the access of a given key to a user's public key.
+   * @param key The key to evaluate access for.
+   * @param userPublicKey The public key of the user to evaluate access for.
+   * @returns A promise that resolves to true if the key has access, false otherwise.
+   */
   private async evaluateKeyAccess(
     key: proto.IKey,
     userPublicKey: PublicKey
@@ -273,6 +333,12 @@ export class HederaMirrorNode {
     return false;
   }
 
+  /**
+   * Evaluates the access of a given key list to a user's public key.
+   * @param keyList The key list to evaluate access for.
+   * @param userPublicKey The public key of the user to evaluate access for.
+   * @returns A promise that resolves to true if the key list has access, false otherwise.
+   */
   private async evaluateKeyList(
     keyList: proto.IKeyList,
     userPublicKey: PublicKey
@@ -316,6 +382,12 @@ export class HederaMirrorNode {
     return false;
   }
 
+  /**
+   * Compares an Ed25519 key with a user's public key.
+   * @param keyData The Ed25519 key data to compare.
+   * @param userPublicKey The public key of the user to compare with.
+   * @returns A boolean indicating whether the key matches the user's public key.
+   */
   private compareEd25519Key(
     keyData: Uint8Array,
     userPublicKey: PublicKey
