@@ -1,7 +1,7 @@
 import { Logger, LogLevel } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
-import { AccountResponse } from '../services/types';
+import { AccountResponse, TopicResponse } from '../services/types';
 import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import axios from 'axios';
@@ -159,6 +159,24 @@ export abstract class HCS10BaseClient extends Registration {
         this.logger.error(`Error fetching messages: ${error.message}`);
       }
       return { messages: [] };
+    }
+  }
+
+  /**
+   * Public method to retrieve topic information using the internal mirror node client.
+   *
+   * @param topicId The ID of the topic to query.
+   * @returns Topic information or null if not found or an error occurs.
+   */
+  async getPublicTopicInfo(topicId: string): Promise<TopicResponse | null> {
+    try {
+      return await this.mirrorNode.getTopicInfo(topicId);
+    } catch (error) {
+      this.logger.error(
+        `Error getting public topic info for ${topicId}:`,
+        error
+      );
+      return null;
     }
   }
 
