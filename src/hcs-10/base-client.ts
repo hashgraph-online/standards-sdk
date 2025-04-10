@@ -302,6 +302,11 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
+  /**
+   * Requests an account from the mirror node
+   * @param account The account ID to request
+   * @returns The account response
+   */
   public async requestAccount(account: string): Promise<AccountResponse> {
     try {
       return await this.mirrorNode.requestAccount(account);
@@ -311,10 +316,21 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
+  /**
+   * Retrieves the memo for an account
+   * @param accountId The account ID to retrieve the memo for
+   * @returns The memo
+   */
   public async getAccountMemo(accountId: string): Promise<string | null> {
     return await this.mirrorNode.getAccountMemo(accountId);
   }
 
+  /**
+   * Retrieves the profile for an account
+   * @param accountId The account ID to retrieve the profile for
+   * @param disableCache Whether to disable caching of the result
+   * @returns The profile
+   */
   public async retrieveProfile(
     accountId: string,
     disableCache?: boolean
@@ -450,6 +466,11 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
+  /**
+   * Retrieves outbound messages for an agent
+   * @param agentAccountId The account ID of the agent
+   * @returns The outbound messages
+   */
   public async retrieveOutboundMessages(
     agentAccountId: string
   ): Promise<HCSMessage[]> {
@@ -475,6 +496,12 @@ export abstract class HCS10BaseClient extends Registration {
     }
   }
 
+  /**
+   * Checks if a connection has been created for an agent
+   * @param agentAccountId The account ID of the agent
+   * @param connectionId The ID of the connection
+   * @returns True if the connection has been created, false otherwise
+   */
   public async hasConnectionCreated(
     agentAccountId: string,
     connectionId: number
@@ -543,6 +570,83 @@ export abstract class HCS10BaseClient extends Registration {
   }
 
   /**
+   * Submits a connection request to an inbound topic
+   * @param inboundTopicId The ID of the inbound topic
+   * @param memo An optional memo for the message
+   * @returns The transaction receipt
+   */
+  async submitConnectionRequest(
+    inboundTopicId: string,
+    memo: string
+  ): Promise<TransactionReceipt> {
+    const accountResponse = this.getAccountAndSigner();
+    if (!accountResponse?.accountId) {
+      throw new Error('Operator account ID is not set');
+    }
+    const operatorId = await this.getOperatorId();
+    const accountId = accountResponse.accountId;
+
+    const submissionCheck = await this.canSubmitToTopic(
+      inboundTopicId,
+      accountId
+    );
+
+    if (!submissionCheck?.canSubmit) {
+      throw new Error(`Cannot submit to topic: ${submissionCheck.reason}`);
+    }
+
+    const inboundAccountOwner = await this.retrieveInboundAccountId(
+      inboundTopicId
+    );
+
+    if (!inboundAccountOwner) {
+      throw new Error('Failed to retrieve topic info account ID');
+    }
+
+    const connectionRequestMessage = {
+      p: 'hcs-10',
+      op: 'connection_request',
+      operator_id: operatorId,
+      m: memo,
+    };
+
+    const requiresFee = submissionCheck.requiresFee;
+    const response = await this.submitPayload(
+      inboundTopicId,
+      connectionRequestMessage,
+      undefined,
+      requiresFee
+    );
+
+    this.logger.info(
+      `Submitted connection request to topic ID: ${inboundTopicId}`
+    );
+
+    const outboundTopic = await this.retrieveCommunicationTopics(accountId);
+
+    if (!outboundTopic) {
+      throw new Error('Failed to retrieve outbound topic');
+    }
+
+    const responseSequenceNumber = response.topicSequenceNumber?.toNumber();
+
+    if (!responseSequenceNumber) {
+      throw new Error('Failed to get response sequence number');
+    }
+
+    const requestorOperatorId = `${inboundTopicId}@${inboundAccountOwner}`;
+
+    await this.submitPayload(outboundTopic.outboundTopic, {
+      ...connectionRequestMessage,
+      outbound_topic_id: outboundTopic.outboundTopic,
+      connection_request_id: responseSequenceNumber,
+      operator_id: requestorOperatorId,
+    });
+
+    return response;
+  }
+
+  /**
    * Records an outbound connection confirmation
    * @param outboundTopicId The ID of the outbound topic
    * @param connectionRequestId The ID of the connection request
@@ -582,6 +686,11 @@ export abstract class HCS10BaseClient extends Registration {
     return await this.submitPayload(outboundTopicId, payload);
   }
 
+  /**
+   * Retrieves the operator ID for the current agent
+   * @param disableCache Whether to disable caching of the result
+   * @returns The operator ID
+   */
   public async getOperatorId(disableCache?: boolean): Promise<string> {
     if (this.operatorId && !disableCache) {
       return this.operatorId;
@@ -604,7 +713,32 @@ export abstract class HCS10BaseClient extends Registration {
     return operatorId;
   }
 
-  clearCache(): void {
+  /**
+   * Retrieves the account ID of the owner of an inbound topic
+   * @param inboundTopicId The ID of the inbound topic
+   * @returns The account ID of the owner of the inbound topic
+   */
+  public async retrieveInboundAccountId(
+    inboundTopicId: string
+  ): Promise<string> {
+    const topicInfo = await this.mirrorNode.getTopicInfo(inboundTopicId);
+
+    if (!topicInfo?.memo) {
+      throw new Error('Failed to retrieve topic info');
+    }
+
+    const topicInfoMemo = topicInfo.memo.toString();
+    const topicInfoParts = topicInfoMemo.split(':');
+    const inboundAccountOwner = topicInfoParts?.[4];
+
+    if (!inboundAccountOwner) {
+      throw new Error('Failed to retrieve topic info account ID');
+    }
+
+    return inboundAccountOwner;
+  }
+
+  public clearCache(): void {
     HCS10Cache.getInstance().clear();
   }
 
