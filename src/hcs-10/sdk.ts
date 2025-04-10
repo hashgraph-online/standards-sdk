@@ -860,62 +860,6 @@ export class HCS10Client extends HCS10BaseClient {
     return receipt;
   }
 
-  async submitConnectionRequest(
-    inboundTopicId: string,
-    memo: string
-  ): Promise<TransactionReceipt> {
-    const accountResponse = this.getAccountAndSigner();
-    if (!accountResponse.accountId) {
-      throw new Error('Operator account ID is not set');
-    }
-    const operatorId = await this.getOperatorId();
-    const accountId = accountResponse.accountId;
-
-    const submissionCheck = await this.canSubmitToTopic(
-      inboundTopicId,
-      accountId
-    );
-
-    if (!submissionCheck.canSubmit) {
-      throw new Error(`Cannot submit to topic: ${submissionCheck.reason}`);
-    }
-
-    const connectionRequestMessage = {
-      p: 'hcs-10',
-      op: 'connection_request',
-      operator_id: operatorId,
-      m: memo,
-    };
-
-    const requiresFee = submissionCheck.requiresFee;
-    const response = await this.submitPayload(
-      inboundTopicId,
-      connectionRequestMessage,
-      undefined,
-      requiresFee
-    );
-
-    this.logger.info(
-      `Submitted connection request to topic ID: ${inboundTopicId}`
-    );
-
-    const outboundTopic = await this.retrieveCommunicationTopics(accountId);
-
-    const responseSequenceNumber = response.topicSequenceNumber?.toNumber();
-
-    if (!responseSequenceNumber) {
-      throw new Error('Failed to get response sequence number');
-    }
-
-    await this.submitPayload(outboundTopic.outboundTopic, {
-      ...connectionRequestMessage,
-      outbound_topic_id: outboundTopic.outboundTopic,
-      connection_request_id: responseSequenceNumber,
-    });
-
-    return response;
-  }
-
   async inscribeFile(
     buffer: Buffer,
     fileName: string,

@@ -207,61 +207,6 @@ export class BrowserHCSClient extends HCS10BaseClient {
     );
   }
 
-  async submitConnectionRequest(
-    inboundTopicId: string,
-    memo: string
-  ): Promise<TransactionReceipt | undefined> {
-    this.logger.info('Submitting connection request');
-    const accountResponse = this.getAccountAndSigner();
-    if (!accountResponse.accountId) {
-      throw new Error('Failed to retrieve user account ID');
-    }
-    const operatorId = await this.getOperatorId();
-    const accountId = accountResponse.accountId;
-    const connectionRequestMessage = {
-      p: 'hcs-10',
-      op: 'connection_request',
-      operator_id: operatorId,
-      m: memo,
-    };
-
-    const response = await this.submitPayload(
-      inboundTopicId,
-      connectionRequestMessage
-    );
-    this.logger.info(
-      `Submitted connection request to topic ID: ${inboundTopicId}`
-    );
-
-    const outboundTopic = await this.retrieveCommunicationTopics(accountId);
-
-    if (!outboundTopic?.outboundTopic) {
-      this.logger.error(
-        `Failed to retrieve outbound topic for account ID: ${accountId}`
-      );
-      throw new Error(
-        `Failed to retrieve outbound topic for account ID: ${accountId}`
-      );
-    }
-
-    this.logger.info(
-      `Retrieved outbound topic ID: ${outboundTopic.outboundTopic} for account ID: ${accountId}`
-    );
-    const responseSequenceNumber = response?.topicSequenceNumber?.toNumber();
-
-    if (!responseSequenceNumber) {
-      throw new Error('Failed to get response sequence number');
-    }
-
-    await this.submitPayload(outboundTopic.outboundTopic, {
-      ...connectionRequestMessage,
-      outbound_topic_id: inboundTopicId,
-      connection_request_id: responseSequenceNumber,
-    });
-
-    return response;
-  }
-
   async getPublicKey(accountId: string): Promise<PublicKey> {
     return await this.mirrorNode.getPublicKey(accountId);
   }
