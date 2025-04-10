@@ -580,7 +580,7 @@ export abstract class HCS10BaseClient extends Registration {
     memo: string
   ): Promise<TransactionReceipt> {
     const accountResponse = this.getAccountAndSigner();
-    if (!accountResponse.accountId) {
+    if (!accountResponse?.accountId) {
       throw new Error('Operator account ID is not set');
     }
     const operatorId = await this.getOperatorId();
@@ -591,7 +591,7 @@ export abstract class HCS10BaseClient extends Registration {
       accountId
     );
 
-    if (!submissionCheck.canSubmit) {
+    if (!submissionCheck?.canSubmit) {
       throw new Error(`Cannot submit to topic: ${submissionCheck.reason}`);
     }
 
