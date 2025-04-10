@@ -335,22 +335,17 @@ export abstract class HCS10BaseClient extends Registration {
     accountId: string,
     disableCache?: boolean
   ): Promise<ProfileResponse> {
-    this.logger.info(`Retrieving profile for account: ${accountId}`);
+    this.logger.debug(`Retrieving profile for account: ${accountId}`);
 
     const cacheKey = `${accountId}-${this.network}`;
 
     if (!disableCache) {
       const cachedProfileResponse = HCS10Cache.getInstance().get(cacheKey);
       if (cachedProfileResponse) {
-        this.logger.info(`Cache hit for profile: ${accountId}`);
+        this.logger.debug(`Cache hit for profile: ${accountId}`);
         return cachedProfileResponse;
       }
     }
-
-    this.logger.info(
-      `Cache miss for profile: ${accountId}, fetching from network`
-    );
-
     try {
       const hcs11Client = new HCS11Client({
         network: this.network as 'mainnet' | 'testnet',
