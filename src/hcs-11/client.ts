@@ -268,7 +268,7 @@ export class HCS11Client {
         const response = await signedTx.execute(this.client);
         const receipt = await response.getReceipt(this.client);
 
-        if (receipt.status !== Status.Success) {
+        if (receipt.status.toString() !== Status.Success.toString()) {
           return {
             success: false,
             error: `Transaction failed: ${receipt.status.toString()}`,
@@ -290,10 +290,10 @@ export class HCS11Client {
       const response = await frozenTransaction.executeWithSigner(signer);
       const receipt = await response.getReceiptWithSigner(signer);
 
-      if (receipt.status !== Status.Success) {
+      if (receipt.status.toString() !== Status.Success.toString()) {
         return {
           success: false,
-          error: `Transaction failed: ${receipt.status.toString()}`,
+          error: `Transaction failed: ${receipt.status.toString()}: ${Status.Success.toString()}`,
         };
       }
 
