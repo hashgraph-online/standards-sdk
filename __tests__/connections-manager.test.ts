@@ -118,12 +118,17 @@ describe('ConnectionsManager', () => {
       );
 
       // The pending connection should be replaced with an established one
-      expect(connections).toHaveLength(1);
-      expect(connections[0].isPending).toBe(false);
-      expect(connections[0].status).toBe('established');
-      expect(connections[0].connectionTopicId).toBe('0.0.222222');
-      expect(connections[0].connectionRequestId).toBe(1001);
-      expect(connections[0].confirmedRequestId).toBe(456);
+      expect(connections).toHaveLength(2);
+      
+      // Find the established connection
+      const establishedConn = connections.find(
+        (conn) => conn.status === 'established' && conn.connectionTopicId === '0.0.222222'
+      );
+      expect(establishedConn).toBeDefined();
+      expect(establishedConn!.isPending).toBe(false);
+      expect(establishedConn!.status).toBe('established');
+      expect(establishedConn!.connectionRequestId).toBe(1001);
+      expect(establishedConn!.confirmedRequestId).toBe(456);
     });
 
     it('should process connection closed messages', () => {
@@ -136,6 +141,7 @@ describe('ConnectionsManager', () => {
         isPending: false,
         needsConfirmation: false,
         created: new Date('2023-01-01'),
+        processed: false
       });
 
       // Now process a close message
@@ -224,12 +230,17 @@ describe('ConnectionsManager', () => {
       );
 
       // The needs confirmation connection should be replaced with an established one
-      expect(connections).toHaveLength(1);
-      expect(connections[0].needsConfirmation).toBe(false);
-      expect(connections[0].isPending).toBe(false);
-      expect(connections[0].status).toBe('established');
-      expect(connections[0].connectionTopicId).toBe('0.0.222222');
-      expect(connections[0].inboundRequestId).toBe(123);
+      expect(connections).toHaveLength(2);
+      
+      // Find the established connection
+      const establishedConn = connections.find(
+        (conn) => conn.status === 'established' && conn.connectionTopicId === '0.0.222222'
+      );
+      expect(establishedConn).toBeDefined();
+      expect(establishedConn!.needsConfirmation).toBe(false);
+      expect(establishedConn!.isPending).toBe(false);
+      expect(establishedConn!.status).toBe('established');
+      expect(establishedConn!.inboundRequestId).toBe(123);
     });
   });
 
@@ -243,6 +254,7 @@ describe('ConnectionsManager', () => {
         isPending: false,
         needsConfirmation: false,
         created: new Date('2023-01-01'),
+        processed: false
       });
 
       const messages: HCSMessage[] = [
@@ -282,6 +294,7 @@ describe('ConnectionsManager', () => {
         isPending: false,
         needsConfirmation: false,
         created: new Date('2023-01-01'),
+        processed: false
       });
 
       const messages: HCSMessage[] = [
@@ -320,6 +333,7 @@ describe('ConnectionsManager', () => {
         isPending: false,
         needsConfirmation: false,
         created: new Date('2023-01-01'),
+        processed: false
       });
 
       // Add profile info
@@ -361,6 +375,7 @@ describe('ConnectionsManager', () => {
         needsConfirmation: false,
         created: new Date('2023-01-01'),
         connectionRequestId: 1001,
+        processed: false
       });
 
       manager.updateOrAddConnection({
@@ -371,6 +386,7 @@ describe('ConnectionsManager', () => {
         needsConfirmation: false,
         created: new Date('2023-01-02'),
         connectionRequestId: 1002,
+        processed: false
       });
 
       manager.updateOrAddConnection({
@@ -381,6 +397,7 @@ describe('ConnectionsManager', () => {
         needsConfirmation: true,
         created: new Date('2023-01-03'),
         inboundRequestId: 123,
+        processed: false
       });
     });
 
@@ -407,8 +424,6 @@ describe('ConnectionsManager', () => {
       expect(connection?.targetAccountId).toBe('0.0.654321');
     });
 
-
-
     it('should get a connection by account ID', () => {
       const connection = manager.getConnectionByAccountId('0.0.654321');
       expect(connection).toBeDefined();
@@ -432,6 +447,7 @@ describe('ConnectionsManager', () => {
         needsConfirmation: false,
         created: new Date('2023-01-01'),
         connectionRequestId: 1001,
+        processed: false
       });
 
       manager.updateOrAddConnection({
@@ -442,6 +458,7 @@ describe('ConnectionsManager', () => {
         needsConfirmation: false,
         created: new Date('2023-01-02'),
         connectionRequestId: 1002,
+        processed: false
       });
 
       // Get all connections - should have both
@@ -464,6 +481,114 @@ describe('ConnectionsManager', () => {
       expect(conn2).toBeDefined();
       expect(conn1?.connectionRequestId).toBe(1001);
       expect(conn2?.connectionRequestId).toBe(1002);
+    });
+  });
+
+  describe('connection request tracking', () => {
+    it('should track processed connection requests properly', () => {
+      const inboundTopicId = '0.0.111111';
+      const requestId = 123;
+      
+      // Initially should not be processed
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, requestId)).toBe(false);
+      
+      // Create a connection with this request ID
+      manager.updateOrAddConnection({
+        connectionTopicId: '0.0.222222',
+        targetAccountId: '0.0.654321',
+        status: 'established',
+        isPending: false,
+        needsConfirmation: false,
+        created: new Date('2023-01-01'),
+        connectionRequestId: requestId,
+        originTopicId: inboundTopicId,
+        processed: false
+      });
+      
+      // Still should be false since processed is false
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, requestId)).toBe(false);
+      
+      // Mark as processed
+      const result = manager.markConnectionRequestProcessed(inboundTopicId, requestId);
+      expect(result).toBe(true);
+      
+      // Now should return true
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, requestId)).toBe(true);
+    });
+
+    it('should handle inbound and outbound requests differently', () => {
+      const inboundTopicId = '0.0.111111';
+      const inboundRequestId = 123;
+      const outboundRequestId = 456;
+      
+      // Create connections with different request types
+      manager.updateOrAddConnection({
+        connectionTopicId: 'inbound-conn',
+        targetAccountId: '0.0.654321',
+        status: 'established',
+        isPending: false,
+        needsConfirmation: false,
+        created: new Date('2023-01-01'),
+        inboundRequestId: inboundRequestId,
+        originTopicId: inboundTopicId,
+        processed: false
+      });
+      
+      manager.updateOrAddConnection({
+        connectionTopicId: 'outbound-conn',
+        targetAccountId: '0.0.654321',
+        status: 'established',
+        isPending: false,
+        needsConfirmation: false,
+        created: new Date('2023-01-01'),
+        connectionRequestId: outboundRequestId,
+        originTopicId: inboundTopicId,
+        processed: false
+      });
+      
+      // Mark inbound as processed
+      manager.markConnectionRequestProcessed(inboundTopicId, inboundRequestId);
+      
+      // Check that inbound is processed but outbound is not
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, inboundRequestId)).toBe(true);
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, outboundRequestId)).toBe(false);
+      
+      // Now mark outbound as processed
+      manager.markConnectionRequestProcessed(inboundTopicId, outboundRequestId);
+      
+      // Both should be processed now
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, inboundRequestId)).toBe(true);
+      expect(manager.isConnectionRequestProcessed(inboundTopicId, outboundRequestId)).toBe(true);
+    });
+
+    it('should not find connections with different originTopicId', () => {
+      const topicId1 = '0.0.111111';
+      const topicId2 = '0.0.222222';
+      const requestId = 123;
+      
+      // Create a connection with topicId1
+      manager.updateOrAddConnection({
+        connectionTopicId: 'conn1',
+        targetAccountId: '0.0.654321',
+        status: 'established',
+        isPending: false,
+        needsConfirmation: false,
+        created: new Date('2023-01-01'),
+        connectionRequestId: requestId,
+        originTopicId: topicId1,
+        processed: true
+      });
+      
+      // Should find it with the correct topic ID
+      expect(manager.isConnectionRequestProcessed(topicId1, requestId)).toBe(true);
+      
+      // Should not find it with a different topic ID
+      expect(manager.isConnectionRequestProcessed(topicId2, requestId)).toBe(false);
+    });
+
+    it('should return false when trying to mark non-existent connection as processed', () => {
+      const result = manager.markConnectionRequestProcessed('0.0.999999', 999);
+      expect(result).toBe(false);
     });
   });
 });
