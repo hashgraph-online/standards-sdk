@@ -237,7 +237,7 @@ async function loadConnectionsUsingManager(agent: {
       connection.created.getTime() > lastTimestamp.getTime()
     ) {
       lastTimestamp = connection.created;
-    }
+      }
     if (
       connection.lastActivity &&
       connection.lastActivity.getTime() > lastTimestamp.getTime()
@@ -710,11 +710,11 @@ async function monitorTopics(agent: {
           } else if (
             msg.operator_id &&
             msg.operator_id.endsWith(`@${agent.accountId}`)
-          ) {
-            initialProcessedSet.add(msg.sequence_number);
+            ) {
+              initialProcessedSet.add(msg.sequence_number);
+            }
           }
         }
-      }
       
       logger.debug(
         `Pre-populated ${initialProcessedSet.size} messages for topic ${topicId}`

@@ -54,10 +54,127 @@ export interface ConnectionsManagerOptions {
 }
 
 /**
+ * Defines the interface for a connections manager that handles HCS-10 connections
+ */
+export interface IConnectionsManager {
+  /**
+   * Fetches and processes connection data using the configured client
+   * @param accountId - The account ID to fetch connection data for
+   * @returns A promise that resolves to an array of Connection objects
+   */
+  fetchConnectionData(accountId: string): Promise<Connection[]>;
+
+  /**
+   * Process outbound messages to track connection requests and confirmations
+   * @param messages - The messages to process
+   * @param accountId - The account ID that sent the messages
+   * @returns Array of connections after processing
+   */
+  processOutboundMessages(messages: HCSMessage[], accountId: string): Connection[];
+
+  /**
+   * Process inbound messages to track connection requests and confirmations
+   * @param messages - The messages to process
+   * @returns Array of connections after processing
+   */
+  processInboundMessages(messages: HCSMessage[]): Connection[];
+
+  /**
+   * Process connection topic messages to update last activity time
+   * @param connectionTopicId - The topic ID of the connection
+   * @param messages - The messages to process
+   * @returns The updated connection or undefined if not found
+   */
+  processConnectionMessages(connectionTopicId: string, messages: HCSMessage[]): Connection | undefined;
+  
+  /**
+   * Adds or updates profile information for a connection
+   * @param accountId - The account ID to add profile info for
+   * @param profile - The profile information
+   */
+  addProfileInfo(accountId: string, profile: any): void;
+
+  /**
+   * Gets all connections
+   * @returns Array of all connections that should be visible
+   */
+  getAllConnections(): Connection[];
+
+  /**
+   * Gets all pending connection requests
+   * @returns Array of pending connection requests
+   */
+  getPendingRequests(): Connection[];
+
+  /**
+   * Gets all active (established) connections
+   * @returns Array of active connections
+   */
+  getActiveConnections(): Connection[];
+
+  /**
+   * Gets all connections needing confirmation
+   * @returns Array of connections needing confirmation
+   */
+  getConnectionsNeedingConfirmation(): Connection[];
+
+  /**
+   * Gets a connection by its topic ID
+   * @param connectionTopicId - The topic ID to look up
+   * @returns The connection with the given topic ID, or undefined if not found
+   */
+  getConnectionByTopicId(connectionTopicId: string): Connection | undefined;
+
+  /**
+   * Gets a connection by account ID
+   * @param accountId - The account ID to look up
+   * @returns The connection with the given account ID, or undefined if not found
+   */
+  getConnectionByAccountId(accountId: string): Connection | undefined;
+
+  /**
+   * Gets all connections for a specific account ID
+   * @param accountId - The account ID to look up
+   * @returns Array of connections for the given account ID
+   */
+  getConnectionsByAccountId(accountId: string): Connection[];
+
+  /**
+   * Updates or adds a connection
+   * @param connection - The connection to update or add
+   */
+  updateOrAddConnection(connection: Connection): void;
+
+  /**
+   * Clears all tracked connections and requests
+   */
+  clearAll(): void;
+
+  /**
+   * Checks if a given connection request has been processed already
+   * This uses a combination of topic ID and request ID to uniquely identify requests
+   *
+   * @param inboundTopicId - The inbound topic ID where the request was received
+   * @param requestId - The sequence number (request ID)
+   * @returns True if this specific request has been processed, false otherwise
+   */
+  isConnectionRequestProcessed(inboundTopicId: string, requestId: number): boolean;
+
+  /**
+   * Marks a specific connection request as processed
+   *
+   * @param inboundTopicId - The inbound topic ID where the request was received
+   * @param requestId - The sequence number (request ID)
+   * @returns True if a matching connection was found and marked, false otherwise
+   */
+  markConnectionRequestProcessed(inboundTopicId: string, requestId: number): boolean;
+}
+
+/**
  * ConnectionsManager provides a unified way to track and manage HCS-10 connections
  * across different applications. It works with both frontend and backend implementations.
  */
-export class ConnectionsManager {
+export class ConnectionsManager implements IConnectionsManager {
   private logger: Logger;
   private connections: Map<string, Connection> = new Map();
   private pendingRequests: Map<string, ConnectionRequest> = new Map();
