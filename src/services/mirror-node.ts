@@ -54,10 +54,11 @@ export class HederaMirrorNode {
       }
 
       return PublicKey.fromString(accountInfo.key.key);
-    } catch (error: any) {
-      throw new Error(
-        `Error fetching public key from Mirror Node: ${error.message}`
-      );
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error fetching public key from Mirror Node: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
     }
   }
 
@@ -86,12 +87,10 @@ export class HederaMirrorNode {
         if (attempt < maxRetries - 1) {
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
-      } catch (error: any) {
-        this.logger.error(
-          `Error getting account memo (attempt ${attempt + 1}): ${
-            error.message
-          }`
-        );
+      } catch (e: any) {
+        const error = e as Error;
+        const logMessage = `Error getting account memo (attempt ${attempt + 1}): ${error.message}`;
+        this.logger.error(logMessage);
 
         if (attempt < maxRetries - 1) {
           await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -113,9 +112,11 @@ export class HederaMirrorNode {
       const topicInfoUrl = `${this.baseUrl}/api/v1/topics/${topicId}`;
       const response = await axios.get(topicInfoUrl);
       return response.data;
-    } catch (error: any) {
-      this.logger.error(`Error retrieving topic information: ${error.message}`);
-      throw new Error(`Failed to retrieve topic information: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error retrieving topic information: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
     }
   }
 
@@ -129,8 +130,10 @@ export class HederaMirrorNode {
     try {
       const topicInfo = await this.getTopicInfo(topicId);
       return topicInfo.custom_fees;
-    } catch (error: any) {
-      this.logger.error(`Error retrieving topic fees: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error retrieving topic fees: ${error.message}`;
+      this.logger.error(logMessage);
       return null;
     }
   }
@@ -156,7 +159,10 @@ export class HederaMirrorNode {
         100;
 
       return usdPrice;
-    } catch (e) {
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error retrieving HBAR price: ${error.message}`;
+      this.logger.error(logMessage);
       return null;
     }
   }
@@ -178,10 +184,10 @@ export class HederaMirrorNode {
       }
       this.logger.warn(`No token info found for ${tokenId}`);
       return null;
-    } catch (error: any) {
-      this.logger.error(
-        `Error fetching token info for ${tokenId}: ${error.message}`
-      );
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error fetching token info for ${tokenId}: ${error.message}`;
+      this.logger.error(logMessage);
 
       return null;
     }
@@ -226,7 +232,8 @@ export class HederaMirrorNode {
                   );
                 }
               } catch (error) {
-                this.logger.error(`Error decoding message: ${error}`);
+                const logMessage = `Error decoding message: ${error}`;
+                this.logger.error(logMessage);
                 continue;
               }
 
@@ -234,9 +241,8 @@ export class HederaMirrorNode {
               try {
                 messageJson = JSON.parse(messageContent);
               } catch (error) {
-                this.logger.error(
-                  `Invalid JSON message content: ${messageContent}`
-                );
+                const logMessage = `Invalid JSON message content: ${messageContent}`;
+                this.logger.error(logMessage);
                 return;
               }
 
@@ -248,15 +254,18 @@ export class HederaMirrorNode {
                 created: new Date(Number(message.consensus_timestamp) * 1000),
               });
             } catch (error: any) {
-              this.logger.error(`Error processing message: ${error.message}`);
+              const logMessage = `Error processing message: ${error.message}`;
+              this.logger.error(logMessage);
             }
           }
         }
 
         nextUrl = data.links?.next ? `${this.baseUrl}${data.links.next}` : '';
-      } catch (error: any) {
-        this.logger.error(`Error querying topic messages: ${error.message}`);
-        throw new Error(`Failed to query topic messages: ${error.message}`);
+      } catch (e: any) {
+        const error = e as Error;
+        const logMessage = `Error querying topic messages: ${error.message} on ${topicId}`;
+        this.logger.error(logMessage);
+        throw new Error(logMessage);
       }
     }
 
@@ -279,9 +288,11 @@ export class HederaMirrorNode {
         );
       }
       return response.data;
-    } catch (error: any) {
-      this.logger.error(`Failed to fetch account: ${error.message}`);
-      throw new Error(`Failed to fetch account: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to fetch account: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
     }
   }
 
@@ -298,13 +309,11 @@ export class HederaMirrorNode {
     try {
       const key = proto.Key.decode(keyBytes);
       return this.evaluateKeyAccess(key, userPublicKey);
-    } catch (error) {
-      this.logger.error(
-        `Error decoding protobuf key: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      return false;
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error decoding protobuf key: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
     }
   }
 
@@ -369,12 +378,10 @@ export class HederaMirrorNode {
           if (hasNestedAccess) {
             return true;
           }
-        } catch (err) {
-          this.logger.debug(
-            `Error in nested key: ${
-              err instanceof Error ? err.message : String(err)
-            }`
-          );
+        } catch (e: any) {
+          const error = e as Error;
+          const logMessage = `Error in nested key: ${error.message}`;
+          this.logger.debug(logMessage);
         }
       }
     }
@@ -395,7 +402,10 @@ export class HederaMirrorNode {
     try {
       const decodedKey = PublicKey.fromBytes(Buffer.from(keyData));
       return decodedKey.toString() === userPublicKey.toString();
-    } catch (err) {
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error comparing Ed25519 key: ${error.message}`;
+      this.logger.debug(logMessage);
       return false;
     }
   }
