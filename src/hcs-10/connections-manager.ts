@@ -30,6 +30,7 @@ export interface Connection {
   status: 'pending' | 'established' | 'needs_confirmation' | 'closed';
   isPending: boolean;
   needsConfirmation: boolean;
+  memo?: string;
   created: Date;
   lastActivity?: Date;
   profileInfo?: AIAgentProfile;
@@ -55,6 +56,7 @@ export interface ConnectionsManagerOptions {
 
 /**
  * Defines the interface for a connections manager that handles HCS-10 connections
+ * This interface represents the public API of ConnectionsManager
  */
 export interface IConnectionsManager {
   /**
@@ -70,7 +72,10 @@ export interface IConnectionsManager {
    * @param accountId - The account ID that sent the messages
    * @returns Array of connections after processing
    */
-  processOutboundMessages(messages: HCSMessage[], accountId: string): Connection[];
+  processOutboundMessages(
+    messages: HCSMessage[],
+    accountId: string
+  ): Connection[];
 
   /**
    * Process inbound messages to track connection requests and confirmations
@@ -85,14 +90,17 @@ export interface IConnectionsManager {
    * @param messages - The messages to process
    * @returns The updated connection or undefined if not found
    */
-  processConnectionMessages(connectionTopicId: string, messages: HCSMessage[]): Connection | undefined;
-  
+  processConnectionMessages(
+    connectionTopicId: string,
+    messages: HCSMessage[]
+  ): Connection | undefined;
+
   /**
    * Adds or updates profile information for a connection
    * @param accountId - The account ID to add profile info for
    * @param profile - The profile information
    */
-  addProfileInfo(accountId: string, profile: any): void;
+  addProfileInfo(accountId: string, profile: AIAgentProfile): void;
 
   /**
    * Gets all connections
@@ -158,7 +166,10 @@ export interface IConnectionsManager {
    * @param requestId - The sequence number (request ID)
    * @returns True if this specific request has been processed, false otherwise
    */
-  isConnectionRequestProcessed(inboundTopicId: string, requestId: number): boolean;
+  isConnectionRequestProcessed(
+    inboundTopicId: string,
+    requestId: number
+  ): boolean;
 
   /**
    * Marks a specific connection request as processed
@@ -167,7 +178,10 @@ export interface IConnectionsManager {
    * @param requestId - The sequence number (request ID)
    * @returns True if a matching connection was found and marked, false otherwise
    */
-  markConnectionRequestProcessed(inboundTopicId: string, requestId: number): boolean;
+  markConnectionRequestProcessed(
+    inboundTopicId: string,
+    requestId: number
+  ): boolean;
 }
 
 /**
@@ -255,7 +269,7 @@ export class ConnectionsManager implements IConnectionsManager {
 
       await this.checkTargetInboundTopicsForConfirmations();
       await this.checkOutboundRequestsForConfirmations();
-      await this.fetchProfilesForConnections(accountId);
+      await this.fetchProfilesForConnections();
       await this.fetchConnectionActivity();
 
       return this.getAllConnections();
@@ -361,6 +375,7 @@ export class ConnectionsManager implements IConnectionsManager {
                 uniqueRequestKey: conn.uniqueRequestKey,
                 originTopicId: conn.originTopicId,
                 processed: conn.processed,
+                memo: conn.memo,
               };
 
               this.connections.set(connectionTopicId, newConnection);
@@ -523,7 +538,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * Fetches profiles for all connected accounts
    * @param accountId - The account ID making the request
    */
-  private async fetchProfilesForConnections(accountId: string): Promise<void> {
+  private async fetchProfilesForConnections(): Promise<void> {
     const targetAccountIds = new Set<string>();
 
     for (const connection of this.connections.values()) {
@@ -716,6 +731,7 @@ export class ConnectionsManager implements IConnectionsManager {
             uniqueRequestKey: pendingKey,
             originTopicId: msg.outbound_topic_id || '',
             processed: false,
+            memo: msg.m,
           };
 
           this.connections.set(pendingKey, pendingConnection);
@@ -769,6 +785,7 @@ export class ConnectionsManager implements IConnectionsManager {
           uniqueRequestKey: pendingKey,
           originTopicId: msg.outbound_topic_id || '',
           processed: false,
+          memo: msg.m,
         });
       } else {
         const conn = this.connections.get(connectionTopicId)!;
@@ -783,6 +800,7 @@ export class ConnectionsManager implements IConnectionsManager {
           uniqueRequestKey: pendingKey,
           originTopicId: msg.outbound_topic_id || '',
           processed: false,
+          memo: msg.m,
         });
       }
     }
@@ -821,6 +839,7 @@ export class ConnectionsManager implements IConnectionsManager {
           uniqueRequestKey: uniqueKey,
           originTopicId: conn.originTopicId,
           processed: false,
+          memo: msg.m,
         });
       }
     }
@@ -877,6 +896,7 @@ export class ConnectionsManager implements IConnectionsManager {
           uniqueRequestKey: needsConfirmKey,
           originTopicId: requestorTopicId,
           processed: false,
+          memo: msg.m,
         });
       }
     }
@@ -919,6 +939,7 @@ export class ConnectionsManager implements IConnectionsManager {
           uniqueRequestKey: needsConfirmKey,
           originTopicId: msg.connection_topic_id,
           processed: false,
+          memo: msg.m,
         });
       } else {
         const conn = this.connections.get(connectionTopicId)!;
@@ -931,6 +952,7 @@ export class ConnectionsManager implements IConnectionsManager {
           uniqueRequestKey: needsConfirmKey,
           originTopicId: msg.connection_topic_id,
           processed: false,
+          memo: msg.m,
         });
       }
     }
@@ -997,7 +1019,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * @param accountId - The account ID to add profile info for
    * @param profile - The profile information
    */
-  addProfileInfo(accountId: string, profile: any): void {
+  addProfileInfo(accountId: string, profile: AIAgentProfile): void {
     this.profileCache.set(accountId, profile);
 
     const matchingConnections = Array.from(this.connections.values()).filter(
@@ -1024,8 +1046,7 @@ export class ConnectionsManager implements IConnectionsManager {
       (conn) =>
         conn.status === 'established' ||
         conn.status === 'closed' ||
-        !this.filterPendingAccountIds.has(conn.targetAccountId) ||
-        this.hasEstablishedConnectionWithAccount(conn.targetAccountId)
+        !this.filterPendingAccountIds.has(conn.targetAccountId)
     );
     return connections;
   }
@@ -1039,8 +1060,7 @@ export class ConnectionsManager implements IConnectionsManager {
       (conn) => {
         return (
           conn.isPending &&
-          (!this.filterPendingAccountIds.has(conn.targetAccountId) ||
-            this.hasEstablishedConnectionWithAccount(conn.targetAccountId))
+          (!this.filterPendingAccountIds.has(conn.targetAccountId))
         );
       }
     );
@@ -1078,8 +1098,7 @@ export class ConnectionsManager implements IConnectionsManager {
     return Array.from(this.connections.values()).filter(
       (conn) =>
         conn.needsConfirmation &&
-        (!this.filterPendingAccountIds.has(conn.targetAccountId) ||
-          this.hasEstablishedConnectionWithAccount(conn.targetAccountId))
+        (!this.filterPendingAccountIds.has(conn.targetAccountId))
     );
   }
 
