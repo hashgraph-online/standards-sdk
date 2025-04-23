@@ -4,3 +4,4 @@ export * from './sdk';
 export * from './types';
 export * from './browser';
 export * from './registrations';
+export * from './connections-manager';
