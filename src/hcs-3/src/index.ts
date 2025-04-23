@@ -866,15 +866,4 @@ export class HCS implements HCSSDK {
     }
   }
 }
-const isServer = typeof window === 'undefined';
 
-if (!isServer) {
-  (window as any).HCS = new HCS();
-  (window as any).HCS.init().then(() => {
-    console.log('All HCS resources loaded');
-    if (typeof (window as any).HCSReady === 'function') {
-      console.log('Running HCSReady...');
-      (window as any).HCSReady();
-    }
-  });
-}

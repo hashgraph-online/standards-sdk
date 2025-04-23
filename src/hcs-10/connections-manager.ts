@@ -40,6 +40,8 @@ export interface Connection {
   closedReason?: string;
   closeMethod?: string;
   uniqueRequestKey?: string;
+  originTopicId?: string;
+  processed: boolean;
 }
 
 /**
@@ -96,6 +98,20 @@ export class ConnectionsManager {
         accountId
       );
 
+      const isValidTopicId = (topicId: string): boolean => {
+        return Boolean(topicId) && !topicId.includes(':');
+      };
+
+      if (
+        !isValidTopicId(topicInfo.inboundTopic) ||
+        !isValidTopicId(topicInfo.outboundTopic)
+      ) {
+        this.logger.warn(
+          'Invalid topic IDs detected in retrieved communication topics'
+        );
+        return this.getAllConnections();
+      }
+
       const [outboundMessagesResult, inboundMessagesResult] = await Promise.all(
         [
           this.baseClient.getMessages(topicInfo.outboundTopic),
@@ -107,12 +123,21 @@ export class ConnectionsManager {
         outboundMessagesResult.messages || [],
         accountId
       );
-      this.processInboundMessages(
-        inboundMessagesResult.messages || [],
-        accountId
+      this.processInboundMessages(inboundMessagesResult.messages || []);
+
+      const pendingCount = Array.from(this.connections.values()).filter(
+        (conn) => conn.status === 'pending' || conn.isPending
+      ).length;
+      this.logger.debug(
+        `Processed ${
+          outboundMessagesResult.messages?.length || 0
+        } outbound and ${
+          inboundMessagesResult.messages?.length || 0
+        } inbound messages. Found ${pendingCount} pending connections.`
       );
 
       await this.checkTargetInboundTopicsForConfirmations();
+      await this.checkOutboundRequestsForConfirmations();
       await this.fetchProfilesForConnections(accountId);
       await this.fetchConnectionActivity();
 
@@ -129,7 +154,9 @@ export class ConnectionsManager {
    */
   private async checkTargetInboundTopicsForConfirmations(): Promise<void> {
     const pendingConnections = Array.from(this.connections.values()).filter(
-      (conn) => conn.isPending && conn.targetInboundTopicId
+      (conn) =>
+        (conn.isPending || conn.status === 'pending') &&
+        conn.targetInboundTopicId
     );
 
     if (pendingConnections.length === 0) {
@@ -169,22 +196,39 @@ export class ConnectionsManager {
               continue;
             }
 
-            const confirmationMsg = targetMessages.find(
-              (msg) =>
-                msg.op === 'connection_created' &&
-                msg.connection_id === requestId &&
-                msg.connection_topic_id
-            );
+            const confirmationMsg = targetMessages.find((msg) => {
+              if (msg.op !== 'connection_created' || !msg.connection_topic_id) {
+                return false;
+              }
+
+              if (msg.connection_id !== requestId) {
+                return false;
+              }
+
+              if (conn.uniqueRequestKey) {
+                const keyParts = conn.uniqueRequestKey.split(':');
+                if (keyParts.length > 1) {
+                  const operatorIdPart = keyParts[1];
+
+                  if (msg.operator_id && msg.operator_id === operatorIdPart) {
+                    return true;
+                  }
+
+                  if (msg.connected_account_id === conn.targetAccountId) {
+                    return true;
+                  }
+                }
+              }
+
+              return true;
+            });
 
             if (confirmationMsg?.connection_topic_id) {
               confirmedAny = true;
 
               const connectionTopicId = confirmationMsg.connection_topic_id;
 
-              let pendingKey = conn.connectionTopicId;
-              if (!pendingKey.startsWith('req-') && conn.uniqueRequestKey) {
-                pendingKey = conn.uniqueRequestKey;
-              }
+              let pendingKey = conn.uniqueRequestKey;
 
               const newConnection: Connection = {
                 connectionTopicId,
@@ -198,11 +242,13 @@ export class ConnectionsManager {
                 profileInfo: conn.profileInfo,
                 connectionRequestId: requestId,
                 uniqueRequestKey: conn.uniqueRequestKey,
+                originTopicId: conn.originTopicId,
+                processed: conn.processed,
               };
 
               this.connections.set(connectionTopicId, newConnection);
 
-              if (pendingKey && pendingKey !== connectionTopicId) {
+              if (pendingKey) {
                 this.connections.delete(pendingKey);
               }
 
@@ -227,6 +273,131 @@ export class ConnectionsManager {
           }
           await new Promise((resolve) => setTimeout(resolve, FETCH_DELAY_MS));
         }
+      }
+    }
+  }
+
+  /**
+   * Checks target agents' inbound topics for confirmations of our outbound connection requests
+   * This complements checkTargetInboundTopicsForConfirmations by looking for confirmations
+   * that might have been sent to the target agent's inbound topic rather than our own
+   */
+  private async checkOutboundRequestsForConfirmations(): Promise<void> {
+    const allConnections = Array.from(this.connections.values());
+    this.logger.info(`Total connections in map: ${allConnections.length}`);
+
+    const pendingByStatus = allConnections.filter(
+      (conn) => conn.status === 'pending'
+    );
+    this.logger.info(
+      `Connections with status='pending': ${pendingByStatus.length}`
+    );
+
+    const pendingConnections = allConnections.filter(
+      (conn) => conn.status === 'pending'
+    );
+
+    if (!Boolean(pendingConnections?.length)) {
+      this.logger.info('No pending connections found');
+      return;
+    }
+
+    for (const conn of pendingConnections) {
+      this.logger.debug(
+        `Processing pending connection: ${conn.connectionTopicId}`
+      );
+
+      if (!conn.targetAccountId) {
+        this.logger.debug(
+          `Skipping connection ${conn.connectionTopicId} - no targetAccountId`
+        );
+        continue;
+      }
+
+      let targetInboundTopicId = conn.targetInboundTopicId;
+      if (!targetInboundTopicId) {
+        try {
+          const profileResponse = await this.baseClient.retrieveProfile(
+            conn.targetAccountId
+          );
+          if (profileResponse?.profile?.inboundTopicId) {
+            targetInboundTopicId = profileResponse.profile.inboundTopicId;
+            this.connections.set(conn.connectionTopicId, {
+              ...conn,
+              targetInboundTopicId,
+            });
+            this.logger.debug(
+              `Updated connection ${conn.connectionTopicId} with inbound topic ID: ${targetInboundTopicId}`
+            );
+          } else {
+            this.logger.debug(
+              `Couldn't get inbound topic ID for account ${conn.targetAccountId}`
+            );
+            continue;
+          }
+        } catch (error) {
+          this.logger.debug(
+            `Error fetching profile for ${conn.targetAccountId}: ${error}`
+          );
+          continue;
+        }
+      }
+
+      if (!targetInboundTopicId || targetInboundTopicId.includes(':')) {
+        this.logger.debug(
+          `Skipping invalid inbound topic format: ${targetInboundTopicId}`
+        );
+        continue;
+      }
+
+      const requestId = conn.connectionRequestId || conn.inboundRequestId;
+      if (!requestId) {
+        this.logger.debug(
+          `Skipping connection ${conn.connectionTopicId} - no request ID`
+        );
+        continue;
+      }
+
+      try {
+        this.logger.debug(
+          `Checking for confirmations on topic ${targetInboundTopicId} for request ID ${requestId}`
+        );
+        const targetMessagesResult = await this.baseClient.getMessages(
+          targetInboundTopicId
+        );
+        const targetMessages = targetMessagesResult.messages || [];
+
+        const confirmationMsg = targetMessages.find(
+          (msg) =>
+            msg.op === 'connection_created' &&
+            msg.connection_id === requestId &&
+            msg.connection_topic_id
+        );
+
+        if (confirmationMsg?.connection_topic_id) {
+          const connectionTopicId = confirmationMsg.connection_topic_id;
+          this.logger.info(
+            `Found confirmation for request #${requestId} to ${conn.targetAccountId} on their inbound topic`
+          );
+
+          this.connections.set(conn.connectionTopicId, {
+            ...conn,
+            connectionTopicId,
+            status: 'established',
+            isPending: false,
+            needsConfirmation: false,
+            created: new Date(confirmationMsg.created || conn.created),
+            lastActivity: new Date(confirmationMsg.created || conn.created),
+          });
+        } else {
+          this.logger.debug(
+            `No confirmation found for request ID ${requestId} on topic ${targetInboundTopicId}`
+          );
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Error checking for confirmations on target inbound topic for ${conn.targetAccountId}: ${error}`
+        );
       }
     }
   }
@@ -305,16 +476,25 @@ export class ConnectionsManager {
   private async fetchConnectionActivity(): Promise<void> {
     const activeConnections = this.getActiveConnections();
 
-    const activityPromises = activeConnections.map(async (connection) => {
-      try {
-        const messagesResult = await this.baseClient.getMessages(
-          connection.connectionTopicId
+    const validConnections = activeConnections.filter((connection) => {
+      const topicId = connection.connectionTopicId;
+
+      if (!topicId || topicId.includes(':') || !topicId.match(/^0\.0\.\d+$/)) {
+        this.logger.debug(
+          `Skipping activity fetch for invalid topic ID format: ${topicId}`
         );
+        return false;
+      }
+      return true;
+    });
+
+    const activityPromises = validConnections.map(async (connection) => {
+      try {
+        const topicId = connection.connectionTopicId;
+        const messagesResult = await this.baseClient.getMessages(topicId);
+
         if (messagesResult?.messages?.length > 0) {
-          this.processConnectionMessages(
-            connection.connectionTopicId,
-            messagesResult.messages
-          );
+          this.processConnectionMessages(topicId, messagesResult.messages);
         }
       } catch (error) {
         this.logger.debug(
@@ -354,7 +534,7 @@ export class ConnectionsManager {
     messages: HCSMessage[],
     accountId: string
   ): Connection[] {
-    if (!messages || messages.length === 0) {
+    if (!Boolean(messages?.length)) {
       return Array.from(this.connections.values());
     }
 
@@ -378,13 +558,16 @@ export class ConnectionsManager {
       }
 
       const isAlreadyConfirmed = Array.from(this.connections.values()).some(
-        (conn) => conn.connectionRequestId === requestId && !conn.isPending
+        (conn) =>
+          conn.connectionRequestId === requestId &&
+          !conn.isPending &&
+          conn.targetAccountId === targetAccountId
       );
 
       const pendingKey = `req-${requestId}:${operatorId}`;
 
       if (!isAlreadyConfirmed && !this.pendingRequests.has(pendingKey)) {
-        this.pendingRequests.set(pendingKey, {
+        const pendingRequest = {
           id: requestId,
           requesterId: accountId,
           requesterTopicId: msg.outbound_topic_id || '',
@@ -394,21 +577,31 @@ export class ConnectionsManager {
           sequenceNumber: msg.sequence_number,
           created: msg.created || new Date(),
           memo: msg.m,
-          status: 'pending',
-        });
+          status: 'pending' as 'pending' | 'confirmed' | 'rejected',
+        };
+
+        this.pendingRequests.set(pendingKey, pendingRequest);
 
         if (!this.connections.has(pendingKey)) {
-          this.connections.set(pendingKey, {
+          const pendingConnection = {
             connectionTopicId: pendingKey,
             targetAccountId,
             targetInboundTopicId,
-            status: 'pending',
+            status: 'pending' as
+              | 'pending'
+              | 'established'
+              | 'needs_confirmation'
+              | 'closed',
             isPending: true,
             needsConfirmation: false,
             created: msg.created || new Date(),
             connectionRequestId: requestId,
             uniqueRequestKey: pendingKey,
-          });
+            originTopicId: msg.outbound_topic_id || '',
+            processed: false,
+          };
+
+          this.connections.set(pendingKey, pendingConnection);
         }
       }
     }
@@ -445,16 +638,6 @@ export class ConnectionsManager {
         this.connections.delete(pendingKey);
       }
 
-      const existingConnections = Array.from(this.connections.entries()).filter(
-        ([_, conn]) => conn.connectionRequestId === requestId
-      );
-
-      for (const [key, _] of existingConnections) {
-        if (key !== connectionTopicId) {
-          this.connections.delete(key);
-        }
-      }
-
       if (!this.connections.has(connectionTopicId)) {
         this.connections.set(connectionTopicId, {
           connectionTopicId,
@@ -467,6 +650,8 @@ export class ConnectionsManager {
           confirmedRequestId: msg.confirmed_request_id,
           requesterOutboundTopicId: msg.outbound_topic_id,
           uniqueRequestKey: pendingKey,
+          originTopicId: msg.outbound_topic_id || '',
+          processed: false,
         });
       } else {
         const conn = this.connections.get(connectionTopicId)!;
@@ -479,6 +664,8 @@ export class ConnectionsManager {
           confirmedRequestId: msg.confirmed_request_id,
           requesterOutboundTopicId: msg.outbound_topic_id,
           uniqueRequestKey: pendingKey,
+          originTopicId: msg.outbound_topic_id || '',
+          processed: false,
         });
       }
     }
@@ -515,6 +702,8 @@ export class ConnectionsManager {
           closedReason: msg.reason,
           closeMethod: msg.close_method,
           uniqueRequestKey: uniqueKey,
+          originTopicId: conn.originTopicId,
+          processed: false,
         });
       }
     }
@@ -530,14 +719,10 @@ export class ConnectionsManager {
   /**
    * Process inbound messages to track connection requests and confirmations
    * @param messages - The messages to process
-   * @param accountId - The account ID that received the messages
    * @returns Array of connections after processing
    */
-  processInboundMessages(
-    messages: HCSMessage[],
-    accountId: string
-  ): Connection[] {
-    if (!messages || messages.length === 0) {
+  processInboundMessages(messages: HCSMessage[]): Connection[] {
+    if (!Boolean(messages?.length)) {
       return Array.from(this.connections.values());
     }
 
@@ -560,28 +745,22 @@ export class ConnectionsManager {
         continue;
       }
 
-      const isAlreadyConfirmed = messages.some(
-        (confirmMsg) =>
-          confirmMsg.op === 'connection_created' &&
-          confirmMsg.connection_id === sequenceNumber
-      );
+      const needsConfirmKey = `inb-${sequenceNumber}:${operatorId}`;
 
-      if (!isAlreadyConfirmed) {
-        const needsConfirmKey = `inb-${sequenceNumber}:${operatorId}`;
-
-        if (!this.connections.has(needsConfirmKey)) {
-          this.connections.set(needsConfirmKey, {
-            connectionTopicId: needsConfirmKey,
-            targetAccountId: requestorAccountId,
-            targetInboundTopicId: requestorTopicId,
-            status: 'needs_confirmation',
-            isPending: false,
-            needsConfirmation: true,
-            created: msg.created || new Date(),
-            inboundRequestId: sequenceNumber,
-            uniqueRequestKey: needsConfirmKey,
-          });
-        }
+      if (!this.connections.has(needsConfirmKey)) {
+        this.connections.set(needsConfirmKey, {
+          connectionTopicId: needsConfirmKey,
+          targetAccountId: requestorAccountId,
+          targetInboundTopicId: requestorTopicId,
+          status: 'needs_confirmation',
+          isPending: false,
+          needsConfirmation: true,
+          created: msg.created || new Date(),
+          inboundRequestId: sequenceNumber,
+          uniqueRequestKey: needsConfirmKey,
+          originTopicId: requestorTopicId,
+          processed: false,
+        });
       }
     }
 
@@ -596,6 +775,7 @@ export class ConnectionsManager {
       const sequenceNumber = msg.connection_id!;
       const connectionTopicId = msg.connection_topic_id!;
       const connectedAccountId = msg.connected_account_id || '';
+      const operatorId = msg.operator_id || '';
 
       if (this.shouldFilterAccount(connectedAccountId)) {
         this.logger.debug(
@@ -604,20 +784,10 @@ export class ConnectionsManager {
         continue;
       }
 
-      const needsConfirmKey = `inb-${sequenceNumber}:${msg.operator_id}`;
+      const needsConfirmKey = `inb-${sequenceNumber}:${operatorId}`;
 
       if (this.connections.has(needsConfirmKey)) {
         this.connections.delete(needsConfirmKey);
-      }
-
-      const existingConnections = Array.from(this.connections.entries()).filter(
-        ([_, conn]) => conn.inboundRequestId === sequenceNumber
-      );
-
-      for (const [key, _] of existingConnections) {
-        if (key !== connectionTopicId) {
-          this.connections.delete(key);
-        }
       }
 
       if (!this.connections.has(connectionTopicId)) {
@@ -630,6 +800,8 @@ export class ConnectionsManager {
           created: msg.created || new Date(),
           inboundRequestId: sequenceNumber,
           uniqueRequestKey: needsConfirmKey,
+          originTopicId: msg.connection_topic_id,
+          processed: false,
         });
       } else {
         const conn = this.connections.get(connectionTopicId)!;
@@ -640,6 +812,8 @@ export class ConnectionsManager {
           needsConfirmation: false,
           inboundRequestId: sequenceNumber,
           uniqueRequestKey: needsConfirmKey,
+          originTopicId: msg.connection_topic_id,
+          processed: false,
         });
       }
     }
@@ -729,13 +903,14 @@ export class ConnectionsManager {
    * @returns Array of all connections that should be visible
    */
   getAllConnections(): Connection[] {
-    return Array.from(this.connections.values()).filter(
+    const connections = Array.from(this.connections.values()).filter(
       (conn) =>
         conn.status === 'established' ||
         conn.status === 'closed' ||
         !this.filterPendingAccountIds.has(conn.targetAccountId) ||
         this.hasEstablishedConnectionWithAccount(conn.targetAccountId)
     );
+    return connections;
   }
 
   /**
@@ -743,13 +918,17 @@ export class ConnectionsManager {
    * @returns Array of pending connection requests
    */
   getPendingRequests(): Connection[] {
-    return Array.from(this.connections.values()).filter((conn) => {
-      return (
-        conn.isPending &&
-        (!this.filterPendingAccountIds.has(conn.targetAccountId) ||
-          this.hasEstablishedConnectionWithAccount(conn.targetAccountId))
-      );
-    });
+    const pendingConnections = Array.from(this.connections.values()).filter(
+      (conn) => {
+        return (
+          conn.isPending &&
+          (!this.filterPendingAccountIds.has(conn.targetAccountId) ||
+            this.hasEstablishedConnectionWithAccount(conn.targetAccountId))
+        );
+      }
+    );
+
+    return pendingConnections;
   }
 
   /**
@@ -833,5 +1012,84 @@ export class ConnectionsManager {
   clearAll(): void {
     this.connections.clear();
     this.pendingRequests.clear();
+  }
+
+  /**
+   * Checks if a given connection request has been processed already
+   * This uses a combination of topic ID and request ID to uniquely identify requests
+   *
+   * @param inboundTopicId - The inbound topic ID where the request was received
+   * @param requestId - The sequence number (request ID)
+   * @returns True if this specific request has been processed, false otherwise
+   */
+  isConnectionRequestProcessed(
+    inboundTopicId: string,
+    requestId: number
+  ): boolean {
+    for (const conn of this.connections.values()) {
+      if (
+        conn.originTopicId === inboundTopicId &&
+        conn.inboundRequestId === requestId &&
+        conn.processed
+      ) {
+        return true;
+      }
+
+      if (
+        conn.originTopicId === inboundTopicId &&
+        conn.connectionRequestId === requestId &&
+        conn.processed
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Marks a specific connection request as processed
+   *
+   * @param inboundTopicId - The inbound topic ID where the request was received
+   * @param requestId - The sequence number (request ID)
+   * @returns True if a matching connection was found and marked, false otherwise
+   */
+  markConnectionRequestProcessed(
+    inboundTopicId: string,
+    requestId: number
+  ): boolean {
+    let found = false;
+
+    for (const [key, conn] of this.connections.entries()) {
+      if (
+        conn.originTopicId === inboundTopicId &&
+        conn.inboundRequestId === requestId
+      ) {
+        this.connections.set(key, {
+          ...conn,
+          processed: true,
+        });
+        found = true;
+        this.logger.debug(
+          `Marked inbound connection request #${requestId} on topic ${inboundTopicId} as processed`
+        );
+      }
+
+      if (
+        conn.originTopicId === inboundTopicId &&
+        conn.connectionRequestId === requestId
+      ) {
+        this.connections.set(key, {
+          ...conn,
+          processed: true,
+        });
+        found = true;
+        this.logger.debug(
+          `Marked outbound connection request #${requestId} on topic ${inboundTopicId} as processed`
+        );
+      }
+    }
+
+    return found;
   }
 }
