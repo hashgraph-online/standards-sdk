@@ -1,16 +1,14 @@
 import dotenv from 'dotenv';
 import { OpenAI } from 'openai';
 // @ts-ignore
-import { HCS10Client, HCSMessage, Logger } from '../../src';
+import {
+  HCS10Client,
+  HCSMessage,
+  Logger,
+  ConnectionsManager,
+  Connection,
+} from '../../src';
 import { getOrCreateBob } from './utils.js';
-
-interface AgentConnection {
-  agentId: string;
-  topicId: string;
-  timestamp: Date;
-  requesterOperatorId: string;
-  connectionRequestId: number;
-}
 
 const logger = new Logger({
   module: 'BobPollingAgent',
@@ -201,109 +199,62 @@ function extractAccountId(operatorId: string): string | null {
   return parts.length === 2 ? parts[1] : null;
 }
 
-async function loadConnectionsFromOutboundTopic(agent: {
+/**
+ * Loads existing connections using ConnectionsManager
+ * @param agent - The agent configuration data
+ * @returns A map of connections and the last processed timestamp
+ */
+async function loadConnectionsUsingManager(agent: {
   client: HCS10Client;
-  outboundTopicId: string;
   accountId: string;
   inboundTopicId: string;
+  outboundTopicId: string;
 }): Promise<{
-  connections: Map<string, AgentConnection>;
+  connections: Map<string, Connection>;
+  connectionManager: ConnectionsManager;
   lastProcessedTimestamp: Date;
 }> {
-  logger.info('Loading existing connections from outbound topic');
+  logger.info('Loading existing connections using ConnectionsManager');
 
-  const outboundMessagesResponse = await agent.client.getMessages(
-    agent.outboundTopicId
+  const connectionManager = new ConnectionsManager({
+    baseClient: agent.client,
+    logLevel: 'debug',
+  });
+
+  const connectionsArray = await connectionManager.fetchConnectionData(
+    agent.accountId
   );
-  const outboundMessages = outboundMessagesResponse.messages;
-  const connections = new Map<string, AgentConnection>();
+  logger.info(`Found ${connectionsArray.length} connections`);
+
+  const connections = new Map<string, Connection>();
   let lastTimestamp = new Date(0);
 
-  logger.info(`Found ${outboundMessages.length} messages in outbound topic`);
-
-  outboundMessages.sort((a: HCSMessage, b: HCSMessage) => {
-    if (!a.created || !b.created) return 0;
-    return a.created.getTime() - b.created.getTime();
-  });
-
-  const inboundMessagesResponse = await agent.client.getMessages(
-    agent.inboundTopicId
-  );
-  const inboundMessages = inboundMessagesResponse.messages;
-  const inboundMessagesMap = new Map<number, HCSMessage>();
-  inboundMessages.forEach((m: HCSMessage) => {
-    if (typeof m.sequence_number === 'number' && m.sequence_number > 0) {
-      inboundMessagesMap.set(m.sequence_number, m);
-    }
-  });
-
-  for (const message of outboundMessages) {
-    if (!message.created) continue;
-    if (message.created.getTime() > lastTimestamp.getTime()) {
-      lastTimestamp = message.created;
-    }
+  for (const connection of connectionsArray) {
+    connections.set(connection.connectionTopicId, connection);
 
     if (
-      message.op === 'connection_created' &&
-      message.connection_topic_id &&
-      typeof message.connection_request_id === 'number'
+      connection.created &&
+      connection.created.getTime() > lastTimestamp.getTime()
     ) {
-      const connectionRequest = inboundMessagesMap.get(
-        message.connection_request_id
-      );
-
-      if (
-        connectionRequest &&
-        connectionRequest.op === 'connection_request' &&
-        connectionRequest.operator_id &&
-        connectionRequest.created
-      ) {
-        const requesterOperatorId = connectionRequest.operator_id;
-        const requesterAccountId = extractAccountId(requesterOperatorId);
-
-        if (requesterAccountId) {
-          logger.debug(
-            `Connection record found: requesterOperatorId=${requesterOperatorId}, topicId=${message.connection_topic_id}, requestId=${message.connection_request_id}`
-          );
-
-          connections.set(message.connection_topic_id, {
-            agentId: requesterAccountId,
-            topicId: message.connection_topic_id,
-            timestamp: message.created,
-            requesterOperatorId: requesterOperatorId,
-            connectionRequestId: message.connection_request_id,
-          });
-
-          logger.info(
-            `Loaded connection: ${requesterOperatorId} (request #${message.connection_request_id}) -> ${message.connection_topic_id}`
-          );
-        } else {
-          logger.warn(
-            `Could not extract accountId from operatorId ${requesterOperatorId} for request #${message.connection_request_id}`
-          );
-        }
-      } else {
-        logger.warn(
-          `Could not find matching 'connection_request' (op: ${connectionRequest?.op}, operator_id: ${connectionRequest?.operator_id}) on inbound topic for connection_request_id ${message.connection_request_id}`
-        );
-      }
-    } else if (
-      message.op === 'connection_closed' &&
-      message.connection_topic_id
+      lastTimestamp = connection.created;
+    }
+    if (
+      connection.lastActivity &&
+      connection.lastActivity.getTime() > lastTimestamp.getTime()
     ) {
-      if (connections.has(message.connection_topic_id)) {
-        connections.delete(message.connection_topic_id);
-        logger.info(
-          `Removed closed connection based on outbound record for topic ${message.connection_topic_id}`
-        );
-      }
+      lastTimestamp = connection.lastActivity;
     }
   }
 
   logger.info(
     `Finished loading. ${connections.size} active connections found, last outbound timestamp: ${lastTimestamp}`
   );
-  return { connections, lastProcessedTimestamp: lastTimestamp };
+
+  return {
+    connections,
+    connectionManager,
+    lastProcessedTimestamp: lastTimestamp,
+  };
 }
 
 async function handleConnectionRequest(
@@ -315,7 +266,7 @@ async function handleConnectionRequest(
     outboundTopicId: string;
   },
   message: HCSMessage,
-  connections: Map<string, AgentConnection>
+  connectionManager: ConnectionsManager
 ): Promise<string | null> {
   if (!message.operator_id) {
     logger.warn('Missing operator_id in connection request');
@@ -346,15 +297,26 @@ async function handleConnectionRequest(
     `Processing connection request #${message.sequence_number} from ${requesterOperatorId}`
   );
 
-  for (const existingConn of connections.values()) {
-    if (
-      existingConn.requesterOperatorId === requesterOperatorId &&
-      existingConn.connectionRequestId === message.sequence_number
-    ) {
+  // Look for any existing connection for this sequence number
+  let existingConnection;
+  for (const conn of connectionManager.getAllConnections()) {
+    if (conn.inboundRequestId === message.sequence_number) {
+      existingConnection = conn;
+      break;
+    }
+  }
+  
+  if (existingConnection) {
+    // Make sure we have a valid topic ID, not a reference key
+    if (existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
       logger.warn(
-        `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConn.topicId}`
+        `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConnection.connectionTopicId}`
       );
-      return existingConn.topicId;
+      return existingConnection.connectionTopicId;
+    } else {
+      logger.warn(
+        `Connection exists for request #${message.sequence_number} but has invalid topic ID format: ${existingConnection.connectionTopicId}`
+      );
     }
   }
 
@@ -366,20 +328,7 @@ async function handleConnectionRequest(
         message.sequence_number
       );
 
-    const newConnectionTimestamp = new Date();
-    const newConnection: AgentConnection = {
-      agentId: requesterAccountId,
-      topicId: connectionTopicId,
-      timestamp: newConnectionTimestamp,
-      requesterOperatorId: requesterOperatorId,
-      connectionRequestId: message.sequence_number,
-    };
-    connections.set(connectionTopicId, newConnection);
-    logger.info(
-      `Added new connection to map: ${connectionTopicId} -> ${JSON.stringify(
-        newConnection
-      )}`
-    );
+    await connectionManager.fetchConnectionData(agent.accountId);
 
     await agent.client.sendMessage(
       connectionTopicId,
@@ -714,46 +663,59 @@ async function monitorTopics(agent: {
   inboundTopicId: string;
   outboundTopicId: string;
 }) {
-  let { connections } = await loadConnectionsFromOutboundTopic(agent);
+  let { connections, connectionManager } = await loadConnectionsUsingManager(
+    agent
+  );
 
   const processedMessages = new Map<string, Set<number>>();
-
   processedMessages.set(agent.inboundTopicId, new Set<number>());
 
-  const connectionTopics = new Set<string>(connections.keys());
+  // Only monitor actual connection topics (not reference keys)
+  const connectionTopics = new Set<string>();
+  for (const [topicId, connection] of connections.entries()) {
+    // Only add topic IDs that follow the 0.0.number format
+    if (topicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+      connectionTopics.add(topicId);
+    } else {
+      logger.debug(`Skipping invalid topic ID format: ${topicId}`);
+    }
+  }
+
   logger.info('Pre-populating processed messages for existing connections...');
+  
   for (const topicId of connectionTopics) {
     const initialProcessedSet = new Set<number>();
     processedMessages.set(topicId, initialProcessedSet);
+    
+    const connection = connections.get(topicId);
+    if (!connection) continue;
+    
     try {
       const history = await agent.client.getMessageStream(topicId);
+      
       for (const msg of history.messages) {
         if (
           typeof msg.sequence_number === 'number' &&
-          msg.sequence_number > 0
+          msg.sequence_number > 0 &&
+          msg.created
         ) {
           if (
+            connection.lastActivity &&
+            msg.created.getTime() <= connection.lastActivity.getTime()
+          ) {
+            initialProcessedSet.add(msg.sequence_number);
+            logger.debug(
+              `Pre-populated message #${msg.sequence_number} on topic ${topicId} based on timestamp`
+            );
+          } else if (
             msg.operator_id &&
             msg.operator_id.endsWith(`@${agent.accountId}`)
           ) {
             initialProcessedSet.add(msg.sequence_number);
-          } else {
-            const responseMsg = history.messages.find(
-              (m: HCSMessage) =>
-                typeof m.sequence_number === 'number' &&
-                m.sequence_number === msg.sequence_number + 1
-            );
-            if (
-              responseMsg &&
-              responseMsg.operator_id &&
-              responseMsg.operator_id.endsWith(`@${agent.accountId}`)
-            ) {
-              initialProcessedSet.add(msg.sequence_number);
-              initialProcessedSet.add(responseMsg.sequence_number);
-            }
           }
         }
       }
+      
       logger.debug(
         `Pre-populated ${initialProcessedSet.size} messages for topic ${topicId}`
       );
@@ -781,32 +743,46 @@ async function monitorTopics(agent: {
 
   while (true) {
     try {
-      const { connections: updatedConnections } =
-        await loadConnectionsFromOutboundTopic(agent);
-
-      const currentTrackedTopics = new Set(connections.keys());
-      for (const [topicId, connection] of updatedConnections.entries()) {
-        if (!currentTrackedTopics.has(topicId)) {
-          connections.set(topicId, connection);
+      await connectionManager.fetchConnectionData(agent.accountId);
+      const updatedConnections = connectionManager.getAllConnections();
+      
+      // Update our local map of connections
+      connections.clear();
+      for (const connection of updatedConnections) {
+        connections.set(connection.connectionTopicId, connection);
+      }
+      
+      // Update connection topics set - only use valid topic IDs
+      const currentTrackedTopics = new Set<string>();
+      for (const [topicId, _] of connections.entries()) {
+        if (topicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+          currentTrackedTopics.add(topicId);
+        }
+      }
+      
+      const previousTrackedTopics = new Set(connectionTopics);
+      
+      // Add new topics to track
+      for (const topicId of currentTrackedTopics) {
+        if (!previousTrackedTopics.has(topicId)) {
           connectionTopics.add(topicId);
           if (!processedMessages.has(topicId)) {
             processedMessages.set(topicId, new Set<number>());
           }
           logger.info(
-            `Discovered new connection topic during reload: ${topicId} for ${connection.requesterOperatorId}`
+            `Discovered new connection topic: ${topicId} for ${
+              connections.get(topicId)?.targetAccountId
+            }`
           );
-        } else {
-          connections.set(topicId, connection);
         }
       }
-      for (const topicId of currentTrackedTopics) {
-        if (!updatedConnections.has(topicId)) {
-          connections.delete(topicId);
+      
+      // Remove closed topics
+      for (const topicId of previousTrackedTopics) {
+        if (!currentTrackedTopics.has(topicId)) {
           connectionTopics.delete(topicId);
           processedMessages.delete(topicId);
-          logger.info(
-            `Removed connection topic (likely closed via outbound record): ${topicId}`
-          );
+          logger.info(`Removed connection topic: ${topicId}`);
         }
       }
 
@@ -830,6 +806,7 @@ async function monitorTopics(agent: {
           message.sequence_number <= 0
         )
           continue;
+
         if (!inboundProcessed.has(message.sequence_number)) {
           inboundProcessed.add(message.sequence_number);
 
@@ -844,13 +821,32 @@ async function monitorTopics(agent: {
           }
 
           if (message.op === 'connection_request') {
+            // Find any existing connection for this sequence number
+            let existingConnection;
+            for (const conn of connectionManager.getAllConnections()) {
+              if (conn.inboundRequestId === message.sequence_number) {
+                existingConnection = conn;
+                break;
+              }
+            }
+            
+            if (existingConnection) {
+              // Make sure we have a valid topic ID, not a reference key
+              if (existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+                logger.debug(
+                  `Skipping already handled connection request #${message.sequence_number}. Connection exists with topic: ${existingConnection.connectionTopicId}`
+                );
+                continue;
+              }
+            }
+            
             logger.info(
               `Processing inbound connection request #${message.sequence_number}`
             );
             const newTopicId = await handleConnectionRequest(
               agent,
               message,
-              connections
+              connectionManager
             );
             if (newTopicId && !connectionTopics.has(newTopicId)) {
               connectionTopics.add(newTopicId);
@@ -895,6 +891,10 @@ async function monitorTopics(agent: {
             return seqA - seqB;
           });
 
+          const connection = connections.get(topicId);
+          const lastActivityTimestamp =
+            connection?.lastActivity?.getTime() || 0;
+
           for (const message of messages.messages) {
             if (
               !message.created ||
@@ -902,6 +902,12 @@ async function monitorTopics(agent: {
               message.sequence_number <= 0
             )
               continue;
+
+            if (message.created.getTime() <= lastActivityTimestamp) {
+              processedSet.add(message.sequence_number);
+              continue;
+            }
+
             if (!processedSet.has(message.sequence_number)) {
               processedSet.add(message.sequence_number);
 
@@ -985,14 +991,22 @@ async function main() {
       throw new Error('Failed to set up Bob agent with required topics');
     }
 
+    const agentData = {
+      client: bob.client,
+      accountId: bob.accountId,
+      operatorId: `${bob.inboundTopicId}@${bob.accountId}`,
+      inboundTopicId: bob.inboundTopicId,
+      outboundTopicId: bob.outboundTopicId,
+    };
+
     logger.info('===== BOB POLLING AGENT DETAILS =====');
-    logger.info(`Account ID: ${bob.accountId}`);
-    logger.info(`Operator ID: ${bob.operatorId}`);
-    logger.info(`Inbound Topic: ${bob.inboundTopicId}`);
-    logger.info(`Outbound Topic: ${bob.outboundTopicId}`);
+    logger.info(`Account ID: ${agentData.accountId}`);
+    logger.info(`Operator ID: ${agentData.operatorId}`);
+    logger.info(`Inbound Topic: ${agentData.inboundTopicId}`);
+    logger.info(`Outbound Topic: ${agentData.outboundTopicId}`);
     logger.info('=====================================');
 
-    await monitorTopics(bob);
+    await monitorTopics(agentData);
   } catch (error) {
     logger.error(`Error in main function: ${error}`);
   }
