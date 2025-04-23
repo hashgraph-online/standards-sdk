@@ -6,6 +6,7 @@ import {
   TransactionReceipt,
   PrivateKey,
   Hbar,
+  AccountId,
 } from '@hashgraph/sdk';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import { Logger, LogLevel } from '../utils/logger';
@@ -242,6 +243,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
     const transaction = new TopicCreateTransaction()
       .setTopicMemo(memo)
+      .setAutoRenewAccountId(AccountId.fromString(userAccountId))
       .setAdminKey(thresholdKey)
       .setSubmitKey(thresholdKey);
 
@@ -250,12 +252,12 @@ export class BrowserHCSClient extends HCS10BaseClient {
       transaction,
       false
     );
-    if (txResponse.error) {
+    if (txResponse?.error) {
       this.logger.error(txResponse.error);
       throw new Error(txResponse.error);
     }
 
-    const resultReceipt = txResponse.result;
+    const resultReceipt = txResponse?.result;
     if (!resultReceipt?.topicId) {
       this.logger.error('Failed to create topic: topicId is null');
       throw new Error('Failed to create topic: topicId is null');
@@ -1324,14 +1326,18 @@ export class BrowserHCSClient extends HCS10BaseClient {
   }
 
   getAccountAndSigner(): GetAccountAndSignerResponse {
-    const accountInfo = this.hwc.getAccountInfo();
-    const accountId = accountInfo.accountId.toString();
-    const signer = this.hwc.dAppConnector.signers.find((s) => {
+    const accountInfo = this?.hwc?.getAccountInfo();
+    const accountId = accountInfo?.accountId?.toString();
+    const signer = this?.hwc?.dAppConnector?.signers?.find((s) => {
       return s.getAccountId().toString() === accountId;
     });
 
     if (!signer) {
-      this.logger.error('Failed to find signer');
+      this.logger.error('Failed to find signer', {
+        accountId,
+        signers: this?.hwc?.dAppConnector?.signers,
+        accountInfo,
+      });
       throw new Error('Failed to find signer');
     }
 

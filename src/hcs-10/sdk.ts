@@ -306,8 +306,10 @@ export class HCS10Client extends HCS10BaseClient {
         transactionId: imageResult.transactionId,
         success: true,
       };
-    } catch (error: any) {
-      this.logger.error(`Error inscribing profile picture: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error inscribing profile picture: ${error.message}`;
+      this.logger.error(logMessage);
       return {
         pfpTopicId: '',
         transactionId: '',
@@ -410,8 +412,10 @@ export class HCS10Client extends HCS10BaseClient {
         transactionId: profileResult.transactionId,
         success: true,
       };
-    } catch (error: any) {
-      this.logger.error(`Error storing HCS-11 profile: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error storing HCS-11 profile: ${error.message}`;
+      this.logger.error(logMessage);
       return {
         profileTopicId: '',
         pfpTopicId: '',
@@ -511,10 +515,10 @@ export class HCS10Client extends HCS10BaseClient {
           this.network,
           this.logger
         );
-      } catch (error) {
-        this.logger.warn(
-          `Error getting exempt keys: ${error}, continuing without exempt keys`
-        );
+      } catch (e: any) {
+        const error = e as Error;
+        const logMessage = `Error getting exempt keys: ${error.message}, continuing without exempt keys`;
+        this.logger.warn(logMessage);
       }
     }
 
@@ -590,10 +594,9 @@ export class HCS10Client extends HCS10BaseClient {
 
       this.logger.info(`Created new connection topic ID: ${connectionTopicId}`);
     } catch (error) {
-      this.logger.error(`Failed to create connection topic: ${error}`);
-      throw new TopicCreationError(
-        `Failed to create connection topic: ${error}`
-      );
+      const logMessage = `Failed to create connection topic: ${error}`;
+      this.logger.error(logMessage);
+      throw new TopicCreationError(logMessage);
     }
 
     const operatorId = `${inboundTopicId}@${accountId}`;
@@ -738,13 +741,10 @@ export class HCS10Client extends HCS10BaseClient {
         } else {
           throw new Error('Failed to inscribe large message content');
         }
-      } catch (error) {
-        this.logger.error('Error inscribing large message:', error);
-        throw new Error(
-          `Failed to handle large message: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`
-        );
+      } catch (error: any) {
+        const logMessage = `Error inscribing large message: ${error.message}`;
+        this.logger.error(logMessage);
+        throw new Error(logMessage);
       }
     }
 
@@ -1174,10 +1174,10 @@ export class HCS10Client extends HCS10BaseClient {
           pfpTopicId,
         },
       };
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to create and register agent: ${error.message}`
-      );
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to create and register agent: ${error.message}`;
+      this.logger.error(logMessage);
       return {
         error: error.message,
         success: false,
@@ -1315,8 +1315,10 @@ export class HCS10Client extends HCS10BaseClient {
         confirmed,
         state,
       };
-    } catch (error: any) {
-      this.logger.error(`Failed to register agent: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to register agent: ${error.message}`;
+      this.logger.error(logMessage);
       return {
         error: error.message,
         success: false,
@@ -1384,9 +1386,11 @@ export class HCS10Client extends HCS10BaseClient {
       }
 
       return InboundTopicType.CONTROLLED;
-    } catch (error: any) {
-      this.logger.error(`Error determining topic type: ${error.message}`);
-      throw new Error(`Failed to determine topic type: ${error.message}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error determining topic type: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
     }
   }
 

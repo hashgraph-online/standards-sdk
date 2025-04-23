@@ -7,6 +7,7 @@ import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import axios from 'axios';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode } from '../services';
+import { WaitForConnectionConfirmationResponse } from './types';
 
 export enum Hcs10MemoType {
   INBOUND = 'inbound',
@@ -396,12 +397,14 @@ export abstract class HCS10BaseClient extends Registration {
       };
       HCS10Cache.getInstance().set(cacheKey, responseToCache);
       return responseToCache;
-    } catch (error) {
-      this.logger.error('Failed to retrieve profile:', error);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to retrieve profile: ${error.message}`;
+      this.logger.error(logMessage);
       return {
         profile: null,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: logMessage,
       };
     }
   }
@@ -427,9 +430,6 @@ export abstract class HCS10BaseClient extends Registration {
     accountId: string,
     disableCache?: boolean
   ): Promise<TopicInfo> {
-    this.logger.info(`Retrieving topics for account: ${accountId}`);
-    const cacheKey = `${accountId}-${this.network}`;
-
     try {
       const profileResponse = await this.retrieveProfile(
         accountId,
@@ -455,8 +455,10 @@ export abstract class HCS10BaseClient extends Registration {
       }
 
       return profileResponse.topicInfo;
-    } catch (error) {
-      this.logger.error('Failed to retrieve topic info:', error);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to retrieve topic info: ${error.message}`;
+      this.logger.error(logMessage);
       throw error;
     }
   }
@@ -485,8 +487,10 @@ export abstract class HCS10BaseClient extends Registration {
             msg.op === 'connection_created' ||
             msg.op === 'message')
       );
-    } catch (error) {
-      this.logger.error('Failed to retrieve outbound messages:', error);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to retrieve outbound messages: ${error.message}`;
+      this.logger.error(logMessage);
       return [];
     }
   }
@@ -512,8 +516,10 @@ export abstract class HCS10BaseClient extends Registration {
         (msg) =>
           msg.op === 'connection_created' && msg.connection_id === connectionId
       );
-    } catch (error) {
-      this.logger.error('Failed to check connection created:', error);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to check connection created: ${error.message}`;
+      this.logger.error(logMessage);
       return false;
     }
   }
@@ -550,17 +556,11 @@ export abstract class HCS10BaseClient extends Registration {
         response.data.text ||
         JSON.stringify(response.data)
       );
-    } catch (error) {
-      this.logger.error(
-        `Error resolving HRL reference: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
-      );
-      throw new Error(
-        `Failed to resolve HRL reference: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
-      );
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error resolving HRL reference: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
     }
   }
 
@@ -682,6 +682,100 @@ export abstract class HCS10BaseClient extends Registration {
   }
 
   /**
+   * Waits for confirmation of a connection request
+   * @param inboundTopicId Inbound topic ID
+   * @param connectionRequestId Connection request ID
+   * @param maxAttempts Maximum number of attempts
+   * @param delayMs Delay between attempts in milliseconds
+   * @returns Connection confirmation details
+   */
+  async waitForConnectionConfirmation(
+    inboundTopicId: string,
+    connectionRequestId: number,
+    maxAttempts = 60,
+    delayMs = 2000,
+    recordConfirmation = true
+  ): Promise<WaitForConnectionConfirmationResponse> {
+    this.logger.info(
+      `Waiting for connection confirmation on inbound topic ${inboundTopicId} for request ID ${connectionRequestId}`
+    );
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      this.logger.info(
+        `Attempt ${attempt + 1}/${maxAttempts} to find connection confirmation`
+      );
+      const messages = await this.mirrorNode.getTopicMessages(inboundTopicId);
+
+      const connectionCreatedMessages = messages.filter(
+        (m) => m.op === 'connection_created'
+      );
+
+      this.logger.info(
+        `Found ${connectionCreatedMessages.length} connection_created messages`
+      );
+
+      if (connectionCreatedMessages.length > 0) {
+        for (const message of connectionCreatedMessages) {
+          if (Number(message.connection_id) === Number(connectionRequestId)) {
+            const confirmationResult = {
+              connectionTopicId: message.connection_topic_id,
+              sequence_number: Number(message.sequence_number),
+              confirmedBy: message.operator_id,
+              memo: message.m,
+            };
+
+            const confirmedByAccountId = this.extractAccountFromOperatorId(
+              confirmationResult.confirmedBy
+            );
+
+            const account = this.getAccountAndSigner();
+            const confirmedByConnectionTopics =
+              await this.retrieveCommunicationTopics(confirmedByAccountId);
+
+            const agentConnectionTopics =
+              await this.retrieveCommunicationTopics(account.accountId);
+
+            this.logger.info(
+              'Connection confirmation found',
+              confirmationResult
+            );
+
+            if (recordConfirmation) {
+              /**
+               * Record's the confirmation of the connection request from the
+               * confirmedBy account to the agent account.
+               */
+              await this.recordOutboundConnectionConfirmation({
+                requestorOutboundTopicId:
+                  confirmedByConnectionTopics.outboundTopic,
+                outboundTopicId: agentConnectionTopics.outboundTopic,
+                connectionRequestId,
+                confirmedRequestId: confirmationResult.sequence_number,
+                connectionTopicId: confirmationResult.connectionTopicId,
+                operatorId: confirmationResult.confirmedBy,
+                memo: confirmationResult.memo || 'Connection confirmed',
+              });
+            }
+
+            return confirmationResult;
+          }
+        }
+      }
+
+      if (attempt < maxAttempts - 1) {
+        this.logger.info(
+          `No matching confirmation found, waiting ${delayMs}ms before retrying...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw new Error(
+      `Connection confirmation not found after ${maxAttempts} attempts for request ID ${connectionRequestId}`
+    );
+  }
+
+  /**
    * Retrieves the operator ID for the current agent
    * @param disableCache Whether to disable caching of the result
    * @returns The operator ID
@@ -797,8 +891,10 @@ export abstract class HCS10BaseClient extends Registration {
       }
 
       return await response.json();
-    } catch (error) {
-      this.logger.error(`Error checking registration status: ${error}`);
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error checking registration status: ${error.message}`;
+      this.logger.error(logMessage);
       throw error;
     }
   }
