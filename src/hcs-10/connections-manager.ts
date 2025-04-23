@@ -797,19 +797,6 @@ export class ConnectionsManager {
   }
 
   /**
-   * Gets a connection by request ID
-   * @param requestId - The request ID to look up
-   * @returns The connection with the given request ID, or undefined if not found
-   */
-  getConnection(requestId: number, inboundTopicId: string): Connection | undefined {
-    return Array.from(this.connections.values()).find(
-      (conn) =>
-        conn.connectionRequestId === requestId ||
-        conn.inboundRequestId === requestId
-    );
-  }
-
-  /**
    * Gets a connection by account ID
    * @param accountId - The account ID to look up
    * @returns The connection with the given account ID, or undefined if not found

@@ -407,11 +407,7 @@ describe('ConnectionsManager', () => {
       expect(connection?.targetAccountId).toBe('0.0.654321');
     });
 
-    it('should get a connection by request ID', () => {
-      const connection = manager.getConnectionByRequestId(1001);
-      expect(connection).toBeDefined();
-      expect(connection?.connectionTopicId).toBe('0.0.222222');
-    });
+
 
     it('should get a connection by account ID', () => {
       const connection = manager.getConnectionByAccountId('0.0.654321');
@@ -423,11 +419,11 @@ describe('ConnectionsManager', () => {
   describe('multiple connections with same account', () => {
     it('should properly handle multiple active connections with the same account ID', () => {
       const commonAccountId = '0.0.654321';
-      
+
       // Set up two established connections with the same account ID but different topic IDs
       const connectionTopicId1 = '0.0.111111';
       const connectionTopicId2 = '0.0.222222';
-      
+
       manager.updateOrAddConnection({
         connectionTopicId: connectionTopicId1,
         targetAccountId: commonAccountId,
@@ -437,7 +433,7 @@ describe('ConnectionsManager', () => {
         created: new Date('2023-01-01'),
         connectionRequestId: 1001,
       });
-      
+
       manager.updateOrAddConnection({
         connectionTopicId: connectionTopicId2,
         targetAccountId: commonAccountId,
@@ -447,23 +443,23 @@ describe('ConnectionsManager', () => {
         created: new Date('2023-01-02'),
         connectionRequestId: 1002,
       });
-      
+
       // Get all connections - should have both
       const allConnections = manager.getAllConnections();
       expect(allConnections.length).toBe(2);
-      
+
       // Get by account ID - should return one of them (first match)
       const singleConnection = manager.getConnectionByAccountId(commonAccountId);
       expect(singleConnection).toBeDefined();
-      
+
       // Get all for this account - should have both
       const accountConnections = manager.getConnectionsByAccountId(commonAccountId);
       expect(accountConnections.length).toBe(2);
-      
+
       // Verify we can get each specifically by topic ID
       const conn1 = manager.getConnectionByTopicId(connectionTopicId1);
       const conn2 = manager.getConnectionByTopicId(connectionTopicId2);
-      
+
       expect(conn1).toBeDefined();
       expect(conn2).toBeDefined();
       expect(conn1?.connectionRequestId).toBe(1001);
