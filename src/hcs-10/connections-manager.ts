@@ -866,6 +866,13 @@ export class ConnectionsManager implements IConnectionsManager {
       (msg) => msg.op === 'connection_request' && msg.sequence_number
     );
 
+    const confirmationMessages = messages.filter(
+      (msg) =>
+        msg.op === 'connection_created' &&
+        msg.connection_topic_id &&
+        msg.connection_id
+    );
+
     for (const msg of requestMessages) {
       const sequenceNumber = msg.sequence_number;
       const operatorId = msg.operator_id || '';
@@ -882,6 +889,17 @@ export class ConnectionsManager implements IConnectionsManager {
       }
 
       const needsConfirmKey = `inb-${sequenceNumber}:${operatorId}`;
+
+      const hasCreated = confirmationMessages.some(
+        (m) => m.connection_id === sequenceNumber
+      );
+
+      if (hasCreated) {
+        this.logger.debug(
+          `Skipping request from ${requestorAccountId} as it has already been confirmed`
+        );
+        continue;
+      }
 
       if (!this.connections.has(needsConfirmKey)) {
         this.connections.set(needsConfirmKey, {
@@ -901,12 +919,7 @@ export class ConnectionsManager implements IConnectionsManager {
       }
     }
 
-    const confirmationMessages = messages.filter(
-      (msg) =>
-        msg.op === 'connection_created' &&
-        msg.connection_topic_id &&
-        msg.connection_id
-    );
+
 
     for (const msg of confirmationMessages) {
       const sequenceNumber = msg.connection_id!;
