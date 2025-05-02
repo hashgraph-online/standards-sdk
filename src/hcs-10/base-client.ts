@@ -8,6 +8,7 @@ import axios from 'axios';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode } from '../services';
 import { WaitForConnectionConfirmationResponse } from './types';
+import { HRLResolver } from '../utils/hrl-resolver';
 
 export enum Hcs10MemoType {
   INBOUND = 'inbound',
@@ -526,39 +527,71 @@ export abstract class HCS10BaseClient extends Registration {
 
   /**
    * Gets message content, resolving any HRL references if needed
-   * @param data The message data which might be an HRL reference
+   * @param data The data string that may contain an HRL reference
+   * @param forceRaw Whether to force returning raw binary data
    * @returns The resolved content
    */
-  async getMessageContent(data: string): Promise<string> {
-    const hrlPattern = /^hcs:\/\/(\d+)\/([0-9.]+)$/;
-    const match = data.match(hrlPattern);
-
-    if (!match) {
+  async getMessageContent(
+    data: string,
+    forceRaw = false
+  ): Promise<string | ArrayBuffer> {
+    if (!data.match(/^hcs:\/\/(\d+)\/([0-9]+\.[0-9]+\.[0-9]+)$/)) {
       return data;
     }
 
-    const [_, standard, topicId] = match;
-
-    this.logger.info(
-      `Resolving HRL reference: standard=${standard}, topicId=${topicId}`
-    );
-
     try {
-      const cdnUrl = `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${this.network}`;
-      const response = await axios.get(cdnUrl);
+      const resolver = new HRLResolver(this.logger.getLevel());
 
-      if (!response.data) {
-        throw new Error(`Failed to fetch content from topic: ${topicId}`);
+      if (!resolver.isValidHRL(data)) {
+        return data;
       }
 
-      return (
-        response.data.content ||
-        response.data.text ||
-        JSON.stringify(response.data)
-      );
+      const result = await resolver.resolveHRL(data, {
+        network: this.network as 'mainnet' | 'testnet',
+        returnRaw: forceRaw,
+      });
+
+      return result.content;
     } catch (e: any) {
       const error = e as Error;
       const logMessage = `Error resolving HRL reference: ${error.message}`;
+      this.logger.error(logMessage);
+      throw new Error(logMessage);
+    }
+  }
+
+  /**
+   * Gets message content with its content type, resolving any HRL references if needed
+   * @param data The data string that may contain an HRL reference
+   * @param forceRaw Whether to force returning raw binary data
+   * @returns The resolved content along with content type information
+   */
+  async getMessageContentWithType(
+    data: string,
+    forceRaw = false
+  ): Promise<{
+    content: string | ArrayBuffer;
+    contentType: string;
+    isBinary: boolean;
+  }> {
+    if (!data.match(/^hcs:\/\/(\d+)\/([0-9]+\.[0-9]+\.[0-9]+)$/)) {
+      return {
+        content: data,
+        contentType: 'text/plain',
+        isBinary: false,
+      };
+    }
+
+    try {
+      const resolver = new HRLResolver(this.logger.getLevel());
+
+      return await resolver.getContentWithType(data, {
+        network: this.network as 'mainnet' | 'testnet',
+        returnRaw: forceRaw,
+      });
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Error resolving HRL reference with type: ${error.message}`;
       this.logger.error(logMessage);
       throw new Error(logMessage);
     }
