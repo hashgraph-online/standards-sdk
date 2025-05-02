@@ -30,18 +30,15 @@ import {
   HCS11Client,
   AgentMetadata as AIAgentMetadata,
   InscribeProfileResponse,
-  HCS11Profile,
-  AIAgentProfile,
-  PersonalProfile,
   SocialLink,
   SocialPlatform,
 } from '../hcs-11';
-import { ProgressReporter, ProgressData } from '../utils/progress-reporter';
+import { ProgressReporter } from '../utils/progress-reporter';
 import { Transaction } from '@hashgraph/sdk';
 import { AgentBuilder } from '../hcs-11/agent-builder';
 import { PersonBuilder } from '../hcs-11/person-builder';
 import { Hcs10MemoType } from './base-client';
-import { inscribe, inscribeWithSigner } from '../inscribe/inscriber';
+import { inscribeWithSigner } from '../inscribe/inscriber';
 
 const isBrowser = typeof window !== 'undefined';
 

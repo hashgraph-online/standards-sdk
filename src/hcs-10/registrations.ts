@@ -269,7 +269,9 @@ export abstract class Registration {
   ): Promise<RegistrationSearchResult> {
     try {
       const queryParams = new URLSearchParams();
-      options.tags?.forEach((tag) => queryParams.append('tags', tag));
+      options.tags?.forEach((tag) =>
+        queryParams.append('tags', tag.toString())
+      );
       if (options.accountId) {
         queryParams.append('accountId', options.accountId);
       }
