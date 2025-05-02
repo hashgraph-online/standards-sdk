@@ -1,6 +1,6 @@
 import { PrivateKey } from '@hashgraph/sdk';
 import { LogLevel } from '../utils/logger';
-import { AgentMetadata } from '../hcs-11';
+import { AIAgentCapability, AIAgentProfile } from '../hcs-11';
 import { NetworkType } from '../utils/types';
 
 export interface ValidationError {
@@ -135,7 +135,7 @@ export interface AgentRegistrationResult {
   confirmed?: boolean;
   state?: AgentCreationState;
   metadata?: {
-    capabilities?: number[];
+    capabilities?: AIAgentCapability[];
     [key: string]: any;
   };
 }
@@ -158,31 +158,6 @@ export interface AgentCreationState {
   agentMetadata?: Record<string, any>;
 }
 
-export interface RegistrationSearchOptions {
-  tags?: string[];
-  accountId?: string;
-  network?: string;
-}
-
-export interface RegistrationSearchResult {
-  registrations: Array<{
-    id: string;
-    transaction_id: string;
-    status: 'pending' | 'success' | 'failed';
-    network: string;
-    account_id: string;
-    inbound_topic_id: string;
-    outbound_topic_id: string;
-    operator_id: string;
-    metadata: AgentMetadata;
-    registry_topic_id: string;
-    created_at: string;
-    updated_at: string;
-  }>;
-  error?: string;
-  success: boolean;
-}
-
 export type RegistrationResult = {
   transaction?: any;
   transactionId?: string;
@@ -192,45 +167,34 @@ export type RegistrationResult = {
 };
 
 export interface RegistrationSearchOptions {
-  tags?: string[];
+  tags?: AIAgentCapability[];
   accountId?: string;
   network?: string;
 }
 
+interface Registration {
+  id: string;
+  transactionId: string;
+  status: 'pending' | 'success' | 'failed';
+  network: string;
+  accountId: string;
+  inboundTopicId: string;
+  outboundTopicId: string;
+  operatorId: string;
+  metadata: AIAgentProfile;
+  registryTopicId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RegistrationSearchResult {
-  registrations: Array<{
-    id: string;
-    transaction_id: string;
-    status: 'pending' | 'success' | 'failed';
-    network: string;
-    account_id: string;
-    inbound_topic_id: string;
-    outbound_topic_id: string;
-    operator_id: string;
-    metadata: AgentMetadata;
-    registry_topic_id: string;
-    created_at: string;
-    updated_at: string;
-  }>;
+  registrations: Registration[];
   error?: string;
   success: boolean;
 }
 
 export interface RegistrationsApiResponse {
-  registrations: Array<{
-    id: string;
-    transaction_id: string;
-    status: 'pending' | 'success' | 'failed';
-    network: string;
-    account_id: string;
-    inbound_topic_id: string;
-    outbound_topic_id: string;
-    operator_id: string;
-    metadata: AgentMetadata;
-    registry_topic_id: string;
-    created_at: string;
-    updated_at: string;
-  }>;
+  registrations: Registration[];
   transaction_id?: string;
   transaction?: string;
   error?: string;
