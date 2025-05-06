@@ -14,6 +14,9 @@ import {
   AccountId,
   CustomFixedFee,
   TokenId,
+  ScheduleCreateTransaction,
+  TransactionId,
+  Timestamp,
 } from '@hashgraph/sdk';
 import {
   PayloadSizeError,
@@ -40,6 +43,7 @@ import {
   AgentCreationState,
   RegistrationProgressCallback,
   InscribePfpResponse,
+  TransactMessage,
 } from './types';
 import {
   HCS11Client,
@@ -56,6 +60,7 @@ import { Hcs10MemoType } from './base-client';
 import { AgentBuilder } from '../hcs-11/agent-builder';
 import { inscribe } from '../inscribe/inscriber';
 import { TokenFeeConfig } from '../fees/types';
+import { addSeconds } from 'date-fns';
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -1408,5 +1413,154 @@ export class HCS10Client extends HCS10BaseClient {
    */
   getOperatorAccountId(): string | null {
     return this.client.operatorAccountId?.toString() ?? null;
+  }
+
+  /**
+   * Creates a scheduled transaction from a transaction object
+   * @param transaction The transaction to schedule
+   * @param memo Optional memo to include with the scheduled transaction
+   * @param expirationTime Optional expiration time in seconds from now
+   * @returns Object with schedule ID and transaction ID
+   */
+  private async createScheduledTransaction(
+    transaction: Transaction,
+    memo?: string,
+    expirationTime?: number
+  ): Promise<{
+    scheduleId: string;
+    transactionId: string;
+  }> {
+    this.logger.info('Creating scheduled transaction');
+
+    const scheduleTransaction = new ScheduleCreateTransaction()
+      .setScheduledTransaction(transaction);
+
+    if (memo) {
+      scheduleTransaction.setScheduleMemo(memo);
+    }
+
+    if (expirationTime) {
+      const expirationDate = addSeconds(new Date(), expirationTime);
+      const timestamp = Timestamp.fromDate(expirationDate);
+      scheduleTransaction.setExpirationTime(timestamp);
+    }
+
+    this.logger.debug('Executing schedule create transaction');
+    const scheduleResponse = await scheduleTransaction.execute(this.client);
+    const scheduleReceipt = await scheduleResponse.getReceipt(this.client);
+
+    if (!scheduleReceipt.scheduleId) {
+      this.logger.error('Failed to create scheduled transaction: scheduleId is null');
+      throw new Error('Failed to create scheduled transaction: scheduleId is null');
+    }
+
+    const scheduleId = scheduleReceipt.scheduleId.toString();
+    const transactionId = scheduleResponse.transactionId.toString();
+
+    this.logger.info(
+      `Scheduled transaction created successfully: ${scheduleId}`
+    );
+
+    return {
+      scheduleId,
+      transactionId
+    };
+  }
+
+  /**
+   * Sends a transact operation on a connection topic
+   * @param connectionTopicId Connection topic ID
+   * @param scheduleId Schedule ID of the scheduled transaction
+   * @param transactionId Transaction ID of the schedule create transaction
+   * @param description Human-readable description of the transaction
+   * @param submitKey Optional submit key
+   * @param options Optional parameters including timestamp and memo
+   * @returns Transaction receipt
+   */
+  private async sendTransactOperation(
+    connectionTopicId: string,
+    scheduleId: string,
+    transactionId: string,
+    description: string,
+    submitKey?: PrivateKey,
+    options?: {
+      timestamp?: number;
+      memo?: string;
+    }
+  ): Promise<TransactionReceipt> {
+    const submissionCheck = await this.canSubmitToTopic(
+      connectionTopicId,
+      this.client.operatorAccountId?.toString() || ''
+    );
+
+    const operatorId = await this.getOperatorId();
+
+    const payload = {
+      p: 'hcs-10',
+      op: 'transact',
+      operator_id: operatorId,
+      schedule_id: scheduleId,
+      tx_id: transactionId,
+      description,
+      timestamp: options?.timestamp || Math.floor(Date.now() / 1000),
+      m: options?.memo,
+    };
+
+    this.logger.info('Submitting transact operation to connection topic', payload);
+    return await this.submitPayload(
+      connectionTopicId,
+      payload,
+      submitKey,
+      submissionCheck.requiresFee
+    );
+  }
+
+  /**
+   * Creates and sends a transact operation in one call
+   * @param connectionTopicId Connection topic ID for sending the transact operation
+   * @param transaction The transaction to schedule
+   * @param description Human-readable description of the transaction
+   * @param options Optional parameters for both operations
+   * @returns Object with schedule details and transaction receipt
+   */
+  async sendTransaction(
+    connectionTopicId: string,
+    transaction: Transaction,
+    description: string,
+    options?: {
+      scheduleMemo?: string;
+      expirationTime?: number;
+      submitKey?: PrivateKey;
+      operationMemo?: string;
+    }
+  ): Promise<{
+    scheduleId: string;
+    transactionId: string;
+    receipt: TransactionReceipt;
+  }> {
+    this.logger.info('Creating scheduled transaction and sending transact operation');
+
+    const { scheduleId, transactionId } = await this.createScheduledTransaction(
+      transaction,
+      options?.scheduleMemo,
+      options?.expirationTime
+    );
+
+    const receipt = await this.sendTransactOperation(
+      connectionTopicId,
+      scheduleId,
+      transactionId,
+      description,
+      options?.submitKey,
+      {
+        memo: options?.operationMemo
+      }
+    );
+
+    return {
+      scheduleId,
+      transactionId,
+      receipt
+    };
   }
 }
