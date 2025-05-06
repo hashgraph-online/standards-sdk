@@ -96,6 +96,16 @@ export interface InscribePfpResponse {
   error?: string;
 }
 
+export interface TransactMessage {
+  operator_id: string;
+  schedule_id: string;
+  tx_id: string;
+  description: string;
+  timestamp: number;
+  memo?: string;
+  sequence_number: number;
+}
+
 export interface StoreHCS11ProfileResponse {
   profileTopicId: string;
   pfpTopicId?: string;

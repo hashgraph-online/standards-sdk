@@ -9,6 +9,7 @@ import {
   Connection,
 } from '../../src';
 import { getOrCreateBob } from './utils.js';
+import { Hbar, TransferTransaction } from '@hashgraph/sdk';
 
 const logger = new Logger({
   module: 'BobPollingAgent',
@@ -237,7 +238,7 @@ async function loadConnectionsUsingManager(agent: {
       connection.created.getTime() > lastTimestamp.getTime()
     ) {
       lastTimestamp = connection.created;
-      }
+    }
     if (
       connection.lastActivity &&
       connection.lastActivity.getTime() > lastTimestamp.getTime()
@@ -305,10 +306,12 @@ async function handleConnectionRequest(
       break;
     }
   }
-  
+
   if (existingConnection) {
     // Make sure we have a valid topic ID, not a reference key
-    if (existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+    if (
+      existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)
+    ) {
       logger.warn(
         `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConnection.connectionTopicId}`
       );
@@ -416,6 +419,20 @@ function extractAllText(obj: any): string {
   return Object.values(obj).map(extractAllText).filter(Boolean).join(' ');
 }
 
+/**
+ * Creates a small transfer transaction that requires approval from both accounts
+ */
+function createApprovalTransaction(
+  senderAccountId: string,
+  bobAccountId: string,
+  amount: number
+): TransferTransaction {
+  return new TransferTransaction()
+    .addHbarTransfer(senderAccountId, Hbar.fromTinybars(-amount / 2))
+    .addHbarTransfer(bobAccountId, Hbar.fromTinybars(-amount / 2))
+    .addHbarTransfer('0.0.800', Hbar.fromTinybars(amount));
+}
+
 async function handleStandardMessage(
   agent: {
     client: HCS10Client;
@@ -492,6 +509,60 @@ async function handleStandardMessage(
     response = `Here's your ${artType} ASCII art:\n${generateASCIIArt(
       artType
     )}`;
+  } else if (
+    lowerContent.startsWith('transact:') ||
+    lowerContent.startsWith('transfer:')
+  ) {
+    const commandParts = messageContent
+      .substring(messageContent.indexOf(':') + 1)
+      .trim()
+      .split(' ');
+
+    let amount = 10000000;
+    if (commandParts.length > 0 && !isNaN(Number(commandParts[0]))) {
+      const specifiedAmount = Number(commandParts[0]);
+      amount = Math.floor(specifiedAmount * 100000000);
+    }
+
+    if (amount < 1000000 || amount > 10000000000) {
+      response = `⚠️ Please specify an amount between 0.01 and 10 HBAR for the transaction.`;
+    } else {
+      try {
+        const senderAccountId =
+          extractAccountId(message.operator_id || '') || '';
+        if (!senderAccountId) {
+          response = `⚠️ Couldn't determine your account ID from the message.`;
+        } else {
+          const transaction = createApprovalTransaction(
+            senderAccountId,
+            agent.accountId,
+            amount
+          );
+
+          const description = `Transfer ${
+            amount / 100000000
+          } HBAR to treasury (both signatures required)`;
+
+          await agent.client.sendTransaction(
+            connectionTopicId,
+            transaction,
+            description,
+            {
+              scheduleMemo: `Bob & ${senderAccountId} transaction for ${
+                amount / 100000000
+              } HBAR`,
+              expirationTime: 3600,
+              operationMemo: `This transaction requires approval from ${senderAccountId} and Bob. Sign with ScheduleSignTransaction().setScheduleId(SCHEDULE_ID).execute(client)`,
+            }
+          );
+
+          return;
+        }
+      } catch (error) {
+        logger.error(`Error creating transaction: ${error}`);
+        response = `⚠️ Sorry, I encountered an error creating the transaction: ${error}`;
+      }
+    }
   } else if (
     lowerContent.startsWith('joke') ||
     lowerContent.includes('tell me a joke')
@@ -599,6 +670,9 @@ TEXT UTILITIES:
 - reverse: [text] - Reverse any text
 - morse: [text] - Convert text to Morse code
 
+HEDERA FEATURES:
+- transact: [amount] - Create a scheduled transaction that requires approval from both of us (amount in HBAR)
+
 Just send a message with one of these commands, or simply chat with me!`;
     } else if (
       lowerContent.includes('who are you') ||
@@ -648,7 +722,15 @@ You can ask me to perform various tasks by typing "help" to see all available co
 
   try {
     logger.info(`Sending response to topic ${connectionTopicId}`);
-    await agent.client.sendMessage(connectionTopicId, response, 'Bob response');
+    const responseWithReference = message.sequence_number
+      ? `[Reply to #${message.sequence_number}] ${response}`
+      : response;
+
+    await agent.client.sendMessage(
+      connectionTopicId,
+      responseWithReference,
+      `Bob response to message #${message.sequence_number}`
+    );
   } catch (error) {
     logger.error(
       `Failed to send response to topic ${connectionTopicId}: ${error}`
@@ -670,10 +752,8 @@ async function monitorTopics(agent: {
   const processedMessages = new Map<string, Set<number>>();
   processedMessages.set(agent.inboundTopicId, new Set<number>());
 
-  // Only monitor actual connection topics (not reference keys)
   const connectionTopics = new Set<string>();
   for (const [topicId, connection] of connections.entries()) {
-    // Only add topic IDs that follow the 0.0.number format
     if (topicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
       connectionTopics.add(topicId);
     } else {
@@ -682,40 +762,41 @@ async function monitorTopics(agent: {
   }
 
   logger.info('Pre-populating processed messages for existing connections...');
-  
+
   for (const topicId of connectionTopics) {
     const initialProcessedSet = new Set<number>();
     processedMessages.set(topicId, initialProcessedSet);
-    
+
     const connection = connections.get(topicId);
     if (!connection) continue;
-    
+
     try {
-      const history = await agent.client.getMessageStream(topicId);
-      
-      for (const msg of history.messages) {
-        if (
-          typeof msg.sequence_number === 'number' &&
-          msg.sequence_number > 0 &&
-          msg.created
-        ) {
-          if (
-            connection.lastActivity &&
-            msg.created.getTime() <= connection.lastActivity.getTime()
-          ) {
-            initialProcessedSet.add(msg.sequence_number);
-            logger.debug(
-              `Pre-populated message #${msg.sequence_number} on topic ${topicId} based on timestamp`
-            );
-          } else if (
-            msg.operator_id &&
-            msg.operator_id.endsWith(`@${agent.accountId}`)
+      const lastOperatorActivity =
+        await connectionManager.getLastOperatorActivity(
+          topicId,
+          agent.accountId
+        );
+
+      if (lastOperatorActivity) {
+        const history = await agent.client.getMessageStream(topicId);
+
+        for (const msg of history.messages) {
+          if (Number(msg.sequence_number) > 0 && msg.created) {
+            if (msg.created.getTime() <= lastOperatorActivity.getTime()) {
+              initialProcessedSet.add(msg.sequence_number);
+              logger.debug(
+                `Pre-populated message #${msg.sequence_number} on topic ${topicId} based on last operator activity`
+              );
+            } else if (
+              msg.operator_id &&
+              msg.operator_id.endsWith(`@${agent.accountId}`)
             ) {
               initialProcessedSet.add(msg.sequence_number);
             }
           }
         }
-      
+      }
+
       logger.debug(
         `Pre-populated ${initialProcessedSet.size} messages for topic ${topicId}`
       );
@@ -745,13 +826,13 @@ async function monitorTopics(agent: {
     try {
       await connectionManager.fetchConnectionData(agent.accountId);
       const updatedConnections = connectionManager.getAllConnections();
-      
+
       // Update our local map of connections
       connections.clear();
       for (const connection of updatedConnections) {
         connections.set(connection.connectionTopicId, connection);
       }
-      
+
       // Update connection topics set - only use valid topic IDs
       const currentTrackedTopics = new Set<string>();
       for (const [topicId, _] of connections.entries()) {
@@ -759,9 +840,9 @@ async function monitorTopics(agent: {
           currentTrackedTopics.add(topicId);
         }
       }
-      
+
       const previousTrackedTopics = new Set(connectionTopics);
-      
+
       // Add new topics to track
       for (const topicId of currentTrackedTopics) {
         if (!previousTrackedTopics.has(topicId)) {
@@ -776,7 +857,7 @@ async function monitorTopics(agent: {
           );
         }
       }
-      
+
       // Remove closed topics
       for (const topicId of previousTrackedTopics) {
         if (!currentTrackedTopics.has(topicId)) {
@@ -829,17 +910,21 @@ async function monitorTopics(agent: {
                 break;
               }
             }
-            
+
             if (existingConnection) {
               // Make sure we have a valid topic ID, not a reference key
-              if (existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+              if (
+                existingConnection.connectionTopicId.match(
+                  /^[0-9]+\.[0-9]+\.[0-9]+$/
+                )
+              ) {
                 logger.debug(
                   `Skipping already handled connection request #${message.sequence_number}. Connection exists with topic: ${existingConnection.connectionTopicId}`
                 );
                 continue;
               }
             }
-            
+
             logger.info(
               `Processing inbound connection request #${message.sequence_number}`
             );
@@ -891,9 +976,13 @@ async function monitorTopics(agent: {
             return seqA - seqB;
           });
 
-          const connection = connections.get(topicId);
-          const lastActivityTimestamp =
-            connection?.lastActivity?.getTime() || 0;
+          const lastOperatorActivity =
+            await connectionManager.getLastOperatorActivity(
+              topicId,
+              agent.accountId
+            );
+
+          const lastActivityTimestamp = lastOperatorActivity?.getTime() || 0;
 
           for (const message of messages.messages) {
             if (
