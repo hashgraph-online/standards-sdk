@@ -1,6 +1,7 @@
 import { Logger, LoggerOptions } from '../utils/logger';
 import { HCSMessage, HCS10BaseClient } from './base-client';
 import { AIAgentProfile } from '../hcs-11';
+import { TransactMessage } from './types';
 
 /**
  * Represents a connection request between agents
@@ -182,6 +183,40 @@ export interface IConnectionsManager {
     inboundTopicId: string,
     requestId: number
   ): boolean;
+
+  /**
+   * Gets pending transactions from a specific connection
+   * @param connectionTopicId - The connection topic ID to check for transactions
+   * @param limit - Optional limit for the number of transactions to return
+   * @returns Array of pending transaction messages sorted by timestamp (newest first)
+   */
+  getPendingTransactions(
+    connectionTopicId: string,
+    limit?: number
+  ): Promise<TransactMessage[]>;
+
+  /**
+   * Gets the status of a scheduled transaction
+   * @param scheduleId - The schedule ID to check
+   * @returns Status of the scheduled transaction
+   */
+  getScheduledTransactionStatus(scheduleId: string): Promise<{
+    executed: boolean;
+    executedTimestamp?: string;
+    deleted: boolean;
+    expirationTime?: string;
+  }>;
+
+  /**
+   * Gets the timestamp of the last message sent by the specified operator on the connection topic
+   * @param connectionTopicId - The topic ID to check
+   * @param operatorAccountId - The account ID of the operator
+   * @returns The timestamp of the last message or undefined if no messages found
+   */
+  getLastOperatorActivity(
+    connectionTopicId: string,
+    operatorAccountId: string
+  ): Promise<Date | undefined>;
 }
 
 /**
@@ -919,8 +954,6 @@ export class ConnectionsManager implements IConnectionsManager {
       }
     }
 
-
-
     for (const msg of confirmationMessages) {
       const sequenceNumber = msg.connection_id!;
       const connectionTopicId = msg.connection_topic_id!;
@@ -1073,7 +1106,7 @@ export class ConnectionsManager implements IConnectionsManager {
       (conn) => {
         return (
           conn.isPending &&
-          (!this.filterPendingAccountIds.has(conn.targetAccountId))
+          !this.filterPendingAccountIds.has(conn.targetAccountId)
         );
       }
     );
@@ -1111,7 +1144,7 @@ export class ConnectionsManager implements IConnectionsManager {
     return Array.from(this.connections.values()).filter(
       (conn) =>
         conn.needsConfirmation &&
-        (!this.filterPendingAccountIds.has(conn.targetAccountId))
+        !this.filterPendingAccountIds.has(conn.targetAccountId)
     );
   }
 
@@ -1240,5 +1273,97 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     return found;
+  }
+
+  /**
+   * Gets pending transactions from a specific connection
+   * @param connectionTopicId - The connection topic ID to check for transactions
+   * @param limit - Optional limit for the number of transactions to return
+   * @returns Array of pending transaction messages sorted by timestamp (newest first)
+   */
+  async getPendingTransactions(
+    connectionTopicId: string,
+    limit?: number
+  ): Promise<TransactMessage[]> {
+    try {
+      const transactMessages = await this.baseClient.getTransactionRequests(
+        connectionTopicId,
+        limit
+      );
+
+      const pendingTransactions: TransactMessage[] = [];
+
+      for (const transaction of transactMessages) {
+        try {
+          const status =
+            await this.baseClient.mirrorNode.getScheduledTransactionStatus(
+              transaction.schedule_id
+            );
+
+          if (!status.executed && !status.deleted) {
+            pendingTransactions.push(transaction);
+          }
+        } catch (error) {
+          this.logger.error(`Error checking transaction status: ${error}`);
+          pendingTransactions.push(transaction);
+        }
+      }
+
+      return pendingTransactions;
+    } catch (error) {
+      this.logger.error(`Error getting pending transactions: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Gets the status of a scheduled transaction
+   * @param scheduleId - The schedule ID to check
+   * @returns Status of the scheduled transaction
+   */
+  async getScheduledTransactionStatus(scheduleId: string): Promise<{
+    executed: boolean;
+    executedTimestamp?: string;
+    deleted: boolean;
+    expirationTime?: string;
+  }> {
+    return this.baseClient.mirrorNode.getScheduledTransactionStatus(scheduleId);
+  }
+
+  /**
+   * Gets the timestamp of the last message sent by the specified operator on the connection topic
+   * @param connectionTopicId - The topic ID to check
+   * @param operatorAccountId - The account ID of the operator
+   * @returns The timestamp of the last message or undefined if no messages found
+   */
+  async getLastOperatorActivity(
+    connectionTopicId: string,
+    operatorAccountId: string
+  ): Promise<Date | undefined> {
+    try {
+      const { messages } = await this.baseClient.getMessageStream(
+        connectionTopicId
+      );
+
+      const operatorMessages = messages.filter(
+        (msg) =>
+          msg.operator_id &&
+          msg.operator_id.includes(operatorAccountId) &&
+          msg.created
+      );
+
+      if (operatorMessages.length === 0) {
+        return undefined;
+      }
+
+      operatorMessages.sort(
+        (a, b) => b.created!.getTime() - a.created!.getTime()
+      );
+
+      return operatorMessages[0].created;
+    } catch (error) {
+      this.logger.error(`Error getting last operator activity: ${error}`);
+      return undefined;
+    }
   }
 }

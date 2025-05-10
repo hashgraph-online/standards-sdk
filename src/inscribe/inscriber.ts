@@ -430,7 +430,7 @@ function validateHashinalMetadata(metadata: any, logger: any): void {
   });
 }
 
-async function waitForInscriptionConfirmation(
+export async function waitForInscriptionConfirmation(
   sdk: InscriptionSDK,
   transactionId: string,
   maxAttempts: number = 30,

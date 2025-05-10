@@ -184,3 +184,30 @@ export interface TokenInfoResponse {
   wipe_key: Key | null;
   custom_fees?: CustomFees;
 }
+
+export interface ScheduleInfo {
+  admin_key: AdminKey;
+  consensus_timestamp: string;
+  creator_account_id: string;
+  deleted: boolean;
+  executed_timestamp: string;
+  expiration_time: string;
+  memo: string;
+  payer_account_id: string;
+  schedule_id: string;
+  signatures: Signature[];
+  transaction_body: string;
+  wait_for_expiry: boolean;
+}
+
+export interface AdminKey {
+  _type: string;
+  key: string;
+}
+
+export interface Signature {
+  consensus_timestamp: string;
+  public_key_prefix: string;
+  signature: string;
+  type: string;
+}

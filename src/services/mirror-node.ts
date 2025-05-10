@@ -7,6 +7,7 @@ import {
   AccountResponse,
   CustomFees,
   HBARPrice,
+  ScheduleInfo,
   TokenInfoResponse,
   TopicMessagesResponse,
   TopicResponse,
@@ -89,7 +90,9 @@ export class HederaMirrorNode {
         }
       } catch (e: any) {
         const error = e as Error;
-        const logMessage = `Error getting account memo (attempt ${attempt + 1}): ${error.message}`;
+        const logMessage = `Error getting account memo (attempt ${
+          attempt + 1
+        }): ${error.message}`;
         this.logger.error(logMessage);
 
         if (attempt < maxRetries - 1) {
@@ -407,6 +410,67 @@ export class HederaMirrorNode {
       const logMessage = `Error comparing Ed25519 key: ${error.message}`;
       this.logger.debug(logMessage);
       return false;
+    }
+  }
+
+  /**
+   * Retrieves information about a scheduled transaction
+   * @param scheduleId The ID of the scheduled transaction
+   * @returns A promise that resolves to the scheduled transaction information
+   */
+  async getScheduleInfo(scheduleId: string): Promise<ScheduleInfo | null> {
+    try {
+      this.logger.info(
+        `Getting information for scheduled transaction ${scheduleId}`
+      );
+
+      const url = `${this.baseUrl}/api/v1/schedules/${scheduleId}`;
+      const response = await axios.get(url);
+
+      if (response.data) {
+        return response.data as ScheduleInfo;
+      }
+
+      return null;
+    } catch (error: any) {
+      this.logger.error(`Error fetching schedule info: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Checks the status of a scheduled transaction
+   * @param scheduleId The schedule ID to check
+   * @returns Status of the scheduled transaction
+   */
+  public async getScheduledTransactionStatus(scheduleId: string): Promise<{
+    executed: boolean;
+    executedDate?: Date;
+    deleted: boolean;
+  }> {
+    try {
+      this.logger.info(
+        `Checking status of scheduled transaction ${scheduleId}`
+      );
+
+      const scheduleInfo = await this.getScheduleInfo(scheduleId);
+
+      if (!scheduleInfo) {
+        throw new Error(`Schedule ${scheduleId} not found`);
+      }
+
+      return {
+        executed: Boolean(scheduleInfo.executed_timestamp),
+        executedDate: scheduleInfo.executed_timestamp
+          ? new Date(Number(scheduleInfo.executed_timestamp) * 1000)
+          : undefined,
+        deleted: scheduleInfo.deleted || false,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error checking scheduled transaction status: ${error}`
+      );
+      throw error;
     }
   }
 }
