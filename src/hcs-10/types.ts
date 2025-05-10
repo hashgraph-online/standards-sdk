@@ -53,11 +53,6 @@ export interface Message {
   message: string;
   sequence_number?: number;
 }
-
-export interface Links {
-  next: string;
-}
-
 export interface ApiResponse {
   messages?: any[];
   links?: {
