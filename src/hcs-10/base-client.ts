@@ -37,8 +37,8 @@ export interface HCSMessage {
     | 'connection_created'
     | 'message'
     | 'close_connection'
-    | 'transact';
-  data: string;
+    | 'transaction';
+  data?: string;
   created?: Date;
   consensus_timestamp?: string;
   m?: string;
@@ -55,9 +55,6 @@ export interface HCSMessage {
   reason?: string;
   close_method?: string;
   schedule_id?: string;
-  tx_id?: string;
-  description?: string;
-  timestamp?: number;
 }
 
 export interface ProfileResponse {
@@ -131,7 +128,7 @@ export abstract class HCS10BaseClient extends Registration {
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId);
-      const validOps = ['message', 'close_connection', 'transact'];
+      const validOps = ['message', 'close_connection', 'transaction'];
 
       const filteredMessages = messages.filter((msg) => {
         if (msg.p !== 'hcs-10' || !validOps.includes(msg.op)) {
@@ -152,12 +149,10 @@ export abstract class HCS10BaseClient extends Registration {
           }
         }
 
-        if (msg.op === 'transact') {
+        if (msg.op === 'transaction') {
           if (
             !msg.operator_id ||
-            !msg.schedule_id ||
-            !msg.tx_id ||
-            !msg.description
+            !msg.schedule_id
           ) {
             return false;
           }
@@ -1007,18 +1002,21 @@ export abstract class HCS10BaseClient extends Registration {
       messages
         .filter(
           (m) =>
-            m.op === 'transact' && m.schedule_id && m.tx_id && m.description
+            m.op === 'transaction' && m.schedule_id
         )
         .map((m) => ({
           operator_id: m.operator_id || '',
           schedule_id: m.schedule_id || '',
-          tx_id: m.tx_id || '',
-          description: m.description || '',
-          timestamp: Number(m.created?.getTime()),
+          data: m.data || '',
           memo: m.m,
           sequence_number: Number(m.sequence_number),
-        })) as TransactMessage[]
-    ).sort((a, b) => b.timestamp - a.timestamp);
+        })) as unknown as TransactMessage[]
+    ).sort((a, b) => {
+      if (a.sequence_number && b.sequence_number) {
+        return b.sequence_number - a.sequence_number;
+      }
+      return 0;
+    });
 
     const result = limit
       ? transactOperations.slice(0, limit)

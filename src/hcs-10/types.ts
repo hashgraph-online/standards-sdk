@@ -95,7 +95,7 @@ export interface TransactMessage {
   operator_id: string;
   schedule_id: string;
   tx_id: string;
-  description: string;
+  data?: string;
   timestamp: number;
   memo?: string;
   sequence_number: number;
