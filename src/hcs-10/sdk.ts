@@ -1432,8 +1432,8 @@ export class HCS10Client extends HCS10BaseClient {
   }> {
     this.logger.info('Creating scheduled transaction');
 
-    const scheduleTransaction = new ScheduleCreateTransaction()
-      .setScheduledTransaction(transaction);
+    const scheduleTransaction =
+      new ScheduleCreateTransaction().setScheduledTransaction(transaction);
 
     if (memo) {
       scheduleTransaction.setScheduleMemo(memo);
@@ -1450,8 +1450,12 @@ export class HCS10Client extends HCS10BaseClient {
     const scheduleReceipt = await scheduleResponse.getReceipt(this.client);
 
     if (!scheduleReceipt.scheduleId) {
-      this.logger.error('Failed to create scheduled transaction: scheduleId is null');
-      throw new Error('Failed to create scheduled transaction: scheduleId is null');
+      this.logger.error(
+        'Failed to create scheduled transaction: scheduleId is null'
+      );
+      throw new Error(
+        'Failed to create scheduled transaction: scheduleId is null'
+      );
     }
 
     const scheduleId = scheduleReceipt.scheduleId.toString();
@@ -1463,7 +1467,7 @@ export class HCS10Client extends HCS10BaseClient {
 
     return {
       scheduleId,
-      transactionId
+      transactionId,
     };
   }
 
@@ -1501,7 +1505,10 @@ export class HCS10Client extends HCS10BaseClient {
       m: options?.memo,
     };
 
-    this.logger.info('Submitting transaction operation to connection topic', payload);
+    this.logger.info(
+      'Submitting transaction operation to connection topic',
+      payload
+    );
     return await this.submitPayload(
       connectionTopicId,
       payload,
@@ -1533,7 +1540,9 @@ export class HCS10Client extends HCS10BaseClient {
     transactionId: string;
     receipt: TransactionReceipt;
   }> {
-    this.logger.info('Creating scheduled transaction and sending transaction operation');
+    this.logger.info(
+      'Creating scheduled transaction and sending transaction operation'
+    );
 
     const { scheduleId, transactionId } = await this.createScheduledTransaction(
       transaction,
@@ -1547,14 +1556,14 @@ export class HCS10Client extends HCS10BaseClient {
       data,
       options?.submitKey,
       {
-        memo: options?.operationMemo
+        memo: options?.operationMemo,
       }
     );
 
     return {
       scheduleId,
       transactionId,
-      receipt
+      receipt,
     };
   }
 }
