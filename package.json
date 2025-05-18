@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.98",
+  "version": "0.0.99",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -58,12 +58,14 @@
     "test": "jest"
   },
   "devDependencies": {
+    "@swc/jest": "^0.2.37",
+    "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.16",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^22.2.0",
-    "@types/jest": "^29.5.14",
-    "@swc/jest": "^0.2.37",
     "concurrently": "^8.2.2",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "json-to-plain-text": "^1.1.4",
     "nodemon": "^3.1.0",
     "openai": "^4.91.1",
@@ -71,8 +73,6 @@
     "rimraf": "^6.0.1",
     "terser": "^5.39.0",
     "tsx": "^4.19.3",
-    "jest-environment-jsdom": "^29.7.0",
-    "jest": "^29.7.0",
     "typescript": "^5.8.2",
     "vite": "^6.2.2",
     "vite-plugin-dts": "^4.0.2",
@@ -84,6 +84,7 @@
     "@hashgraph/proto": "^2.18.5",
     "@hashgraph/sdk": "2.64.5",
     "@hashgraphonline/hashinal-wc": "^1.0.96",
+    "@hashgraphonline/hedera-agent-kit": "^0.0.2",
     "@kiloscribe/inscription-sdk": "^1.0.30",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",

@@ -1468,23 +1468,20 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   /**
-   * Sends a transact operation on a connection topic
+   * Sends a transaction operation on a connection topic
    * @param connectionTopicId Connection topic ID
    * @param scheduleId Schedule ID of the scheduled transaction
-   * @param transactionId Transaction ID of the schedule create transaction
-   * @param description Human-readable description of the transaction
+   * @param data Human-readable description of the transaction, can also be a JSON string or HRL
    * @param submitKey Optional submit key
-   * @param options Optional parameters including timestamp and memo
+   * @param options Optional parameters including memo (timestamp is no longer used here)
    * @returns Transaction receipt
    */
-  private async sendTransactOperation(
+  private async sendTransactionOperation(
     connectionTopicId: string,
     scheduleId: string,
-    transactionId: string,
-    description: string,
+    data: string,
     submitKey?: PrivateKey,
     options?: {
-      timestamp?: number;
       memo?: string;
     }
   ): Promise<TransactionReceipt> {
@@ -1497,16 +1494,14 @@ export class HCS10Client extends HCS10BaseClient {
 
     const payload = {
       p: 'hcs-10',
-      op: 'transact',
+      op: 'transaction',
       operator_id: operatorId,
       schedule_id: scheduleId,
-      tx_id: transactionId,
-      description,
-      timestamp: options?.timestamp || Math.floor(Date.now() / 1000),
+      data,
       m: options?.memo,
     };
 
-    this.logger.info('Submitting transact operation to connection topic', payload);
+    this.logger.info('Submitting transaction operation to connection topic', payload);
     return await this.submitPayload(
       connectionTopicId,
       payload,
@@ -1516,17 +1511,17 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   /**
-   * Creates and sends a transact operation in one call
-   * @param connectionTopicId Connection topic ID for sending the transact operation
+   * Creates and sends a transaction operation in one call
+   * @param connectionTopicId Connection topic ID for sending the transaction operation
    * @param transaction The transaction to schedule
-   * @param description Human-readable description of the transaction
-   * @param options Optional parameters for both operations
-   * @returns Object with schedule details and transaction receipt
+   * @param data Human-readable description of the transaction, can also be a JSON string or HRL
+   * @param options Optional parameters for schedule creation and operation memo
+   * @returns Object with schedule details (including scheduleId and its transactionId) and HCS-10 operation receipt
    */
   async sendTransaction(
     connectionTopicId: string,
     transaction: Transaction,
-    description: string,
+    data: string,
     options?: {
       scheduleMemo?: string;
       expirationTime?: number;
@@ -1538,7 +1533,7 @@ export class HCS10Client extends HCS10BaseClient {
     transactionId: string;
     receipt: TransactionReceipt;
   }> {
-    this.logger.info('Creating scheduled transaction and sending transact operation');
+    this.logger.info('Creating scheduled transaction and sending transaction operation');
 
     const { scheduleId, transactionId } = await this.createScheduledTransaction(
       transaction,
@@ -1546,11 +1541,10 @@ export class HCS10Client extends HCS10BaseClient {
       options?.expirationTime
     );
 
-    const receipt = await this.sendTransactOperation(
+    const receipt = await this.sendTransactionOperation(
       connectionTopicId,
       scheduleId,
-      transactionId,
-      description,
+      data,
       options?.submitKey,
       {
         memo: options?.operationMemo

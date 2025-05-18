@@ -64,13 +64,11 @@ async function monitorConnectionConfirmation(
  * Displays transaction details in a user-friendly format
  */
 function displayTransaction(transaction: TransactMessage): void {
-  const created = new Date(transaction.timestamp * 1000);
   logger.info(`
 ----- TRANSACTION REQUEST -----
 ID: ${transaction.schedule_id}
 From: ${transaction.operator_id}
-Description: ${transaction.description}
-Created: ${format(created, 'PPpp')}
+Data: ${transaction.data}
 Message: ${transaction.memo || 'N/A'}
 Sequence #: ${transaction.sequence_number}
 ---------------------------
