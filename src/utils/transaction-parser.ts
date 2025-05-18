@@ -15,7 +15,7 @@ import { ethers } from 'ethers';
  */
 export type AccountAmount = {
   accountId: string;
-  amount: number;
+  amount: string;
   isDecimal?: boolean;
 };
 
@@ -45,16 +45,38 @@ export type TokenBurnData = {
   serialNumbers?: number[];
 };
 
+export type TokenCreationData = {
+  tokenName?: string;
+  tokenSymbol?: string;
+  initialSupply?: string;
+  decimals?: number;
+  maxSupply?: string;
+  tokenType?: string;
+  supplyType?: string;
+  memo?: string;
+  treasuryAccountId?: string;
+  adminKey?: string;
+  kycKey?: string;
+  freezeKey?: string;
+  wipeKey?: string;
+  supplyKey?: string;
+  feeScheduleKey?: string;
+  pauseKey?: string;
+  autoRenewAccount?: string;
+  autoRenewPeriod?: string; // seconds as string
+};
+
 export type ParsedTransaction = {
   type: string;
   humanReadableType: string;
   transfers: AccountAmount[];
   tokenTransfers: TokenAmount[];
   memo?: string;
-  transactionFee?: number;
+  transactionFee?: string;
   contractCall?: ContractCallData;
   tokenMint?: TokenMintData;
   tokenBurn?: TokenBurnData;
+  tokenCreation?: TokenCreationData;
   raw: proto.SchedulableTransactionBody;
 };
 
@@ -89,7 +111,7 @@ export class TransactionParser {
         const hbarAmount = Hbar.fromTinybars(
           Long.fromValue(txBody.transactionFee)
         );
-        result.transactionFee = parseFloat(hbarAmount.toString(HbarUnit.Hbar));
+        result.transactionFee = hbarAmount.toString(HbarUnit.Hbar);
       }
 
       if (txBody.cryptoTransfer) {
@@ -106,6 +128,10 @@ export class TransactionParser {
 
       if (txBody.tokenBurn) {
         this.parseTokenBurn(txBody.tokenBurn, result);
+      }
+
+      if (txBody.tokenCreation) {
+        this.parseTokenCreation(txBody.tokenCreation, result);
       }
 
       return result;
@@ -274,7 +300,6 @@ export class TransactionParser {
     };
 
     let result: string;
-
     if (typeMap[type]) {
       result = typeMap[type];
     } else {
@@ -318,7 +343,7 @@ export class TransactionParser {
 
             return {
               accountId: accountId.toString(),
-              amount: parseFloat(hbarAmount.toString(HbarUnit.Hbar)),
+              amount: hbarAmount.toString(HbarUnit.Hbar),
               isDecimal: true,
             };
           }
@@ -511,6 +536,69 @@ export class TransactionParser {
   }
 
   /**
+   * Parse token creation transaction data
+   * @param tokenCreation - The token creation transaction body
+   * @param result - The parsed transaction
+   */
+  private static parseTokenCreation(
+    tokenCreation: proto.ITokenCreateTransactionBody,
+    result: ParsedTransaction
+  ): void {
+    if (tokenCreation) {
+      const creationData: TokenCreationData = {};
+      if (tokenCreation.name) creationData.tokenName = tokenCreation.name;
+      if (tokenCreation.symbol) creationData.tokenSymbol = tokenCreation.symbol;
+      if (tokenCreation.treasury) {
+        const t = tokenCreation.treasury;
+        creationData.treasuryAccountId = new AccountId(
+          t.shardNum ? Long.fromValue(t.shardNum).toNumber() : 0,
+          t.realmNum ? Long.fromValue(t.realmNum).toNumber() : 0,
+          t.accountNum ? Long.fromValue(t.accountNum).toNumber() : 0
+        ).toString();
+      }
+      if (tokenCreation.initialSupply) {
+         creationData.initialSupply = Long.fromValue(tokenCreation.initialSupply).toString();
+      }
+      if (tokenCreation.decimals !== undefined && tokenCreation.decimals !== null) {
+        creationData.decimals = Long.fromValue(tokenCreation.decimals).toNumber();
+      }
+      if (tokenCreation.maxSupply) {
+        creationData.maxSupply = Long.fromValue(tokenCreation.maxSupply).toString();
+      }
+      if (tokenCreation.memo) creationData.memo = tokenCreation.memo;
+
+      if (tokenCreation.tokenType !== null && tokenCreation.tokenType !== undefined) {
+        creationData.tokenType = proto.TokenType[tokenCreation.tokenType];
+      }
+      if (tokenCreation.supplyType !== null && tokenCreation.supplyType !== undefined) {
+        creationData.supplyType = proto.TokenSupplyType[tokenCreation.supplyType];
+      }
+
+      creationData.adminKey = tokenCreation.adminKey ? 'Present' : 'Not Present';
+      creationData.kycKey = tokenCreation.kycKey ? 'Present' : 'Not Present';
+      creationData.freezeKey = tokenCreation.freezeKey ? 'Present' : 'Not Present';
+      creationData.wipeKey = tokenCreation.wipeKey ? 'Present' : 'Not Present';
+      creationData.supplyKey = tokenCreation.supplyKey ? 'Present' : 'Not Present';
+      creationData.feeScheduleKey = tokenCreation.feeScheduleKey ? 'Present' : 'Not Present';
+      creationData.pauseKey = tokenCreation.pauseKey ? 'Present' : 'Not Present';
+
+      if (tokenCreation.autoRenewAccount) {
+        const ara = tokenCreation.autoRenewAccount;
+        creationData.autoRenewAccount = new AccountId(
+          ara.shardNum ? Long.fromValue(ara.shardNum).toNumber() : 0,
+          ara.realmNum ? Long.fromValue(ara.realmNum).toNumber() : 0,
+          ara.accountNum ? Long.fromValue(ara.accountNum).toNumber() : 0
+        ).toString();
+      }
+      if (tokenCreation.autoRenewPeriod && tokenCreation.autoRenewPeriod.seconds) {
+        creationData.autoRenewPeriod = Long.fromValue(tokenCreation.autoRenewPeriod.seconds).toString();
+      }
+
+      result.tokenCreation = creationData;
+    }
+  }
+
+  /**
    * Get a human-readable summary of the transaction
    * @param parsedTx - The parsed transaction
    * @returns The human-readable summary of the transaction
@@ -523,12 +611,22 @@ export class TransactionParser {
       const receivers = [];
 
       for (const transfer of parsedTx.transfers) {
-        if (transfer.amount < 0) {
+        const originalAmountFloat = parseFloat(transfer.amount);
+
+        let displayStr = transfer.amount;
+        if (displayStr.startsWith('-')) {
+          displayStr = displayStr.substring(1);
+        }
+        displayStr = displayStr.replace(/\s*ℏ$/, '');
+
+        if (originalAmountFloat < 0) {
           senders.push(
-            `${transfer.accountId} (${Math.abs(transfer.amount)} ℏ)`
+            `${transfer.accountId} (${displayStr} ℏ)`
           );
-        } else if (transfer.amount > 0) {
-          receivers.push(`${transfer.accountId} (${transfer.amount} ℏ)`);
+        } else if (originalAmountFloat > 0) {
+          receivers.push(
+            `${transfer.accountId} (${displayStr} ℏ)`
+          );
         }
       }
 
@@ -568,24 +666,27 @@ export class TransactionParser {
       const tokenSummaries = [];
 
       for (const [tokenId, transfers] of Object.entries(tokenGroups)) {
-        const senders = [];
-        const receivers = [];
+        const tokenSenders = [];
+        const tokenReceivers = [];
 
         for (const transfer of transfers) {
-          if (transfer.amount < 0) {
-            senders.push(
-              `${transfer.accountId} (${Math.abs(transfer.amount)})`
+          const transferAmountValue = parseFloat(transfer.amount.toString());
+          if (transferAmountValue < 0) {
+            tokenSenders.push(
+              `${transfer.accountId} (${Math.abs(transferAmountValue)})`
             );
-          } else if (transfer.amount > 0) {
-            receivers.push(`${transfer.accountId} (${transfer.amount})`);
+          } else if (transferAmountValue > 0) {
+            tokenReceivers.push(
+              `${transfer.accountId} (${transferAmountValue})`
+            );
           }
         }
 
-        if (senders.length > 0 && receivers.length > 0) {
+        if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
           tokenSummaries.push(
-            `Transfer of token ${tokenId} from ${senders.join(
+            `Transfer of token ${tokenId} from ${tokenSenders.join(
               ', '
-            )} to ${receivers.join(', ')}`
+            )} to ${tokenReceivers.join(', ')}`
           );
         }
       }

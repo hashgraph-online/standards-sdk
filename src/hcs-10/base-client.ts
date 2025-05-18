@@ -150,10 +150,7 @@ export abstract class HCS10BaseClient extends Registration {
         }
 
         if (msg.op === 'transaction') {
-          if (
-            !msg.operator_id ||
-            !msg.schedule_id
-          ) {
+          if (!msg.operator_id || !msg.schedule_id) {
             return false;
           }
 
@@ -1000,10 +997,7 @@ export abstract class HCS10BaseClient extends Registration {
 
     const transactOperations = (
       messages
-        .filter(
-          (m) =>
-            m.op === 'transaction' && m.schedule_id
-        )
+        .filter((m) => m.op === 'transaction' && m.schedule_id)
         .map((m) => ({
           operator_id: m.operator_id || '',
           schedule_id: m.schedule_id || '',

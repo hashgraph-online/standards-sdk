@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.99",
+  "version": "0.0.101",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -51,6 +51,7 @@
     "demo:hcs-10": "tsx demo/hcs-10/index.ts",
     "demo:fee": "tsx demo/hcs-10/fee-demo.ts",
     "demo:transact": "tsx demo/hcs-10/transact-demo.ts",
+    "demo:transact-agent": "tsx demo/hcs-10/transact-agent.ts",
     "demo:polling-agent": "tsx demo/hcs-10/polling-agent.ts",
     "demo:connection-manager": "tsx demo/hcs-10/connection-manager.ts",
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
@@ -84,7 +85,7 @@
     "@hashgraph/proto": "^2.18.5",
     "@hashgraph/sdk": "2.64.5",
     "@hashgraphonline/hashinal-wc": "^1.0.96",
-    "@hashgraphonline/hedera-agent-kit": "^0.0.2",
+    "@hashgraphonline/hedera-agent-kit": "0.0.12",
     "@kiloscribe/inscription-sdk": "^1.0.30",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
