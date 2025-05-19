@@ -98,6 +98,16 @@ export interface TopicMessage {
   running_hash: string;
   running_hash_version: number;
   payer_account_id: string;
+  chunk_info?: {
+    initial_transaction_id: {
+      account_id: string;
+      nonce: number;
+      scheduled: boolean;
+      transaction_valid_start: string;
+    } | null;
+    number: number;
+    total: number;
+  } | null;
 }
 
 export interface TopicMessagesResponse {
@@ -210,4 +220,52 @@ export interface Signature {
   public_key_prefix: string;
   signature: string;
   type: string;
+}
+
+/**
+ * Represents detailed information about a token associated with an account.
+ */
+export interface AccountTokenBalance {
+  token_id: string;
+  balance: number;
+  decimals: number;
+}
+
+/**
+ * Response structure for an account's token balances from the mirror node.
+ */
+export interface AccountTokensResponse {
+  tokens: AccountTokenBalance[];
+  links: Links;
+}
+
+/**
+ * Represents the details of an NFT.
+ */
+export interface NftDetail {
+  account_id: string | null;
+  created_timestamp: string;
+  delegating_spender: string | null;
+  deleted: boolean;
+  metadata: string; // base64 encoded
+  modified_timestamp: string;
+  serial_number: number;
+  spender: string | null;
+  token_id: string;
+  token_uri?: string; // Decoded metadata, can be added post-fetch
+}
+
+/**
+ * Response structure for an account's NFTs from the mirror node.
+ */
+export interface AccountNftsResponse {
+  nfts: NftDetail[];
+  links: Links;
+}
+
+/**
+ * Response structure for a read-only smart contract query (contracts/call).
+ */
+export interface ContractCallQueryResponse {
+  result: string;
 }
