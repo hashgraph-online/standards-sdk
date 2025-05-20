@@ -1425,15 +1425,21 @@ export class HCS10Client extends HCS10BaseClient {
   private async createScheduledTransaction(
     transaction: Transaction,
     memo?: string,
-    expirationTime?: number
+    expirationTime?: number,
+    schedulePayerAccountId?: string
   ): Promise<{
     scheduleId: string;
     transactionId: string;
   }> {
     this.logger.info('Creating scheduled transaction');
 
-    const scheduleTransaction =
-      new ScheduleCreateTransaction().setScheduledTransaction(transaction);
+    const scheduleTransaction = new ScheduleCreateTransaction()
+      .setScheduledTransaction(transaction)
+      .setPayerAccountId(
+        schedulePayerAccountId
+          ? AccountId.fromString(schedulePayerAccountId)
+          : this.client.operatorAccountId
+      );
 
     if (memo) {
       scheduleTransaction.setScheduleMemo(memo);
@@ -1534,6 +1540,7 @@ export class HCS10Client extends HCS10BaseClient {
       expirationTime?: number;
       submitKey?: PrivateKey;
       operationMemo?: string;
+      schedulePayerAccountId?: string;
     }
   ): Promise<{
     scheduleId: string;
@@ -1547,7 +1554,8 @@ export class HCS10Client extends HCS10BaseClient {
     const { scheduleId, transactionId } = await this.createScheduledTransaction(
       transaction,
       options?.scheduleMemo,
-      options?.expirationTime
+      options?.expirationTime,
+      options?.schedulePayerAccountId
     );
 
     const receipt = await this.sendTransactionOperation(

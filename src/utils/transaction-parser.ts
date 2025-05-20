@@ -63,7 +63,57 @@ export type TokenCreationData = {
   feeScheduleKey?: string;
   pauseKey?: string;
   autoRenewAccount?: string;
-  autoRenewPeriod?: string; // seconds as string
+  autoRenewPeriod?: string;
+};
+
+export type ConsensusCreateTopicData = {
+  memo?: string;
+  adminKey?: string;
+  submitKey?: string;
+  autoRenewPeriod?: string;
+  autoRenewAccountId?: string;
+};
+
+export type ConsensusSubmitMessageData = {
+  topicId?: string;
+  message?: string;
+  messageEncoding?: 'utf8' | 'base64';
+  chunkInfoInitialTransactionID?: string;
+  chunkInfoNumber?: number;
+  chunkInfoTotal?: number;
+};
+
+export type CryptoDeleteData = {
+  deleteAccountId?: string;
+  transferAccountId?: string;
+};
+
+export type ScheduleCreateData = {
+  scheduledTransaction?: ParsedTransaction;
+  payerAccountId?: string;
+  adminKey?: string;
+  memo?: string;
+  waitForExpiry?: boolean;
+};
+
+export type ScheduleSignData = {
+  scheduleId?: string;
+};
+
+export type EthereumTransactionData = {
+  ethereumData?: string;
+  callDataFileId?: string;
+  maxGasAllowanceHbar?: string;
+};
+
+export type SystemDeleteData = {
+  fileId?: string;
+  contractId?: string;
+};
+
+export type SystemUndeleteData = {
+  fileId?: string;
+  contractId?: string;
 };
 
 export type ParsedTransaction = {
@@ -77,6 +127,14 @@ export type ParsedTransaction = {
   tokenMint?: TokenMintData;
   tokenBurn?: TokenBurnData;
   tokenCreation?: TokenCreationData;
+  consensusCreateTopic?: ConsensusCreateTopicData;
+  consensusSubmitMessage?: ConsensusSubmitMessageData;
+  cryptoDelete?: CryptoDeleteData;
+  scheduleCreate?: ScheduleCreateData;
+  scheduleSign?: ScheduleSignData;
+  ethereumTransaction?: EthereumTransactionData;
+  systemDelete?: SystemDeleteData;
+  systemUndelete?: SystemUndeleteData;
   raw: proto.SchedulableTransactionBody;
 };
 
@@ -134,6 +192,14 @@ export class TransactionParser {
         this.parseTokenCreation(txBody.tokenCreation, result);
       }
 
+      if (txBody.consensusCreateTopic) {
+        this.parseConsensusCreateTopic(txBody.consensusCreateTopic, result);
+      }
+
+      if (txBody.consensusSubmitMessage) {
+        this.parseConsensusSubmitMessage(txBody.consensusSubmitMessage, result);
+      }
+
       return result;
     } catch (error) {
       throw new Error(`Failed to parse transaction body: ${error}`);
@@ -182,6 +248,8 @@ export class TransactionParser {
       transactionType = 'cryptoApproveAllowance';
     } else if (txBody.cryptoDeleteAllowance) {
       transactionType = 'cryptoDeleteAllowance';
+    } else if (txBody.cryptoDelete) {
+      transactionType = 'cryptoDelete';
     } else if (txBody.consensusCreateTopic) {
       transactionType = 'consensusCreateTopic';
     } else if (txBody.consensusUpdateTopic) {
@@ -238,6 +306,10 @@ export class TransactionParser {
       transactionType = 'tokenWipe';
     } else if (txBody.scheduleDelete) {
       transactionType = 'scheduleDelete';
+    } else if (txBody.systemDelete) {
+      transactionType = 'systemDelete';
+    } else if (txBody.systemUndelete) {
+      transactionType = 'systemUndelete';
     }
 
     return transactionType;
@@ -256,6 +328,7 @@ export class TransactionParser {
       cryptoDeleteAccount: 'Delete Account',
       cryptoApproveAllowance: 'Approve Allowance',
       cryptoDeleteAllowance: 'Delete Allowance',
+      cryptoDelete: 'Delete Account',
 
       consensusCreateTopic: 'Create Topic',
       consensusUpdateTopic: 'Update Topic',
@@ -557,30 +630,56 @@ export class TransactionParser {
         ).toString();
       }
       if (tokenCreation.initialSupply) {
-         creationData.initialSupply = Long.fromValue(tokenCreation.initialSupply).toString();
+        creationData.initialSupply = Long.fromValue(
+          tokenCreation.initialSupply
+        ).toString();
       }
-      if (tokenCreation.decimals !== undefined && tokenCreation.decimals !== null) {
-        creationData.decimals = Long.fromValue(tokenCreation.decimals).toNumber();
+      if (
+        tokenCreation.decimals !== undefined &&
+        tokenCreation.decimals !== null
+      ) {
+        creationData.decimals = Long.fromValue(
+          tokenCreation.decimals
+        ).toNumber();
       }
       if (tokenCreation.maxSupply) {
-        creationData.maxSupply = Long.fromValue(tokenCreation.maxSupply).toString();
+        creationData.maxSupply = Long.fromValue(
+          tokenCreation.maxSupply
+        ).toString();
       }
       if (tokenCreation.memo) creationData.memo = tokenCreation.memo;
 
-      if (tokenCreation.tokenType !== null && tokenCreation.tokenType !== undefined) {
+      if (
+        tokenCreation.tokenType !== null &&
+        tokenCreation.tokenType !== undefined
+      ) {
         creationData.tokenType = proto.TokenType[tokenCreation.tokenType];
       }
-      if (tokenCreation.supplyType !== null && tokenCreation.supplyType !== undefined) {
-        creationData.supplyType = proto.TokenSupplyType[tokenCreation.supplyType];
+      if (
+        tokenCreation.supplyType !== null &&
+        tokenCreation.supplyType !== undefined
+      ) {
+        creationData.supplyType =
+          proto.TokenSupplyType[tokenCreation.supplyType];
       }
 
-      creationData.adminKey = tokenCreation.adminKey ? 'Present' : 'Not Present';
+      creationData.adminKey = tokenCreation.adminKey
+        ? 'Present'
+        : 'Not Present';
       creationData.kycKey = tokenCreation.kycKey ? 'Present' : 'Not Present';
-      creationData.freezeKey = tokenCreation.freezeKey ? 'Present' : 'Not Present';
+      creationData.freezeKey = tokenCreation.freezeKey
+        ? 'Present'
+        : 'Not Present';
       creationData.wipeKey = tokenCreation.wipeKey ? 'Present' : 'Not Present';
-      creationData.supplyKey = tokenCreation.supplyKey ? 'Present' : 'Not Present';
-      creationData.feeScheduleKey = tokenCreation.feeScheduleKey ? 'Present' : 'Not Present';
-      creationData.pauseKey = tokenCreation.pauseKey ? 'Present' : 'Not Present';
+      creationData.supplyKey = tokenCreation.supplyKey
+        ? 'Present'
+        : 'Not Present';
+      creationData.feeScheduleKey = tokenCreation.feeScheduleKey
+        ? 'Present'
+        : 'Not Present';
+      creationData.pauseKey = tokenCreation.pauseKey
+        ? 'Present'
+        : 'Not Present';
 
       if (tokenCreation.autoRenewAccount) {
         const ara = tokenCreation.autoRenewAccount;
@@ -590,11 +689,124 @@ export class TransactionParser {
           ara.accountNum ? Long.fromValue(ara.accountNum).toNumber() : 0
         ).toString();
       }
-      if (tokenCreation.autoRenewPeriod && tokenCreation.autoRenewPeriod.seconds) {
-        creationData.autoRenewPeriod = Long.fromValue(tokenCreation.autoRenewPeriod.seconds).toString();
+      if (
+        tokenCreation.autoRenewPeriod &&
+        tokenCreation.autoRenewPeriod.seconds
+      ) {
+        creationData.autoRenewPeriod = Long.fromValue(
+          tokenCreation.autoRenewPeriod.seconds
+        ).toString();
       }
 
       result.tokenCreation = creationData;
+    }
+  }
+
+  /**
+   * Parse consensus create topic transaction data
+   * @param createTopicBody - The consensus create topic transaction body
+   * @param result - The parsed transaction
+   */
+  private static parseConsensusCreateTopic(
+    createTopicBody: proto.IConsensusCreateTopicTransactionBody,
+    result: ParsedTransaction
+  ): void {
+    if (createTopicBody) {
+      const topicData: ConsensusCreateTopicData = {};
+      if (createTopicBody.memo) topicData.memo = createTopicBody.memo;
+      topicData.adminKey = createTopicBody.adminKey ? 'Present' : 'Not Present';
+      topicData.submitKey = createTopicBody.submitKey
+        ? 'Present'
+        : 'Not Present';
+
+      if (createTopicBody.autoRenewAccount) {
+        const ara = createTopicBody.autoRenewAccount;
+        topicData.autoRenewAccountId = new AccountId(
+          ara.shardNum ? Long.fromValue(ara.shardNum).toNumber() : 0,
+          ara.realmNum ? Long.fromValue(ara.realmNum).toNumber() : 0,
+          ara.accountNum ? Long.fromValue(ara.accountNum).toNumber() : 0
+        ).toString();
+      }
+      if (
+        createTopicBody.autoRenewPeriod &&
+        createTopicBody.autoRenewPeriod.seconds
+      ) {
+        topicData.autoRenewPeriod = Long.fromValue(
+          createTopicBody.autoRenewPeriod.seconds
+        ).toString();
+      }
+      result.consensusCreateTopic = topicData;
+    }
+  }
+
+  /**
+   * Parse consensus submit message transaction data
+   * @param submitMessageBody - The consensus submit message transaction body
+   * @param result - The parsed transaction
+   */
+  private static parseConsensusSubmitMessage(
+    submitMessageBody: proto.IConsensusSubmitMessageTransactionBody,
+    result: ParsedTransaction
+  ): void {
+    if (submitMessageBody) {
+      const messageData: ConsensusSubmitMessageData = {};
+      if (submitMessageBody.topicID) {
+        const tid = submitMessageBody.topicID;
+        messageData.topicId = `${
+          tid.shardNum ? Long.fromValue(tid.shardNum).toNumber() : 0
+        }.${tid.realmNum ? Long.fromValue(tid.realmNum).toNumber() : 0}.${
+          tid.topicNum ? Long.fromValue(tid.topicNum).toNumber() : 0
+        }`;
+      }
+      if (submitMessageBody.message && submitMessageBody.message.length > 0) {
+        const messageBuffer = Buffer.from(submitMessageBody.message);
+        const utf8String = messageBuffer.toString('utf8');
+
+        if (/[ --]/.test(utf8String) || utf8String.includes('\uFFFD')) {
+          messageData.message = messageBuffer.toString('base64');
+          messageData.messageEncoding = 'base64';
+        } else {
+          messageData.message = utf8String;
+          messageData.messageEncoding = 'utf8';
+        }
+      }
+      if (submitMessageBody.chunkInfo) {
+        if (submitMessageBody.chunkInfo.initialTransactionID) {
+          const txId =
+            submitMessageBody.chunkInfo.initialTransactionID.accountID;
+          const taValidStart =
+            submitMessageBody.chunkInfo.initialTransactionID
+              .transactionValidStart;
+          if (txId && taValidStart) {
+            messageData.chunkInfoInitialTransactionID = `${
+              txId.shardNum ? Long.fromValue(txId.shardNum).toNumber() : 0
+            }.${txId.realmNum ? Long.fromValue(txId.realmNum).toNumber() : 0}.${
+              txId.accountNum ? Long.fromValue(txId.accountNum).toNumber() : 0
+            }@${
+              taValidStart.seconds
+                ? Long.fromValue(taValidStart.seconds).toNumber()
+                : 0
+            }.${
+              taValidStart.nanos
+                ? Long.fromValue(taValidStart.nanos).toNumber()
+                : 0
+            }`;
+          }
+        }
+        if (
+          submitMessageBody.chunkInfo.number !== undefined &&
+          submitMessageBody.chunkInfo.number !== null
+        ) {
+          messageData.chunkInfoNumber = submitMessageBody.chunkInfo.number;
+        }
+        if (
+          submitMessageBody.chunkInfo.total !== undefined &&
+          submitMessageBody.chunkInfo.total !== null
+        ) {
+          messageData.chunkInfoTotal = submitMessageBody.chunkInfo.total;
+        }
+      }
+      result.consensusSubmitMessage = messageData;
     }
   }
 
@@ -620,13 +832,9 @@ export class TransactionParser {
         displayStr = displayStr.replace(/\s*ℏ$/, '');
 
         if (originalAmountFloat < 0) {
-          senders.push(
-            `${transfer.accountId} (${displayStr} ℏ)`
-          );
+          senders.push(`${transfer.accountId} (${displayStr} ℏ)`);
         } else if (originalAmountFloat > 0) {
-          receivers.push(
-            `${transfer.accountId} (${displayStr} ℏ)`
-          );
+          receivers.push(`${transfer.accountId} (${displayStr} ℏ)`);
         }
       }
 
@@ -695,6 +903,39 @@ export class TransactionParser {
         summary = tokenSummaries.join('; ');
       } else {
         summary = parsedTx.humanReadableType;
+      }
+    } else if (parsedTx.consensusCreateTopic) {
+      summary = `Create new topic`;
+      if (parsedTx.consensusCreateTopic.memo) {
+        summary += ` with memo "${parsedTx.consensusCreateTopic.memo}"`;
+      }
+      if (parsedTx.consensusCreateTopic.autoRenewAccountId) {
+        summary += `, auto-renew by ${parsedTx.consensusCreateTopic.autoRenewAccountId}`;
+      }
+    } else if (parsedTx.consensusSubmitMessage) {
+      summary = `Submit message`;
+      if (parsedTx.consensusSubmitMessage.topicId) {
+        summary += ` to topic ${parsedTx.consensusSubmitMessage.topicId}`;
+      }
+      if (parsedTx.consensusSubmitMessage.message) {
+        if (parsedTx.consensusSubmitMessage.messageEncoding === 'utf8') {
+          const messagePreview =
+            parsedTx.consensusSubmitMessage.message.substring(0, 70);
+          summary += `: "${messagePreview}${
+            parsedTx.consensusSubmitMessage.message.length > 70 ? '...' : ''
+          }"`;
+        } else {
+          summary += ` (binary message data, length: ${
+            Buffer.from(parsedTx.consensusSubmitMessage.message, 'base64')
+              .length
+          } bytes)`;
+        }
+      }
+      if (
+        parsedTx.consensusSubmitMessage.chunkInfoNumber &&
+        parsedTx.consensusSubmitMessage.chunkInfoTotal
+      ) {
+        summary += ` (chunk ${parsedTx.consensusSubmitMessage.chunkInfoNumber}/${parsedTx.consensusSubmitMessage.chunkInfoTotal})`;
       }
     } else {
       summary = parsedTx.humanReadableType;

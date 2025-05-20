@@ -44,7 +44,12 @@ export class HederaMirrorNode {
   constructor(network: NetworkType, logger: Logger) {
     this.network = network;
     this.baseUrl = this.getMirrorNodeUrl();
-    this.logger = logger;
+    this.logger =
+      logger ||
+      new Logger({
+        level: 'debug',
+        module: 'MirrorNode',
+      });
     this.isServerEnvironment = typeof window === 'undefined';
   }
 
@@ -114,7 +119,7 @@ export class HederaMirrorNode {
         accountInfoUrl
       );
 
-      if (accountInfo && accountInfo.memo) {
+      if (accountInfo?.memo) {
         return accountInfo.memo;
       }
       this.logger.warn(`No memo found for account ${accountId}`);
@@ -856,7 +861,7 @@ export class HederaMirrorNode {
    */
   async getTransactionByTimestamp(
     timestamp: string
-  ): Promise<HederaTransaction | null> {
+  ): Promise<HederaTransaction[]> {
     this.logger.info(`Getting transaction by timestamp: ${timestamp}`);
     const url = `${this.baseUrl}/api/v1/transactions?timestamp=${timestamp}&limit=1`;
 
@@ -865,24 +870,12 @@ export class HederaMirrorNode {
         transactions: HederaTransaction[];
       }>(url);
 
-      if (
-        response &&
-        response.transactions &&
-        response.transactions.length > 0
-      ) {
-        const specificTransactionId = response.transactions[0].transaction_id;
-        this.logger.debug(
-          `Transaction found by timestamp, fetching full details for ID: ${specificTransactionId}`
-        );
-        return this.getTransaction(specificTransactionId);
-      }
-      this.logger.warn(`No transaction found for timestamp: ${timestamp}`);
-      return null;
-    } catch (error: any) {
+      return response.transactions;
+    } catch (error: unknown) {
       this.logger.error(
-        `Error fetching transaction by timestamp ${timestamp}: ${error.message}`
+        `Error fetching transaction by timestamp ${timestamp}: ${error}`
       );
-      return null;
+      return [];
     }
   }
 

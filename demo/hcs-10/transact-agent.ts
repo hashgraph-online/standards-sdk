@@ -209,12 +209,22 @@ async function handleStandardMessage(
   try {
     logger.info(`Sending response to topic ${connectionTopicId}`);
 
-    console.log('response is:', response.transactionBytes);
-
-    if (response.output && !response.transactionBytes) {
+    if (response.output && !response?.transactionBytes) {
       await agent.client.sendMessage(
         connectionTopicId,
         `[Reply to #${message.sequence_number}] ${response.output}`
+      );
+    }
+
+    if (response.notes && !response?.transactionBytes) {
+      const formattedNotes = response.notes
+        .map((note) => `- ${note}`)
+        .join('\n');
+      const inferenceMessage =
+        "I've made some inferences based on your prompt. If this isn't what you expected, please try a more refined prompt.";
+      await agent.client.sendMessage(
+        connectionTopicId,
+        `[Reply to #${message.sequence_number}]\n${inferenceMessage}\n${formattedNotes}`
       );
     }
 
@@ -223,10 +233,23 @@ async function handleStandardMessage(
         Buffer.from(response.transactionBytes || '', 'base64')
       );
 
+      let reply = `[Reply to #${message.sequence_number}]`;
+      if (response?.notes?.length && response?.notes?.length > 0) {
+        const inferenceMessage =
+          "I've made some inferences based on your prompt. If this isn't what you expected, please try a more refined prompt.";
+        const formattedNotes = response.notes
+          .map((note) => `- ${note}`)
+          .join('\n');
+        reply += `\n${inferenceMessage}\n${formattedNotes}`;
+      }
+
+      const schedulePayerAccountId = extractAccountId(message.operator_id);
+
       await agent.client.sendTransaction(
         connectionTopicId,
         transaction,
-        `[Reply to #${message.sequence_number}]`
+        reply,
+        { schedulePayerAccountId: schedulePayerAccountId || undefined }
       );
     }
   } catch (error) {
