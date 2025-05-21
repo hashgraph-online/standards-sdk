@@ -8,6 +8,9 @@ import {
   NetworkType,
   TopicFeeConfig,
   FeeConfigBuilder,
+  ConnectionsManager,
+  Connection,
+  HCSMessage,
 } from '../../src';
 import { TransferTransaction, Hbar } from '@hashgraph/sdk';
 import * as fs from 'fs';
@@ -554,6 +557,12 @@ export async function monitorIncomingRequests(
           const currentAccount = client
             .getClient()
             .operatorAccountId?.toString();
+          if (!currentAccount) {
+            logger.error(
+              'Operator account ID is not defined, cannot proceed with handling request'
+            );
+            continue;
+          }
           logger.info(`Ensuring agent has enough hbar: ${currentAccount}`);
           await ensureAgentHasEnoughHbar(
             new Logger({
@@ -601,4 +610,430 @@ export async function monitorIncomingRequests(
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
+}
+
+/**
+ * Loads existing connections using ConnectionsManager
+ * @param agent - The agent configuration data
+ * @returns A map of connections and the last processed timestamp
+ */
+export async function loadConnectionsUsingManager(
+  logger: Logger,
+  agent: {
+    client: HCS10Client;
+    accountId: string;
+    inboundTopicId: string;
+    outboundTopicId: string;
+  }
+): Promise<{
+  connections: Map<string, Connection>;
+  connectionManager: ConnectionsManager;
+  lastProcessedTimestamp: Date;
+}> {
+  logger.info('Loading existing connections using ConnectionsManager');
+
+  const connectionManager = new ConnectionsManager({
+    baseClient: agent.client,
+    logLevel: 'debug',
+  });
+
+  const connectionsArray = await connectionManager.fetchConnectionData(
+    agent.accountId
+  );
+  logger.info(`Found ${connectionsArray.length} connections`);
+
+  const connections = new Map<string, Connection>();
+  let lastTimestamp = new Date(0);
+
+  for (const connection of connectionsArray) {
+    connections.set(connection.connectionTopicId, connection);
+
+    if (
+      connection.created &&
+      connection.created.getTime() > lastTimestamp.getTime()
+    ) {
+      lastTimestamp = connection.created;
+    }
+    if (
+      connection.lastActivity &&
+      connection.lastActivity.getTime() > lastTimestamp.getTime()
+    ) {
+      lastTimestamp = connection.lastActivity;
+    }
+  }
+
+  logger.info(
+    `Finished loading. ${connections.size} active connections found, last outbound timestamp: ${lastTimestamp}`
+  );
+
+  return {
+    connections,
+    connectionManager,
+    lastProcessedTimestamp: lastTimestamp,
+  };
+}
+
+export async function monitorTopics(
+  logger: Logger,
+  handleConnectionRequest: (
+    agent: {
+      client: HCS10Client;
+      accountId: string;
+      operatorId: string;
+      inboundTopicId: string;
+      outboundTopicId: string;
+    },
+    message: HCSMessage,
+    connectionManager: ConnectionsManager
+  ) => Promise<string | null>,
+  handleStandardMessage: (
+    agent: {
+      client: HCS10Client;
+      accountId: string;
+      operatorId: string;
+      inboundTopicId: string;
+      outboundTopicId: string;
+    },
+    message: HCSMessage,
+    topicId: string
+  ) => Promise<void>,
+  filterMessageOut: (message: HCSMessage) => boolean,
+  agent: {
+    client: HCS10Client;
+    accountId: string;
+    operatorId: string;
+    inboundTopicId: string;
+    outboundTopicId: string;
+  }
+) {
+  let { connections, connectionManager } = await loadConnectionsUsingManager(
+    logger,
+    agent
+  );
+
+  const processedMessages = new Map<string, Set<number>>();
+  processedMessages.set(agent.inboundTopicId, new Set<number>());
+
+  const connectionTopics = new Set<string>();
+  for (const [topicId, connection] of connections.entries()) {
+    if (topicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+      connectionTopics.add(topicId);
+    } else {
+      logger.debug(`Skipping invalid topic ID format: ${topicId}`);
+    }
+  }
+
+  logger.info('Pre-populating processed messages for existing connections...');
+
+  for (const topicId of connectionTopics) {
+    const initialProcessedSet = new Set<number>();
+    processedMessages.set(topicId, initialProcessedSet);
+
+    const connection = connections.get(topicId);
+    if (!connection) continue;
+
+    try {
+      const lastOperatorActivity =
+        await connectionManager.getLastOperatorActivity(
+          topicId,
+          agent.accountId
+        );
+
+      if (lastOperatorActivity) {
+        const history = await agent.client.getMessageStream(topicId);
+
+        for (const msg of history.messages) {
+          if (Number(msg.sequence_number) > 0 && msg.created) {
+            if (msg.created.getTime() <= lastOperatorActivity.getTime()) {
+              initialProcessedSet.add(msg.sequence_number);
+              logger.debug(
+                `Pre-populated message #${msg.sequence_number} on topic ${topicId} based on last operator activity`
+              );
+            } else if (
+              msg.operator_id &&
+              msg.operator_id.endsWith(`@${agent.accountId}`)
+            ) {
+              initialProcessedSet.add(msg.sequence_number);
+            }
+          }
+        }
+      }
+
+      logger.debug(
+        `Pre-populated ${initialProcessedSet.size} messages for topic ${topicId}`
+      );
+    } catch (error: any) {
+      logger.warn(
+        `Failed to pre-populate messages for topic ${topicId}: ${error.message}. It might be closed or invalid.`
+      );
+      if (
+        error.message &&
+        (error.message.includes('INVALID_TOPIC_ID') ||
+          error.message.includes('TopicId Does Not Exist'))
+      ) {
+        connectionTopics.delete(topicId);
+        processedMessages.delete(topicId);
+        connections.delete(topicId);
+      }
+    }
+  }
+
+  logger.info(`Starting polling agent for ${agent.operatorId}`);
+  logger.info(`Monitoring inbound topic: ${agent.inboundTopicId}`);
+  logger.info(
+    `Monitoring ${connectionTopics.size} active connection topics after pre-population.`
+  );
+
+  while (true) {
+    try {
+      await connectionManager.fetchConnectionData(agent.accountId);
+      const updatedConnections = connectionManager.getAllConnections();
+
+      // Update our local map of connections
+      connections.clear();
+      for (const connection of updatedConnections) {
+        connections.set(connection.connectionTopicId, connection);
+      }
+
+      const currentTrackedTopics = new Set<string>();
+      for (const [topicId, _] of connections.entries()) {
+        if (topicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)) {
+          currentTrackedTopics.add(topicId);
+        }
+      }
+
+      const previousTrackedTopics = new Set(connectionTopics);
+
+      for (const topicId of currentTrackedTopics) {
+        if (!previousTrackedTopics.has(topicId)) {
+          connectionTopics.add(topicId);
+          if (!processedMessages.has(topicId)) {
+            processedMessages.set(topicId, new Set<number>());
+          }
+          logger.info(
+            `Discovered new connection topic: ${topicId} for ${
+              connections.get(topicId)?.targetAccountId
+            }`
+          );
+        }
+      }
+
+      for (const topicId of previousTrackedTopics) {
+        if (!currentTrackedTopics.has(topicId)) {
+          connectionTopics.delete(topicId);
+          processedMessages.delete(topicId);
+          logger.info(`Removed connection topic: ${topicId}`);
+        }
+      }
+
+      const inboundMessages = await agent.client.getMessages(
+        agent.inboundTopicId
+      );
+      const inboundProcessed = processedMessages.get(agent.inboundTopicId)!;
+
+      inboundMessages.messages.sort((a: HCSMessage, b: HCSMessage) => {
+        const seqA =
+          typeof a.sequence_number === 'number' ? a.sequence_number : 0;
+        const seqB =
+          typeof b.sequence_number === 'number' ? b.sequence_number : 0;
+        return seqA - seqB;
+      });
+
+      for (const message of inboundMessages.messages) {
+        if (
+          !message.created ||
+          typeof message.sequence_number !== 'number' ||
+          message.sequence_number <= 0
+        )
+          continue;
+
+        if (!inboundProcessed.has(message.sequence_number)) {
+          inboundProcessed.add(message.sequence_number);
+
+          if (
+            message.operator_id &&
+            message.operator_id.endsWith(`@${agent.accountId}`)
+          ) {
+            logger.debug(
+              `Skipping own inbound message #${message.sequence_number}`
+            );
+            continue;
+          }
+
+          if (message.op === 'connection_request') {
+            // Find any existing connection for this sequence number
+            let existingConnection;
+            for (const conn of connectionManager.getAllConnections()) {
+              if (conn.inboundRequestId === message.sequence_number) {
+                existingConnection = conn;
+                break;
+              }
+            }
+
+            if (existingConnection) {
+              // Make sure we have a valid topic ID, not a reference key
+              if (
+                existingConnection.connectionTopicId.match(
+                  /^[0-9]+\.[0-9]+\.[0-9]+$/
+                )
+              ) {
+                logger.debug(
+                  `Skipping already handled connection request #${message.sequence_number}. Connection exists with topic: ${existingConnection.connectionTopicId}`
+                );
+                continue;
+              }
+            }
+
+            logger.info(
+              `Processing inbound connection request #${message.sequence_number}`
+            );
+            const newTopicId = await handleConnectionRequest(
+              agent,
+              message,
+              connectionManager
+            );
+            if (newTopicId && !connectionTopics.has(newTopicId)) {
+              connectionTopics.add(newTopicId);
+              if (!processedMessages.has(newTopicId)) {
+                processedMessages.set(newTopicId, new Set<number>());
+              }
+              logger.info(`Now monitoring new connection topic: ${newTopicId}`);
+            }
+          } else if (message.op === 'connection_created') {
+            logger.info(
+              `Received connection_created confirmation #${message.sequence_number} on inbound topic for topic ${message.connection_topic_id}`
+            );
+          }
+        }
+      }
+
+      const topicsToProcess = Array.from(connectionTopics);
+      for (const topicId of topicsToProcess) {
+        try {
+          if (!connections.has(topicId)) {
+            logger.warn(
+              `Skipping processing for topic ${topicId} as it's no longer in the active connections map.`
+            );
+            if (connectionTopics.has(topicId)) connectionTopics.delete(topicId);
+            if (processedMessages.has(topicId))
+              processedMessages.delete(topicId);
+            continue;
+          }
+
+          const messages = await agent.client.getMessageStream(topicId);
+
+          if (!processedMessages.has(topicId)) {
+            processedMessages.set(topicId, new Set<number>());
+          }
+          const processedSet = processedMessages.get(topicId)!;
+
+          messages.messages.sort((a: HCSMessage, b: HCSMessage) => {
+            const seqA =
+              typeof a.sequence_number === 'number' ? a.sequence_number : 0;
+            const seqB =
+              typeof b.sequence_number === 'number' ? b.sequence_number : 0;
+            return seqA - seqB;
+          });
+
+          const lastOperatorActivity =
+            await connectionManager.getLastOperatorActivity(
+              topicId,
+              agent.accountId
+            );
+
+          const lastActivityTimestamp = lastOperatorActivity?.getTime() || 0;
+
+          for (const message of messages.messages) {
+            if (
+              !message.created ||
+              typeof message.sequence_number !== 'number' ||
+              message.sequence_number <= 0
+            )
+              continue;
+
+            if (message.created.getTime() <= lastActivityTimestamp) {
+              processedSet.add(message.sequence_number);
+              continue;
+            }
+
+            if (!processedSet.has(message.sequence_number)) {
+              processedSet.add(message.sequence_number);
+
+              if (
+                message.operator_id &&
+                message.operator_id.endsWith(`@${agent.accountId}`)
+              ) {
+                logger.debug(
+                  `Skipping own message #${message.sequence_number} on connection topic ${topicId}`
+                );
+                continue;
+              }
+
+              if (filterMessageOut(message)) {
+                logger.debug(
+                  `Skipping message #${message.sequence_number} on topic ${topicId} because it was filtered out`
+                );
+                continue;
+              }
+
+              if (message.op === 'message') {
+                logger.info(
+                  `Processing message #${message.sequence_number} on topic ${topicId}`
+                );
+                await handleStandardMessage(agent, message, topicId);
+              } else if (message.op === 'close_connection') {
+                logger.info(
+                  `Received close_connection message #${message.sequence_number} on topic ${topicId}. Removing topic from monitoring.`
+                );
+                connections.delete(topicId);
+                connectionTopics.delete(topicId);
+                processedMessages.delete(topicId);
+                break;
+              }
+            }
+          }
+        } catch (error: any) {
+          if (
+            error.message &&
+            (error.message.includes('INVALID_TOPIC_ID') ||
+              error.message.includes('TopicId Does Not Exist'))
+          ) {
+            logger.warn(
+              `Connection topic ${topicId} likely deleted or expired. Removing from monitoring.`
+            );
+            connections.delete(topicId);
+            connectionTopics.delete(topicId);
+            processedMessages.delete(topicId);
+          } else {
+            console.log(error);
+            logger.error(
+              `Error processing connection topic ${topicId}: ${error}`
+            );
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`Error in main monitoring loop: ${error}`);
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+}
+
+export function stripAnsiCodes(text: string): string {
+  return text.replace(/\u001b\[\d+m/g, '');
+}
+
+export function extractAllText(obj: any): string {
+  if (typeof obj === 'string') return stripAnsiCodes(obj);
+  if (!obj || typeof obj !== 'object') return '';
+
+  if (Array.isArray(obj)) {
+    return obj.map(extractAllText).filter(Boolean).join(' ');
+  }
+
+  if (obj.text && typeof obj.text === 'string') return stripAnsiCodes(obj.text);
+
+  return Object.values(obj).map(extractAllText).filter(Boolean).join(' ');
 }

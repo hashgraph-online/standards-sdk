@@ -1,13 +1,20 @@
 import { Logger, LogLevel } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
-import { AccountResponse, TopicResponse } from '../services/types';
+import {
+  AccountResponse,
+  TopicResponse,
+  ScheduleInfo,
+} from '../services/types';
 import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import axios from 'axios';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode } from '../services';
-import { WaitForConnectionConfirmationResponse } from './types';
+import {
+  WaitForConnectionConfirmationResponse,
+  TransactMessage,
+} from './types';
 import { HRLResolver } from '../utils/hrl-resolver';
 
 export enum Hcs10MemoType {
@@ -29,8 +36,9 @@ export interface HCSMessage {
     | 'connection_request'
     | 'connection_created'
     | 'message'
-    | 'close_connection';
-  data: string;
+    | 'close_connection'
+    | 'transaction';
+  data?: string;
   created?: Date;
   consensus_timestamp?: string;
   m?: string;
@@ -46,6 +54,7 @@ export interface HCSMessage {
   operator_id?: string;
   reason?: string;
   close_method?: string;
+  schedule_id?: string;
 }
 
 export interface ProfileResponse {
@@ -58,8 +67,8 @@ export interface ProfileResponse {
 export abstract class HCS10BaseClient extends Registration {
   protected network: string;
   protected logger: Logger;
-  protected mirrorNode: HederaMirrorNode;
   protected feeAmount: number;
+  public mirrorNode: HederaMirrorNode;
 
   protected operatorId: string;
 
@@ -119,18 +128,14 @@ export abstract class HCS10BaseClient extends Registration {
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId);
-      const validOps = ['message', 'close_connection'];
+      const validOps = ['message', 'close_connection', 'transaction'];
 
       const filteredMessages = messages.filter((msg) => {
         if (msg.p !== 'hcs-10' || !validOps.includes(msg.op)) {
           return false;
         }
 
-        if (msg.op === 'message') {
-          if (!msg.data) {
-            return false;
-          }
-
+        if (msg.op === 'message' || msg.op === 'close_connection') {
           if (!msg.operator_id) {
             return false;
           }
@@ -138,10 +143,14 @@ export abstract class HCS10BaseClient extends Registration {
           if (!this.isValidOperatorId(msg.operator_id)) {
             return false;
           }
+
+          if (msg.op === 'message' && !msg.data) {
+            return false;
+          }
         }
 
-        if (msg.op === 'close_connection') {
-          if (!msg.operator_id) {
+        if (msg.op === 'transaction') {
+          if (!msg.operator_id || !msg.schedule_id) {
             return false;
           }
 
@@ -880,7 +889,7 @@ export abstract class HCS10BaseClient extends Registration {
       connectionId?: number;
     }
   ): string {
-    const ttl = options.ttl ?? 60; // Default TTL to 60 if not provided
+    const ttl = options.ttl ?? 60;
 
     switch (type) {
       case Hcs10MemoType.INBOUND:
@@ -970,6 +979,44 @@ export abstract class HCS10BaseClient extends Registration {
     }
 
     return true;
+  }
+
+  /**
+   * Retrieves all transaction requests from a topic
+   * @param topicId The topic ID to retrieve transactions from
+   * @param limit Optional maximum number of messages to retrieve
+   * @returns Array of transaction requests sorted by timestamp (newest first)
+   */
+  public async getTransactionRequests(
+    topicId: string,
+    limit?: number
+  ): Promise<TransactMessage[]> {
+    this.logger.debug(`Retrieving transaction requests from topic ${topicId}`);
+
+    const { messages } = await this.getMessageStream(topicId);
+
+    const transactOperations = (
+      messages
+        .filter((m) => m.op === 'transaction' && m.schedule_id)
+        .map((m) => ({
+          operator_id: m.operator_id || '',
+          schedule_id: m.schedule_id || '',
+          data: m.data || '',
+          memo: m.m,
+          sequence_number: Number(m.sequence_number),
+        })) as unknown as TransactMessage[]
+    ).sort((a, b) => {
+      if (a.sequence_number && b.sequence_number) {
+        return b.sequence_number - a.sequence_number;
+      }
+      return 0;
+    });
+
+    const result = limit
+      ? transactOperations.slice(0, limit)
+      : transactOperations;
+
+    return result;
   }
 }
 
