@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.107",
+  "version": "0.0.108-canary.3",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -45,7 +45,7 @@
     "prepublishOnly": "npm run build",
     "release": "npm publish --access public",
     "release:canary": "npm run prepublishOnly && npm publish --tag canary --access public",
-    "version:canary": "node -e \"const pkg=require('./package.json'); const version=pkg.version.split('-')[0]; const timestamp=Date.now(); console.log(`${version}-canary.${timestamp}`);\" > .canary-version && npm version --no-git-tag-version $(cat .canary-version) && rm .canary-version",
+    "version:canary": "npm version prerelease --preid canary --no-git-tag-version",
     "publish:canary": "npm run version:canary && npm run release:canary",
     "demo:inscribe": "tsx demo/inscribe-demo.ts",
     "demo:hcs-10": "tsx demo/hcs-10/index.ts",
@@ -85,7 +85,7 @@
     "@hashgraph/proto": "^2.18.5",
     "@hashgraph/sdk": "2.64.5",
     "@hashgraphonline/hashinal-wc": "^1.0.96",
-    "@hashgraphonline/hedera-agent-kit": "0.0.14-canary.6",
+    "@hashgraphonline/hedera-agent-kit": "0.0.14",
     "@kiloscribe/inscription-sdk": "^1.0.30",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
