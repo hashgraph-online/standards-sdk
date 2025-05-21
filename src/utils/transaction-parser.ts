@@ -45,6 +45,34 @@ export type TokenBurnData = {
   serialNumbers?: number[];
 };
 
+export type FixedFeeData = {
+  amount: string;
+  denominatingTokenId?: string;
+};
+
+export type FractionalFeeData = {
+  numerator: string;
+  denominator: string;
+  minimumAmount: string;
+  maximumAmount: string;
+  netOfTransfers: boolean;
+};
+
+export type RoyaltyFeeData = {
+  numerator: string;
+  denominator: string;
+  fallbackFee?: FixedFeeData;
+};
+
+export type CustomFeeData = {
+  feeCollectorAccountId: string;
+  feeType: 'FIXED_FEE' | 'FRACTIONAL_FEE' | 'ROYALTY_FEE';
+  fixedFee?: FixedFeeData;
+  fractionalFee?: FractionalFeeData;
+  royaltyFee?: RoyaltyFeeData;
+  allCollectorsAreExempt?: boolean;
+};
+
 export type TokenCreationData = {
   tokenName?: string;
   tokenSymbol?: string;
@@ -64,6 +92,7 @@ export type TokenCreationData = {
   pauseKey?: string;
   autoRenewAccount?: string;
   autoRenewPeriod?: string;
+  customFees?: CustomFeeData[];
 };
 
 export type ConsensusCreateTopicData = {
@@ -663,9 +692,7 @@ export class TransactionParser {
           proto.TokenSupplyType[tokenCreation.supplyType];
       }
 
-      creationData.adminKey = tokenCreation.adminKey
-        ? 'Present'
-        : 'Not Present';
+      creationData.adminKey = tokenCreation.adminKey ? 'Present' : 'Not Present';
       creationData.kycKey = tokenCreation.kycKey ? 'Present' : 'Not Present';
       creationData.freezeKey = tokenCreation.freezeKey
         ? 'Present'
@@ -677,9 +704,7 @@ export class TransactionParser {
       creationData.feeScheduleKey = tokenCreation.feeScheduleKey
         ? 'Present'
         : 'Not Present';
-      creationData.pauseKey = tokenCreation.pauseKey
-        ? 'Present'
-        : 'Not Present';
+      creationData.pauseKey = tokenCreation.pauseKey ? 'Present' : 'Not Present';
 
       if (tokenCreation.autoRenewAccount) {
         const ara = tokenCreation.autoRenewAccount;
@@ -696,6 +721,98 @@ export class TransactionParser {
         creationData.autoRenewPeriod = Long.fromValue(
           tokenCreation.autoRenewPeriod.seconds
         ).toString();
+      }
+
+      if (tokenCreation.customFees && tokenCreation.customFees.length > 0) {
+        creationData.customFees = tokenCreation.customFees.map((fee) => {
+          const feeCollectorAccountId = fee.feeCollectorAccountId
+            ? new AccountId(
+                fee.feeCollectorAccountId.shardNum ?? 0,
+                fee.feeCollectorAccountId.realmNum ?? 0,
+                fee.feeCollectorAccountId.accountNum ?? 0
+              ).toString()
+            : 'Not Set';
+
+          const commonFeeData = {
+            feeCollectorAccountId,
+            allCollectorsAreExempt: fee.allCollectorsAreExempt || false,
+          };
+
+          if (fee.fixedFee) {
+            return {
+              ...commonFeeData,
+              feeType: 'FIXED_FEE',
+              fixedFee: {
+                amount: Long.fromValue(fee.fixedFee.amount || 0).toString(),
+                denominatingTokenId: fee.fixedFee.denominatingTokenId
+                  ? new TokenId(
+                      fee.fixedFee.denominatingTokenId.shardNum ?? 0,
+                      fee.fixedFee.denominatingTokenId.realmNum ?? 0,
+                      fee.fixedFee.denominatingTokenId.tokenNum ?? 0
+                    ).toString()
+                  : undefined,
+              },
+            };
+          } else if (fee.fractionalFee) {
+            return {
+              ...commonFeeData,
+              feeType: 'FRACTIONAL_FEE',
+              fractionalFee: {
+                numerator: Long.fromValue(
+                  fee.fractionalFee.fractionalAmount?.numerator || 0
+                ).toString(),
+                denominator: Long.fromValue(
+                  fee.fractionalFee.fractionalAmount?.denominator || 1
+                ).toString(),
+                minimumAmount: Long.fromValue(
+                  fee.fractionalFee.minimumAmount || 0
+                ).toString(),
+                maximumAmount: Long.fromValue(
+                  fee.fractionalFee.maximumAmount || 0
+                ).toString(),
+                netOfTransfers: fee.fractionalFee.netOfTransfers || false,
+              },
+            };
+          } else if (fee.royaltyFee) {
+            let fallbackFeeData: FixedFeeData | undefined = undefined;
+            if (fee.royaltyFee.fallbackFee) {
+              fallbackFeeData = {
+                amount: Long.fromValue(
+                  fee.royaltyFee.fallbackFee.amount || 0
+                ).toString(),
+                denominatingTokenId: fee.royaltyFee.fallbackFee
+                  .denominatingTokenId
+                  ? new TokenId(
+                      fee.royaltyFee.fallbackFee.denominatingTokenId.shardNum ??
+                        0,
+                      fee.royaltyFee.fallbackFee.denominatingTokenId.realmNum ??
+                        0,
+                      fee.royaltyFee.fallbackFee.denominatingTokenId.tokenNum ??
+                        0
+                    ).toString()
+                  : undefined,
+              };
+            }
+            return {
+              ...commonFeeData,
+              feeType: 'ROYALTY_FEE',
+              royaltyFee: {
+                numerator: Long.fromValue(
+                  fee.royaltyFee.exchangeValueFraction?.numerator || 0
+                ).toString(),
+                denominator: Long.fromValue(
+                  fee.royaltyFee.exchangeValueFraction?.denominator || 1
+                ).toString(),
+                fallbackFee: fallbackFeeData,
+              },
+            };
+          }
+          return {
+            ...commonFeeData,
+            feeType: 'FIXED_FEE',
+            fixedFee: { amount: '0' },
+          } as CustomFeeData;
+        });
       }
 
       result.tokenCreation = creationData;
@@ -861,6 +978,14 @@ export class TransactionParser {
       summary = `Mint ${parsedTx.tokenMint.amount} tokens for token ${parsedTx.tokenMint.tokenId}`;
     } else if (parsedTx.tokenBurn) {
       summary = `Burn ${parsedTx.tokenBurn.amount} tokens for token ${parsedTx.tokenBurn.tokenId}`;
+    } else if (parsedTx.tokenCreation) {
+      summary = `Create token ${parsedTx.tokenCreation.tokenName || '(No Name)'} (${parsedTx.tokenCreation.tokenSymbol || '(No Symbol)'})`;
+      if (parsedTx.tokenCreation.initialSupply) {
+        summary += ` with initial supply ${parsedTx.tokenCreation.initialSupply}`;
+      }
+      if (parsedTx.tokenCreation.customFees && parsedTx.tokenCreation.customFees.length > 0) {
+        summary += ` including ${parsedTx.tokenCreation.customFees.length} custom fee(s)`;
+      }
     } else if (parsedTx.tokenTransfers.length > 0) {
       const tokenGroups: Record<string, TokenAmount[]> = {};
 
