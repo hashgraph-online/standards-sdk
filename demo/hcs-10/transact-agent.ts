@@ -5,7 +5,7 @@ import {
   HederaConversationalAgent,
   ServerSigner,
 } from '@hashgraphonline/hedera-agent-kit';
-import { Transaction, ScheduleCreateTransaction } from '@hashgraph/sdk';
+import { ScheduleCreateTransaction } from '@hashgraph/sdk';
 
 const logger = new Logger({
   module: 'BobPollingAgent',
