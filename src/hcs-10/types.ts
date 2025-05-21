@@ -53,11 +53,6 @@ export interface Message {
   message: string;
   sequence_number?: number;
 }
-
-export interface Links {
-  next: string;
-}
-
 export interface ApiResponse {
   messages?: any[];
   links?: {
@@ -94,6 +89,16 @@ export interface InscribePfpResponse {
   transactionId: string;
   success: boolean;
   error?: string;
+}
+
+export interface TransactMessage {
+  operator_id: string;
+  schedule_id: string;
+  tx_id: string;
+  data?: string;
+  timestamp: number;
+  memo?: string;
+  sequence_number: number;
 }
 
 export interface StoreHCS11ProfileResponse {
