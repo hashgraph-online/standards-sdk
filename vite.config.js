@@ -65,9 +65,6 @@ export default defineConfig(() => {
           if (id.startsWith('@kiloscribe/inscription-sdk')) {
             return false;
           }
-          if (format === 'cjs' && id === 'buffer') {
-            return false;
-          }
           if (format === 'umd') {
             return false;
           }
