@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.109",
+  "version": "0.0.111-canary.0",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -26,14 +26,14 @@
     "standards",
     "sdk"
   ],
-  "main": "./dist/umd/standards-sdk.umd.js",
+  "main": "./dist/cjs/standards-sdk.cjs",
   "module": "./dist/es/standards-sdk.es.js",
   "types": "./dist/es/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/es/index.d.ts",
       "import": "./dist/es/standards-sdk.es.js",
-      "require": "./dist/umd/standards-sdk.umd.js",
+      "require": "./dist/cjs/standards-sdk.cjs",
       "default": "./dist/es/standards-sdk.es.js"
     }
   },
@@ -41,7 +41,8 @@
     "clean": "rimraf dist",
     "build:es": "BUILD_FORMAT=es vite build",
     "build:umd": "BUILD_FORMAT=umd vite build",
-    "build": "npm run clean && npm run build:umd && npm run build:es",
+    "build:cjs": "BUILD_FORMAT=cjs vite build",
+    "build": "npm run clean && npm run build:es && npm run build:umd && npm run build:cjs",
     "prepublishOnly": "npm run build",
     "release": "npm publish --access public",
     "release:canary": "npm run prepublishOnly && npm publish --tag canary --access public",
@@ -86,7 +87,7 @@
     "@hashgraph/sdk": "2.64.5",
     "@hashgraphonline/hashinal-wc": "^1.0.96",
     "@hashgraphonline/hedera-agent-kit": "0.0.14",
-    "@kiloscribe/inscription-sdk": "^1.0.30",
+    "@kiloscribe/inscription-sdk": "^1.0.31",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
     "file-type": "^20.4.1",
