@@ -707,6 +707,9 @@ async function main() {
       logger,
       handleConnectionRequest,
       handleStandardMessage,
+      (message) => {
+        return false;
+      },
       agentData
     );
   } catch (error) {

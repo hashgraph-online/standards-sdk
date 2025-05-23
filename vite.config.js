@@ -3,10 +3,19 @@ import path from 'path';
 import StringReplace from 'vite-plugin-string-replace';
 import dts from 'vite-plugin-dts';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { resolve } from 'path';
 
 export default defineConfig(() => {
   const format = process.env.BUILD_FORMAT || 'es';
-  const outputDir = format === 'umd' ? 'dist/umd' : 'dist/es';
+  let outputDir;
+
+  if (format === 'umd') {
+    outputDir = 'dist/umd';
+  } else if (format === 'cjs') {
+    outputDir = 'dist/cjs';
+  } else {
+    outputDir = 'dist/es';
+  }
 
   const externalDependencies = [
     '@hashgraph/proto',
@@ -34,6 +43,9 @@ export default defineConfig(() => {
         process: true,
       },
       protocolImports: true,
+      modules: {
+        buffer: true,
+      },
     }),
   ];
 
@@ -42,18 +54,46 @@ export default defineConfig(() => {
     build: {
       outDir: outputDir,
       lib: {
-        entry: path.resolve(__dirname, 'src/index.ts'),
-        name: 'StandardsSDK',
-        fileName: (format) => `standards-sdk.${format}.js`,
+        entry: resolve(__dirname, 'src/index.ts'),
+        name: format === 'umd' ? 'StandardsSDK' : undefined,
+        fileName: (fmt) =>
+          `standards-sdk.${fmt === 'cjs' ? 'cjs' : fmt + '.js'}`,
         formats: [format],
       },
       rollupOptions: {
-        external: format === 'es' ? externalDependencies : [],
-        output: {
-          globals: (id) => id,
-          preserveModules: format === 'es',
-          preserveModulesRoot: 'src',
+        external: (id) => {
+          if (id.startsWith('@kiloscribe/inscription-sdk')) {
+            return false;
+          }
+          if (format === 'cjs' && id === 'buffer') {
+            return false;
+          }
+          if (format === 'umd') {
+            return false;
+          }
+          return (
+            externalDependencies.some(
+              (dep) => id === dep || id.startsWith(dep + '/')
+            ) ||
+            (!id.startsWith('.') &&
+              !id.startsWith('/') &&
+              !id.includes(__dirname))
+          );
         },
+        output:
+          format === 'cjs'
+            ? {
+                exports: 'named',
+                format: 'cjs',
+              }
+            : {
+                globals: (id) => id,
+                preserveModules: format === 'es',
+                preserveModulesRoot: format === 'es' ? 'src' : undefined,
+                exports: 'named',
+                inlineDynamicImports: format === 'umd',
+                name: format === 'umd' ? 'StandardsSDK' : undefined,
+              },
       },
       minify: 'terser',
       sourcemap: true,
@@ -61,6 +101,7 @@ export default defineConfig(() => {
     },
     define: {
       VITE_BUILD_FORMAT: JSON.stringify(format),
+      ...(format === 'cjs' ? { Buffer: 'globalThis.Buffer' } : {}),
     },
     resolve: {
       alias: {
