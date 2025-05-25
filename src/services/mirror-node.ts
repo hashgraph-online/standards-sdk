@@ -666,8 +666,8 @@ export class HederaMirrorNode {
    * @param accountId The ID of the account.
    * @returns A promise that resolves to the HBAR balance or null if an error occurs.
    */
-  async getAccountBalanceNumerical(accountId: string): Promise<number | null> {
-    this.logger.info(`Getting numerical balance for account ${accountId}`);
+  async getAccountBalance(accountId: string): Promise<number | null> {
+    this.logger.info(`Getting balance for account ${accountId}`);
     try {
       const accountInfo = await this.requestAccount(accountId);
       if (accountInfo && accountInfo.balance) {
