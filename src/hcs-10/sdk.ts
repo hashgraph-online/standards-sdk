@@ -15,7 +15,6 @@ import {
   CustomFixedFee,
   TokenId,
   ScheduleCreateTransaction,
-  TransactionId,
   Timestamp,
 } from '@hashgraph/sdk';
 import {
@@ -43,8 +42,8 @@ import {
   AgentCreationState,
   RegistrationProgressCallback,
   InscribePfpResponse,
-  TransactMessage,
 } from './types';
+import { MirrorNodeConfig } from '../services';
 import {
   HCS11Client,
   AgentMetadata as HCS11AgentMetadata,
@@ -76,6 +75,7 @@ export class HCS10Client extends HCS10BaseClient {
       logLevel: config.logLevel,
       prettyPrint: config.prettyPrint,
       feeAmount: config.feeAmount,
+      mirrorNode: config.mirrorNode,
     });
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
