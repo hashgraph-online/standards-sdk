@@ -2,6 +2,7 @@ import { PrivateKey } from '@hashgraph/sdk';
 import { LogLevel } from '../utils/logger';
 import { AIAgentCapability, AIAgentProfile } from '../hcs-11';
 import { NetworkType } from '../utils/types';
+import { MirrorNodeConfig } from '../services';
 
 export interface ValidationError {
   validation: string;
@@ -38,15 +39,48 @@ export interface AgentConfig<T> {
   client: T;
 }
 
+/**
+ * Configuration for HCS-10 SDK client.
+ * 
+ * @example
+ * // Using default Hedera mirror nodes
+ * const config = {
+ *   network: 'testnet',
+ *   operatorId: '0.0.123',
+ *   operatorPrivateKey: 'your-private-key'
+ * };
+ * 
+ * @example
+ * // Using HGraph custom mirror node provider
+ * const config = {
+ *   network: 'mainnet',
+ *   operatorId: '0.0.123',
+ *   operatorPrivateKey: 'your-private-key',
+ *   mirrorNode: {
+ *     customUrl: 'https://mainnet.hedera.api.hgraph.dev/v1/<API-KEY>',
+ *     apiKey: 'your-hgraph-api-key'
+ *   }
+ * };
+ */
 export interface HCSClientConfig {
+  /** The Hedera network to connect to */
   network: NetworkType;
+  /** The operator account ID */
   operatorId: string;
+  /** The operator private key */
   operatorPrivateKey: string;
+  /** The operator public key (optional) */
   operatorPublicKey?: string;
+  /** Log level for the client */
   logLevel?: LogLevel;
+  /** Whether to pretty print logs */
   prettyPrint?: boolean;
+  /** Base URL for the guarded registry */
   guardedRegistryBaseUrl?: string;
-  feeAmount?: number; // Default fee amount for HIP-991 fee payments
+  /** Default fee amount for HIP-991 fee payments */
+  feeAmount?: number;
+  /** Custom mirror node configuration */
+  mirrorNode?: MirrorNodeConfig;
 }
 
 export interface Message {

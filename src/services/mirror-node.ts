@@ -17,6 +17,27 @@ import {
   NftDetail,
   AccountNftsResponse,
   ContractCallQueryResponse,
+  TokenAirdrop,
+  TokenAirdropsResponse,
+  Block,
+  BlocksResponse,
+  ContractResult,
+  ContractResultsResponse,
+  ContractLog,
+  ContractLogsResponse,
+  ContractAction,
+  ContractActionsResponse,
+  ContractEntity,
+  ContractsResponse,
+  ContractState,
+  ContractStateResponse,
+  NftInfo,
+  NftsResponse,
+  NetworkInfo,
+  NetworkFees,
+  NetworkSupply,
+  NetworkStake,
+  OpcodesResponse,
 } from './types';
 import { NetworkType } from '../utils/types';
 
@@ -30,20 +51,53 @@ export interface RetryConfig {
   backoffFactor?: number;
 }
 
+/**
+ * Configuration for custom mirror node providers.
+ *
+ * @example
+ * // Using HGraph with API key in URL
+ * const config = {
+ *   customUrl: 'https://mainnet.hedera.api.hgraph.dev/v1/<API-KEY>',
+ *   apiKey: 'your-api-key-here'
+ * };
+ *
+ * @example
+ * // Using custom provider with API key in headers
+ * const config = {
+ *   customUrl: 'https://custom-mirror-node.com',
+ *   apiKey: 'your-api-key',
+ *   headers: {
+ *     'X-Custom-Header': 'value'
+ *   }
+ * };
+ */
+export interface MirrorNodeConfig {
+  /** Custom mirror node URL. Can include <API-KEY> placeholder for URL-based API keys. */
+  customUrl?: string;
+  /** API key for authentication. Will be used in both Authorization header and URL replacement. */
+  apiKey?: string;
+  /** Additional custom headers to include with requests. */
+  headers?: Record<string, string>;
+}
+
 export class HederaMirrorNode {
   private network: NetworkType;
   private baseUrl: string;
   private logger: Logger;
   private isServerEnvironment: boolean;
+  private apiKey?: string;
+  private customHeaders: Record<string, string>;
 
   private maxRetries: number = 3;
   private initialDelayMs: number = 1000;
   private maxDelayMs: number = 30000;
   private backoffFactor: number = 2;
 
-  constructor(network: NetworkType, logger: Logger) {
+  constructor(network: NetworkType, logger: Logger, config?: MirrorNodeConfig) {
     this.network = network;
-    this.baseUrl = this.getMirrorNodeUrl();
+    this.apiKey = config?.apiKey;
+    this.customHeaders = config?.headers || {};
+    this.baseUrl = config?.customUrl || this.getMirrorNodeUrl();
     this.logger =
       logger ||
       new Logger({
@@ -51,6 +105,13 @@ export class HederaMirrorNode {
         module: 'MirrorNode',
       });
     this.isServerEnvironment = typeof window === 'undefined';
+
+    if (config?.customUrl) {
+      this.logger.info(`Using custom mirror node URL: ${config.customUrl}`);
+    }
+    if (config?.apiKey) {
+      this.logger.info('Using API key for mirror node requests');
+    }
   }
 
   /**
@@ -65,6 +126,42 @@ export class HederaMirrorNode {
     this.logger.info(
       `Retry configuration updated: maxRetries=${this.maxRetries}, initialDelayMs=${this.initialDelayMs}, maxDelayMs=${this.maxDelayMs}, backoffFactor=${this.backoffFactor}`
     );
+  }
+
+  /**
+   * Updates the mirror node configuration.
+   * @param config The new mirror node configuration.
+   */
+  public configureMirrorNode(config: MirrorNodeConfig): void {
+    if (config.customUrl) {
+      this.baseUrl = config.customUrl;
+      this.logger.info(`Updated mirror node URL: ${config.customUrl}`);
+    }
+    if (config.apiKey) {
+      this.apiKey = config.apiKey;
+      this.logger.info('Updated API key for mirror node requests');
+    }
+    if (config.headers) {
+      this.customHeaders = { ...this.customHeaders, ...config.headers };
+      this.logger.info('Updated custom headers for mirror node requests');
+    }
+  }
+
+  /**
+   * Constructs a full URL for API requests, handling custom providers with API keys in the path.
+   * @param endpoint The API endpoint (e.g., '/api/v1/accounts/0.0.123')
+   * @returns The full URL for the request
+   */
+  private constructUrl(endpoint: string): string {
+    if (this.baseUrl.includes('<API-KEY>') && this.apiKey) {
+      const baseUrlWithKey = this.baseUrl.replace('<API-KEY>', this.apiKey);
+      return endpoint.startsWith('/')
+        ? `${baseUrlWithKey}${endpoint}`
+        : `${baseUrlWithKey}/${endpoint}`;
+    }
+    return endpoint.startsWith('/')
+      ? `${this.baseUrl}${endpoint}`
+      : `${this.baseUrl}/${endpoint}`;
   }
 
   private getMirrorNodeUrl(): string {
@@ -112,11 +209,10 @@ export class HederaMirrorNode {
    */
   async getAccountMemo(accountId: string): Promise<string | null> {
     this.logger.info(`Getting account memo for account ID: ${accountId}`);
-    const accountInfoUrl = `${this.baseUrl}/api/v1/accounts/${accountId}`;
 
     try {
       const accountInfo = await this._requestWithRetry<AccountResponse>(
-        accountInfoUrl
+        `/api/v1/accounts/${accountId}`
       );
 
       if (accountInfo?.memo) {
@@ -141,9 +237,10 @@ export class HederaMirrorNode {
    */
   async getTopicInfo(topicId: string): Promise<TopicResponse> {
     try {
-      const topicInfoUrl = `${this.baseUrl}/api/v1/topics/${topicId}`;
-      this.logger.debug(`Fetching topic info from ${topicInfoUrl}`);
-      const data = await this._requestWithRetry<TopicResponse>(topicInfoUrl);
+      this.logger.debug(`Fetching topic info for ${topicId}`);
+      const data = await this._requestWithRetry<TopicResponse>(
+        `/api/v1/topics/${topicId}`
+      );
       return data;
     } catch (e: any) {
       const error = e as Error;
@@ -180,10 +277,11 @@ export class HederaMirrorNode {
   async getHBARPrice(date: Date): Promise<number | null> {
     try {
       const timestamp = Timestamp.fromDate(date).toString();
-      const url = `https://mainnet-public.mirrornode.hedera.com/api/v1/network/exchangerate?timestamp=${timestamp}`;
-      this.logger.debug(`Fetching HBAR price from ${url}`);
+      this.logger.debug(`Fetching HBAR price for timestamp ${timestamp}`);
 
-      const response = await this._fetchWithRetry<HBARPrice>(url);
+      const response = await this._requestWithRetry<HBARPrice>(
+        `/api/v1/network/exchangerate?timestamp=${timestamp}`
+      );
 
       const usdPrice =
         Number(response?.current_rate?.cent_equivalent) /
@@ -208,9 +306,8 @@ export class HederaMirrorNode {
   async getTokenInfo(tokenId: string): Promise<TokenInfoResponse | null> {
     this.logger.debug(`Fetching token info for ${tokenId}`);
     try {
-      const tokenInfoUrl = `${this.baseUrl}/api/v1/tokens/${tokenId}`;
       const data = await this._requestWithRetry<TokenInfoResponse>(
-        tokenInfoUrl
+        `/api/v1/tokens/${tokenId}`
       );
       if (data) {
         this.logger.trace(`Token info found for ${tokenId}:`, data);
@@ -236,13 +333,13 @@ export class HederaMirrorNode {
   async getTopicMessages(topicId: string): Promise<HCSMessage[]> {
     this.logger.trace(`Querying messages for topic ${topicId}`);
 
-    let nextUrl = `${this.baseUrl}/api/v1/topics/${topicId}/messages`;
+    let nextEndpoint = `/api/v1/topics/${topicId}/messages`;
     const messages: HCSMessage[] = [];
 
-    while (nextUrl) {
+    while (nextEndpoint) {
       try {
         const data = await this._requestWithRetry<TopicMessagesResponse>(
-          nextUrl
+          nextEndpoint
         );
 
         if (data.messages && data.messages.length > 0) {
@@ -295,10 +392,10 @@ export class HederaMirrorNode {
           }
         }
 
-        nextUrl = data.links?.next ? `${this.baseUrl}${data.links.next}` : '';
+        nextEndpoint = data.links?.next || '';
       } catch (e: any) {
         const error = e as Error;
-        const logMessage = `Error querying topic messages for topic ${topicId} (URL: ${nextUrl}) after retries: ${error.message}`;
+        const logMessage = `Error querying topic messages for topic ${topicId} (endpoint: ${nextEndpoint}) after retries: ${error.message}`;
         this.logger.error(logMessage);
         throw new Error(logMessage);
       }
@@ -315,10 +412,9 @@ export class HederaMirrorNode {
    */
   async requestAccount(accountId: string): Promise<AccountResponse> {
     try {
-      const accountInfoUrl = `${this.baseUrl}/api/v1/accounts/${accountId}`;
-      this.logger.debug(`Requesting account info from ${accountInfoUrl}`);
+      this.logger.debug(`Requesting account info for ${accountId}`);
       const data = await this._requestWithRetry<AccountResponse>(
-        accountInfoUrl
+        `/api/v1/accounts/${accountId}`
       );
       if (!data) {
         throw new Error(
@@ -459,8 +555,9 @@ export class HederaMirrorNode {
         `Getting information for scheduled transaction ${scheduleId}`
       );
 
-      const url = `${this.baseUrl}/api/v1/schedules/${scheduleId}`;
-      const data = await this._requestWithRetry<ScheduleInfo>(url);
+      const data = await this._requestWithRetry<ScheduleInfo>(
+        `/api/v1/schedules/${scheduleId}`
+      );
 
       if (data) {
         return data;
@@ -526,16 +623,11 @@ export class HederaMirrorNode {
     this.logger.info(
       `Getting transaction details for ID/hash: ${transactionIdOrHash}`
     );
-    const endpoint = transactionIdOrHash.includes('-')
-      ? `transactions/${transactionIdOrHash}`
-      : `transactions/${transactionIdOrHash}`;
-
-    const transactionDetailsUrl = `${this.baseUrl}/api/v1/${endpoint}`;
 
     try {
       const response = await this._requestWithRetry<{
         transactions: HederaTransaction[];
-      }>(transactionDetailsUrl);
+      }>(`/api/v1/transactions/${transactionIdOrHash}`);
 
       if (response?.transactions?.length > 0) {
         this.logger.trace(
@@ -562,15 +654,32 @@ export class HederaMirrorNode {
    * Private helper to make GET requests with retry logic using Axios.
    */
   private async _requestWithRetry<T>(
-    url: string,
+    endpoint: string,
     axiosConfig?: AxiosRequestConfig
   ): Promise<T> {
     let attempt = 0;
     let delay = this.initialDelayMs;
+    const url = this.constructUrl(endpoint);
+
+    const config: AxiosRequestConfig = {
+      ...axiosConfig,
+      headers: {
+        ...this.customHeaders,
+        ...axiosConfig?.headers,
+      },
+    };
+
+    if (this.apiKey) {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${this.apiKey}`,
+        'X-API-Key': this.apiKey,
+      };
+    }
 
     while (attempt < this.maxRetries) {
       try {
-        const response = await axios.get<T>(url, axiosConfig);
+        const response = await axios.get<T>(url, config);
         return response.data;
       } catch (error: any) {
         attempt++;
@@ -619,9 +728,37 @@ export class HederaMirrorNode {
     let attempt = 0;
     let delay = this.initialDelayMs;
 
+    const headers: Record<string, string> = {
+      ...this.customHeaders,
+    };
+
+    if (fetchOptions?.headers) {
+      if (fetchOptions.headers instanceof Headers) {
+        fetchOptions.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+      } else if (Array.isArray(fetchOptions.headers)) {
+        fetchOptions.headers.forEach(([key, value]) => {
+          headers[key] = value;
+        });
+      } else {
+        Object.assign(headers, fetchOptions.headers);
+      }
+    }
+
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+      headers['X-API-Key'] = this.apiKey;
+    }
+
+    const options: RequestInit = {
+      ...fetchOptions,
+      headers,
+    };
+
     while (attempt < this.maxRetries) {
       try {
-        const request = await fetch(url, fetchOptions);
+        const request = await fetch(url, options);
         if (!request.ok) {
           if (
             request.status >= 400 &&
@@ -711,7 +848,7 @@ export class HederaMirrorNode {
       )}`
     );
 
-    let nextUrl = `${this.baseUrl}/api/v1/topics/${topicId}/messages`;
+    let nextUrl = `/api/v1/topics/${topicId}/messages`;
     const params = new URLSearchParams();
 
     if (options?.limit) {
@@ -801,7 +938,7 @@ export class HederaMirrorNode {
           }
         }
         if (options?.limit && messages.length >= options.limit) break;
-        nextUrl = data.links?.next ? `${this.baseUrl}${data.links.next}` : '';
+        nextUrl = data.links?.next ? `${data.links.next}` : '';
       }
       return messages;
     } catch (e: any) {
@@ -825,20 +962,18 @@ export class HederaMirrorNode {
   ): Promise<AccountTokenBalance[] | null> {
     this.logger.info(`Getting tokens for account ${accountId}`);
     let allTokens: AccountTokenBalance[] = [];
-    let url = `${this.baseUrl}/api/v1/accounts/${accountId}/tokens?limit=${limit}`;
+    let endpoint = `/api/v1/accounts/${accountId}/tokens?limit=${limit}`;
 
     try {
-      for (let i = 0; i < 10 && url; i++) {
+      for (let i = 0; i < 10 && endpoint; i++) {
         const response = await this._requestWithRetry<AccountTokensResponse>(
-          url
+          endpoint
         );
         if (response && response.tokens) {
           allTokens = allTokens.concat(response.tokens);
         }
-        url = response.links?.next
-          ? `${this.baseUrl}${response.links.next}`
-          : '';
-        if (!url || (limit && allTokens.length >= limit)) {
+        endpoint = response.links?.next || '';
+        if (!endpoint || (limit && allTokens.length >= limit)) {
           if (limit && allTokens.length > limit) {
             allTokens = allTokens.slice(0, limit);
           }
@@ -863,12 +998,11 @@ export class HederaMirrorNode {
     timestamp: string
   ): Promise<HederaTransaction[]> {
     this.logger.info(`Getting transaction by timestamp: ${timestamp}`);
-    const url = `${this.baseUrl}/api/v1/transactions?timestamp=${timestamp}&limit=1`;
 
     try {
       const response = await this._requestWithRetry<{
         transactions: HederaTransaction[];
-      }>(url);
+      }>(`/api/v1/transactions?timestamp=${timestamp}&limit=1`);
 
       return response.transactions;
     } catch (error: unknown) {
@@ -897,14 +1031,16 @@ export class HederaMirrorNode {
       }`
     );
     let allNfts: NftDetail[] = [];
-    let url = `${this.baseUrl}/api/v1/accounts/${accountId}/nfts?limit=${limit}`;
+    let endpoint = `/api/v1/accounts/${accountId}/nfts?limit=${limit}`;
     if (tokenId) {
-      url += `&token.id=${tokenId}`;
+      endpoint += `&token.id=${tokenId}`;
     }
 
     try {
-      for (let i = 0; i < 10 && url; i++) {
-        const response = await this._requestWithRetry<AccountNftsResponse>(url);
+      for (let i = 0; i < 10 && endpoint; i++) {
+        const response = await this._requestWithRetry<AccountNftsResponse>(
+          endpoint
+        );
         if (response && response.nfts) {
           const nftsWithUri = response.nfts.map((nft) => {
             let tokenUri: string | undefined = undefined;
@@ -931,10 +1067,8 @@ export class HederaMirrorNode {
           });
           allNfts = allNfts.concat(nftsWithUri);
         }
-        url = response.links?.next
-          ? `${this.baseUrl}${response.links.next}`
-          : '';
-        if (!url) break;
+        endpoint = response.links?.next || '';
+        if (!endpoint) break;
       }
       return allNfts;
     } catch (error: any) {
@@ -1001,7 +1135,6 @@ export class HederaMirrorNode {
     this.logger.info(
       `Reading smart contract ${contractIdOrAddress} with selector ${functionSelector}`
     );
-    const url = `${this.baseUrl}/api/v1/contracts/call`;
 
     const toAddress = contractIdOrAddress.startsWith('0x')
       ? contractIdOrAddress
@@ -1029,6 +1162,7 @@ export class HederaMirrorNode {
     });
 
     try {
+      const url = this.constructUrl('/api/v1/contracts/call');
       const response = await this._fetchWithRetry<ContractCallQueryResponse>(
         url,
         {
@@ -1043,6 +1177,823 @@ export class HederaMirrorNode {
     } catch (error: any) {
       this.logger.error(
         `Error reading smart contract ${contractIdOrAddress}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves outstanding token airdrops sent by an account.
+   * @param accountId The ID of the account that sent the airdrops.
+   * @param options Optional parameters for filtering airdrops.
+   * @returns A promise that resolves to an array of TokenAirdrop or null.
+   */
+  async getOutstandingTokenAirdrops(
+    accountId: string,
+    options?: {
+      limit?: number;
+      order?: 'asc' | 'desc';
+      receiverId?: string;
+      serialNumber?: string;
+      tokenId?: string;
+    }
+  ): Promise<TokenAirdrop[] | null> {
+    this.logger.info(
+      `Getting outstanding token airdrops sent by account ${accountId}`
+    );
+    let endpoint = `/api/v1/accounts/${accountId}/airdrops/outstanding`;
+    const params = new URLSearchParams();
+
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.receiverId) {
+      params.append('receiver.id', options.receiverId);
+    }
+    if (options?.serialNumber) {
+      params.append('serialnumber', options.serialNumber);
+    }
+    if (options?.tokenId) {
+      params.append('token.id', options.tokenId);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<TokenAirdropsResponse>(
+        endpoint
+      );
+      return response.airdrops || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching outstanding token airdrops for account ${accountId}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves pending token airdrops received by an account.
+   * @param accountId The ID of the account that received the airdrops.
+   * @param options Optional parameters for filtering airdrops.
+   * @returns A promise that resolves to an array of TokenAirdrop or null.
+   */
+  async getPendingTokenAirdrops(
+    accountId: string,
+    options?: {
+      limit?: number;
+      order?: 'asc' | 'desc';
+      senderId?: string;
+      serialNumber?: string;
+      tokenId?: string;
+    }
+  ): Promise<TokenAirdrop[] | null> {
+    this.logger.info(
+      `Getting pending token airdrops received by account ${accountId}`
+    );
+    let endpoint = `/api/v1/accounts/${accountId}/airdrops/pending`;
+    const params = new URLSearchParams();
+
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.senderId) {
+      params.append('sender.id', options.senderId);
+    }
+    if (options?.serialNumber) {
+      params.append('serialnumber', options.serialNumber);
+    }
+    if (options?.tokenId) {
+      params.append('token.id', options.tokenId);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<TokenAirdropsResponse>(
+        endpoint
+      );
+      return response.airdrops || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching pending token airdrops for account ${accountId}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves blocks from the network.
+   * @param options Optional parameters for filtering blocks.
+   * @returns A promise that resolves to an array of Block or null.
+   */
+  async getBlocks(options?: {
+    limit?: number;
+    order?: 'asc' | 'desc';
+    timestamp?: string;
+    blockNumber?: string;
+  }): Promise<Block[] | null> {
+    this.logger.info('Getting blocks from the network');
+    let endpoint = `/api/v1/blocks`;
+    const params = new URLSearchParams();
+
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.timestamp) {
+      params.append('timestamp', options.timestamp);
+    }
+    if (options?.blockNumber) {
+      params.append('block.number', options.blockNumber);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<BlocksResponse>(endpoint);
+      return response.blocks || [];
+    } catch (error: any) {
+      this.logger.error(`Error fetching blocks: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves a specific block by number or hash.
+   * @param blockNumberOrHash The block number or hash.
+   * @returns A promise that resolves to a Block or null.
+   */
+  async getBlock(blockNumberOrHash: string): Promise<Block | null> {
+    this.logger.info(`Getting block ${blockNumberOrHash}`);
+    try {
+      const response = await this._requestWithRetry<Block>(
+        `/api/v1/blocks/${blockNumberOrHash}`
+      );
+      return response;
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching block ${blockNumberOrHash}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract entities from the network.
+   * @param options Optional parameters for filtering contracts.
+   * @returns A promise that resolves to an array of ContractEntity or null.
+   */
+  async getContracts(options?: {
+    contractId?: string;
+    limit?: number;
+    order?: 'asc' | 'desc';
+  }): Promise<ContractEntity[] | null> {
+    this.logger.info('Getting contracts from the network');
+    let url = `/api/v1/contracts`;
+    const params = new URLSearchParams();
+
+    if (options?.contractId) {
+      params.append('contract.id', options.contractId);
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractsResponse>(url);
+      return response.contracts || [];
+    } catch (error: any) {
+      this.logger.error(`Error fetching contracts: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves a specific contract by ID or address.
+   * @param contractIdOrAddress The contract ID or EVM address.
+   * @param timestamp Optional timestamp for historical data.
+   * @returns A promise that resolves to a ContractEntity or null.
+   */
+  async getContract(
+    contractIdOrAddress: string,
+    timestamp?: string
+  ): Promise<ContractEntity | null> {
+    this.logger.info(`Getting contract ${contractIdOrAddress}`);
+    let url = `/api/v1/contracts/${contractIdOrAddress}`;
+
+    if (timestamp) {
+      url += `?timestamp=${timestamp}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractEntity>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching contract ${contractIdOrAddress}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract results from the network.
+   * @param options Optional parameters for filtering contract results.
+   * @returns A promise that resolves to an array of ContractResult or null.
+   */
+  async getContractResults(options?: {
+    from?: string;
+    blockHash?: string;
+    blockNumber?: string;
+    internal?: boolean;
+    limit?: number;
+    order?: 'asc' | 'desc';
+    timestamp?: string;
+    transactionIndex?: number;
+  }): Promise<ContractResult[] | null> {
+    this.logger.info('Getting contract results from the network');
+    let url = `/api/v1/contracts/results`;
+    const params = new URLSearchParams();
+
+    if (options?.from) {
+      params.append('from', options.from);
+    }
+    if (options?.blockHash) {
+      params.append('block.hash', options.blockHash);
+    }
+    if (options?.blockNumber) {
+      params.append('block.number', options.blockNumber);
+    }
+    if (options?.internal !== undefined) {
+      params.append('internal', options.internal.toString());
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.timestamp) {
+      params.append('timestamp', options.timestamp);
+    }
+    if (options?.transactionIndex) {
+      params.append('transaction.index', options.transactionIndex.toString());
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractResultsResponse>(
+        url
+      );
+      return response.results || [];
+    } catch (error: any) {
+      this.logger.error(`Error fetching contract results: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves a specific contract result by transaction ID or hash.
+   * @param transactionIdOrHash The transaction ID or hash.
+   * @param nonce Optional nonce filter.
+   * @returns A promise that resolves to a ContractResult or null.
+   */
+  async getContractResult(
+    transactionIdOrHash: string,
+    nonce?: number
+  ): Promise<ContractResult | null> {
+    this.logger.info(`Getting contract result for ${transactionIdOrHash}`);
+    let url = `/api/v1/contracts/results/${transactionIdOrHash}`;
+
+    if (nonce !== undefined) {
+      url += `?nonce=${nonce}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractResult>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching contract result for ${transactionIdOrHash}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract results for a specific contract.
+   * @param contractIdOrAddress The contract ID or EVM address.
+   * @param options Optional parameters for filtering.
+   * @returns A promise that resolves to an array of ContractResult or null.
+   */
+  async getContractResultsByContract(
+    contractIdOrAddress: string,
+    options?: {
+      blockHash?: string;
+      blockNumber?: string;
+      from?: string;
+      internal?: boolean;
+      limit?: number;
+      order?: 'asc' | 'desc';
+      timestamp?: string;
+      transactionIndex?: number;
+    }
+  ): Promise<ContractResult[] | null> {
+    this.logger.info(
+      `Getting contract results for contract ${contractIdOrAddress}`
+    );
+    let url = `/api/v1/contracts/${contractIdOrAddress}/results`;
+    const params = new URLSearchParams();
+
+    if (options?.blockHash) {
+      params.append('block.hash', options.blockHash);
+    }
+    if (options?.blockNumber) {
+      params.append('block.number', options.blockNumber);
+    }
+    if (options?.from) {
+      params.append('from', options.from);
+    }
+    if (options?.internal !== undefined) {
+      params.append('internal', options.internal.toString());
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.timestamp) {
+      params.append('timestamp', options.timestamp);
+    }
+    if (options?.transactionIndex) {
+      params.append('transaction.index', options.transactionIndex.toString());
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractResultsResponse>(
+        url
+      );
+      return response.results || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching contract results for ${contractIdOrAddress}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract state for a specific contract.
+   * @param contractIdOrAddress The contract ID or EVM address.
+   * @param options Optional parameters for filtering.
+   * @returns A promise that resolves to an array of ContractState or null.
+   */
+  async getContractState(
+    contractIdOrAddress: string,
+    options?: {
+      limit?: number;
+      order?: 'asc' | 'desc';
+      slot?: string;
+      timestamp?: string;
+    }
+  ): Promise<ContractState[] | null> {
+    this.logger.info(`Getting contract state for ${contractIdOrAddress}`);
+    let url = `/api/v1/contracts/${contractIdOrAddress}/state`;
+    const params = new URLSearchParams();
+
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.slot) {
+      params.append('slot', options.slot);
+    }
+    if (options?.timestamp) {
+      params.append('timestamp', options.timestamp);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractStateResponse>(url);
+      return response.state || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching contract state for ${contractIdOrAddress}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract actions for a specific transaction.
+   * @param transactionIdOrHash The transaction ID or hash.
+   * @param options Optional parameters for filtering.
+   * @returns A promise that resolves to an array of ContractAction or null.
+   */
+  async getContractActions(
+    transactionIdOrHash: string,
+    options?: {
+      index?: string;
+      limit?: number;
+      order?: 'asc' | 'desc';
+    }
+  ): Promise<ContractAction[] | null> {
+    this.logger.info(`Getting contract actions for ${transactionIdOrHash}`);
+    let url = `/api/v1/contracts/results/${transactionIdOrHash}/actions`;
+    const params = new URLSearchParams();
+
+    if (options?.index) {
+      params.append('index', options.index);
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractActionsResponse>(
+        url
+      );
+      return response.actions || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching contract actions for ${transactionIdOrHash}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract logs from the network.
+   * @param options Optional parameters for filtering logs.
+   * @returns A promise that resolves to an array of ContractLog or null.
+   */
+  async getContractLogs(options?: {
+    index?: string;
+    limit?: number;
+    order?: 'asc' | 'desc';
+    timestamp?: string;
+    topic0?: string;
+    topic1?: string;
+    topic2?: string;
+    topic3?: string;
+    transactionHash?: string;
+  }): Promise<ContractLog[] | null> {
+    this.logger.info('Getting contract logs from the network');
+    let url = `/api/v1/contracts/results/logs`;
+    const params = new URLSearchParams();
+
+    if (options?.index) {
+      params.append('index', options.index);
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.timestamp) {
+      params.append('timestamp', options.timestamp);
+    }
+    if (options?.topic0) {
+      params.append('topic0', options.topic0);
+    }
+    if (options?.topic1) {
+      params.append('topic1', options.topic1);
+    }
+    if (options?.topic2) {
+      params.append('topic2', options.topic2);
+    }
+    if (options?.topic3) {
+      params.append('topic3', options.topic3);
+    }
+    if (options?.transactionHash) {
+      params.append('transaction.hash', options.transactionHash);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractLogsResponse>(url);
+      return response.logs || [];
+    } catch (error: any) {
+      this.logger.error(`Error fetching contract logs: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves contract logs for a specific contract.
+   * @param contractIdOrAddress The contract ID or EVM address.
+   * @param options Optional parameters for filtering logs.
+   * @returns A promise that resolves to an array of ContractLog or null.
+   */
+  async getContractLogsByContract(
+    contractIdOrAddress: string,
+    options?: {
+      index?: string;
+      limit?: number;
+      order?: 'asc' | 'desc';
+      timestamp?: string;
+      topic0?: string;
+      topic1?: string;
+      topic2?: string;
+      topic3?: string;
+    }
+  ): Promise<ContractLog[] | null> {
+    this.logger.info(
+      `Getting contract logs for contract ${contractIdOrAddress}`
+    );
+    let url = `/api/v1/contracts/${contractIdOrAddress}/results/logs`;
+    const params = new URLSearchParams();
+
+    if (options?.index) {
+      params.append('index', options.index);
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.timestamp) {
+      params.append('timestamp', options.timestamp);
+    }
+    if (options?.topic0) {
+      params.append('topic0', options.topic0);
+    }
+    if (options?.topic1) {
+      params.append('topic1', options.topic1);
+    }
+    if (options?.topic2) {
+      params.append('topic2', options.topic2);
+    }
+    if (options?.topic3) {
+      params.append('topic3', options.topic3);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<ContractLogsResponse>(url);
+      return response.logs || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching contract logs for ${contractIdOrAddress}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves NFT information by token ID and serial number.
+   * @param tokenId The token ID.
+   * @param serialNumber The serial number of the NFT.
+   * @returns A promise that resolves to an NftInfo or null.
+   */
+  async getNftInfo(
+    tokenId: string,
+    serialNumber: number
+  ): Promise<NftInfo | null> {
+    this.logger.info(`Getting NFT info for ${tokenId}/${serialNumber}`);
+    const url = `/api/v1/tokens/${tokenId}/nfts/${serialNumber}`;
+
+    try {
+      const response = await this._requestWithRetry<NftInfo>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching NFT info for ${tokenId}/${serialNumber}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves NFTs for a specific token.
+   * @param tokenId The token ID.
+   * @param options Optional parameters for filtering NFTs.
+   * @returns A promise that resolves to an array of NftInfo or null.
+   */
+  async getNftsByToken(
+    tokenId: string,
+    options?: {
+      accountId?: string;
+      limit?: number;
+      order?: 'asc' | 'desc';
+      serialNumber?: string;
+    }
+  ): Promise<NftInfo[] | null> {
+    this.logger.info(`Getting NFTs for token ${tokenId}`);
+    let url = `/api/v1/tokens/${tokenId}/nfts`;
+    const params = new URLSearchParams();
+
+    if (options?.accountId) {
+      params.append('account.id', options.accountId);
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.order) {
+      params.append('order', options.order);
+    }
+    if (options?.serialNumber) {
+      params.append('serialnumber', options.serialNumber);
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<NftsResponse>(url);
+      return response.nfts || [];
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching NFTs for token ${tokenId}: ${error.message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves network information.
+   * @returns A promise that resolves to NetworkInfo or null.
+   */
+  async getNetworkInfo(): Promise<NetworkInfo | null> {
+    this.logger.info('Getting network information');
+    const url = `/api/v1/network/nodes`;
+
+    try {
+      const response = await this._requestWithRetry<NetworkInfo>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Error fetching network info: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves network fees.
+   * @param timestamp Optional timestamp for historical fees.
+   * @returns A promise that resolves to NetworkFees or null.
+   */
+  async getNetworkFees(timestamp?: string): Promise<NetworkFees | null> {
+    this.logger.info('Getting network fees');
+    let url = `/api/v1/network/fees`;
+
+    if (timestamp) {
+      url += `?timestamp=${timestamp}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<NetworkFees>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Error fetching network fees: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves network supply information.
+   * @param timestamp Optional timestamp for historical supply data.
+   * @returns A promise that resolves to NetworkSupply or null.
+   */
+  async getNetworkSupply(timestamp?: string): Promise<NetworkSupply | null> {
+    this.logger.info('Getting network supply');
+    let url = `/api/v1/network/supply`;
+
+    if (timestamp) {
+      url += `?timestamp=${timestamp}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<NetworkSupply>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Error fetching network supply: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves network stake information.
+   * @param timestamp Optional timestamp for historical stake data.
+   * @returns A promise that resolves to NetworkStake or null.
+   */
+  async getNetworkStake(timestamp?: string): Promise<NetworkStake | null> {
+    this.logger.info('Getting network stake');
+    let url = `/api/v1/network/stake`;
+
+    if (timestamp) {
+      url += `?timestamp=${timestamp}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<NetworkStake>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Error fetching network stake: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves opcode traces for a specific transaction.
+   * @param transactionIdOrHash The transaction ID or hash.
+   * @param options Optional parameters for trace details.
+   * @returns A promise that resolves to an OpcodesResponse or null.
+   */
+  async getOpcodeTraces(
+    transactionIdOrHash: string,
+    options?: {
+      stack?: boolean;
+      memory?: boolean;
+      storage?: boolean;
+    }
+  ): Promise<OpcodesResponse | null> {
+    this.logger.info(`Getting opcode traces for ${transactionIdOrHash}`);
+    let url = `/api/v1/contracts/results/${transactionIdOrHash}/opcodes`;
+    const params = new URLSearchParams();
+
+    if (options?.stack !== undefined) {
+      params.append('stack', options.stack.toString());
+    }
+    if (options?.memory !== undefined) {
+      params.append('memory', options.memory.toString());
+    }
+    if (options?.storage !== undefined) {
+      params.append('storage', options.storage.toString());
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    try {
+      const response = await this._requestWithRetry<OpcodesResponse>(url);
+      return response;
+    } catch (error: any) {
+      this.logger.error(
+        `Error fetching opcode traces for ${transactionIdOrHash}: ${error.message}`
       );
       return null;
     }
