@@ -2,10 +2,9 @@ import { defineConfig } from 'vite';
 import path from 'path';
 import StringReplace from 'vite-plugin-string-replace';
 import dts from 'vite-plugin-dts';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { resolve } from 'path';
 
-export default defineConfig(() => {
+export default defineConfig(async () => {
   const format = process.env.BUILD_FORMAT || 'es';
   let outputDir;
 
@@ -36,18 +35,25 @@ export default defineConfig(() => {
       exclude: ['**/*.d.ts'],
       outputDir: outputDir,
     }),
-    nodePolyfills({
-      globals: {
-        Buffer: true,
-        global: true,
-        process: true,
-      },
-      protocolImports: true,
-      modules: {
-        buffer: true,
-      },
-    }),
   ];
+
+  // Only add nodePolyfills for UMD build
+  if (format === 'umd') {
+    const { nodePolyfills } = await import('vite-plugin-node-polyfills');
+    plugins.push(
+      nodePolyfills({
+        globals: {
+          Buffer: true,
+          global: true,
+          process: true,
+        },
+        protocolImports: true,
+        modules: {
+          buffer: true,
+        },
+      })
+    );
+  }
 
   return {
     plugins,

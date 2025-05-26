@@ -10,7 +10,7 @@ import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import axios from 'axios';
 import { NetworkType } from '../utils/types';
-import { HederaMirrorNode } from '../services';
+import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import {
   WaitForConnectionConfirmationResponse,
   TransactMessage,
@@ -23,11 +23,51 @@ export enum Hcs10MemoType {
   CONNECTION = 'connection',
 }
 
+/**
+ * Configuration for HCS-10 client.
+ * 
+ * @example
+ * // Using default Hedera mirror nodes
+ * const config = {
+ *   network: 'testnet',
+ *   logLevel: 'info'
+ * };
+ * 
+ * @example
+ * // Using HGraph custom mirror node provider
+ * const config = {
+ *   network: 'mainnet',
+ *   logLevel: 'info',
+ *   mirrorNode: {
+ *     customUrl: 'https://mainnet.hedera.api.hgraph.dev/v1/<API-KEY>',
+ *     apiKey: 'your-hgraph-api-key'
+ *   }
+ * };
+ * 
+ * @example
+ * // Using custom mirror node with headers
+ * const config = {
+ *   network: 'testnet',
+ *   mirrorNode: {
+ *     customUrl: 'https://custom-mirror.example.com',
+ *     apiKey: 'your-api-key',
+ *     headers: {
+ *       'X-Custom-Header': 'value'
+ *     }
+ *   }
+ * };
+ */
 export interface HCS10Config {
+  /** The Hedera network to connect to */
   network: 'mainnet' | 'testnet';
+  /** Log level for the client */
   logLevel?: LogLevel;
+  /** Whether to pretty print logs */
   prettyPrint?: boolean;
+  /** Fee amount for transactions that require fees */
   feeAmount?: number;
+  /** Custom mirror node configuration */
+  mirrorNode?: MirrorNodeConfig;
 }
 
 export interface HCSMessage {
@@ -82,7 +122,8 @@ export abstract class HCS10BaseClient extends Registration {
     });
     this.mirrorNode = new HederaMirrorNode(
       config.network as NetworkType,
-      this.logger
+      this.logger,
+      config.mirrorNode
     );
     this.feeAmount = config.feeAmount || 0.001;
   }
@@ -95,6 +136,15 @@ export abstract class HCS10BaseClient extends Registration {
   ): Promise<TransactionReceipt>;
 
   abstract getAccountAndSigner(): { accountId: string; signer: any };
+
+  /**
+   * Updates the mirror node configuration.
+   * @param config The new mirror node configuration.
+   */
+  public configureMirrorNode(config: MirrorNodeConfig): void {
+    this.mirrorNode.configureMirrorNode(config);
+    this.logger.info('Mirror node configuration updated');
+  }
 
   public extractTopicFromOperatorId(operatorId: string): string {
     if (!operatorId) {

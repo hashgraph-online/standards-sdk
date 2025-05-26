@@ -42,22 +42,45 @@ import { inscribeWithSigner } from '../inscribe/inscriber';
 
 const isBrowser = typeof window !== 'undefined';
 
+/**
+ * Configuration for HCS-10 browser client.
+ *
+ * @example
+ * // Using default Hedera mirror nodes
+ * const config = {
+ *   network: 'testnet',
+ *   hwc: walletConnectSDK
+ * };
+ *
+ * @example
+ * // Using HGraph custom mirror node provider
+ * const config = {
+ *   network: 'mainnet',
+ *   hwc: walletConnectSDK,
+ *   mirrorNode: {
+ *     customUrl: 'https://mainnet.hedera.api.hgraph.dev/v1/<API-KEY>',
+ *     apiKey: 'your-hgraph-api-key'
+ *   }
+ * };
+ */
 export type BrowserHCSClientConfig = {
+  /** The Hedera network to connect to */
   network: 'mainnet' | 'testnet';
+  /** Hashinals WalletConnect SDK instance */
   hwc: HashinalsWalletConnectSDK;
+  /** Log level for the client */
   logLevel?: LogLevel;
+  /** Whether to pretty print logs */
   prettyPrint?: boolean;
+  /** Guarded registry topic ID (deprecated) */
   guardedRegistryTopicId?: string;
+  /** Base URL for the guarded registry */
   guardedRegistryBaseUrl?: string;
+  /** Default fee amount for HIP-991 fee payments */
   feeAmount?: number;
+  /** Custom mirror node configuration */
+  mirrorNode?: import('../services').MirrorNodeConfig;
 };
-
-interface SocialLinks {
-  x?: string;
-  discord?: string;
-  github?: string;
-  website?: string;
-}
 
 export type BrowserAgentConfig = Omit<
   AgentConfig<BrowserHCSClient>,
@@ -88,6 +111,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       logLevel: config.logLevel,
       prettyPrint: config.prettyPrint,
       feeAmount: config.feeAmount,
+      mirrorNode: config.mirrorNode,
     });
 
     this.hwc = config.hwc;
