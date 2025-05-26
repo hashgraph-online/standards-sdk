@@ -269,3 +269,359 @@ export interface AccountNftsResponse {
 export interface ContractCallQueryResponse {
   result: string;
 }
+
+/**
+ * Represents a token airdrop.
+ */
+export interface TokenAirdrop {
+  amount: number;
+  receiver_account_id: string;
+  sender_account_id: string;
+  serial_number?: number;
+  timestamp: string;
+  token_id: string;
+}
+
+/**
+ * Response structure for token airdrops from the mirror node.
+ */
+export interface TokenAirdropsResponse {
+  airdrops: TokenAirdrop[];
+  links: Links;
+}
+
+/**
+ * Represents a block on the Hedera network.
+ */
+export interface Block {
+  count: number;
+  hapi_version: string;
+  hash: string;
+  name: string;
+  number: number;
+  previous_hash: string;
+  size: number;
+  timestamp: Timestamp;
+  gas_used?: number;
+  logs_bloom?: string;
+}
+
+/**
+ * Response structure for blocks from the mirror node.
+ */
+export interface BlocksResponse {
+  blocks: Block[];
+  links: Links;
+}
+
+/**
+ * Represents a contract result/execution.
+ */
+export interface ContractResult {
+  access_list?: string;
+  address: string;
+  amount: number;
+  block_gas_used?: number;
+  block_hash?: string;
+  block_number?: number;
+  bloom?: string;
+  call_result?: string;
+  chain_id?: string;
+  contract_id: string;
+  created_contract_ids?: string[];
+  error_message?: string;
+  failed_initcode?: string;
+  from: string;
+  function_parameters?: string;
+  gas_consumed?: number;
+  gas_limit: number;
+  gas_price?: string;
+  gas_used?: number;
+  hash: string;
+  max_fee_per_gas?: string;
+  max_priority_fee_per_gas?: string;
+  nonce?: number;
+  r?: string;
+  result: string;
+  s?: string;
+  status?: number;
+  timestamp: string;
+  to?: string;
+  transaction_index?: number;
+  type?: number;
+  v?: number;
+  logs?: ContractLog[];
+  state_changes?: ContractStateChange[];
+}
+
+/**
+ * Response structure for contract results from the mirror node.
+ */
+export interface ContractResultsResponse {
+  results: ContractResult[];
+  links: Links;
+}
+
+/**
+ * Represents a contract log entry.
+ */
+export interface ContractLog {
+  address: string;
+  bloom?: string;
+  contract_id: string;
+  data: string;
+  index: number;
+  topics: string[];
+  block_hash?: string;
+  block_number?: number;
+  root_contract_id?: string;
+  timestamp: string;
+  transaction_hash?: string;
+  transaction_index?: number;
+}
+
+/**
+ * Response structure for contract logs from the mirror node.
+ */
+export interface ContractLogsResponse {
+  logs: ContractLog[];
+  links: Links;
+}
+
+/**
+ * Represents a contract state change.
+ */
+export interface ContractStateChange {
+  address: string;
+  contract_id: string;
+  slot: string;
+  value_read?: string;
+  value_written?: string;
+}
+
+/**
+ * Represents a contract action.
+ */
+export interface ContractAction {
+  call_depth: number;
+  call_operation_type: string;
+  call_type: string;
+  caller: string;
+  caller_type: string;
+  from: string;
+  gas: number;
+  gas_used: number;
+  index: number;
+  input: string;
+  recipient: string;
+  recipient_type: string;
+  result_data: string;
+  result_data_type: string;
+  timestamp: string;
+  to: string;
+  value: number;
+}
+
+/**
+ * Response structure for contract actions from the mirror node.
+ */
+export interface ContractActionsResponse {
+  actions: ContractAction[];
+  links: Links;
+}
+
+/**
+ * Represents a contract entity.
+ */
+export interface ContractEntity {
+  admin_key?: Key;
+  auto_renew_account?: string;
+  auto_renew_period?: number;
+  bytecode?: string;
+  contract_id: string;
+  created_timestamp: string;
+  deleted: boolean;
+  evm_address: string;
+  expiration_timestamp?: string;
+  file_id?: string;
+  max_automatic_token_associations?: number;
+  memo?: string;
+  obtainer_id?: string;
+  permanent_removal?: boolean;
+  proxy_account_id?: string;
+  runtime_bytecode?: string;
+  solidity_address?: string;
+  timestamp: Timestamp;
+}
+
+/**
+ * Response structure for contract entities from the mirror node.
+ */
+export interface ContractsResponse {
+  contracts: ContractEntity[];
+  links: Links;
+}
+
+/**
+ * Represents contract state information.
+ */
+export interface ContractState {
+  address: string;
+  contract_id: string;
+  timestamp: string;
+  slot: string;
+  value: string;
+}
+
+/**
+ * Response structure for contract state from the mirror node.
+ */
+export interface ContractStateResponse {
+  state: ContractState[];
+  links: Links;
+}
+
+/**
+ * Represents an NFT with additional information.
+ */
+export interface NftInfo {
+  account_id: string;
+  created_timestamp: string;
+  delegating_spender?: string;
+  deleted: boolean;
+  metadata?: string;
+  modified_timestamp: string;
+  serial_number: number;
+  spender?: string;
+  token_id: string;
+}
+
+/**
+ * Response structure for NFT information from the mirror node.
+ */
+export interface NftInfoResponse {
+  nft: NftInfo;
+}
+
+/**
+ * Response structure for multiple NFTs from the mirror node.
+ */
+export interface NftsResponse {
+  nfts: NftInfo[];
+  links: Links;
+}
+
+/**
+ * Represents opcode trace information.
+ */
+export interface Opcode {
+  depth: number;
+  gas: number;
+  gas_cost: number;
+  memory?: string[];
+  op: string;
+  pc: number;
+  reason?: string;
+  stack?: string[];
+  storage?: Record<string, string>;
+}
+
+/**
+ * Response structure for opcode traces from the mirror node.
+ */
+export interface OpcodesResponse {
+  address: string;
+  contract_id: string;
+  failed: boolean;
+  gas: number;
+  opcodes: Opcode[];
+  return_value: string;
+}
+
+/**
+ * Represents network information.
+ */
+export interface NetworkInfo {
+  ledger_id: string;
+  network_name: string;
+}
+
+/**
+ * Represents network fees.
+ */
+export interface NetworkFees {
+  current: FeeSchedule;
+  next?: FeeSchedule;
+  timestamp: string;
+}
+
+/**
+ * Represents a fee schedule.
+ */
+export interface FeeSchedule {
+  expiry_time: string;
+  fee_schedule: FeeData[];
+}
+
+/**
+ * Represents fee data.
+ */
+export interface FeeData {
+  fees: FeeComponents[];
+  hederaFunctionality: string;
+}
+
+/**
+ * Represents fee components.
+ */
+export interface FeeComponents {
+  bpr: number;
+  bpt: number;
+  constant: number;
+  gas: number;
+  max: number;
+  min: number;
+  rbh: number;
+  sbh: number;
+  sbpr: number;
+  vpt: number;
+}
+
+/**
+ * Represents network supply information.
+ */
+export interface NetworkSupply {
+  released_supply: string;
+  timestamp: string;
+  total_supply: string;
+}
+
+/**
+ * Represents network stake information.
+ */
+export interface NetworkStake {
+  max_stake_rewarded: number;
+  max_staking_reward_rate_per_hbar: number;
+  max_total_reward: number;
+  node_reward_fee_denominator: number;
+  node_reward_fee_numerator: number;
+  reserved_staking_rewards: number;
+  reward_balance_threshold: number;
+  stake_total: number;
+  staking_period: StakingPeriod;
+  staking_period_duration: number;
+  staking_periods_stored: number;
+  staking_reward_fee_denominator: number;
+  staking_reward_fee_numerator: number;
+  staking_reward_rate: number;
+  staking_start_threshold: number;
+  unreserved_staking_reward_balance: number;
+}
+
+/**
+ * Represents a staking period.
+ */
+export interface StakingPeriod {
+  from: string;
+  to: string;
+}
