@@ -12,7 +12,7 @@ import { AccountId, FileId } from '@hashgraph/sdk';
 
 export class SCSParser {
   static parseContractCall(
-    body: proto.IContractCallTransactionBody
+    body: proto.IContractCallTransactionBody,
   ): ContractCallData | undefined {
     if (!body) return undefined;
     const hbarAmount = Hbar.fromTinybars(Long.fromValue(body.amount ?? 0));
@@ -20,14 +20,14 @@ export class SCSParser {
       contractId: new ContractId(
         body.contractID!.shardNum ?? 0,
         body.contractID!.realmNum ?? 0,
-        body.contractID!.contractNum ?? 0
+        body.contractID!.contractNum ?? 0,
       ).toString(),
       gas: Long.fromValue(body.gas ?? 0).toNumber(),
       amount: parseFloat(hbarAmount.toString(HbarUnit.Hbar)),
     };
     if (body.functionParameters) {
       data.functionParameters = Buffer.from(body.functionParameters).toString(
-        'hex'
+        'hex',
       );
       if (data.functionParameters.length >= 8) {
         data.functionName = data.functionParameters.substring(0, 8);
@@ -37,13 +37,13 @@ export class SCSParser {
   }
 
   static parseContractCreate(
-    body: proto.IContractCreateTransactionBody
+    body: proto.IContractCreateTransactionBody,
   ): ContractCreateData | undefined {
     if (!body) return undefined;
     const data: ContractCreateData = {};
     if (body.initialBalance) {
       data.initialBalance = Hbar.fromTinybars(
-        Long.fromValue(body.initialBalance)
+        Long.fromValue(body.initialBalance),
       ).toString(HbarUnit.Hbar);
     }
     if (body.gas) {
@@ -54,7 +54,7 @@ export class SCSParser {
     }
     if (body.constructorParameters) {
       data.constructorParameters = Buffer.from(
-        body.constructorParameters
+        body.constructorParameters,
       ).toString('hex');
     }
     if (body.memo) {
@@ -62,14 +62,14 @@ export class SCSParser {
     }
     if (body.autoRenewPeriod?.seconds) {
       data.autoRenewPeriod = Long.fromValue(
-        body.autoRenewPeriod.seconds
+        body.autoRenewPeriod.seconds,
       ).toString();
     }
     if (body.stakedAccountId) {
       data.stakedAccountId = new AccountId(
         body.stakedAccountId.shardNum ?? 0,
         body.stakedAccountId.realmNum ?? 0,
-        body.stakedAccountId.accountNum ?? 0
+        body.stakedAccountId.accountNum ?? 0,
       ).toString();
     } else if (body.stakedNodeId !== null && body.stakedNodeId !== undefined) {
       data.stakedNodeId = Long.fromValue(body.stakedNodeId).toString();
@@ -85,7 +85,7 @@ export class SCSParser {
       data.initcode = new FileId(
         body.fileID.shardNum ?? 0,
         body.fileID.realmNum ?? 0,
-        body.fileID.fileNum ?? 0
+        body.fileID.fileNum ?? 0,
       ).toString();
     } else if (body.initcode && body.initcode.length > 0) {
       data.initcodeSource = 'bytes';
@@ -95,7 +95,7 @@ export class SCSParser {
   }
 
   static parseContractUpdate(
-    body: proto.IContractUpdateTransactionBody
+    body: proto.IContractUpdateTransactionBody,
   ): ContractUpdateData | undefined {
     if (!body) return undefined;
     const data: ContractUpdateData = {};
@@ -103,7 +103,7 @@ export class SCSParser {
       data.contractIdToUpdate = new ContractId(
         body.contractID.shardNum ?? 0,
         body.contractID.realmNum ?? 0,
-        body.contractID.contractNum ?? 0
+        body.contractID.contractNum ?? 0,
       ).toString();
     }
     if (body.adminKey) {
@@ -111,20 +111,27 @@ export class SCSParser {
     }
     if (body.expirationTime?.seconds) {
       data.expirationTime = `${Long.fromValue(
-        body.expirationTime.seconds
+        body.expirationTime.seconds,
       ).toString()}.${body.expirationTime.nanos}`;
     }
     if (body.autoRenewPeriod?.seconds) {
       data.autoRenewPeriod = Long.fromValue(
-        body.autoRenewPeriod.seconds
+        body.autoRenewPeriod.seconds,
       ).toString();
     }
 
     if (body.memo) {
       const memoAsAny = body.memo as any;
-      if (memoAsAny && typeof memoAsAny === 'object' && memoAsAny.hasOwnProperty('value')) {
+      if (
+        memoAsAny &&
+        typeof memoAsAny === 'object' &&
+        memoAsAny.hasOwnProperty('value')
+      ) {
         const memoVal = memoAsAny.value;
-        data.memo = (memoVal === null || memoVal === undefined) ? undefined : String(memoVal);
+        data.memo =
+          memoVal === null || memoVal === undefined
+            ? undefined
+            : String(memoVal);
       } else if (typeof memoAsAny === 'string') {
         data.memo = memoAsAny;
       } else {
@@ -138,7 +145,7 @@ export class SCSParser {
       data.stakedAccountId = new AccountId(
         body.stakedAccountId.shardNum ?? 0,
         body.stakedAccountId.realmNum ?? 0,
-        body.stakedAccountId.accountNum ?? 0
+        body.stakedAccountId.accountNum ?? 0,
       ).toString();
       data.stakedNodeId = undefined;
     } else if (
@@ -163,14 +170,14 @@ export class SCSParser {
       data.autoRenewAccountId = new AccountId(
         body.autoRenewAccountId.shardNum ?? 0,
         body.autoRenewAccountId.realmNum ?? 0,
-        body.autoRenewAccountId.accountNum ?? 0
+        body.autoRenewAccountId.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseContractDelete(
-    body: proto.IContractDeleteTransactionBody
+    body: proto.IContractDeleteTransactionBody,
   ): ContractDeleteData | undefined {
     if (!body) return undefined;
     const data: ContractDeleteData = {};
@@ -178,20 +185,20 @@ export class SCSParser {
       data.contractIdToDelete = new ContractId(
         body.contractID.shardNum ?? 0,
         body.contractID.realmNum ?? 0,
-        body.contractID.contractNum ?? 0
+        body.contractID.contractNum ?? 0,
       ).toString();
     }
     if (body.transferAccountID) {
       data.transferAccountId = new AccountId(
         body.transferAccountID.shardNum ?? 0,
         body.transferAccountID.realmNum ?? 0,
-        body.transferAccountID.accountNum ?? 0
+        body.transferAccountID.accountNum ?? 0,
       ).toString();
     } else if (body.transferContractID) {
       data.transferContractId = new ContractId(
         body.transferContractID.shardNum ?? 0,
         body.transferContractID.realmNum ?? 0,
-        body.transferContractID.contractNum ?? 0
+        body.transferContractID.contractNum ?? 0,
       ).toString();
     }
     return data;

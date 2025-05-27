@@ -57,7 +57,11 @@
     "demo:connection-manager": "tsx demo/hcs-10/connection-manager.ts",
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
-    "test": "jest"
+    "test": "jest",
+    "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
+    "lint:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
+    "format": "npm run lint:fix",
+    "format:check": "npm run lint"
   },
   "devDependencies": {
     "@swc/jest": "^0.2.37",
@@ -71,6 +75,7 @@
     "json-to-plain-text": "^1.1.4",
     "nodemon": "^3.1.0",
     "openai": "^4.91.1",
+    "prettier": "^3.1.0",
     "process": "^0.11.10",
     "rimraf": "^6.0.1",
     "terser": "^5.39.0",

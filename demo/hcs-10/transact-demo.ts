@@ -34,27 +34,27 @@ const __dirname = path.dirname(__filename);
 async function monitorConnectionConfirmation(
   client: HCS10Client,
   targetInboundTopicId: string,
-  connectionRequestId: number
+  connectionRequestId: number,
 ): Promise<string | null> {
   const agentId = client.getOperatorAccountId();
   logger.info(
-    `(${agentId}) Waiting for confirmation for request #${connectionRequestId} on ${targetInboundTopicId}`
+    `(${agentId}) Waiting for confirmation for request #${connectionRequestId} on ${targetInboundTopicId}`,
   );
   try {
     const confirmation = await client.waitForConnectionConfirmation(
       targetInboundTopicId,
       connectionRequestId,
       30,
-      2000
+      2000,
     );
     logger.info(
-      `(${agentId}) Confirmation received! Connection Topic: ${confirmation.connectionTopicId}`
+      `(${agentId}) Confirmation received! Connection Topic: ${confirmation.connectionTopicId}`,
     );
     return confirmation.connectionTopicId;
   } catch (error) {
     logger.error(
       `(${agentId}) Did not receive confirmation for request #${connectionRequestId}:`,
-      error
+      error,
     );
     return null;
   }
@@ -84,7 +84,7 @@ function displayTransactionStatus(
     executed: boolean;
     executedDate?: Date;
     deleted: boolean;
-  }
+  },
 ): void {
   const formatDate = (date?: Date): string => {
     if (!date) return 'Not available';
@@ -112,7 +112,7 @@ Executed at: ${
 function createMultiSigTransaction(
   fooAccountId: string,
   barAccountId: string,
-  amount: number
+  amount: number,
 ): TransferTransaction {
   return new TransferTransaction()
     .addHbarTransfer(fooAccountId, Hbar.fromTinybars(-amount / 2))
@@ -127,7 +127,7 @@ async function main() {
 
     if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
       throw new Error(
-        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set'
+        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set',
       );
     }
 
@@ -154,7 +154,7 @@ async function main() {
 
     monitorIncomingRequests(baseClient, bar.client, bar.inboundTopicId, logger);
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     const fooAccountId = foo.client.getOperatorAccountId();
     if (!fooAccountId) throw new Error('Failed to get Foo account ID');
@@ -163,47 +163,47 @@ async function main() {
     if (!barAccountId) throw new Error('Failed to get Bar account ID');
 
     logger.info(
-      `(${fooAccountId}) Foo initiating connection to ${bar.accountId}`
+      `(${fooAccountId}) Foo initiating connection to ${bar.accountId}`,
     );
     const connectionRequest = await foo.client.submitConnectionRequest(
       bar.inboundTopicId,
-      'Foo wants to connect to Bar (transact demo)'
+      'Foo wants to connect to Bar (transact demo)',
     );
     const connectionRequestId =
       connectionRequest.topicSequenceNumber?.toNumber();
     if (!connectionRequestId) {
       throw new Error(
-        'Failed to get connection request sequence number from Foo'
+        'Failed to get connection request sequence number from Foo',
       );
     }
     logger.info(
-      `(${fooAccountId}) Connection request #${connectionRequestId} sent to Bar's topic ${bar.inboundTopicId}`
+      `(${fooAccountId}) Connection request #${connectionRequestId} sent to Bar's topic ${bar.inboundTopicId}`,
     );
 
     const connectionTopicId = await monitorConnectionConfirmation(
       foo.client,
       bar.inboundTopicId,
-      connectionRequestId
+      connectionRequestId,
     );
 
     if (!connectionTopicId) {
       throw new Error(
-        `Connection confirmation failed or timed out for request #${connectionRequestId}`
+        `Connection confirmation failed or timed out for request #${connectionRequestId}`,
       );
     }
 
     logger.info(
-      `Connection successfully established on topic: ${connectionTopicId}`
+      `Connection successfully established on topic: ${connectionTopicId}`,
     );
 
     logger.info(
-      `(${fooAccountId}) Creating a multi-signature transaction that requires both Foo and Bar to sign`
+      `(${fooAccountId}) Creating a multi-signature transaction that requires both Foo and Bar to sign`,
     );
 
     const transferTx = createMultiSigTransaction(
       fooAccountId,
       barAccountId,
-      200000000
+      200000000,
     );
 
     const scheduledTxResult = await foo.client.sendTransaction(
@@ -215,7 +215,7 @@ async function main() {
         expirationTime: 24 * 60 * 60,
         operationMemo:
           'Please approve this transaction - it requires both our signatures',
-      }
+      },
     );
 
     logger.info(`
@@ -225,12 +225,12 @@ async function main() {
     `);
 
     logger.info(
-      `(${fooAccountId}) Transaction operation sent to Bar for approval`
+      `(${fooAccountId}) Transaction operation sent to Bar for approval`,
     );
 
     logger.info(`Transaction operation submitted successfully`);
 
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     logger.info(`(${barAccountId}) Bar checking for pending transactions`);
 
@@ -238,9 +238,8 @@ async function main() {
       baseClient: bar.client,
       logLevel: 'debug',
     });
-    const pendingTransactions = await connectionManager.getPendingTransactions(
-      connectionTopicId
-    );
+    const pendingTransactions =
+      await connectionManager.getPendingTransactions(connectionTopicId);
 
     logger.info(`Found ${pendingTransactions.length} pending transactions`);
 
@@ -249,22 +248,22 @@ async function main() {
 
       const targetTransaction = pendingTransactions[0];
       logger.info(
-        `(${barAccountId}) Checking status of transaction ${targetTransaction.schedule_id}`
+        `(${barAccountId}) Checking status of transaction ${targetTransaction.schedule_id}`,
       );
 
       const txStatus = await connectionManager.getScheduledTransactionStatus(
-        targetTransaction.schedule_id
+        targetTransaction.schedule_id,
       );
 
       displayTransactionStatus(targetTransaction.schedule_id, txStatus);
 
       if (txStatus.executed) {
         logger.info(
-          `Transaction has already been executed! No need to approve.`
+          `Transaction has already been executed! No need to approve.`,
         );
       } else {
         logger.info(
-          `(${barAccountId}) Approval process starting for transaction ${targetTransaction.schedule_id}`
+          `(${barAccountId}) Approval process starting for transaction ${targetTransaction.schedule_id}`,
         );
 
         const MAX_ATTEMPTS = 3;
@@ -279,12 +278,12 @@ async function main() {
 
             const freshStatus =
               await connectionManager.getScheduledTransactionStatus(
-                targetTransaction.schedule_id
+                targetTransaction.schedule_id,
               );
 
             if (freshStatus.executed) {
               logger.info(
-                `Transaction was already executed. Skipping approval.`
+                `Transaction was already executed. Skipping approval.`,
               );
               transactionApproved = true;
               break;
@@ -298,7 +297,7 @@ async function main() {
             logger.info(
               `Transaction status before approval: ${
                 freshStatus.executed ? 'EXECUTED' : 'PENDING'
-              }`
+              }`,
             );
 
             const scheduleSignTx = await new ScheduleSignTransaction()
@@ -306,35 +305,35 @@ async function main() {
               .execute(bar.client.getClient());
 
             logger.info(
-              `Transaction approval submitted, waiting for receipt...`
+              `Transaction approval submitted, waiting for receipt...`,
             );
 
             try {
               const receipt = await scheduleSignTx.getReceipt(
-                bar.client.getClient()
+                bar.client.getClient(),
               );
               logger.info(
-                `Transaction approval status: ${receipt.status.toString()}`
+                `Transaction approval status: ${receipt.status.toString()}`,
               );
               transactionApproved = true;
               break;
             } catch (receiptError: any) {
               if (receiptError?.status === 'SCHEDULE_ALREADY_EXECUTED') {
                 logger.info(
-                  `Transaction was executed by someone else during our approval.`
+                  `Transaction was executed by someone else during our approval.`,
                 );
                 transactionApproved = true;
                 break;
               } else {
                 logger.error(
-                  `Error getting receipt: ${JSON.stringify(receiptError)}`
+                  `Error getting receipt: ${JSON.stringify(receiptError)}`,
                 );
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 1000));
               }
             }
           } catch (attemptError: any) {
             logger.error(
-              `Approval attempt ${attemptCount} failed: ${attemptError}`
+              `Approval attempt ${attemptCount} failed: ${attemptError}`,
             );
 
             if (attemptError?.status === 'SCHEDULE_ALREADY_EXECUTED') {
@@ -343,19 +342,19 @@ async function main() {
               break;
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         const finalStatus =
           await connectionManager.getScheduledTransactionStatus(
-            targetTransaction.schedule_id
+            targetTransaction.schedule_id,
           );
 
         logger.info(
-          `Final transaction status after ${attemptCount} approval attempt(s):`
+          `Final transaction status after ${attemptCount} approval attempt(s):`,
         );
         displayTransactionStatus(targetTransaction.schedule_id, finalStatus);
 
@@ -376,7 +375,7 @@ async function main() {
       });
       const currentStatus =
         await fooConnectionManager.getScheduledTransactionStatus(
-          scheduledTxResult.scheduleId
+          scheduledTxResult.scheduleId,
         );
 
       displayTransactionStatus(scheduledTxResult.scheduleId, currentStatus);
@@ -384,14 +383,14 @@ async function main() {
       logger.info('');
       logger.info('--- DEMONSTRATING CONVENIENCE METHOD ---');
       logger.info(
-        `(${fooAccountId}) Creating and sending another transaction in one step`
+        `(${fooAccountId}) Creating and sending another transaction in one step`,
       );
 
       try {
         const smallTransferTx = createMultiSigTransaction(
           fooAccountId,
           barAccountId,
-          50000000
+          50000000,
         );
 
         const combinedResult = await foo.client.sendTransaction(
@@ -403,7 +402,7 @@ async function main() {
               'Demo of combined method - multi-signature transaction',
             expirationTime: 12 * 60 * 60,
             operationMemo: 'This demonstrates the direct transaction method',
-          }
+          },
         );
 
         logger.info(`
@@ -412,23 +411,23 @@ async function main() {
         Transaction ID: ${combinedResult.transactionId}
         `);
 
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         const secondTxStatus =
           await fooConnectionManager.getScheduledTransactionStatus(
-            combinedResult.scheduleId
+            combinedResult.scheduleId,
           );
 
         logger.info(`Second transaction status:`);
         displayTransactionStatus(combinedResult.scheduleId, secondTxStatus);
 
         logger.info(
-          `(${barAccountId}) Bar checking for all pending transactions again`
+          `(${barAccountId}) Bar checking for all pending transactions again`,
         );
         const allPendingTransactions =
           await connectionManager.getPendingTransactions(connectionTopicId);
         logger.info(
-          `Found ${allPendingTransactions.length} total pending transactions`
+          `Found ${allPendingTransactions.length} total pending transactions`,
         );
 
         allPendingTransactions.forEach(displayTransaction);
@@ -436,7 +435,7 @@ async function main() {
         if (
           !secondTxStatus.executed &&
           allPendingTransactions.some(
-            (tx) => tx.schedule_id === combinedResult.scheduleId
+            tx => tx.schedule_id === combinedResult.scheduleId,
           )
         ) {
           logger.info(`

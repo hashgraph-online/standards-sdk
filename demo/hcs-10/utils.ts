@@ -41,7 +41,7 @@ export async function ensureAgentHasEnoughHbar(
   logger: Logger,
   baseClient: HCS10Client,
   accountId: string,
-  agentName: string
+  agentName: string,
 ): Promise<void> {
   try {
     const account = await baseClient.requestAccount(accountId);
@@ -61,8 +61,8 @@ export async function ensureAgentHasEnoughHbar(
         if (balanceInUsd < MIN_REQUIRED_USD) {
           logger.warn(
             `${agentName} account ${accountId} has less than $${MIN_REQUIRED_USD} (${balanceInUsd.toFixed(
-              2
-            )}). Attempting to fund.`
+              2,
+            )}). Attempting to fund.`,
           );
 
           try {
@@ -75,54 +75,54 @@ export async function ensureAgentHasEnoughHbar(
                 .addHbarTransfer(
                   funder.accountId,
                   Hbar.fromTinybars(
-                    Math.round(amountToTransferHbar * -100_000_000)
-                  )
+                    Math.round(amountToTransferHbar * -100_000_000),
+                  ),
                 )
                 .addHbarTransfer(
                   accountId,
                   Hbar.fromTinybars(
-                    Math.round(amountToTransferHbar * 100_000_000)
-                  )
+                    Math.round(amountToTransferHbar * 100_000_000),
+                  ),
                 );
 
               logger.info(
                 `Funding ${agentName} account ${accountId} with ${amountToTransferHbar.toFixed(
-                  2
-                )} HBAR from ${funder.accountId}`
+                  2,
+                )} HBAR from ${funder.accountId}`,
               );
 
               const fundTxResponse = await transferTx.execute(
-                baseClient.getClient()
+                baseClient.getClient(),
               );
               await fundTxResponse.getReceipt(baseClient.getClient());
               logger.info(
-                `Successfully funded ${agentName} account ${accountId}.`
+                `Successfully funded ${agentName} account ${accountId}.`,
               );
             } else {
               logger.info(
-                `${agentName} account ${accountId} does not require additional funding.`
+                `${agentName} account ${accountId} does not require additional funding.`,
               );
             }
           } catch (fundingError) {
             logger.error(
               `Failed to automatically fund ${agentName} account ${accountId}:`,
-              fundingError
+              fundingError,
             );
             logger.warn(
               `Please fund the account ${accountId} manually with at least ${(
                 MIN_REQUIRED_HBAR_USD / hbarPrice
-              ).toFixed(2)} HBAR.`
+              ).toFixed(2)} HBAR.`,
             );
           }
         }
       } else {
         logger.warn(
-          'Failed to get HBAR price from Mirror Node. Please ensure the account has enough HBAR.'
+          'Failed to get HBAR price from Mirror Node. Please ensure the account has enough HBAR.',
         );
       }
     } catch (error) {
       logger.warn(
-        'Failed to check USD balance. Please ensure the account has enough HBAR.'
+        'Failed to check USD balance. Please ensure the account has enough HBAR.',
       );
     }
   } catch (error) {
@@ -134,7 +134,7 @@ export async function getAgentFromEnv(
   logger: Logger,
   baseClient: HCS10Client,
   agentName: string,
-  envPrefix: string
+  envPrefix: string,
 ): Promise<AgentData | null> {
   const accountIdEnvVar = `${envPrefix}_ACCOUNT_ID`;
   const privateKeyEnvVar = `${envPrefix}_PRIVATE_KEY`;
@@ -181,14 +181,14 @@ export async function createAgent(
   agentName: string,
   agentBuilder: AgentBuilder,
   envPrefix: string,
-  options: { initialBalance?: number } = {}
+  options: { initialBalance?: number } = {},
 ): Promise<AgentData | null> {
   try {
     logger.info(`Creating ${agentName} agent...`);
 
     const result = await baseClient.createAndRegisterAgent(
       agentBuilder,
-      options
+      options,
     );
 
     if (!result.metadata) {
@@ -236,7 +236,7 @@ export async function createAgent(
 
 export async function updateEnvFile(
   envFilePath: string,
-  variables: Record<string, string>
+  variables: Record<string, string>,
 ): Promise<void> {
   let envContent = '';
 
@@ -248,8 +248,8 @@ export async function updateEnvFile(
   const updatedLines = [...envLines];
 
   for (const [key, value] of Object.entries(variables)) {
-    const lineIndex = updatedLines.findIndex((line) =>
-      line.startsWith(`${key}=`)
+    const lineIndex = updatedLines.findIndex(line =>
+      line.startsWith(`${key}=`),
     );
 
     if (lineIndex !== -1) {
@@ -269,7 +269,7 @@ export async function updateEnvFile(
 export function createFooBuilder(
   network: NetworkType,
   feeConfigBuilder: FeeConfigBuilder,
-  pfpBuffer?: Buffer
+  pfpBuffer?: Buffer,
 ): AgentBuilder {
   const builder = new AgentBuilder()
     .setName('Foo Agent')
@@ -289,7 +289,7 @@ export function createFooBuilder(
 export function createBarBuilder(
   network: NetworkType,
   feeConfigBuilder: FeeConfigBuilder,
-  pfpBuffer?: Buffer
+  pfpBuffer?: Buffer,
 ): AgentBuilder {
   const builder = new AgentBuilder()
     .setName('Bar Agent')
@@ -336,7 +336,7 @@ export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
 
 export async function getOrCreateBob(
   logger: Logger,
-  baseClient: HCS10Client
+  baseClient: HCS10Client,
 ): Promise<AgentData | null> {
   const existingBob = await getAgentFromEnv(logger, baseClient, 'Bob', 'BOB');
 
@@ -362,13 +362,13 @@ export async function getOrCreateBob(
 
 export async function getOrCreateAlice(
   logger: Logger,
-  baseClient: HCS10Client
+  baseClient: HCS10Client,
 ): Promise<AgentData | null> {
   const existingAlice = await getAgentFromEnv(
     logger,
     baseClient,
     'Alice',
-    'ALICE'
+    'ALICE',
   );
 
   if (existingAlice) {
@@ -413,7 +413,7 @@ export async function getOrCreateAlice(
 
 export async function getOrCreateFoo(
   logger: Logger,
-  baseClient: HCS10Client
+  baseClient: HCS10Client,
 ): Promise<AgentData | null> {
   const existingFoo = await getAgentFromEnv(logger, baseClient, 'Foo', 'FOO');
 
@@ -439,7 +439,7 @@ export async function getOrCreateFoo(
     0.5,
     undefined,
     network,
-    logger
+    logger,
   );
 
   const fooBuilder = createFooBuilder(network, feeConfigBuilder, pfpBuffer);
@@ -448,7 +448,7 @@ export async function getOrCreateFoo(
 
 export async function getOrCreateBar(
   logger: Logger,
-  baseClient: HCS10Client
+  baseClient: HCS10Client,
 ): Promise<AgentData | null> {
   const existingBar = await getAgentFromEnv(logger, baseClient, 'Bar', 'BAR');
 
@@ -474,7 +474,7 @@ export async function getOrCreateBar(
     1.0,
     undefined,
     network,
-    logger
+    logger,
   );
 
   const barBuilder = createBarBuilder(network, feeConfigBuilder, pfpBuffer);
@@ -488,11 +488,11 @@ export async function monitorIncomingRequests(
   client: HCS10Client,
   inboundTopicId: string,
   logger: Logger,
-  connectionFeeConfig?: FeeConfigBuilder
+  connectionFeeConfig?: FeeConfigBuilder,
 ): Promise<void> {
   if (!inboundTopicId) {
     throw new Error(
-      'Cannot monitor incoming requests: inboundTopicId is undefined'
+      'Cannot monitor incoming requests: inboundTopicId is undefined',
     );
   }
 
@@ -511,25 +511,25 @@ export async function monitorIncomingRequests(
       const messages = await client.getMessages(inboundTopicId);
 
       const connectionCreatedMessages = messages.messages.filter(
-        (msg) => msg.op === 'connection_created'
+        msg => msg.op === 'connection_created',
       );
 
-      connectionCreatedMessages.forEach((msg) => {
+      connectionCreatedMessages.forEach(msg => {
         if (msg.connection_id) {
           processedRequestIds.add(msg.connection_id);
         }
       });
 
       const connectionRequests = messages.messages.filter(
-        (msg) =>
+        msg =>
           msg.op === 'connection_request' &&
-          msg.sequence_number > lastProcessedMessage
+          msg.sequence_number > lastProcessedMessage,
       );
 
       for (const message of connectionRequests) {
         lastProcessedMessage = Math.max(
           lastProcessedMessage,
-          message.sequence_number
+          message.sequence_number,
         );
 
         const operator_id = message.operator_id || '';
@@ -544,13 +544,13 @@ export async function monitorIncomingRequests(
 
         if (processedRequestIds.has(connectionRequestId)) {
           logger.info(
-            `Request #${connectionRequestId} already processed, skipping`
+            `Request #${connectionRequestId} already processed, skipping`,
           );
           continue;
         }
 
         logger.info(
-          `Processing connection request #${connectionRequestId} from ${accountId}`
+          `Processing connection request #${connectionRequestId} from ${accountId}`,
         );
 
         try {
@@ -559,7 +559,7 @@ export async function monitorIncomingRequests(
             .operatorAccountId?.toString();
           if (!currentAccount) {
             logger.error(
-              'Operator account ID is not defined, cannot proceed with handling request'
+              'Operator account ID is not defined, cannot proceed with handling request',
             );
             continue;
           }
@@ -572,7 +572,7 @@ export async function monitorIncomingRequests(
             }),
             baseClient,
             currentAccount,
-            `Agent ${currentAccount}-${inboundTopicId}`
+            `Agent ${currentAccount}-${inboundTopicId}`,
           );
           logger.info('Ensured agent has enough hbar');
           const operatorAccountId = client
@@ -581,7 +581,7 @@ export async function monitorIncomingRequests(
 
           if (!operatorAccountId) {
             logger.error(
-              'Operator account ID is not defined, cannot proceed with handling request'
+              'Operator account ID is not defined, cannot proceed with handling request',
             );
             continue;
           }
@@ -591,13 +591,13 @@ export async function monitorIncomingRequests(
               inboundTopicId,
               accountId,
               connectionRequestId,
-              connectionFeeConfig
+              connectionFeeConfig,
             );
 
           processedRequestIds.add(connectionRequestId);
 
           logger.info(
-            `Connection confirmed with topic ID: ${connectionTopicId}`
+            `Connection confirmed with topic ID: ${connectionTopicId}`,
           );
         } catch (error) {
           logger.error(`Error handling request #${connectionRequestId}:`);
@@ -608,7 +608,7 @@ export async function monitorIncomingRequests(
       logger.error('Error monitoring requests:', error);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
@@ -624,7 +624,7 @@ export async function loadConnectionsUsingManager(
     accountId: string;
     inboundTopicId: string;
     outboundTopicId: string;
-  }
+  },
 ): Promise<{
   connections: Map<string, Connection>;
   connectionManager: ConnectionsManager;
@@ -638,7 +638,7 @@ export async function loadConnectionsUsingManager(
   });
 
   const connectionsArray = await connectionManager.fetchConnectionData(
-    agent.accountId
+    agent.accountId,
   );
   logger.info(`Found ${connectionsArray.length} connections`);
 
@@ -663,7 +663,7 @@ export async function loadConnectionsUsingManager(
   }
 
   logger.info(
-    `Finished loading. ${connections.size} active connections found, last outbound timestamp: ${lastTimestamp}`
+    `Finished loading. ${connections.size} active connections found, last outbound timestamp: ${lastTimestamp}`,
   );
 
   return {
@@ -684,7 +684,7 @@ export async function monitorTopics(
       outboundTopicId: string;
     },
     message: HCSMessage,
-    connectionManager: ConnectionsManager
+    connectionManager: ConnectionsManager,
   ) => Promise<string | null>,
   handleStandardMessage: (
     agent: {
@@ -695,7 +695,7 @@ export async function monitorTopics(
       outboundTopicId: string;
     },
     message: HCSMessage,
-    topicId: string
+    topicId: string,
   ) => Promise<void>,
   filterMessageOut: (message: HCSMessage) => boolean,
   agent: {
@@ -704,11 +704,11 @@ export async function monitorTopics(
     operatorId: string;
     inboundTopicId: string;
     outboundTopicId: string;
-  }
+  },
 ) {
   let { connections, connectionManager } = await loadConnectionsUsingManager(
     logger,
-    agent
+    agent,
   );
 
   const processedMessages = new Map<string, Set<number>>();
@@ -736,7 +736,7 @@ export async function monitorTopics(
       const lastOperatorActivity =
         await connectionManager.getLastOperatorActivity(
           topicId,
-          agent.accountId
+          agent.accountId,
         );
 
       if (lastOperatorActivity) {
@@ -747,7 +747,7 @@ export async function monitorTopics(
             if (msg.created.getTime() <= lastOperatorActivity.getTime()) {
               initialProcessedSet.add(msg.sequence_number);
               logger.debug(
-                `Pre-populated message #${msg.sequence_number} on topic ${topicId} based on last operator activity`
+                `Pre-populated message #${msg.sequence_number} on topic ${topicId} based on last operator activity`,
               );
             } else if (
               msg.operator_id &&
@@ -760,11 +760,11 @@ export async function monitorTopics(
       }
 
       logger.debug(
-        `Pre-populated ${initialProcessedSet.size} messages for topic ${topicId}`
+        `Pre-populated ${initialProcessedSet.size} messages for topic ${topicId}`,
       );
     } catch (error: any) {
       logger.warn(
-        `Failed to pre-populate messages for topic ${topicId}: ${error.message}. It might be closed or invalid.`
+        `Failed to pre-populate messages for topic ${topicId}: ${error.message}. It might be closed or invalid.`,
       );
       if (
         error.message &&
@@ -781,7 +781,7 @@ export async function monitorTopics(
   logger.info(`Starting polling agent for ${agent.operatorId}`);
   logger.info(`Monitoring inbound topic: ${agent.inboundTopicId}`);
   logger.info(
-    `Monitoring ${connectionTopics.size} active connection topics after pre-population.`
+    `Monitoring ${connectionTopics.size} active connection topics after pre-population.`,
   );
 
   while (true) {
@@ -813,7 +813,7 @@ export async function monitorTopics(
           logger.info(
             `Discovered new connection topic: ${topicId} for ${
               connections.get(topicId)?.targetAccountId
-            }`
+            }`,
           );
         }
       }
@@ -827,7 +827,7 @@ export async function monitorTopics(
       }
 
       const inboundMessages = await agent.client.getMessages(
-        agent.inboundTopicId
+        agent.inboundTopicId,
       );
       const inboundProcessed = processedMessages.get(agent.inboundTopicId)!;
 
@@ -855,7 +855,7 @@ export async function monitorTopics(
             message.operator_id.endsWith(`@${agent.accountId}`)
           ) {
             logger.debug(
-              `Skipping own inbound message #${message.sequence_number}`
+              `Skipping own inbound message #${message.sequence_number}`,
             );
             continue;
           }
@@ -874,23 +874,23 @@ export async function monitorTopics(
               // Make sure we have a valid topic ID, not a reference key
               if (
                 existingConnection.connectionTopicId.match(
-                  /^[0-9]+\.[0-9]+\.[0-9]+$/
+                  /^[0-9]+\.[0-9]+\.[0-9]+$/,
                 )
               ) {
                 logger.debug(
-                  `Skipping already handled connection request #${message.sequence_number}. Connection exists with topic: ${existingConnection.connectionTopicId}`
+                  `Skipping already handled connection request #${message.sequence_number}. Connection exists with topic: ${existingConnection.connectionTopicId}`,
                 );
                 continue;
               }
             }
 
             logger.info(
-              `Processing inbound connection request #${message.sequence_number}`
+              `Processing inbound connection request #${message.sequence_number}`,
             );
             const newTopicId = await handleConnectionRequest(
               agent,
               message,
-              connectionManager
+              connectionManager,
             );
             if (newTopicId && !connectionTopics.has(newTopicId)) {
               connectionTopics.add(newTopicId);
@@ -901,7 +901,7 @@ export async function monitorTopics(
             }
           } else if (message.op === 'connection_created') {
             logger.info(
-              `Received connection_created confirmation #${message.sequence_number} on inbound topic for topic ${message.connection_topic_id}`
+              `Received connection_created confirmation #${message.sequence_number} on inbound topic for topic ${message.connection_topic_id}`,
             );
           }
         }
@@ -912,7 +912,7 @@ export async function monitorTopics(
         try {
           if (!connections.has(topicId)) {
             logger.warn(
-              `Skipping processing for topic ${topicId} as it's no longer in the active connections map.`
+              `Skipping processing for topic ${topicId} as it's no longer in the active connections map.`,
             );
             if (connectionTopics.has(topicId)) connectionTopics.delete(topicId);
             if (processedMessages.has(topicId))
@@ -938,7 +938,7 @@ export async function monitorTopics(
           const lastOperatorActivity =
             await connectionManager.getLastOperatorActivity(
               topicId,
-              agent.accountId
+              agent.accountId,
             );
 
           const lastActivityTimestamp = lastOperatorActivity?.getTime() || 0;
@@ -964,26 +964,26 @@ export async function monitorTopics(
                 message.operator_id.endsWith(`@${agent.accountId}`)
               ) {
                 logger.debug(
-                  `Skipping own message #${message.sequence_number} on connection topic ${topicId}`
+                  `Skipping own message #${message.sequence_number} on connection topic ${topicId}`,
                 );
                 continue;
               }
 
               if (filterMessageOut(message)) {
                 logger.debug(
-                  `Skipping message #${message.sequence_number} on topic ${topicId} because it was filtered out`
+                  `Skipping message #${message.sequence_number} on topic ${topicId} because it was filtered out`,
                 );
                 continue;
               }
 
               if (message.op === 'message') {
                 logger.info(
-                  `Processing message #${message.sequence_number} on topic ${topicId}`
+                  `Processing message #${message.sequence_number} on topic ${topicId}`,
                 );
                 await handleStandardMessage(agent, message, topicId);
               } else if (message.op === 'close_connection') {
                 logger.info(
-                  `Received close_connection message #${message.sequence_number} on topic ${topicId}. Removing topic from monitoring.`
+                  `Received close_connection message #${message.sequence_number} on topic ${topicId}. Removing topic from monitoring.`,
                 );
                 connections.delete(topicId);
                 connectionTopics.delete(topicId);
@@ -999,7 +999,7 @@ export async function monitorTopics(
               error.message.includes('TopicId Does Not Exist'))
           ) {
             logger.warn(
-              `Connection topic ${topicId} likely deleted or expired. Removing from monitoring.`
+              `Connection topic ${topicId} likely deleted or expired. Removing from monitoring.`,
             );
             connections.delete(topicId);
             connectionTopics.delete(topicId);
@@ -1007,17 +1007,17 @@ export async function monitorTopics(
           } else {
             console.log(error);
             logger.error(
-              `Error processing connection topic ${topicId}: ${error}`
+              `Error processing connection topic ${topicId}: ${error}`,
             );
           }
         }
       }
     } catch (error) {
       logger.error(`Error in main monitoring loop: ${error}`);
-      await new Promise((resolve) => setTimeout(resolve, 10000));
+      await new Promise(resolve => setTimeout(resolve, 10000));
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 5000));
   }
 }
 

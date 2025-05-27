@@ -75,7 +75,7 @@ export interface IConnectionsManager {
    */
   processOutboundMessages(
     messages: HCSMessage[],
-    accountId: string
+    accountId: string,
   ): Connection[];
 
   /**
@@ -93,7 +93,7 @@ export interface IConnectionsManager {
    */
   processConnectionMessages(
     connectionTopicId: string,
-    messages: HCSMessage[]
+    messages: HCSMessage[],
   ): Connection | undefined;
 
   /**
@@ -169,7 +169,7 @@ export interface IConnectionsManager {
    */
   isConnectionRequestProcessed(
     inboundTopicId: string,
-    requestId: number
+    requestId: number,
   ): boolean;
 
   /**
@@ -181,7 +181,7 @@ export interface IConnectionsManager {
    */
   markConnectionRequestProcessed(
     inboundTopicId: string,
-    requestId: number
+    requestId: number,
   ): boolean;
 
   /**
@@ -192,7 +192,7 @@ export interface IConnectionsManager {
    */
   getPendingTransactions(
     connectionTopicId: string,
-    limit?: number
+    limit?: number,
   ): Promise<TransactMessage[]>;
 
   /**
@@ -215,7 +215,7 @@ export interface IConnectionsManager {
    */
   getLastOperatorActivity(
     connectionTopicId: string,
-    operatorAccountId: string
+    operatorAccountId: string,
   ): Promise<Date | undefined>;
 }
 
@@ -260,9 +260,8 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   async fetchConnectionData(accountId: string): Promise<Connection[]> {
     try {
-      const topicInfo = await this.baseClient.retrieveCommunicationTopics(
-        accountId
-      );
+      const topicInfo =
+        await this.baseClient.retrieveCommunicationTopics(accountId);
 
       const isValidTopicId = (topicId: string): boolean => {
         return Boolean(topicId) && !topicId.includes(':');
@@ -273,7 +272,7 @@ export class ConnectionsManager implements IConnectionsManager {
         !isValidTopicId(topicInfo.outboundTopic)
       ) {
         this.logger.warn(
-          'Invalid topic IDs detected in retrieved communication topics'
+          'Invalid topic IDs detected in retrieved communication topics',
         );
         return this.getAllConnections();
       }
@@ -282,24 +281,24 @@ export class ConnectionsManager implements IConnectionsManager {
         [
           this.baseClient.getMessages(topicInfo.outboundTopic),
           this.baseClient.getMessages(topicInfo.inboundTopic),
-        ]
+        ],
       );
 
       this.processOutboundMessages(
         outboundMessagesResult.messages || [],
-        accountId
+        accountId,
       );
       this.processInboundMessages(inboundMessagesResult.messages || []);
 
       const pendingCount = Array.from(this.connections.values()).filter(
-        (conn) => conn.status === 'pending' || conn.isPending
+        conn => conn.status === 'pending' || conn.isPending,
       ).length;
       this.logger.debug(
         `Processed ${
           outboundMessagesResult.messages?.length || 0
         } outbound and ${
           inboundMessagesResult.messages?.length || 0
-        } inbound messages. Found ${pendingCount} pending connections.`
+        } inbound messages. Found ${pendingCount} pending connections.`,
       );
 
       await this.checkTargetInboundTopicsForConfirmations();
@@ -320,9 +319,9 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   private async checkTargetInboundTopicsForConfirmations(): Promise<void> {
     const pendingConnections = Array.from(this.connections.values()).filter(
-      (conn) =>
+      conn =>
         (conn.isPending || conn.status === 'pending') &&
-        conn.targetInboundTopicId
+        conn.targetInboundTopicId,
     );
 
     if (pendingConnections.length === 0) {
@@ -331,7 +330,7 @@ export class ConnectionsManager implements IConnectionsManager {
 
     const pendingRequestsByTarget = new Map<string, Connection[]>();
 
-    pendingConnections.forEach((conn) => {
+    pendingConnections.forEach(conn => {
       if (conn.targetInboundTopicId) {
         const requests =
           pendingRequestsByTarget.get(conn.targetInboundTopicId) || [];
@@ -349,9 +348,8 @@ export class ConnectionsManager implements IConnectionsManager {
     ] of pendingRequestsByTarget.entries()) {
       for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
         try {
-          const targetMessagesResult = await this.baseClient.getMessages(
-            targetInboundTopicId
-          );
+          const targetMessagesResult =
+            await this.baseClient.getMessages(targetInboundTopicId);
           const targetMessages = targetMessagesResult.messages || [];
 
           let confirmedAny = false;
@@ -362,7 +360,7 @@ export class ConnectionsManager implements IConnectionsManager {
               continue;
             }
 
-            const confirmationMsg = targetMessages.find((msg) => {
+            const confirmationMsg = targetMessages.find(msg => {
               if (msg.op !== 'connection_created' || !msg.connection_topic_id) {
                 return false;
               }
@@ -420,7 +418,7 @@ export class ConnectionsManager implements IConnectionsManager {
               }
 
               this.logger.debug(
-                `Confirmed connection in target inbound topic: ${connectionTopicId}`
+                `Confirmed connection in target inbound topic: ${connectionTopicId}`,
               );
             }
           }
@@ -429,16 +427,16 @@ export class ConnectionsManager implements IConnectionsManager {
             break;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, FETCH_DELAY_MS));
+          await new Promise(resolve => setTimeout(resolve, FETCH_DELAY_MS));
         } catch (error) {
           this.logger.debug(
             `Error fetching target inbound topic ${targetInboundTopicId}:`,
-            error
+            error,
           );
           if (attempt === MAX_FETCH_ATTEMPTS) {
             break;
           }
-          await new Promise((resolve) => setTimeout(resolve, FETCH_DELAY_MS));
+          await new Promise(resolve => setTimeout(resolve, FETCH_DELAY_MS));
         }
       }
     }
@@ -454,14 +452,14 @@ export class ConnectionsManager implements IConnectionsManager {
     this.logger.info(`Total connections in map: ${allConnections.length}`);
 
     const pendingByStatus = allConnections.filter(
-      (conn) => conn.status === 'pending'
+      conn => conn.status === 'pending',
     );
     this.logger.info(
-      `Connections with status='pending': ${pendingByStatus.length}`
+      `Connections with status='pending': ${pendingByStatus.length}`,
     );
 
     const pendingConnections = allConnections.filter(
-      (conn) => conn.status === 'pending'
+      conn => conn.status === 'pending',
     );
 
     if (!Boolean(pendingConnections?.length)) {
@@ -471,12 +469,12 @@ export class ConnectionsManager implements IConnectionsManager {
 
     for (const conn of pendingConnections) {
       this.logger.debug(
-        `Processing pending connection: ${conn.connectionTopicId}`
+        `Processing pending connection: ${conn.connectionTopicId}`,
       );
 
       if (!conn.targetAccountId) {
         this.logger.debug(
-          `Skipping connection ${conn.connectionTopicId} - no targetAccountId`
+          `Skipping connection ${conn.connectionTopicId} - no targetAccountId`,
         );
         continue;
       }
@@ -485,7 +483,7 @@ export class ConnectionsManager implements IConnectionsManager {
       if (!targetInboundTopicId) {
         try {
           const profileResponse = await this.baseClient.retrieveProfile(
-            conn.targetAccountId
+            conn.targetAccountId,
           );
           if (profileResponse?.profile?.inboundTopicId) {
             targetInboundTopicId = profileResponse.profile.inboundTopicId;
@@ -494,17 +492,17 @@ export class ConnectionsManager implements IConnectionsManager {
               targetInboundTopicId,
             });
             this.logger.debug(
-              `Updated connection ${conn.connectionTopicId} with inbound topic ID: ${targetInboundTopicId}`
+              `Updated connection ${conn.connectionTopicId} with inbound topic ID: ${targetInboundTopicId}`,
             );
           } else {
             this.logger.debug(
-              `Couldn't get inbound topic ID for account ${conn.targetAccountId}`
+              `Couldn't get inbound topic ID for account ${conn.targetAccountId}`,
             );
             continue;
           }
         } catch (error) {
           this.logger.debug(
-            `Error fetching profile for ${conn.targetAccountId}: ${error}`
+            `Error fetching profile for ${conn.targetAccountId}: ${error}`,
           );
           continue;
         }
@@ -512,7 +510,7 @@ export class ConnectionsManager implements IConnectionsManager {
 
       if (!targetInboundTopicId || targetInboundTopicId.includes(':')) {
         this.logger.debug(
-          `Skipping invalid inbound topic format: ${targetInboundTopicId}`
+          `Skipping invalid inbound topic format: ${targetInboundTopicId}`,
         );
         continue;
       }
@@ -520,31 +518,30 @@ export class ConnectionsManager implements IConnectionsManager {
       const requestId = conn.connectionRequestId || conn.inboundRequestId;
       if (!requestId) {
         this.logger.debug(
-          `Skipping connection ${conn.connectionTopicId} - no request ID`
+          `Skipping connection ${conn.connectionTopicId} - no request ID`,
         );
         continue;
       }
 
       try {
         this.logger.debug(
-          `Checking for confirmations on topic ${targetInboundTopicId} for request ID ${requestId}`
+          `Checking for confirmations on topic ${targetInboundTopicId} for request ID ${requestId}`,
         );
-        const targetMessagesResult = await this.baseClient.getMessages(
-          targetInboundTopicId
-        );
+        const targetMessagesResult =
+          await this.baseClient.getMessages(targetInboundTopicId);
         const targetMessages = targetMessagesResult.messages || [];
 
         const confirmationMsg = targetMessages.find(
-          (msg) =>
+          msg =>
             msg.op === 'connection_created' &&
             msg.connection_id === requestId &&
-            msg.connection_topic_id
+            msg.connection_topic_id,
         );
 
         if (confirmationMsg?.connection_topic_id) {
           const connectionTopicId = confirmationMsg.connection_topic_id;
           this.logger.info(
-            `Found confirmation for request #${requestId} to ${conn.targetAccountId} on their inbound topic`
+            `Found confirmation for request #${requestId} to ${conn.targetAccountId} on their inbound topic`,
           );
 
           this.connections.set(conn.connectionTopicId, {
@@ -558,12 +555,12 @@ export class ConnectionsManager implements IConnectionsManager {
           });
         } else {
           this.logger.debug(
-            `No confirmation found for request ID ${requestId} on topic ${targetInboundTopicId}`
+            `No confirmation found for request ID ${requestId} on topic ${targetInboundTopicId}`,
           );
         }
       } catch (error) {
         this.logger.warn(
-          `Error checking for confirmations on target inbound topic for ${conn.targetAccountId}: ${error}`
+          `Error checking for confirmations on target inbound topic for ${conn.targetAccountId}: ${error}`,
         );
       }
     }
@@ -586,23 +583,22 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     const accountIdPromises = Array.from(targetAccountIds).map(
-      async (targetId) => {
+      async targetId => {
         try {
-          const profileResponse = await this.baseClient.retrieveProfile(
-            targetId
-          );
+          const profileResponse =
+            await this.baseClient.retrieveProfile(targetId);
           if (profileResponse.success && profileResponse.profile) {
             this.addProfileInfo(targetId, profileResponse.profile);
 
             this.updatePendingConnectionsWithProfileInfo(
               targetId,
-              profileResponse.profile
+              profileResponse.profile,
             );
           }
         } catch (error) {
           this.logger.debug(`Failed to fetch profile for ${targetId}:`, error);
         }
-      }
+      },
     );
 
     await Promise.allSettled(accountIdPromises);
@@ -615,13 +611,13 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   private updatePendingConnectionsWithProfileInfo(
     accountId: string,
-    profile: AIAgentProfile
+    profile: AIAgentProfile,
   ): void {
     const pendingConnections = Array.from(this.connections.values()).filter(
-      (conn) =>
+      conn =>
         conn.targetAccountId === accountId &&
         (conn.isPending || conn.needsConfirmation) &&
-        !conn.targetInboundTopicId
+        !conn.targetInboundTopicId,
     );
 
     if (pendingConnections.length > 0 && profile.inboundTopicId) {
@@ -643,19 +639,19 @@ export class ConnectionsManager implements IConnectionsManager {
   private async fetchConnectionActivity(): Promise<void> {
     const activeConnections = this.getActiveConnections();
 
-    const validConnections = activeConnections.filter((connection) => {
+    const validConnections = activeConnections.filter(connection => {
       const topicId = connection.connectionTopicId;
 
       if (!topicId || topicId.includes(':') || !topicId.match(/^0\.0\.\d+$/)) {
         this.logger.debug(
-          `Skipping activity fetch for invalid topic ID format: ${topicId}`
+          `Skipping activity fetch for invalid topic ID format: ${topicId}`,
         );
         return false;
       }
       return true;
     });
 
-    const activityPromises = validConnections.map(async (connection) => {
+    const activityPromises = validConnections.map(async connection => {
       try {
         const topicId = connection.connectionTopicId;
         const messagesResult = await this.baseClient.getMessages(topicId);
@@ -666,7 +662,7 @@ export class ConnectionsManager implements IConnectionsManager {
       } catch (error) {
         this.logger.debug(
           `Failed to fetch activity for ${connection.connectionTopicId}:`,
-          error
+          error,
         );
       }
     });
@@ -699,14 +695,14 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   processOutboundMessages(
     messages: HCSMessage[],
-    accountId: string
+    accountId: string,
   ): Connection[] {
     if (!Boolean(messages?.length)) {
       return Array.from(this.connections.values());
     }
 
     const requestMessages = messages.filter(
-      (msg) => msg.op === 'connection_request' && msg.connection_request_id
+      msg => msg.op === 'connection_request' && msg.connection_request_id,
     );
 
     for (const msg of requestMessages) {
@@ -719,16 +715,16 @@ export class ConnectionsManager implements IConnectionsManager {
 
       if (this.shouldFilterAccount(targetAccountId)) {
         this.logger.debug(
-          `Filtering out outbound request to account: ${targetAccountId}`
+          `Filtering out outbound request to account: ${targetAccountId}`,
         );
         continue;
       }
 
       const isAlreadyConfirmed = Array.from(this.connections.values()).some(
-        (conn) =>
+        conn =>
           conn.connectionRequestId === requestId &&
           !conn.isPending &&
-          conn.targetAccountId === targetAccountId
+          conn.targetAccountId === targetAccountId,
       );
 
       const pendingKey = `req-${requestId}:${operatorId}`;
@@ -775,22 +771,22 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     const confirmationMessages = messages.filter(
-      (msg) =>
+      msg =>
         msg.op === 'connection_created' &&
         msg.connection_topic_id &&
-        msg.connection_request_id
+        msg.connection_request_id,
     );
 
     for (const msg of confirmationMessages) {
       const requestId = msg.connection_request_id!;
       const connectionTopicId = msg.connection_topic_id!;
       const targetAccountId = this.baseClient.extractAccountFromOperatorId(
-        msg.operator_id || ''
+        msg.operator_id || '',
       );
 
       if (this.shouldFilterAccount(targetAccountId)) {
         this.logger.debug(
-          `Filtering out outbound confirmation to account: ${targetAccountId}`
+          `Filtering out outbound confirmation to account: ${targetAccountId}`,
         );
         continue;
       }
@@ -841,9 +837,9 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     const closedMessages = messages.filter(
-      (msg) =>
+      msg =>
         (msg.op as string) === 'connection_closed' ||
-        (msg.op === 'close_connection' && msg.connection_topic_id)
+        (msg.op === 'close_connection' && msg.connection_topic_id),
     );
 
     for (const msg of closedMessages) {
@@ -880,10 +876,10 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     return Array.from(this.connections.values()).filter(
-      (conn) =>
+      conn =>
         conn.status === 'established' ||
         conn.status === 'closed' ||
-        !this.filterPendingAccountIds.has(conn.targetAccountId)
+        !this.filterPendingAccountIds.has(conn.targetAccountId),
     );
   }
 
@@ -898,14 +894,14 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     const requestMessages = messages.filter(
-      (msg) => msg.op === 'connection_request' && msg.sequence_number
+      msg => msg.op === 'connection_request' && msg.sequence_number,
     );
 
     const confirmationMessages = messages.filter(
-      (msg) =>
+      msg =>
         msg.op === 'connection_created' &&
         msg.connection_topic_id &&
-        msg.connection_id
+        msg.connection_id,
     );
 
     for (const msg of requestMessages) {
@@ -918,7 +914,7 @@ export class ConnectionsManager implements IConnectionsManager {
 
       if (this.shouldFilterAccount(requestorAccountId)) {
         this.logger.debug(
-          `Filtering out request from account: ${requestorAccountId}`
+          `Filtering out request from account: ${requestorAccountId}`,
         );
         continue;
       }
@@ -926,12 +922,12 @@ export class ConnectionsManager implements IConnectionsManager {
       const needsConfirmKey = `inb-${sequenceNumber}:${operatorId}`;
 
       const hasCreated = confirmationMessages.some(
-        (m) => m.connection_id === sequenceNumber
+        m => m.connection_id === sequenceNumber,
       );
 
       if (hasCreated) {
         this.logger.debug(
-          `Skipping request from ${requestorAccountId} as it has already been confirmed`
+          `Skipping request from ${requestorAccountId} as it has already been confirmed`,
         );
         continue;
       }
@@ -962,7 +958,7 @@ export class ConnectionsManager implements IConnectionsManager {
 
       if (this.shouldFilterAccount(connectedAccountId)) {
         this.logger.debug(
-          `Filtering out confirmation for account: ${connectedAccountId}`
+          `Filtering out confirmation for account: ${connectedAccountId}`,
         );
         continue;
       }
@@ -1004,10 +1000,10 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     return Array.from(this.connections.values()).filter(
-      (conn) =>
+      conn =>
         conn.status === 'established' ||
         conn.status === 'closed' ||
-        !this.filterPendingAccountIds.has(conn.targetAccountId)
+        !this.filterPendingAccountIds.has(conn.targetAccountId),
     );
   }
 
@@ -1019,7 +1015,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   processConnectionMessages(
     connectionTopicId: string,
-    messages: HCSMessage[]
+    messages: HCSMessage[],
   ): Connection | undefined {
     if (
       !messages ||
@@ -1030,7 +1026,7 @@ export class ConnectionsManager implements IConnectionsManager {
     }
 
     const latestMessage = messages
-      .filter((m) => m.created)
+      .filter(m => m.created)
       .sort((a, b) => {
         const dateA = a.created ? new Date(a.created).getTime() : 0;
         const dateB = b.created ? new Date(b.created).getTime() : 0;
@@ -1045,7 +1041,7 @@ export class ConnectionsManager implements IConnectionsManager {
       });
     }
 
-    const closeMessage = messages.find((msg) => msg.op === 'close_connection');
+    const closeMessage = messages.find(msg => msg.op === 'close_connection');
     if (closeMessage) {
       const conn = this.connections.get(connectionTopicId)!;
       this.connections.set(connectionTopicId, {
@@ -1069,7 +1065,7 @@ export class ConnectionsManager implements IConnectionsManager {
     this.profileCache.set(accountId, profile);
 
     const matchingConnections = Array.from(this.connections.values()).filter(
-      (conn) => conn.targetAccountId === accountId
+      conn => conn.targetAccountId === accountId,
     );
 
     for (const conn of matchingConnections) {
@@ -1089,10 +1085,10 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   getAllConnections(): Connection[] {
     const connections = Array.from(this.connections.values()).filter(
-      (conn) =>
+      conn =>
         conn.status === 'established' ||
         conn.status === 'closed' ||
-        !this.filterPendingAccountIds.has(conn.targetAccountId)
+        !this.filterPendingAccountIds.has(conn.targetAccountId),
     );
     return connections;
   }
@@ -1103,12 +1099,12 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   getPendingRequests(): Connection[] {
     const pendingConnections = Array.from(this.connections.values()).filter(
-      (conn) => {
+      conn => {
         return (
           conn.isPending &&
           !this.filterPendingAccountIds.has(conn.targetAccountId)
         );
-      }
+      },
     );
 
     return pendingConnections;
@@ -1121,8 +1117,8 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   private hasEstablishedConnectionWithAccount(accountId: string): boolean {
     return Array.from(this.connections.values()).some(
-      (conn) =>
-        conn.targetAccountId === accountId && conn.status === 'established'
+      conn =>
+        conn.targetAccountId === accountId && conn.status === 'established',
     );
   }
 
@@ -1132,7 +1128,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   getActiveConnections(): Connection[] {
     return Array.from(this.connections.values()).filter(
-      (conn) => conn.status === 'established'
+      conn => conn.status === 'established',
     );
   }
 
@@ -1142,9 +1138,9 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   getConnectionsNeedingConfirmation(): Connection[] {
     return Array.from(this.connections.values()).filter(
-      (conn) =>
+      conn =>
         conn.needsConfirmation &&
-        !this.filterPendingAccountIds.has(conn.targetAccountId)
+        !this.filterPendingAccountIds.has(conn.targetAccountId),
     );
   }
 
@@ -1164,8 +1160,8 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   getConnectionByAccountId(accountId: string): Connection | undefined {
     return Array.from(this.connections.values()).find(
-      (conn) =>
-        conn.targetAccountId === accountId && conn.status === 'established'
+      conn =>
+        conn.targetAccountId === accountId && conn.status === 'established',
     );
   }
 
@@ -1176,7 +1172,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   getConnectionsByAccountId(accountId: string): Connection[] {
     return Array.from(this.connections.values()).filter(
-      (conn) => conn.targetAccountId === accountId
+      conn => conn.targetAccountId === accountId,
     );
   }
 
@@ -1206,7 +1202,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   isConnectionRequestProcessed(
     inboundTopicId: string,
-    requestId: number
+    requestId: number,
   ): boolean {
     for (const conn of this.connections.values()) {
       if (
@@ -1238,7 +1234,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   markConnectionRequestProcessed(
     inboundTopicId: string,
-    requestId: number
+    requestId: number,
   ): boolean {
     let found = false;
 
@@ -1253,7 +1249,7 @@ export class ConnectionsManager implements IConnectionsManager {
         });
         found = true;
         this.logger.debug(
-          `Marked inbound connection request #${requestId} on topic ${inboundTopicId} as processed`
+          `Marked inbound connection request #${requestId} on topic ${inboundTopicId} as processed`,
         );
       }
 
@@ -1267,7 +1263,7 @@ export class ConnectionsManager implements IConnectionsManager {
         });
         found = true;
         this.logger.debug(
-          `Marked outbound connection request #${requestId} on topic ${inboundTopicId} as processed`
+          `Marked outbound connection request #${requestId} on topic ${inboundTopicId} as processed`,
         );
       }
     }
@@ -1283,12 +1279,12 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   async getPendingTransactions(
     connectionTopicId: string,
-    limit?: number
+    limit?: number,
   ): Promise<TransactMessage[]> {
     try {
       const transactMessages = await this.baseClient.getTransactionRequests(
         connectionTopicId,
-        limit
+        limit,
       );
 
       const pendingTransactions: TransactMessage[] = [];
@@ -1297,7 +1293,7 @@ export class ConnectionsManager implements IConnectionsManager {
         try {
           const status =
             await this.baseClient.mirrorNode.getScheduledTransactionStatus(
-              transaction.schedule_id
+              transaction.schedule_id,
             );
 
           if (!status.executed && !status.deleted) {
@@ -1338,18 +1334,17 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   async getLastOperatorActivity(
     connectionTopicId: string,
-    operatorAccountId: string
+    operatorAccountId: string,
   ): Promise<Date | undefined> {
     try {
-      const { messages } = await this.baseClient.getMessageStream(
-        connectionTopicId
-      );
+      const { messages } =
+        await this.baseClient.getMessageStream(connectionTopicId);
 
       const operatorMessages = messages.filter(
-        (msg) =>
+        msg =>
           msg.operator_id &&
           msg.operator_id.includes(operatorAccountId) &&
-          msg.created
+          msg.created,
       );
 
       if (operatorMessages.length === 0) {
@@ -1357,7 +1352,7 @@ export class ConnectionsManager implements IConnectionsManager {
       }
 
       operatorMessages.sort(
-        (a, b) => b.created!.getTime() - a.created!.getTime()
+        (a, b) => b.created!.getTime() - a.created!.getTime(),
       );
 
       return operatorMessages[0].created;

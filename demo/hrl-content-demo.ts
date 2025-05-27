@@ -12,7 +12,7 @@ config();
  */
 async function fetchTextContent(
   client: HCS10Client,
-  hrl: string
+  hrl: string,
 ): Promise<void> {
   console.log(`Fetching text content from ${hrl}...`);
 
@@ -31,7 +31,7 @@ async function fetchTextContent(
  */
 async function fetchContentWithType(
   client: HCS10Client,
-  hrl: string
+  hrl: string,
 ): Promise<void> {
   console.log(`\nFetching content with type from ${hrl}...`);
 
@@ -40,7 +40,7 @@ async function fetchContentWithType(
     console.log('Content with type retrieved:');
     console.log(`Content type: ${result.contentType}`);
     console.log(`Is binary: ${result.isBinary}`);
-    
+
     if (result.isBinary) {
       const buffer = Buffer.from(result.content as ArrayBuffer);
       console.log(`Binary size: ${buffer.length} bytes`);
@@ -66,7 +66,7 @@ async function fetchContentWithType(
  */
 async function fetchJsonContent(
   client: HCS10Client,
-  hrl: string
+  hrl: string,
 ): Promise<void> {
   console.log(`\nFetching JSON content from ${hrl}...`);
 
@@ -76,7 +76,7 @@ async function fetchJsonContent(
     console.log(
       typeof jsonContent === 'string'
         ? jsonContent
-        : JSON.stringify(jsonContent, null, 2)
+        : JSON.stringify(jsonContent, null, 2),
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -90,7 +90,7 @@ async function fetchJsonContent(
 async function fetchBinaryContent(
   client: HCS10Client,
   hrl: string,
-  network: string
+  network: string,
 ): Promise<void> {
   console.log(`\nFetching binary content from ${hrl}...`);
 
@@ -98,7 +98,7 @@ async function fetchBinaryContent(
     console.log('\nAttempting to fetch as binary data...');
     const binaryContent = (await client.getMessageContent(
       hrl,
-      true
+      true,
     )) as ArrayBuffer;
 
     const __filename = fileURLToPath(import.meta.url);
@@ -113,7 +113,7 @@ async function fetchBinaryContent(
     // Get content type more efficiently using the new method
     const contentInfo = await client.getMessageContentWithType(hrl, true);
     const contentType = contentInfo.contentType || 'application/octet-stream';
-    
+
     // Explicitly handle JSON content type
     let extension = 'bin';
     if (contentType === 'application/json') {
@@ -139,18 +139,20 @@ async function fetchBinaryContent(
  */
 async function fetchAndSaveJsonContent(
   client: HCS10Client,
-  hrl: string
+  hrl: string,
 ): Promise<void> {
   console.log(`\nFetching and saving JSON content from ${hrl}...`);
 
   try {
     const result = await client.getMessageContentWithType(hrl);
-    
+
     if (result.contentType !== 'application/json') {
-      console.log(`Not a JSON content type (${result.contentType}), skipping save.`);
+      console.log(
+        `Not a JSON content type (${result.contentType}), skipping save.`,
+      );
       return;
     }
-    
+
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
     const outputDir = path.join(__dirname, 'output');
@@ -158,9 +160,9 @@ async function fetchAndSaveJsonContent(
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir);
     }
-    
+
     const outputPath = path.join(outputDir, 'inscription.json');
-    
+
     // Format JSON properly if it's an object
     if (typeof result.content === 'object') {
       fs.writeFileSync(outputPath, JSON.stringify(result.content, null, 2));
@@ -176,7 +178,7 @@ async function fetchAndSaveJsonContent(
     } else {
       fs.writeFileSync(outputPath, String(result.content));
     }
-    
+
     console.log(`Saved JSON content to ${outputPath}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -190,7 +192,7 @@ async function fetchAndSaveJsonContent(
 async function main(): Promise<void> {
   if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
     console.log(
-      'Please set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env file'
+      'Please set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env file',
     );
     return;
   }
@@ -222,7 +224,7 @@ async function main(): Promise<void> {
 
 main()
   .then(() => console.log('Demo completed successfully'))
-  .catch((error) => {
+  .catch(error => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Demo failed with error: ${errorMessage}`);
   })

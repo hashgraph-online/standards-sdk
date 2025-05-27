@@ -25,22 +25,22 @@ async function monitorConnectionConfirmation(
   client: HCS10Client,
   bobInboundTopicId: string,
   aliceOutboundTopicId: string,
-  connectionRequestId: number
+  connectionRequestId: number,
 ): Promise<string> {
   try {
     logger.info(
-      `Monitoring for connection confirmation on request #${connectionRequestId}`
+      `Monitoring for connection confirmation on request #${connectionRequestId}`,
     );
 
     const confirmation = await client.waitForConnectionConfirmation(
       bobInboundTopicId,
       connectionRequestId,
       60,
-      2000
+      2000,
     );
 
     logger.info(
-      `Connection confirmation received with ID: ${confirmation.connectionTopicId}`
+      `Connection confirmation received with ID: ${confirmation.connectionTopicId}`,
     );
 
     return confirmation.connectionTopicId;
@@ -57,7 +57,7 @@ async function main() {
 
     if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
       throw new Error(
-        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set'
+        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set',
       );
     }
 
@@ -75,7 +75,7 @@ async function main() {
 
     if (!fs.existsSync(alicePfpPath) || !fs.existsSync(bobPfpPath)) {
       throw new Error(
-        `Asset files not found. Please ensure the files exist at:\n- ${alicePfpPath}\n- ${bobPfpPath}`
+        `Asset files not found. Please ensure the files exist at:\n- ${alicePfpPath}\n- ${bobPfpPath}`,
       );
     }
 
@@ -92,10 +92,10 @@ async function main() {
 
     logger.info('==== AGENT DETAILS ====');
     logger.info(
-      `Alice ID: ${alice.accountId}, Inbound: ${alice.inboundTopicId}, Outbound: ${alice.outboundTopicId}`
+      `Alice ID: ${alice.accountId}, Inbound: ${alice.inboundTopicId}, Outbound: ${alice.outboundTopicId}`,
     );
     logger.info(
-      `Bob ID: ${bob.accountId}, Inbound: ${bob.inboundTopicId}, Outbound: ${bob.outboundTopicId}`
+      `Bob ID: ${bob.accountId}, Inbound: ${bob.inboundTopicId}, Outbound: ${bob.outboundTopicId}`,
     );
     logger.info('======================');
 
@@ -106,21 +106,21 @@ async function main() {
       logger,
       new FeeConfigBuilder({ network: 'testnet', logger })
         .addHbarFee(1, bob.accountId)
-        .addHbarFee(2, '0.0.800')
+        .addHbarFee(2, '0.0.800'),
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     logger.info('Alice submitting connection request to Bob');
     const aliceConnectionResponse = await alice.client.submitConnectionRequest(
       bob.inboundTopicId,
-      'Hello Bob, I would like to collaborate on data analysis.'
+      'Hello Bob, I would like to collaborate on data analysis.',
     );
 
     const connectionRequestId =
       aliceConnectionResponse.topicSequenceNumber?.toNumber()!;
     logger.info(
-      `Connection request submitted with sequence number: ${connectionRequestId}`
+      `Connection request submitted with sequence number: ${connectionRequestId}`,
     );
 
     logger.info('Waiting for connection confirmation...');
@@ -128,14 +128,14 @@ async function main() {
       alice.client,
       bob.inboundTopicId,
       alice.outboundTopicId,
-      connectionRequestId
+      connectionRequestId,
     );
 
     try {
       const connectionTopicId = (await Promise.race([
         aliceMonitor,
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timeout')), 60000)
+          setTimeout(() => reject(new Error('Connection timeout')), 60000),
         ),
       ])) as string;
 
@@ -152,7 +152,7 @@ async function main() {
         await alice.client.sendMessage(
           connectionTopicId,
           JSON.stringify(aliceSmallMessage),
-          'Requesting sentiment analysis on Q4 2024 customer feedback'
+          'Requesting sentiment analysis on Q4 2024 customer feedback',
         );
         logger.info('Small message sent successfully');
 
@@ -312,24 +312,24 @@ async function main() {
         await alice.client.sendMessage(
           connectionTopicId,
           JSON.stringify(largeSampleData),
-          'Requesting detailed analysis with many parameters'
+          'Requesting detailed analysis with many parameters',
         );
         logger.info('Large message sent successfully');
 
         logger.info("Bob retrieving Alice's messages...");
         const messages = await bob.client.getMessages(connectionTopicId);
         const largeMessage = messages.messages.find(
-          (msg) =>
+          msg =>
             msg.op === 'message' &&
             typeof msg.data === 'string' &&
-            msg.data.startsWith('hcs://1/')
+            msg.data.startsWith('hcs://1/'),
         );
 
         if (largeMessage) {
           logger.info('Found large message reference:', largeMessage.data);
           try {
             const resolvedContent = await bob.client.getMessageContent(
-              largeMessage.data
+              largeMessage.data,
             );
             logger.info('Successfully resolved large message');
           } catch (error) {
@@ -337,7 +337,7 @@ async function main() {
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         logger.info('Bob sending response message...');
         const bobMessage = {
@@ -354,7 +354,7 @@ async function main() {
         await bob.client.sendMessage(
           connectionTopicId,
           JSON.stringify(bobMessage),
-          'Analysis complete. Sending results.'
+          'Analysis complete. Sending results.',
         );
         logger.info('Response message sent successfully');
       }

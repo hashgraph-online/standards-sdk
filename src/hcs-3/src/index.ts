@@ -8,7 +8,7 @@ import {
 import { Logger } from '../../utils/logger';
 
 export const sleep = (ms: number) => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 };
 
 export class HCS implements HCSSDK {
@@ -110,10 +110,10 @@ export class HCS implements HCSSDK {
 
   loadConfigFromHTML(): void {
     const configScript = document.querySelector(
-      'script[data-hcs-config]'
+      'script[data-hcs-config]',
     ) as HTMLScriptElement | null;
     if (configScript) {
-      Object.keys(this.configMapping).forEach((dataAttr) => {
+      Object.keys(this.configMapping).forEach(dataAttr => {
         if (configScript.dataset[dataAttr]) {
           const configKey =
             this.configMapping[dataAttr as keyof HCSConfigMapping];
@@ -155,7 +155,7 @@ export class HCS implements HCSSDK {
   async fetchWithRetry(
     url: string,
     retries: number = this.config.retryAttempts,
-    backoff: number = this.config.retryBackoff
+    backoff: number = this.config.retryBackoff,
   ): Promise<Response> {
     try {
       const response = await fetch(url);
@@ -166,7 +166,7 @@ export class HCS implements HCSSDK {
     } catch (error) {
       if (retries > 0) {
         this.log(
-          'Retrying fetch for ' + url + ' Attempts left: ' + (retries - 1)
+          'Retrying fetch for ' + url + ' Attempts left: ' + (retries - 1),
         );
         await this.sleep(backoff);
         return this.fetchWithRetry(url, retries - 1, backoff * 2);
@@ -176,7 +176,7 @@ export class HCS implements HCSSDK {
   }
 
   sleep(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   isDuplicate(topicId: string): boolean {
@@ -186,11 +186,11 @@ export class HCS implements HCSSDK {
   async retrieveHCS1Data(
     topicId: string,
     cdnUrl: string = this.config.cdnUrl,
-    network: string = this.config.network
+    network: string = this.config.network,
   ): Promise<Blob> {
     const cleanNetwork = network.replace(/['"]+/g, '');
     const response = await this.fetchWithRetry(
-      cdnUrl + topicId + '?network=' + cleanNetwork
+      cdnUrl + topicId + '?network=' + cleanNetwork,
     );
     return await response.blob();
   }
@@ -251,7 +251,7 @@ export class HCS implements HCSSDK {
         window.dispatchEvent(this.scriptLoadedEvent);
         this.log('Loaded script: ' + scriptId);
 
-        script.onerror = (error) => {
+        script.onerror = error => {
           this.error('Failed to load ' + type + ': ' + scriptId, error);
           this.updateLoadingStatus(scriptId!, 'failed');
           if (isRequired) {
@@ -270,7 +270,7 @@ export class HCS implements HCSSDK {
 
   async loadModuleExports(scriptId: string): Promise<any> {
     const script = document.querySelector(
-      'script[data-loaded-script-id="' + scriptId + '"]'
+      'script[data-loaded-script-id="' + scriptId + '"]',
     );
     if (!script) {
       throw new Error('Module script with id ' + scriptId + ' not found');
@@ -350,7 +350,7 @@ export class HCS implements HCSSDK {
 
   async loadMedia(
     mediaElement: HTMLElement,
-    mediaType: 'video' | 'audio'
+    mediaType: 'video' | 'audio',
   ): Promise<void> {
     const src = mediaElement.getAttribute('data-src');
     const topicId = src?.split('/').pop();
@@ -386,7 +386,7 @@ export class HCS implements HCSSDK {
     if (this.modelViewerLoading) return this.modelViewerLoading;
     if (this.modelViewerLoaded) return Promise.resolve();
 
-    this.modelViewerLoading = new Promise<void>((resolve) => {
+    this.modelViewerLoading = new Promise<void>(resolve => {
       const modelViewerScript = document.createElement('script');
       modelViewerScript.setAttribute('data-src', 'hcs://1/0.0.7293044');
       modelViewerScript.setAttribute('data-script-id', 'model-viewer');
@@ -398,7 +398,7 @@ export class HCS implements HCSSDK {
           this.modelViewerLoaded = true;
           resolve();
         },
-        { once: true }
+        { once: true },
       );
 
       this.loadScript(modelViewerScript);
@@ -425,7 +425,7 @@ export class HCS implements HCSSDK {
       let modelViewer: HTMLElement;
       if (glbElement.tagName.toLowerCase() !== 'model-viewer') {
         modelViewer = document.createElement('model-viewer');
-        Array.from(glbElement.attributes).forEach((attr) => {
+        Array.from(glbElement.attributes).forEach(attr => {
           modelViewer.setAttribute(attr.name, attr.value);
         });
         modelViewer.setAttribute('camera-controls', '');
@@ -452,9 +452,9 @@ export class HCS implements HCSSDK {
   async loadResource(
     element: HTMLElement,
     type: LoadType,
-    order: number
+    order: number,
   ): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       this.loadQueue.push({ element, type, order, resolve });
       this.processQueue();
     });
@@ -538,7 +538,7 @@ export class HCS implements HCSSDK {
     this.log(
       'Found ' +
         elementsWithStyle.length +
-        ' elements with HCS style references'
+        ' elements with HCS style references',
     );
 
     for (const element of Array.from(elementsWithStyle)) {
@@ -567,29 +567,29 @@ export class HCS implements HCSSDK {
   async init(): Promise<void> {
     this.loadConfigFromHTML();
 
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const initializeObserver = async () => {
         const scriptElements = document.querySelectorAll(
-          'script[data-src^="hcs://"]'
+          'script[data-src^="hcs://"]',
         );
         const imageElements = document.querySelectorAll(
-          'img[data-src^="hcs://"], img[src^="hcs://"]'
+          'img[data-src^="hcs://"], img[src^="hcs://"]',
         );
         const videoElements = document.querySelectorAll(
-          'video[data-src^="hcs://"], video[src^="hcs://"]'
+          'video[data-src^="hcs://"], video[src^="hcs://"]',
         );
         const audioElements = document.querySelectorAll(
-          'audio[data-src^="hcs://"], audio[src^="hcs://"]'
+          'audio[data-src^="hcs://"], audio[src^="hcs://"]',
         );
         const glbElements = document.querySelectorAll(
-          'model-viewer[data-src^="hcs://"]'
+          'model-viewer[data-src^="hcs://"]',
         );
         const cssElements = document.querySelectorAll(
-          'link[data-src^="hcs://"]'
+          'link[data-src^="hcs://"]',
         );
 
         // Convert src to data-src for HCS URLs
-        document.querySelectorAll('[src^="hcs://"]').forEach((element) => {
+        document.querySelectorAll('[src^="hcs://"]').forEach(element => {
           const src = element.getAttribute('src');
           if (src) {
             element.setAttribute('data-src', src);
@@ -609,21 +609,25 @@ export class HCS implements HCSSDK {
           { elements: glbElements, type: 'glb' },
           { elements: cssElements, type: 'css' },
         ].forEach(({ elements, type }) => {
-          elements.forEach((element) => {
+          elements.forEach(element => {
             const order =
               parseInt(element.getAttribute('data-load-order') || '') ||
               Infinity;
             loadPromises.push(
-              this.loadResource(element as HTMLElement, type as LoadType, order)
+              this.loadResource(
+                element as HTMLElement,
+                type as LoadType,
+                order,
+              ),
             );
           });
         });
 
         await Promise.all(loadPromises);
 
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            mutation.addedNodes.forEach((node) => {
+        const observer = new MutationObserver(mutations => {
+          mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
               if (node.nodeType === Node.ELEMENT_NODE) {
                 const element = node as HTMLElement;
 
@@ -681,9 +685,9 @@ export class HCS implements HCSSDK {
 
                 // Check children of added nodes for HCS URLs
                 const childrenWithHCS = element.querySelectorAll(
-                  '[data-src^="hcs://"], [src^="hcs://"]'
+                  '[data-src^="hcs://"], [src^="hcs://"]',
                 );
-                childrenWithHCS.forEach((child) => {
+                childrenWithHCS.forEach(child => {
                   const childElement = child as HTMLElement;
                   const tagName = childElement.tagName.toLowerCase();
 
@@ -790,7 +794,7 @@ export class HCS implements HCSSDK {
     await this.loadMedia(audioElement, 'audio');
 
     const cachedAudio = document.querySelector(
-      'audio[data-topic-id="' + topicId + '"]'
+      'audio[data-topic-id="' + topicId + '"]',
     ) as HTMLAudioElement;
 
     if (cachedAudio) {
@@ -809,7 +813,7 @@ export class HCS implements HCSSDK {
       audio.volume = volume;
       this.LoadedAudios[topicId] = audio;
 
-      audio.play().catch((error) => {
+      audio.play().catch(error => {
         console.error('Failed to play audio:', error);
       });
 
@@ -824,7 +828,7 @@ export class HCS implements HCSSDK {
 
   async pauseAudio(topicId: string) {
     const audioElement = document.querySelector(
-      'audio[data-topic-id="' + topicId + '"]'
+      'audio[data-topic-id="' + topicId + '"]',
     ) as HTMLAudioElement;
 
     if (audioElement) {
@@ -838,7 +842,7 @@ export class HCS implements HCSSDK {
 
   async loadAndPlayAudio(topicId: string, autoplay = false, volume = 1.0) {
     let existingAudioElement = document.querySelector(
-      'audio[data-topic-id="' + topicId + '"]'
+      'audio[data-topic-id="' + topicId + '"]',
     ) as HTMLAudioElement;
 
     if (existingAudioElement) {
@@ -858,7 +862,7 @@ export class HCS implements HCSSDK {
       await this.loadMedia(audioElement, 'audio');
 
       existingAudioElement = document.querySelector(
-        'audio[data-topic-id="' + topicId + '"]'
+        'audio[data-topic-id="' + topicId + '"]',
       ) as HTMLAudioElement;
       if (!autoplay) {
         await existingAudioElement.play();
@@ -866,4 +870,3 @@ export class HCS implements HCSSDK {
     }
   }
 }
-

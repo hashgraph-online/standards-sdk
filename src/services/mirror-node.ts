@@ -124,7 +124,7 @@ export class HederaMirrorNode {
     this.maxDelayMs = config.maxDelayMs ?? this.maxDelayMs;
     this.backoffFactor = config.backoffFactor ?? this.backoffFactor;
     this.logger.info(
-      `Retry configuration updated: maxRetries=${this.maxRetries}, initialDelayMs=${this.initialDelayMs}, maxDelayMs=${this.maxDelayMs}, backoffFactor=${this.backoffFactor}`
+      `Retry configuration updated: maxRetries=${this.maxRetries}, initialDelayMs=${this.initialDelayMs}, maxDelayMs=${this.maxDelayMs}, backoffFactor=${this.backoffFactor}`,
     );
   }
 
@@ -188,7 +188,7 @@ export class HederaMirrorNode {
     try {
       if (!accountInfo || !accountInfo.key) {
         throw new Error(
-          `Failed to retrieve public key for account ID: ${accountId}`
+          `Failed to retrieve public key for account ID: ${accountId}`,
         );
       }
 
@@ -212,7 +212,7 @@ export class HederaMirrorNode {
 
     try {
       const accountInfo = await this._requestWithRetry<AccountResponse>(
-        `/api/v1/accounts/${accountId}`
+        `/api/v1/accounts/${accountId}`,
       );
 
       if (accountInfo?.memo) {
@@ -223,7 +223,7 @@ export class HederaMirrorNode {
     } catch (e: any) {
       const error = e as Error;
       this.logger.error(
-        `Failed to get account memo for ${accountId} after retries: ${error.message}`
+        `Failed to get account memo for ${accountId} after retries: ${error.message}`,
       );
       return null;
     }
@@ -239,7 +239,7 @@ export class HederaMirrorNode {
     try {
       this.logger.debug(`Fetching topic info for ${topicId}`);
       const data = await this._requestWithRetry<TopicResponse>(
-        `/api/v1/topics/${topicId}`
+        `/api/v1/topics/${topicId}`,
       );
       return data;
     } catch (e: any) {
@@ -280,7 +280,7 @@ export class HederaMirrorNode {
       this.logger.debug(`Fetching HBAR price for timestamp ${timestamp}`);
 
       const response = await this._requestWithRetry<HBARPrice>(
-        `/api/v1/network/exchangerate?timestamp=${timestamp}`
+        `/api/v1/network/exchangerate?timestamp=${timestamp}`,
       );
 
       const usdPrice =
@@ -307,7 +307,7 @@ export class HederaMirrorNode {
     this.logger.debug(`Fetching token info for ${tokenId}`);
     try {
       const data = await this._requestWithRetry<TokenInfoResponse>(
-        `/api/v1/tokens/${tokenId}`
+        `/api/v1/tokens/${tokenId}`,
       );
       if (data) {
         this.logger.trace(`Token info found for ${tokenId}:`, data);
@@ -338,9 +338,8 @@ export class HederaMirrorNode {
 
     while (nextEndpoint) {
       try {
-        const data = await this._requestWithRetry<TopicMessagesResponse>(
-          nextEndpoint
-        );
+        const data =
+          await this._requestWithRetry<TopicMessagesResponse>(nextEndpoint);
 
         if (data.messages && data.messages.length > 0) {
           for (const message of data.messages) {
@@ -354,13 +353,13 @@ export class HederaMirrorNode {
                 if (this.isServerEnvironment) {
                   messageContent = Buffer.from(
                     message.message,
-                    'base64'
+                    'base64',
                   ).toString('utf-8');
                 } else {
                   messageContent = new TextDecoder().decode(
-                    Uint8Array.from(atob(message.message), (c) =>
-                      c.charCodeAt(0)
-                    )
+                    Uint8Array.from(atob(message.message), c =>
+                      c.charCodeAt(0),
+                    ),
                   );
                 }
               } catch (error) {
@@ -414,11 +413,11 @@ export class HederaMirrorNode {
     try {
       this.logger.debug(`Requesting account info for ${accountId}`);
       const data = await this._requestWithRetry<AccountResponse>(
-        `/api/v1/accounts/${accountId}`
+        `/api/v1/accounts/${accountId}`,
       );
       if (!data) {
         throw new Error(
-          `No data received from mirror node for account: ${accountId}`
+          `No data received from mirror node for account: ${accountId}`,
         );
       }
       return data;
@@ -438,7 +437,7 @@ export class HederaMirrorNode {
    */
   async checkKeyListAccess(
     keyBytes: Buffer,
-    userPublicKey: PublicKey
+    userPublicKey: PublicKey,
   ): Promise<boolean> {
     try {
       const key = proto.Key.decode(keyBytes);
@@ -459,7 +458,7 @@ export class HederaMirrorNode {
    */
   private async evaluateKeyAccess(
     key: proto.IKey,
-    userPublicKey: PublicKey
+    userPublicKey: PublicKey,
   ): Promise<boolean> {
     if (key.ed25519) {
       return this.compareEd25519Key(key.ed25519, userPublicKey);
@@ -484,7 +483,7 @@ export class HederaMirrorNode {
    */
   private async evaluateKeyList(
     keyList: proto.IKeyList,
-    userPublicKey: PublicKey
+    userPublicKey: PublicKey,
   ): Promise<boolean> {
     const keys = keyList.keys || [];
 
@@ -506,7 +505,7 @@ export class HederaMirrorNode {
 
           const hasNestedAccess = await this.checkKeyListAccess(
             Buffer.from(nestedKeyBytes),
-            userPublicKey
+            userPublicKey,
           );
 
           if (hasNestedAccess) {
@@ -531,7 +530,7 @@ export class HederaMirrorNode {
    */
   private compareEd25519Key(
     keyData: Uint8Array,
-    userPublicKey: PublicKey
+    userPublicKey: PublicKey,
   ): boolean {
     try {
       const decodedKey = PublicKey.fromBytes(Buffer.from(keyData));
@@ -552,11 +551,11 @@ export class HederaMirrorNode {
   async getScheduleInfo(scheduleId: string): Promise<ScheduleInfo | null> {
     try {
       this.logger.info(
-        `Getting information for scheduled transaction ${scheduleId}`
+        `Getting information for scheduled transaction ${scheduleId}`,
       );
 
       const data = await this._requestWithRetry<ScheduleInfo>(
-        `/api/v1/schedules/${scheduleId}`
+        `/api/v1/schedules/${scheduleId}`,
       );
 
       if (data) {
@@ -564,12 +563,12 @@ export class HederaMirrorNode {
       }
 
       this.logger.warn(
-        `No schedule info found for ${scheduleId} after retries.`
+        `No schedule info found for ${scheduleId} after retries.`,
       );
       return null;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching schedule info for ${scheduleId} after retries: ${error.message}`
+        `Error fetching schedule info for ${scheduleId} after retries: ${error.message}`,
       );
       return null;
     }
@@ -587,7 +586,7 @@ export class HederaMirrorNode {
   }> {
     try {
       this.logger.info(
-        `Checking status of scheduled transaction ${scheduleId}`
+        `Checking status of scheduled transaction ${scheduleId}`,
       );
 
       const scheduleInfo = await this.getScheduleInfo(scheduleId);
@@ -605,7 +604,7 @@ export class HederaMirrorNode {
       };
     } catch (error) {
       this.logger.error(
-        `Error checking scheduled transaction status: ${error}`
+        `Error checking scheduled transaction status: ${error}`,
       );
       throw error;
     }
@@ -618,10 +617,10 @@ export class HederaMirrorNode {
    * @throws An error if the transaction ID/hash is invalid or details cannot be retrieved.
    */
   async getTransaction(
-    transactionIdOrHash: string
+    transactionIdOrHash: string,
   ): Promise<HederaTransaction | null> {
     this.logger.info(
-      `Getting transaction details for ID/hash: ${transactionIdOrHash}`
+      `Getting transaction details for ID/hash: ${transactionIdOrHash}`,
     );
 
     try {
@@ -632,19 +631,19 @@ export class HederaMirrorNode {
       if (response?.transactions?.length > 0) {
         this.logger.trace(
           `Transaction details found for ${transactionIdOrHash}:`,
-          response.transactions[0]
+          response.transactions[0],
         );
         return response.transactions[0];
       }
 
       this.logger.warn(
-        `No transaction details found for ${transactionIdOrHash} or unexpected response structure.`
+        `No transaction details found for ${transactionIdOrHash} or unexpected response structure.`,
       );
       return null;
     } catch (e: any) {
       const error = e as Error;
       this.logger.error(
-        `Failed to get transaction details for ${transactionIdOrHash} after retries: ${error.message}`
+        `Failed to get transaction details for ${transactionIdOrHash} after retries: ${error.message}`,
       );
       return null;
     }
@@ -655,7 +654,7 @@ export class HederaMirrorNode {
    */
   private async _requestWithRetry<T>(
     endpoint: string,
-    axiosConfig?: AxiosRequestConfig
+    axiosConfig?: AxiosRequestConfig,
   ): Promise<T> {
     let attempt = 0;
     let delay = this.initialDelayMs;
@@ -693,28 +692,28 @@ export class HederaMirrorNode {
           statusCode !== 429
         ) {
           this.logger.error(
-            `Client error for ${url} (status ${statusCode}): ${error.message}. Not retrying.`
+            `Client error for ${url} (status ${statusCode}): ${error.message}. Not retrying.`,
           );
           throw error;
         }
 
         if (isLastAttempt) {
           this.logger.error(
-            `Max retries (${this.maxRetries}) reached for ${url}. Last error: ${error.message}`
+            `Max retries (${this.maxRetries}) reached for ${url}. Last error: ${error.message}`,
           );
           throw error;
         }
 
         this.logger.warn(
-          `Attempt ${attempt}/${this.maxRetries} failed for ${url}: ${error.message}. Retrying in ${delay}ms...`
+          `Attempt ${attempt}/${this.maxRetries} failed for ${url}: ${error.message}. Retrying in ${delay}ms...`,
         );
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise(resolve => setTimeout(resolve, delay));
         delay = Math.min(delay * this.backoffFactor, this.maxDelayMs);
       }
     }
 
     throw new Error(
-      `Failed to fetch data from ${url} after ${this.maxRetries} attempts.`
+      `Failed to fetch data from ${url} after ${this.maxRetries} attempts.`,
     );
   }
 
@@ -723,7 +722,7 @@ export class HederaMirrorNode {
    */
   private async _fetchWithRetry<T>(
     url: string,
-    fetchOptions?: RequestInit
+    fetchOptions?: RequestInit,
   ): Promise<T> {
     let attempt = 0;
     let delay = this.initialDelayMs;
@@ -766,14 +765,14 @@ export class HederaMirrorNode {
             request.status !== 429
           ) {
             this.logger.error(
-              `Client error for ${url} (status ${request.status}): ${request.statusText}. Not retrying.`
+              `Client error for ${url} (status ${request.status}): ${request.statusText}. Not retrying.`,
             );
             throw new Error(
-              `Fetch failed with status ${request.status}: ${request.statusText} for URL: ${url}`
+              `Fetch failed with status ${request.status}: ${request.statusText} for URL: ${url}`,
             );
           }
           throw new Error(
-            `Fetch failed with status ${request.status}: ${request.statusText} for URL: ${url}`
+            `Fetch failed with status ${request.status}: ${request.statusText} for URL: ${url}`,
           );
         }
         const response = (await request.json()) as T;
@@ -782,19 +781,19 @@ export class HederaMirrorNode {
         attempt++;
         if (attempt >= this.maxRetries) {
           this.logger.error(
-            `Max retries (${this.maxRetries}) reached for ${url}. Last error: ${error.message}`
+            `Max retries (${this.maxRetries}) reached for ${url}. Last error: ${error.message}`,
           );
           throw error;
         }
         this.logger.warn(
-          `Attempt ${attempt}/${this.maxRetries} failed for ${url}: ${error.message}. Retrying in ${delay}ms...`
+          `Attempt ${attempt}/${this.maxRetries} failed for ${url}: ${error.message}. Retrying in ${delay}ms...`,
         );
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise(resolve => setTimeout(resolve, delay));
         delay = Math.min(delay * this.backoffFactor, this.maxDelayMs);
       }
     }
     throw new Error(
-      `Failed to fetch data from ${url} after ${this.maxRetries} attempts.`
+      `Failed to fetch data from ${url} after ${this.maxRetries} attempts.`,
     );
   }
 
@@ -812,12 +811,12 @@ export class HederaMirrorNode {
         return hbarBalance;
       }
       this.logger.warn(
-        `Could not retrieve balance for account ${accountId} from account info.`
+        `Could not retrieve balance for account ${accountId} from account info.`,
       );
       return null;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching numerical balance for account ${accountId}: ${error.message}`
+        `Error fetching numerical balance for account ${accountId}: ${error.message}`,
       );
       return null;
     }
@@ -840,12 +839,12 @@ export class HederaMirrorNode {
       endTime?: string;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<HCSMessage[] | null> {
     this.logger.trace(
       `Querying messages for topic ${topicId} with filters: ${JSON.stringify(
-        options
-      )}`
+        options,
+      )}`,
     );
 
     let nextUrl = `/api/v1/topics/${topicId}/messages`;
@@ -879,9 +878,8 @@ export class HederaMirrorNode {
     try {
       while (nextUrl && pagesFetched < maxPages) {
         pagesFetched++;
-        const data = await this._requestWithRetry<TopicMessagesResponse>(
-          nextUrl
-        );
+        const data =
+          await this._requestWithRetry<TopicMessagesResponse>(nextUrl);
 
         if (data.messages && data.messages.length > 0) {
           for (const message of data.messages) {
@@ -893,11 +891,11 @@ export class HederaMirrorNode {
               if (this.isServerEnvironment) {
                 messageContent = Buffer.from(
                   message.message,
-                  'base64'
+                  'base64',
                 ).toString('utf-8');
               } else {
                 messageContent = new TextDecoder().decode(
-                  Uint8Array.from(atob(message.message), (c) => c.charCodeAt(0))
+                  Uint8Array.from(atob(message.message), c => c.charCodeAt(0)),
                 );
               }
               let messageJson = {};
@@ -905,7 +903,7 @@ export class HederaMirrorNode {
                 messageJson = JSON.parse(messageContent);
               } catch (parseError) {
                 this.logger.debug(
-                  `Message content is not valid JSON, using raw: ${messageContent}`
+                  `Message content is not valid JSON, using raw: ${messageContent}`,
                 );
                 messageJson = { raw_content: messageContent };
               }
@@ -924,7 +922,7 @@ export class HederaMirrorNode {
                 created: new Date(
                   Number(message.consensus_timestamp.split('.')[0]) * 1000 +
                     Number(message.consensus_timestamp.split('.')[1] || 0) /
-                      1_000_000
+                      1_000_000,
                 ),
                 payer: message.payer_account_id,
               };
@@ -932,7 +930,7 @@ export class HederaMirrorNode {
               messages.push(hcsMsg);
             } catch (error: any) {
               this.logger.error(
-                `Error processing individual message: ${error.message}`
+                `Error processing individual message: ${error.message}`,
               );
             }
           }
@@ -944,7 +942,7 @@ export class HederaMirrorNode {
     } catch (e: any) {
       const error = e as Error;
       this.logger.error(
-        `Error querying filtered topic messages for ${topicId}: ${error.message}`
+        `Error querying filtered topic messages for ${topicId}: ${error.message}`,
       );
       return null;
     }
@@ -958,7 +956,7 @@ export class HederaMirrorNode {
    */
   async getAccountTokens(
     accountId: string,
-    limit: number = 100
+    limit: number = 100,
   ): Promise<AccountTokenBalance[] | null> {
     this.logger.info(`Getting tokens for account ${accountId}`);
     let allTokens: AccountTokenBalance[] = [];
@@ -966,9 +964,8 @@ export class HederaMirrorNode {
 
     try {
       for (let i = 0; i < 10 && endpoint; i++) {
-        const response = await this._requestWithRetry<AccountTokensResponse>(
-          endpoint
-        );
+        const response =
+          await this._requestWithRetry<AccountTokensResponse>(endpoint);
         if (response && response.tokens) {
           allTokens = allTokens.concat(response.tokens);
         }
@@ -983,7 +980,7 @@ export class HederaMirrorNode {
       return allTokens;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching tokens for account ${accountId}: ${error.message}`
+        `Error fetching tokens for account ${accountId}: ${error.message}`,
       );
       return null;
     }
@@ -995,7 +992,7 @@ export class HederaMirrorNode {
    * @returns A promise that resolves to the transaction details or null.
    */
   async getTransactionByTimestamp(
-    timestamp: string
+    timestamp: string,
   ): Promise<HederaTransaction[]> {
     this.logger.info(`Getting transaction by timestamp: ${timestamp}`);
 
@@ -1007,7 +1004,7 @@ export class HederaMirrorNode {
       return response.transactions;
     } catch (error: unknown) {
       this.logger.error(
-        `Error fetching transaction by timestamp ${timestamp}: ${error}`
+        `Error fetching transaction by timestamp ${timestamp}: ${error}`,
       );
       return [];
     }
@@ -1023,12 +1020,12 @@ export class HederaMirrorNode {
   async getAccountNfts(
     accountId: string,
     tokenId?: string,
-    limit: number = 100
+    limit: number = 100,
   ): Promise<NftDetail[] | null> {
     this.logger.info(
       `Getting NFTs for account ${accountId}${
         tokenId ? ` for token ${tokenId}` : ''
-      }`
+      }`,
     );
     let allNfts: NftDetail[] = [];
     let endpoint = `/api/v1/accounts/${accountId}/nfts?limit=${limit}`;
@@ -1038,28 +1035,27 @@ export class HederaMirrorNode {
 
     try {
       for (let i = 0; i < 10 && endpoint; i++) {
-        const response = await this._requestWithRetry<AccountNftsResponse>(
-          endpoint
-        );
+        const response =
+          await this._requestWithRetry<AccountNftsResponse>(endpoint);
         if (response && response.nfts) {
-          const nftsWithUri = response.nfts.map((nft) => {
+          const nftsWithUri = response.nfts.map(nft => {
             let tokenUri: string | undefined = undefined;
             if (nft.metadata) {
               try {
                 if (this.isServerEnvironment) {
                   tokenUri = Buffer.from(nft.metadata, 'base64').toString(
-                    'utf-8'
+                    'utf-8',
                   );
                 } else {
                   tokenUri = new TextDecoder().decode(
-                    Uint8Array.from(atob(nft.metadata), (c) => c.charCodeAt(0))
+                    Uint8Array.from(atob(nft.metadata), c => c.charCodeAt(0)),
                   );
                 }
               } catch (e) {
                 this.logger.warn(
                   `Failed to decode metadata for NFT ${nft.token_id} SN ${
                     nft.serial_number
-                  }: ${(e as Error).message}`
+                  }: ${(e as Error).message}`,
                 );
               }
             }
@@ -1073,7 +1069,7 @@ export class HederaMirrorNode {
       return allNfts;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching NFTs for account ${accountId}: ${error.message}`
+        `Error fetching NFTs for account ${accountId}: ${error.message}`,
       );
       return null;
     }
@@ -1089,17 +1085,16 @@ export class HederaMirrorNode {
   async validateNFTOwnership(
     accountId: string,
     tokenId: string,
-    serialNumber: number
+    serialNumber: number,
   ): Promise<NftDetail | null> {
     this.logger.info(
-      `Validating ownership of NFT ${tokenId} SN ${serialNumber} for account ${accountId}`
+      `Validating ownership of NFT ${tokenId} SN ${serialNumber} for account ${accountId}`,
     );
     try {
       const nfts = await this.getAccountNfts(accountId, tokenId);
       if (nfts) {
         const foundNft = nfts.find(
-          (nft) =>
-            nft.token_id === tokenId && nft.serial_number === serialNumber
+          nft => nft.token_id === tokenId && nft.serial_number === serialNumber,
         );
         return foundNft || null;
       }
@@ -1130,10 +1125,10 @@ export class HederaMirrorNode {
       value?: number;
       gas?: number;
       gasPrice?: number;
-    }
+    },
   ): Promise<ContractCallQueryResponse | null> {
     this.logger.info(
-      `Reading smart contract ${contractIdOrAddress} with selector ${functionSelector}`
+      `Reading smart contract ${contractIdOrAddress} with selector ${functionSelector}`,
     );
 
     const toAddress = contractIdOrAddress.startsWith('0x')
@@ -1154,7 +1149,7 @@ export class HederaMirrorNode {
       value: options?.value || 0,
     };
 
-    Object.keys(body).forEach((key) => {
+    Object.keys(body).forEach(key => {
       const K = key as keyof typeof body;
       if (body[K] === undefined) {
         delete body[K];
@@ -1171,12 +1166,12 @@ export class HederaMirrorNode {
           headers: {
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
       return response;
     } catch (error: any) {
       this.logger.error(
-        `Error reading smart contract ${contractIdOrAddress}: ${error.message}`
+        `Error reading smart contract ${contractIdOrAddress}: ${error.message}`,
       );
       return null;
     }
@@ -1196,10 +1191,10 @@ export class HederaMirrorNode {
       receiverId?: string;
       serialNumber?: string;
       tokenId?: string;
-    }
+    },
   ): Promise<TokenAirdrop[] | null> {
     this.logger.info(
-      `Getting outstanding token airdrops sent by account ${accountId}`
+      `Getting outstanding token airdrops sent by account ${accountId}`,
     );
     let endpoint = `/api/v1/accounts/${accountId}/airdrops/outstanding`;
     const params = new URLSearchParams();
@@ -1226,13 +1221,12 @@ export class HederaMirrorNode {
     }
 
     try {
-      const response = await this._requestWithRetry<TokenAirdropsResponse>(
-        endpoint
-      );
+      const response =
+        await this._requestWithRetry<TokenAirdropsResponse>(endpoint);
       return response.airdrops || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching outstanding token airdrops for account ${accountId}: ${error.message}`
+        `Error fetching outstanding token airdrops for account ${accountId}: ${error.message}`,
       );
       return null;
     }
@@ -1252,10 +1246,10 @@ export class HederaMirrorNode {
       senderId?: string;
       serialNumber?: string;
       tokenId?: string;
-    }
+    },
   ): Promise<TokenAirdrop[] | null> {
     this.logger.info(
-      `Getting pending token airdrops received by account ${accountId}`
+      `Getting pending token airdrops received by account ${accountId}`,
     );
     let endpoint = `/api/v1/accounts/${accountId}/airdrops/pending`;
     const params = new URLSearchParams();
@@ -1282,13 +1276,12 @@ export class HederaMirrorNode {
     }
 
     try {
-      const response = await this._requestWithRetry<TokenAirdropsResponse>(
-        endpoint
-      );
+      const response =
+        await this._requestWithRetry<TokenAirdropsResponse>(endpoint);
       return response.airdrops || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching pending token airdrops for account ${accountId}: ${error.message}`
+        `Error fetching pending token airdrops for account ${accountId}: ${error.message}`,
       );
       return null;
     }
@@ -1345,12 +1338,12 @@ export class HederaMirrorNode {
     this.logger.info(`Getting block ${blockNumberOrHash}`);
     try {
       const response = await this._requestWithRetry<Block>(
-        `/api/v1/blocks/${blockNumberOrHash}`
+        `/api/v1/blocks/${blockNumberOrHash}`,
       );
       return response;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching block ${blockNumberOrHash}: ${error.message}`
+        `Error fetching block ${blockNumberOrHash}: ${error.message}`,
       );
       return null;
     }
@@ -1402,7 +1395,7 @@ export class HederaMirrorNode {
    */
   async getContract(
     contractIdOrAddress: string,
-    timestamp?: string
+    timestamp?: string,
   ): Promise<ContractEntity | null> {
     this.logger.info(`Getting contract ${contractIdOrAddress}`);
     let url = `/api/v1/contracts/${contractIdOrAddress}`;
@@ -1416,7 +1409,7 @@ export class HederaMirrorNode {
       return response;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching contract ${contractIdOrAddress}: ${error.message}`
+        `Error fetching contract ${contractIdOrAddress}: ${error.message}`,
       );
       return null;
     }
@@ -1472,9 +1465,8 @@ export class HederaMirrorNode {
     }
 
     try {
-      const response = await this._requestWithRetry<ContractResultsResponse>(
-        url
-      );
+      const response =
+        await this._requestWithRetry<ContractResultsResponse>(url);
       return response.results || [];
     } catch (error: any) {
       this.logger.error(`Error fetching contract results: ${error.message}`);
@@ -1490,7 +1482,7 @@ export class HederaMirrorNode {
    */
   async getContractResult(
     transactionIdOrHash: string,
-    nonce?: number
+    nonce?: number,
   ): Promise<ContractResult | null> {
     this.logger.info(`Getting contract result for ${transactionIdOrHash}`);
     let url = `/api/v1/contracts/results/${transactionIdOrHash}`;
@@ -1504,7 +1496,7 @@ export class HederaMirrorNode {
       return response;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching contract result for ${transactionIdOrHash}: ${error.message}`
+        `Error fetching contract result for ${transactionIdOrHash}: ${error.message}`,
       );
       return null;
     }
@@ -1527,10 +1519,10 @@ export class HederaMirrorNode {
       order?: 'asc' | 'desc';
       timestamp?: string;
       transactionIndex?: number;
-    }
+    },
   ): Promise<ContractResult[] | null> {
     this.logger.info(
-      `Getting contract results for contract ${contractIdOrAddress}`
+      `Getting contract results for contract ${contractIdOrAddress}`,
     );
     let url = `/api/v1/contracts/${contractIdOrAddress}/results`;
     const params = new URLSearchParams();
@@ -1566,13 +1558,12 @@ export class HederaMirrorNode {
     }
 
     try {
-      const response = await this._requestWithRetry<ContractResultsResponse>(
-        url
-      );
+      const response =
+        await this._requestWithRetry<ContractResultsResponse>(url);
       return response.results || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching contract results for ${contractIdOrAddress}: ${error.message}`
+        `Error fetching contract results for ${contractIdOrAddress}: ${error.message}`,
       );
       return null;
     }
@@ -1591,7 +1582,7 @@ export class HederaMirrorNode {
       order?: 'asc' | 'desc';
       slot?: string;
       timestamp?: string;
-    }
+    },
   ): Promise<ContractState[] | null> {
     this.logger.info(`Getting contract state for ${contractIdOrAddress}`);
     let url = `/api/v1/contracts/${contractIdOrAddress}/state`;
@@ -1620,7 +1611,7 @@ export class HederaMirrorNode {
       return response.state || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching contract state for ${contractIdOrAddress}: ${error.message}`
+        `Error fetching contract state for ${contractIdOrAddress}: ${error.message}`,
       );
       return null;
     }
@@ -1638,7 +1629,7 @@ export class HederaMirrorNode {
       index?: string;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<ContractAction[] | null> {
     this.logger.info(`Getting contract actions for ${transactionIdOrHash}`);
     let url = `/api/v1/contracts/results/${transactionIdOrHash}/actions`;
@@ -1660,13 +1651,12 @@ export class HederaMirrorNode {
     }
 
     try {
-      const response = await this._requestWithRetry<ContractActionsResponse>(
-        url
-      );
+      const response =
+        await this._requestWithRetry<ContractActionsResponse>(url);
       return response.actions || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching contract actions for ${transactionIdOrHash}: ${error.message}`
+        `Error fetching contract actions for ${transactionIdOrHash}: ${error.message}`,
       );
       return null;
     }
@@ -1751,10 +1741,10 @@ export class HederaMirrorNode {
       topic1?: string;
       topic2?: string;
       topic3?: string;
-    }
+    },
   ): Promise<ContractLog[] | null> {
     this.logger.info(
-      `Getting contract logs for contract ${contractIdOrAddress}`
+      `Getting contract logs for contract ${contractIdOrAddress}`,
     );
     let url = `/api/v1/contracts/${contractIdOrAddress}/results/logs`;
     const params = new URLSearchParams();
@@ -1794,7 +1784,7 @@ export class HederaMirrorNode {
       return response.logs || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching contract logs for ${contractIdOrAddress}: ${error.message}`
+        `Error fetching contract logs for ${contractIdOrAddress}: ${error.message}`,
       );
       return null;
     }
@@ -1808,7 +1798,7 @@ export class HederaMirrorNode {
    */
   async getNftInfo(
     tokenId: string,
-    serialNumber: number
+    serialNumber: number,
   ): Promise<NftInfo | null> {
     this.logger.info(`Getting NFT info for ${tokenId}/${serialNumber}`);
     const url = `/api/v1/tokens/${tokenId}/nfts/${serialNumber}`;
@@ -1818,7 +1808,7 @@ export class HederaMirrorNode {
       return response;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching NFT info for ${tokenId}/${serialNumber}: ${error.message}`
+        `Error fetching NFT info for ${tokenId}/${serialNumber}: ${error.message}`,
       );
       return null;
     }
@@ -1837,7 +1827,7 @@ export class HederaMirrorNode {
       limit?: number;
       order?: 'asc' | 'desc';
       serialNumber?: string;
-    }
+    },
   ): Promise<NftInfo[] | null> {
     this.logger.info(`Getting NFTs for token ${tokenId}`);
     let url = `/api/v1/tokens/${tokenId}/nfts`;
@@ -1866,7 +1856,7 @@ export class HederaMirrorNode {
       return response.nfts || [];
     } catch (error: any) {
       this.logger.error(
-        `Error fetching NFTs for token ${tokenId}: ${error.message}`
+        `Error fetching NFTs for token ${tokenId}: ${error.message}`,
       );
       return null;
     }
@@ -1967,7 +1957,7 @@ export class HederaMirrorNode {
       stack?: boolean;
       memory?: boolean;
       storage?: boolean;
-    }
+    },
   ): Promise<OpcodesResponse | null> {
     this.logger.info(`Getting opcode traces for ${transactionIdOrHash}`);
     let url = `/api/v1/contracts/results/${transactionIdOrHash}/opcodes`;
@@ -1993,7 +1983,7 @@ export class HederaMirrorNode {
       return response;
     } catch (error: any) {
       this.logger.error(
-        `Error fetching opcode traces for ${transactionIdOrHash}: ${error.message}`
+        `Error fetching opcode traces for ${transactionIdOrHash}: ${error.message}`,
       );
       return null;
     }

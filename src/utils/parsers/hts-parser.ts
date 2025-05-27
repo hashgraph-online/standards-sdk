@@ -26,7 +26,7 @@ import { Buffer } from 'buffer';
 
 export class HTSParser {
   static parseTokenCreate(
-    body: proto.ITokenCreateTransactionBody
+    body: proto.ITokenCreateTransactionBody,
   ): TokenCreationData | undefined {
     if (!body) return undefined;
     const data: TokenCreationData = {};
@@ -40,7 +40,7 @@ export class HTSParser {
       data.treasuryAccountId = new AccountId(
         body.treasury.shardNum ?? 0,
         body.treasury.realmNum ?? 0,
-        body.treasury.accountNum ?? 0
+        body.treasury.accountNum ?? 0,
       ).toString();
     }
     if (body.initialSupply) {
@@ -72,21 +72,21 @@ export class HTSParser {
       data.autoRenewAccount = new AccountId(
         body.autoRenewAccount.shardNum ?? 0,
         body.autoRenewAccount.realmNum ?? 0,
-        body.autoRenewAccount.accountNum ?? 0
+        body.autoRenewAccount.accountNum ?? 0,
       ).toString();
     }
     if (body.autoRenewPeriod?.seconds) {
       data.autoRenewPeriod = Long.fromValue(
-        body.autoRenewPeriod.seconds
+        body.autoRenewPeriod.seconds,
       ).toString();
     }
     if (body.customFees && body.customFees.length > 0) {
-      data.customFees = body.customFees.map((fee) => {
+      data.customFees = body.customFees.map(fee => {
         const feeCollectorAccountId = fee.feeCollectorAccountId
           ? new AccountId(
               fee.feeCollectorAccountId.shardNum ?? 0,
               fee.feeCollectorAccountId.realmNum ?? 0,
-              fee.feeCollectorAccountId.accountNum ?? 0
+              fee.feeCollectorAccountId.accountNum ?? 0,
             ).toString()
           : 'Not Set';
         const commonFeeData = {
@@ -103,7 +103,7 @@ export class HTSParser {
                 ? new TokenId(
                     fee.fixedFee.denominatingTokenId.shardNum ?? 0,
                     fee.fixedFee.denominatingTokenId.realmNum ?? 0,
-                    fee.fixedFee.denominatingTokenId.tokenNum ?? 0
+                    fee.fixedFee.denominatingTokenId.tokenNum ?? 0,
                   ).toString()
                 : undefined,
             },
@@ -114,16 +114,16 @@ export class HTSParser {
             feeType: 'FRACTIONAL_FEE',
             fractionalFee: {
               numerator: Long.fromValue(
-                fee.fractionalFee.fractionalAmount?.numerator || 0
+                fee.fractionalFee.fractionalAmount?.numerator || 0,
               ).toString(),
               denominator: Long.fromValue(
-                fee.fractionalFee.fractionalAmount?.denominator || 1
+                fee.fractionalFee.fractionalAmount?.denominator || 1,
               ).toString(),
               minimumAmount: Long.fromValue(
-                fee.fractionalFee.minimumAmount || 0
+                fee.fractionalFee.minimumAmount || 0,
               ).toString(),
               maximumAmount: Long.fromValue(
-                fee.fractionalFee.maximumAmount || 0
+                fee.fractionalFee.maximumAmount || 0,
               ).toString(),
               netOfTransfers: fee.fractionalFee.netOfTransfers || false,
             },
@@ -133,7 +133,7 @@ export class HTSParser {
           if (fee.royaltyFee.fallbackFee) {
             fallbackFeeData = {
               amount: Long.fromValue(
-                fee.royaltyFee.fallbackFee.amount || 0
+                fee.royaltyFee.fallbackFee.amount || 0,
               ).toString(),
               denominatingTokenId: fee.royaltyFee.fallbackFee
                 .denominatingTokenId
@@ -142,7 +142,8 @@ export class HTSParser {
                       0,
                     fee.royaltyFee.fallbackFee.denominatingTokenId.realmNum ??
                       0,
-                    fee.royaltyFee.fallbackFee.denominatingTokenId.tokenNum ?? 0
+                    fee.royaltyFee.fallbackFee.denominatingTokenId.tokenNum ??
+                      0,
                   ).toString()
                 : undefined,
             };
@@ -152,10 +153,10 @@ export class HTSParser {
             feeType: 'ROYALTY_FEE',
             royaltyFee: {
               numerator: Long.fromValue(
-                fee.royaltyFee.exchangeValueFraction?.numerator || 0
+                fee.royaltyFee.exchangeValueFraction?.numerator || 0,
               ).toString(),
               denominator: Long.fromValue(
-                fee.royaltyFee.exchangeValueFraction?.denominator || 1
+                fee.royaltyFee.exchangeValueFraction?.denominator || 1,
               ).toString(),
               fallbackFee: fallbackFeeData,
             },
@@ -172,7 +173,7 @@ export class HTSParser {
   }
 
   static parseTokenMint(
-    body: proto.ITokenMintTransactionBody
+    body: proto.ITokenMintTransactionBody,
   ): TokenMintData | undefined {
     if (
       !body ||
@@ -186,20 +187,20 @@ export class HTSParser {
       tokenId: new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString(),
       amount: Long.fromValue(body.amount).toNumber(),
     };
     if (body.metadata && body.metadata.length > 0) {
-      data.metadata = body.metadata.map((meta) =>
-        Buffer.from(meta).toString('base64')
+      data.metadata = body.metadata.map(meta =>
+        Buffer.from(meta).toString('base64'),
       );
     }
     return data;
   }
 
   static parseTokenBurn(
-    body: proto.ITokenBurnTransactionBody
+    body: proto.ITokenBurnTransactionBody,
   ): TokenBurnData | undefined {
     if (
       !body ||
@@ -213,20 +214,20 @@ export class HTSParser {
       tokenId: new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString(),
       amount: Long.fromValue(body.amount).toNumber(),
     };
     if (body.serialNumbers && body.serialNumbers.length > 0) {
-      data.serialNumbers = body.serialNumbers.map((sn) =>
-        Long.fromValue(sn).toNumber()
+      data.serialNumbers = body.serialNumbers.map(sn =>
+        Long.fromValue(sn).toNumber(),
       );
     }
     return data;
   }
 
   static parseTokenUpdate(
-    body: proto.ITokenUpdateTransactionBody
+    body: proto.ITokenUpdateTransactionBody,
   ): TokenUpdateData | undefined {
     if (!body) return undefined;
     const data: TokenUpdateData = {};
@@ -234,7 +235,7 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     if (body.name) {
@@ -247,7 +248,7 @@ export class HTSParser {
       data.treasuryAccountId = new AccountId(
         body.treasury.shardNum ?? 0,
         body.treasury.realmNum ?? 0,
-        body.treasury.accountNum ?? 0
+        body.treasury.accountNum ?? 0,
       ).toString();
     }
     data.adminKey = parseKey(body.adminKey);
@@ -261,12 +262,12 @@ export class HTSParser {
       data.autoRenewAccountId = new AccountId(
         body.autoRenewAccount.shardNum ?? 0,
         body.autoRenewAccount.realmNum ?? 0,
-        body.autoRenewAccount.accountNum ?? 0
+        body.autoRenewAccount.accountNum ?? 0,
       ).toString();
     }
     if (body.autoRenewPeriod?.seconds) {
       data.autoRenewPeriod = Long.fromValue(
-        body.autoRenewPeriod.seconds
+        body.autoRenewPeriod.seconds,
       ).toString();
     }
     if (body.memo?.value !== undefined) {
@@ -281,7 +282,7 @@ export class HTSParser {
   }
 
   static parseTokenFeeScheduleUpdate(
-    body: proto.ITokenFeeScheduleUpdateTransactionBody
+    body: proto.ITokenFeeScheduleUpdateTransactionBody,
   ): TokenFeeScheduleUpdateData | undefined {
     if (!body) return undefined;
     const data: TokenFeeScheduleUpdateData = {};
@@ -289,16 +290,16 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.tokenId.shardNum ?? 0,
         body.tokenId.realmNum ?? 0,
-        body.tokenId.tokenNum ?? 0
+        body.tokenId.tokenNum ?? 0,
       ).toString();
     }
     if (body.customFees && body.customFees.length > 0) {
-      data.customFees = body.customFees.map((fee) => {
+      data.customFees = body.customFees.map(fee => {
         const feeCollectorAccountId = fee.feeCollectorAccountId
           ? new AccountId(
               fee.feeCollectorAccountId.shardNum ?? 0,
               fee.feeCollectorAccountId.realmNum ?? 0,
-              fee.feeCollectorAccountId.accountNum ?? 0
+              fee.feeCollectorAccountId.accountNum ?? 0,
             ).toString()
           : 'Not Set';
         const commonFeeData = {
@@ -315,7 +316,7 @@ export class HTSParser {
                 ? new TokenId(
                     fee.fixedFee.denominatingTokenId.shardNum ?? 0,
                     fee.fixedFee.denominatingTokenId.realmNum ?? 0,
-                    fee.fixedFee.denominatingTokenId.tokenNum ?? 0
+                    fee.fixedFee.denominatingTokenId.tokenNum ?? 0,
                   ).toString()
                 : undefined,
             },
@@ -326,16 +327,16 @@ export class HTSParser {
             feeType: 'FRACTIONAL_FEE',
             fractionalFee: {
               numerator: Long.fromValue(
-                fee.fractionalFee.fractionalAmount?.numerator || 0
+                fee.fractionalFee.fractionalAmount?.numerator || 0,
               ).toString(),
               denominator: Long.fromValue(
-                fee.fractionalFee.fractionalAmount?.denominator || 1
+                fee.fractionalFee.fractionalAmount?.denominator || 1,
               ).toString(),
               minimumAmount: Long.fromValue(
-                fee.fractionalFee.minimumAmount || 0
+                fee.fractionalFee.minimumAmount || 0,
               ).toString(),
               maximumAmount: Long.fromValue(
-                fee.fractionalFee.maximumAmount || 0
+                fee.fractionalFee.maximumAmount || 0,
               ).toString(),
               netOfTransfers: fee.fractionalFee.netOfTransfers || false,
             },
@@ -345,7 +346,7 @@ export class HTSParser {
           if (fee.royaltyFee.fallbackFee) {
             fallbackFeeData = {
               amount: Long.fromValue(
-                fee.royaltyFee.fallbackFee.amount || 0
+                fee.royaltyFee.fallbackFee.amount || 0,
               ).toString(),
               denominatingTokenId: fee.royaltyFee.fallbackFee
                 .denominatingTokenId
@@ -354,7 +355,8 @@ export class HTSParser {
                       0,
                     fee.royaltyFee.fallbackFee.denominatingTokenId.realmNum ??
                       0,
-                    fee.royaltyFee.fallbackFee.denominatingTokenId.tokenNum ?? 0
+                    fee.royaltyFee.fallbackFee.denominatingTokenId.tokenNum ??
+                      0,
                   ).toString()
                 : undefined,
             };
@@ -364,10 +366,10 @@ export class HTSParser {
             feeType: 'ROYALTY_FEE',
             royaltyFee: {
               numerator: Long.fromValue(
-                fee.royaltyFee.exchangeValueFraction?.numerator || 0
+                fee.royaltyFee.exchangeValueFraction?.numerator || 0,
               ).toString(),
               denominator: Long.fromValue(
-                fee.royaltyFee.exchangeValueFraction?.denominator || 1
+                fee.royaltyFee.exchangeValueFraction?.denominator || 1,
               ).toString(),
               fallbackFee: fallbackFeeData,
             },
@@ -384,7 +386,7 @@ export class HTSParser {
   }
 
   static parseTokenFreeze(
-    body: proto.ITokenFreezeAccountTransactionBody
+    body: proto.ITokenFreezeAccountTransactionBody,
   ): TokenFreezeData | undefined {
     if (!body) return undefined;
     const data: TokenFreezeData = {};
@@ -392,21 +394,21 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     if (body.account) {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenUnfreeze(
-    body: proto.ITokenUnfreezeAccountTransactionBody
+    body: proto.ITokenUnfreezeAccountTransactionBody,
   ): TokenUnfreezeData | undefined {
     if (!body) return undefined;
     const data: TokenUnfreezeData = {};
@@ -414,21 +416,21 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     if (body.account) {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenGrantKyc(
-    body: proto.ITokenGrantKycTransactionBody
+    body: proto.ITokenGrantKycTransactionBody,
   ): TokenGrantKycData | undefined {
     if (!body) return undefined;
     const data: TokenGrantKycData = {};
@@ -436,21 +438,21 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     if (body.account) {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenRevokeKyc(
-    body: proto.ITokenRevokeKycTransactionBody
+    body: proto.ITokenRevokeKycTransactionBody,
   ): TokenRevokeKycData | undefined {
     if (!body) return undefined;
     const data: TokenRevokeKycData = {};
@@ -458,21 +460,21 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     if (body.account) {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenPause(
-    body: proto.ITokenPauseTransactionBody
+    body: proto.ITokenPauseTransactionBody,
   ): TokenPauseData | undefined {
     if (!body) return undefined;
     const data: TokenPauseData = {};
@@ -480,14 +482,14 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenUnpause(
-    body: proto.ITokenUnpauseTransactionBody
+    body: proto.ITokenUnpauseTransactionBody,
   ): TokenUnpauseData | undefined {
     if (!body) return undefined;
     const data: TokenUnpauseData = {};
@@ -495,14 +497,14 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenWipeAccount(
-    body: proto.ITokenWipeAccountTransactionBody
+    body: proto.ITokenWipeAccountTransactionBody,
   ): TokenWipeAccountData | undefined {
     if (!body) return undefined;
     const data: TokenWipeAccountData = {};
@@ -510,19 +512,19 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     if (body.account) {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     if (body.serialNumbers && body.serialNumbers.length > 0) {
-      data.serialNumbers = body.serialNumbers.map((sn) =>
-        Long.fromValue(sn).toString()
+      data.serialNumbers = body.serialNumbers.map(sn =>
+        Long.fromValue(sn).toString(),
       );
     }
     if (body.amount) {
@@ -532,7 +534,7 @@ export class HTSParser {
   }
 
   static parseTokenDelete(
-    body: proto.ITokenDeleteTransactionBody
+    body: proto.ITokenDeleteTransactionBody,
   ): TokenDeleteData | undefined {
     if (!body) return undefined;
     const data: TokenDeleteData = {};
@@ -540,14 +542,14 @@ export class HTSParser {
       data.tokenId = new TokenId(
         body.token.shardNum ?? 0,
         body.token.realmNum ?? 0,
-        body.token.tokenNum ?? 0
+        body.token.tokenNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseTokenAssociate(
-    body: proto.ITokenAssociateTransactionBody
+    body: proto.ITokenAssociateTransactionBody,
   ): TokenAssociateData | undefined {
     if (!body) return undefined;
     const data: TokenAssociateData = {};
@@ -555,23 +557,23 @@ export class HTSParser {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     if (body.tokens && body.tokens.length > 0) {
-      data.tokenIds = body.tokens.map((t) =>
+      data.tokenIds = body.tokens.map(t =>
         new TokenId(
           t.shardNum ?? 0,
           t.realmNum ?? 0,
-          t.tokenNum ?? 0
-        ).toString()
+          t.tokenNum ?? 0,
+        ).toString(),
       );
     }
     return data;
   }
 
   static parseTokenDissociate(
-    body: proto.ITokenDissociateTransactionBody
+    body: proto.ITokenDissociateTransactionBody,
   ): TokenDissociateData | undefined {
     if (!body) return undefined;
     const data: TokenDissociateData = {};
@@ -579,16 +581,16 @@ export class HTSParser {
       data.accountId = new AccountId(
         body.account.shardNum ?? 0,
         body.account.realmNum ?? 0,
-        body.account.accountNum ?? 0
+        body.account.accountNum ?? 0,
       ).toString();
     }
     if (body.tokens && body.tokens.length > 0) {
-      data.tokenIds = body.tokens.map((t) =>
+      data.tokenIds = body.tokens.map(t =>
         new TokenId(
           t.shardNum ?? 0,
           t.realmNum ?? 0,
-          t.tokenNum ?? 0
-        ).toString()
+          t.tokenNum ?? 0,
+        ).toString(),
       );
     }
     return data;

@@ -32,15 +32,15 @@ export class RedisCache implements EVMCache {
       tls = false,
       connectTimeout = 5000,
       retryStrategy,
-      logLevel = 'info'
+      logLevel = 'info',
     } = config;
 
     this.prefix = keyPrefix;
-    this.logger = Logger.getInstance({ 
-      level: logLevel, 
-      module: 'RedisCache' 
+    this.logger = Logger.getInstance({
+      level: logLevel,
+      module: 'RedisCache',
     });
-    
+
     this.client = new Redis({
       host,
       port,
@@ -49,10 +49,12 @@ export class RedisCache implements EVMCache {
       tls: tls ? {} : undefined,
       keyPrefix,
       connectTimeout,
-      retryStrategy: retryStrategy || ((times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      }),
+      retryStrategy:
+        retryStrategy ||
+        (times => {
+          const delay = Math.min(times * 50, 2000);
+          return delay;
+        }),
       maxRetriesPerRequest: 3,
     });
 
@@ -114,7 +116,7 @@ export class RedisCache implements EVMCache {
   async disconnect(): Promise<void> {
     await this.client.quit();
   }
-  
+
   setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
     this.logger.setLogLevel(level);
   }
