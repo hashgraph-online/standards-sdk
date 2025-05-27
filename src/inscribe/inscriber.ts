@@ -32,7 +32,7 @@ export async function inscribe(
   input: InscriptionInput,
   clientConfig: HederaClientConfig,
   options: InscriptionOptions,
-  existingSDK?: InscriptionSDK
+  existingSDK?: InscriptionSDK,
 ): Promise<InscriptionResponse> {
   const logger = Logger.getInstance({
     module: 'Inscriber',
@@ -153,7 +153,7 @@ export async function inscribe(
         result.jobId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
-        options.progressCallback
+        options.progressCallback,
       );
 
       logger.info('Inscription confirmation received', {
@@ -183,7 +183,7 @@ export async function inscribeWithSigner(
   input: InscriptionInput,
   signer: DAppSigner,
   options: InscriptionOptions,
-  existingSDK?: InscriptionSDK
+  existingSDK?: InscriptionSDK,
 ): Promise<InscriptionResponse> {
   const logger = Logger.getInstance({
     module: 'Inscriber',
@@ -293,7 +293,7 @@ export async function inscribeWithSigner(
         ...request,
         holderId: accountId,
       },
-      signer
+      signer,
     );
     logger.info('Inscription started', {
       type: input.type,
@@ -313,7 +313,7 @@ export async function inscribeWithSigner(
         result.jobId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
-        options.progressCallback
+        options.progressCallback,
       );
 
       logger.info('Inscription confirmation received', {
@@ -341,11 +341,11 @@ export async function inscribeWithSigner(
 
 export async function retrieveInscription(
   transactionId: string,
-  options: InscriptionOptions & { accountId?: string; privateKey?: string }
+  options: InscriptionOptions & { accountId?: string; privateKey?: string },
 ): Promise<RetrievedInscriptionResult> {
   const logger = Logger.getInstance({
     module: 'Inscriber',
-    ...options?.logging || {},
+    ...(options?.logging || {}),
   });
 
   const formattedTransactionId = transactionId.includes('@')
@@ -378,7 +378,7 @@ export async function retrieveInscription(
       });
     } else {
       const error = new Error(
-        'Either API key or account ID and private key are required for retrieving inscriptions'
+        'Either API key or account ID and private key are required for retrieving inscriptions',
       );
       logger.error('Missing authentication credentials', {
         hasApiKey: Boolean(options?.apiKey),
@@ -410,11 +410,11 @@ export async function retrieveInscription(
 
 function validateHashinalMetadata(metadata: any, logger: any): void {
   const requiredFields = ['name', 'creator', 'description', 'type'];
-  const missingFields = requiredFields.filter((field) => !metadata[field]);
+  const missingFields = requiredFields.filter(field => !metadata[field]);
 
   if (missingFields.length > 0) {
     const error = new Error(
-      `Missing required Hashinal metadata fields: ${missingFields.join(', ')}`
+      `Missing required Hashinal metadata fields: ${missingFields.join(', ')}`,
     );
     logger.error('Hashinal metadata validation failed', { missingFields });
     throw error;
@@ -435,7 +435,7 @@ export async function waitForInscriptionConfirmation(
   transactionId: string,
   maxAttempts: number = 30,
   intervalMs: number = 4000,
-  progressCallback?: ProgressCallback
+  progressCallback?: ProgressCallback,
 ): Promise<RetrievedInscriptionResult> {
   const logger = Logger.getInstance({ module: 'Inscriber' });
   const progressReporter = new ProgressReporter({
@@ -463,7 +463,7 @@ export async function waitForInscriptionConfirmation(
         maxAttempts: number,
         intervalMs: number,
         checkCompletion: boolean,
-        progressCallback?: Function
+        progressCallback?: Function,
       ) => Promise<RetrievedInscriptionResult>;
 
       const wrappedCallback = (data: any) => {
@@ -484,7 +484,7 @@ export async function waitForInscriptionConfirmation(
         maxAttempts,
         intervalMs,
         true,
-        wrappedCallback
+        wrappedCallback,
       );
     } catch (e) {
       console.log(e);
@@ -500,7 +500,7 @@ export async function waitForInscriptionConfirmation(
         transactionId,
         maxAttempts,
         intervalMs,
-        true
+        true,
       );
     }
   } catch (error) {

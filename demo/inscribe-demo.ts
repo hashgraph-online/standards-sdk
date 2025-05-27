@@ -54,7 +54,7 @@ async function runDemo() {
         ...options,
         waitForConfirmation: true,
         mode: 'file',
-      }
+      },
     );
     console.log(`Transaction ID: ${textResponse.result.transactionId}`);
     if (textResponse.confirmed) {
@@ -69,7 +69,7 @@ async function runDemo() {
         ...options,
         ...clientConfig,
         apiKey: API_KEY,
-      }
+      },
     );
     console.log('Inscription:', inscription);
 
@@ -86,7 +86,7 @@ async function runDemo() {
           name: 'Random Image',
           description: 'A random image from picsum.photos',
         },
-      }
+      },
     );
     console.log(`Transaction ID: ${urlResponse.result.transactionId}`);
     if (urlResponse.confirmed) {
@@ -103,7 +103,7 @@ async function runDemo() {
     const demoFilePath = path.join(__dirname, 'demo-file.txt');
     fs.writeFileSync(
       demoFilePath,
-      'This is a demo file for buffer inscription.'
+      'This is a demo file for buffer inscription.',
     );
     const buffer = fs.readFileSync(demoFilePath);
     console.log('demoFilePath', demoFilePath, buffer);
@@ -118,7 +118,7 @@ async function runDemo() {
       {
         ...options,
         mode: 'file',
-      }
+      },
     );
     console.log(`Transaction ID: ${bufferResponse.result.transactionId}`);
     if (bufferResponse.confirmed) {
@@ -151,7 +151,7 @@ async function runDemo() {
             },
           ],
         },
-      }
+      },
     );
     console.log(`Transaction ID: ${hashinalUrlResponse.result.transactionId}`);
     if (hashinalUrlResponse.confirmed) {
@@ -161,8 +161,8 @@ async function runDemo() {
         `Metadata: ${JSON.stringify(
           hashinalUrlResponse.inscription.metadata,
           null,
-          2
-        )}`
+          2,
+        )}`,
       );
     }
     console.log('');
@@ -192,10 +192,10 @@ async function runDemo() {
             },
           ],
         },
-      }
+      },
     );
     console.log(
-      `Transaction ID: ${hashinalBufferResponse.result.transactionId}`
+      `Transaction ID: ${hashinalBufferResponse.result.transactionId}`,
     );
     if (hashinalBufferResponse.confirmed) {
       console.log('Hashinal inscription confirmed and retrieved:');
@@ -204,8 +204,8 @@ async function runDemo() {
         `Metadata: ${JSON.stringify(
           hashinalBufferResponse.inscription.metadata,
           null,
-          2
-        )}`
+          2,
+        )}`,
       );
     }
     console.log('');
@@ -235,7 +235,7 @@ async function runDemo() {
             },
           ],
         },
-      }
+      },
     );
     console.log(`Transaction ID: ${hashinalTextResponse.result.transactionId}`);
     if (hashinalTextResponse.confirmed) {
@@ -245,8 +245,8 @@ async function runDemo() {
         `Metadata: ${JSON.stringify(
           hashinalTextResponse.inscription.metadata,
           null,
-          2
-        )}`
+          2,
+        )}`,
       );
     }
     console.log('');

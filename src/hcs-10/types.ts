@@ -25,7 +25,7 @@ export interface RegistrationProgressData {
 }
 
 export type RegistrationProgressCallback = (
-  data: RegistrationProgressData
+  data: RegistrationProgressData,
 ) => void;
 
 export interface AgentConfig<T> {
@@ -41,7 +41,7 @@ export interface AgentConfig<T> {
 
 /**
  * Configuration for HCS-10 SDK client.
- * 
+ *
  * @example
  * // Using default Hedera mirror nodes
  * const config = {
@@ -49,7 +49,7 @@ export interface AgentConfig<T> {
  *   operatorId: '0.0.123',
  *   operatorPrivateKey: 'your-private-key'
  * };
- * 
+ *
  * @example
  * // Using HGraph custom mirror node provider
  * const config = {

@@ -93,7 +93,7 @@ export class HCS11Client {
     this.network = config.network;
     this.mirrorNode = new HederaMirrorNode(
       this.network as 'mainnet' | 'testnet',
-      this.logger
+      this.logger,
     );
 
     if (this.auth.privateKey) {
@@ -127,7 +127,7 @@ export class HCS11Client {
       properties?: Record<string, any>;
       inboundTopicId?: string;
       outboundTopicId?: string;
-    }
+    },
   ): PersonalProfile {
     return {
       version: '1.0',
@@ -157,7 +157,7 @@ export class HCS11Client {
       inboundTopicId?: string;
       outboundTopicId?: string;
       creator?: string;
-    }
+    },
   ): AIAgentProfile {
     const validation = this.validateProfile({
       version: '1.0',
@@ -180,7 +180,7 @@ export class HCS11Client {
 
     if (!validation.valid) {
       throw new Error(
-        `Invalid AI Agent Profile: ${validation.errors.join(', ')}`
+        `Invalid AI Agent Profile: ${validation.errors.join(', ')}`,
       );
     }
 
@@ -254,13 +254,13 @@ export class HCS11Client {
 
   public setProfileForAccountMemo(
     topicId: string,
-    topicStandard: 1 | 2 | 7 = 1
+    topicStandard: 1 | 2 | 7 = 1,
   ): string {
     return `hcs-11:hcs://${topicStandard}/${topicId}`;
   }
 
   private async executeTransaction<T>(
-    transaction: Transaction
+    transaction: Transaction,
   ): Promise<TransactionResult<T>> {
     try {
       if (this.auth.privateKey) {
@@ -315,7 +315,7 @@ export class HCS11Client {
   public async inscribeImage(
     buffer: Buffer,
     fileName: string,
-    options?: InscribeImageOptions
+    options?: InscribeImageOptions,
   ): Promise<InscribeImageResponse> {
     try {
       const progressCallback = options?.progressCallback;
@@ -361,11 +361,11 @@ export class HCS11Client {
                   details: data.details,
                 });
               },
-            }
+            },
           );
         } else {
           progressReporter.failed(
-            'Signer must be a DAppSigner for inscription'
+            'Signer must be a DAppSigner for inscription',
           );
           throw new Error('Signer must be a DAppSigner for inscription');
         }
@@ -406,7 +406,7 @@ export class HCS11Client {
                 details: data.details,
               });
             },
-          }
+          },
         );
       }
 
@@ -443,7 +443,7 @@ export class HCS11Client {
 
   public async inscribeProfile(
     profile: HCS11Profile,
-    options?: InscribeProfileOptions
+    options?: InscribeProfileOptions,
   ): Promise<InscribeProfileResponse> {
     this.logger.info('Inscribing HCS-11 profile');
 
@@ -459,7 +459,7 @@ export class HCS11Client {
     const validation = this.validateProfile(profile);
     if (!validation.valid) {
       progressReporter.failed(
-        `Invalid profile: ${validation.errors.join(', ')}`
+        `Invalid profile: ${validation.errors.join(', ')}`,
       );
       return {
         profileTopicId: '',
@@ -517,12 +517,12 @@ export class HCS11Client {
               privateKey: this.auth.privateKey,
               network: this.network as 'mainnet' | 'testnet',
             },
-            inscriptionOptions
+            inscriptionOptions,
           )
         : await inscribeWithSigner(
             input,
             this.auth.signer as DAppSigner,
-            inscriptionOptions
+            inscriptionOptions,
           );
 
       if (
@@ -552,7 +552,7 @@ export class HCS11Client {
       };
     } catch (error: any) {
       progressReporter.failed(
-        `Error inscribing profile: ${error.message || 'Unknown error'}`
+        `Error inscribing profile: ${error.message || 'Unknown error'}`,
       );
       return {
         profileTopicId: '',
@@ -565,11 +565,11 @@ export class HCS11Client {
 
   public async updateAccountMemoWithProfile(
     accountId: string | AccountId,
-    profileTopicId: string
+    profileTopicId: string,
   ): Promise<TransactionResult> {
     try {
       this.logger.info(
-        `Updating account memo for ${accountId} with profile ${profileTopicId}`
+        `Updating account memo for ${accountId} with profile ${profileTopicId}`,
       );
       const memo = this.setProfileForAccountMemo(profileTopicId);
 
@@ -582,7 +582,7 @@ export class HCS11Client {
       this.logger.error(
         `Error updating account memo: ${
           error instanceof Error ? error.message : 'Unknown error'
-        }`
+        }`,
       );
       return {
         success: false,
@@ -605,7 +605,7 @@ export class HCS11Client {
   public async createAndInscribeProfile(
     profile: HCS11Profile,
     updateAccountMemo = true,
-    options?: InscribeProfileOptions
+    options?: InscribeProfileOptions,
   ): Promise<InscribeProfileResponse> {
     const progressCallback = options?.progressCallback;
     const progressReporter = new ProgressReporter({
@@ -646,7 +646,7 @@ export class HCS11Client {
     if (updateAccountMemo) {
       const memoResult = await this.updateAccountMemoWithProfile(
         this.auth.operatorId,
-        inscriptionResult.profileTopicId
+        inscriptionResult.profileTopicId,
       );
 
       if (!memoResult.success) {
@@ -676,7 +676,7 @@ export class HCS11Client {
    * @returns The capabilities.
    */
   public async getCapabilitiesFromTags(
-    capabilityNames: string[]
+    capabilityNames: string[],
   ): Promise<number[]> {
     const capabilities: number[] = [];
 
@@ -722,7 +722,7 @@ export class HCS11Client {
    */
   public async fetchProfileByAccountId(
     accountId: string | AccountId,
-    network?: string
+    network?: string,
   ): Promise<{
     success: boolean;
     profile?: HCS11Profile;
@@ -733,7 +733,7 @@ export class HCS11Client {
       this.logger.info(
         `Fetching profile for account ${accountId.toString()} on ${
           this.network
-        }`
+        }`,
       );
 
       const memo = await this.mirrorNode.getAccountMemo(accountId.toString());
@@ -765,7 +765,7 @@ export class HCS11Client {
         const networkParam = network || this.network || 'mainnet';
 
         this.logger.info(
-          `Retrieving profile from Kiloscribe CDN: ${profileTopicId}`
+          `Retrieving profile from Kiloscribe CDN: ${profileTopicId}`,
         );
         const cdnUrl = `https://kiloscribe.com/api/inscription-cdn/${profileTopicId}?network=${networkParam}`;
 
@@ -799,7 +799,7 @@ export class HCS11Client {
           };
         } catch (cdnError: any) {
           this.logger.error(
-            `Error retrieving from Kiloscribe CDN: ${cdnError.message}`
+            `Error retrieving from Kiloscribe CDN: ${cdnError.message}`,
           );
           return {
             success: false,
@@ -809,7 +809,7 @@ export class HCS11Client {
       } else if (protocolReference.startsWith('ipfs://')) {
         this.logger.warn('IPFS protocol references are not fully supported');
         const response = await fetch(
-          `https://ipfs.io/ipfs/${protocolReference.replace('ipfs://', '')}`
+          `https://ipfs.io/ipfs/${protocolReference.replace('ipfs://', '')}`,
         );
         const profileData = await response.json();
         return {

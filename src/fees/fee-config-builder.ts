@@ -88,7 +88,7 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
     collectorAccountId: string | undefined,
     network: NetworkType,
     logger: Logger,
-    exemptAccounts: string[] = []
+    exemptAccounts: string[] = [],
   ): FeeConfigBuilder {
     const builder = new FeeConfigBuilder({
       network,
@@ -117,7 +117,7 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
     network: NetworkType,
     logger: Logger,
     exemptAccounts: string[] = [],
-    decimals?: number
+    decimals?: number,
   ): Promise<FeeConfigBuilder> {
     const builder = new FeeConfigBuilder({
       network,
@@ -129,7 +129,7 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
       feeTokenId,
       collectorAccountId,
       decimals,
-      exemptAccounts
+      exemptAccounts,
     );
     return builder;
   }
@@ -145,7 +145,7 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
   addHbarFee(
     hbarAmount: number,
     collectorAccountId?: string,
-    exemptAccountIds: string[] = []
+    exemptAccountIds: string[] = [],
   ): FeeConfigBuilder {
     if (hbarAmount <= 0) {
       throw new Error('HBAR amount must be greater than zero');
@@ -181,7 +181,7 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
     feeTokenId: string,
     collectorAccountId?: string,
     decimals?: number,
-    exemptAccountIds: string[] = []
+    exemptAccountIds: string[] = [],
   ): Promise<FeeConfigBuilder> {
     if (tokenAmount <= 0) {
       throw new Error('Token amount must be greater than zero');
@@ -197,17 +197,17 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
         if (tokenInfo?.decimals) {
           finalDecimals = parseInt(tokenInfo.decimals, 10);
           this.logger.info(
-            `Fetched decimals for ${feeTokenId}: ${finalDecimals}`
+            `Fetched decimals for ${feeTokenId}: ${finalDecimals}`,
           );
         } else {
           this.logger.warn(
-            `Could not fetch decimals for ${feeTokenId}, defaulting to 0.`
+            `Could not fetch decimals for ${feeTokenId}, defaulting to 0.`,
           );
           finalDecimals = 0;
         }
       } catch (error) {
         this.logger.error(
-          `Error fetching decimals for ${feeTokenId}, defaulting to 0: ${error}`
+          `Error fetching decimals for ${feeTokenId}, defaulting to 0: ${error}`,
         );
         finalDecimals = 0;
       }
@@ -236,7 +236,7 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
   build(): TopicFeeConfig {
     if (this.customFees.length === 0) {
       throw new Error(
-        'At least one fee must be added using addHbarFee/addTokenFee or created using forHbar/forToken'
+        'At least one fee must be added using addHbarFee/addTokenFee or created using forHbar/forToken',
       );
     }
 
@@ -245,8 +245,8 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
     }
 
     const allExemptAccounts = new Set<string>();
-    this.customFees.forEach((fee) => {
-      fee.exemptAccounts.forEach((account) => allExemptAccounts.add(account));
+    this.customFees.forEach(fee => {
+      fee.exemptAccounts.forEach(account => allExemptAccounts.add(account));
     });
 
     return {
