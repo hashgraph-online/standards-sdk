@@ -56,7 +56,7 @@ function evaluateMathExpression(expression: string): number | string {
   try {
     const sanitized = stripAnsiCodes(expression).replace(
       /[^0-9+\-*/().%\s]/g,
-      ''
+      '',
     );
     const result = new Function(`return ${sanitized}`)();
     if (isNaN(result) || !isFinite(result)) {
@@ -76,20 +76,20 @@ function detectPatterns(input: string): string {
   if (/^[0-9a-fA-F]+$/.test(input)) {
     return `Looks like hexadecimal! Converting to decimal: ${parseInt(
       input,
-      16
+      16,
     )}`;
   }
 
   if (
     /^(?:\d+(?:\.\d+)?)[,\s]*(?:\d+(?:\.\d+)?)[,\s]*(?:\d+(?:\.\d+)?)\s*$/.test(
-      input
+      input,
     )
   ) {
     const numbers = input.split(/[,\s]+/).map(Number);
     const sum = numbers.reduce((a, b) => a + b, 0);
     const avg = sum / numbers.length;
     return `Found a sequence of numbers! Sum: ${sum}, Average: ${avg.toFixed(
-      2
+      2,
     )}`;
   }
 
@@ -183,7 +183,7 @@ function encodeToMorse(text: string): string {
   return text
     .toLowerCase()
     .split('')
-    .map((char) => {
+    .map(char => {
       return morseCode[char] || char;
     })
     .join(' ');
@@ -204,7 +204,7 @@ async function handleConnectionRequest(
     outboundTopicId: string;
   },
   message: HCSMessage,
-  connectionManager: ConnectionsManager
+  connectionManager: ConnectionsManager,
 ): Promise<string | null> {
   if (!message.operator_id) {
     logger.warn('Missing operator_id in connection request');
@@ -219,7 +219,7 @@ async function handleConnectionRequest(
     message.sequence_number <= 0
   ) {
     logger.warn(
-      `Invalid sequence_number in connection request: ${message.sequence_number}`
+      `Invalid sequence_number in connection request: ${message.sequence_number}`,
     );
     return null;
   }
@@ -232,7 +232,7 @@ async function handleConnectionRequest(
   }
 
   logger.info(
-    `Processing connection request #${message.sequence_number} from ${requesterOperatorId}`
+    `Processing connection request #${message.sequence_number} from ${requesterOperatorId}`,
   );
 
   // Look for any existing connection for this sequence number
@@ -250,12 +250,12 @@ async function handleConnectionRequest(
       existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)
     ) {
       logger.warn(
-        `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConnection.connectionTopicId}`
+        `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConnection.connectionTopicId}`,
       );
       return existingConnection.connectionTopicId;
     } else {
       logger.warn(
-        `Connection exists for request #${message.sequence_number} but has invalid topic ID format: ${existingConnection.connectionTopicId}`
+        `Connection exists for request #${message.sequence_number} but has invalid topic ID format: ${existingConnection.connectionTopicId}`,
       );
     }
   }
@@ -265,7 +265,7 @@ async function handleConnectionRequest(
       await agent.client.handleConnectionRequest(
         agent.inboundTopicId,
         requesterAccountId,
-        message.sequence_number
+        message.sequence_number,
       );
 
     await connectionManager.fetchConnectionData(agent.accountId);
@@ -290,16 +290,16 @@ I can do lots of fun things like:
 Type "help" at any time to see the full list of commands!
 
 What would you like to do today?`,
-      'Greeting message after connection established'
+      'Greeting message after connection established',
     );
 
     logger.info(
-      `Connection established with ${requesterOperatorId} on topic ${connectionTopicId}`
+      `Connection established with ${requesterOperatorId} on topic ${connectionTopicId}`,
     );
     return connectionTopicId;
   } catch (error) {
     logger.error(
-      `Error handling connection request #${message.sequence_number} from ${requesterOperatorId}: ${error}`
+      `Error handling connection request #${message.sequence_number} from ${requesterOperatorId}: ${error}`,
     );
     return null;
   }
@@ -349,7 +349,7 @@ const openai = new OpenAI({
 function createApprovalTransaction(
   senderAccountId: string,
   bobAccountId: string,
-  amount: number
+  amount: number,
 ): TransferTransaction {
   return new TransferTransaction()
     .addHbarTransfer(senderAccountId, Hbar.fromTinybars(-amount / 2))
@@ -364,7 +364,7 @@ async function handleStandardMessage(
     operatorId: string;
   },
   message: HCSMessage,
-  connectionTopicId: string
+  connectionTopicId: string,
 ): Promise<void> {
   if (message.data === undefined) {
     return;
@@ -401,8 +401,8 @@ async function handleStandardMessage(
         logger.debug(
           `Extracted from JSON: "${messageContent}" (original: "${rawContent.substring(
             0,
-            50
-          )}${rawContent.length > 50 ? '...' : ''}")`
+            50,
+          )}${rawContent.length > 50 ? '...' : ''}")`,
         );
       }
     } catch {
@@ -431,7 +431,7 @@ async function handleStandardMessage(
       .substring(messageContent.indexOf(':') + 1)
       .trim();
     response = `Here's your ${artType} ASCII art:\n${generateASCIIArt(
-      artType
+      artType,
     )}`;
   } else if (
     lowerContent.startsWith('transact:') ||
@@ -460,7 +460,7 @@ async function handleStandardMessage(
           const transaction = createApprovalTransaction(
             senderAccountId,
             agent.accountId,
-            amount
+            amount,
           );
 
           const description = `Transfer ${
@@ -477,7 +477,7 @@ async function handleStandardMessage(
               } HBAR`,
               expirationTime: 3600,
               operationMemo: `This transaction requires approval from ${senderAccountId} and Bob. Sign with ScheduleSignTransaction().setScheduleId(SCHEDULE_ID).execute(client)`,
-            }
+            },
           );
 
           return;
@@ -533,7 +533,7 @@ async function handleStandardMessage(
     lowerContent === 'flip'
   ) {
     response = `💰 I flipped a coin and got: ${getCryptoCoinFlip()}\n${generateASCIIArt(
-      'coin'
+      'coin',
     )}`;
   } else if (
     lowerContent.includes('roll a die') ||
@@ -611,7 +611,7 @@ You can ask me to perform various tasks by typing "help" to see all available co
     } else {
       try {
         logger.info(
-          `Command not recognized, forwarding to OpenAI: "${messageContent}"`
+          `Command not recognized, forwarding to OpenAI: "${messageContent}"`,
         );
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -653,11 +653,11 @@ You can ask me to perform various tasks by typing "help" to see all available co
     await agent.client.sendMessage(
       connectionTopicId,
       responseWithReference,
-      `Bob response to message #${message.sequence_number}`
+      `Bob response to message #${message.sequence_number}`,
     );
   } catch (error) {
     logger.error(
-      `Failed to send response to topic ${connectionTopicId}: ${error}`
+      `Failed to send response to topic ${connectionTopicId}: ${error}`,
     );
   }
 }
@@ -669,7 +669,7 @@ async function main() {
 
     if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
       throw new Error(
-        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set'
+        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set',
       );
     }
 
@@ -707,10 +707,10 @@ async function main() {
       logger,
       handleConnectionRequest,
       handleStandardMessage,
-      (message) => {
+      message => {
         return false;
       },
-      agentData
+      agentData,
     );
   } catch (error) {
     logger.error(`Error in main function: ${error}`);

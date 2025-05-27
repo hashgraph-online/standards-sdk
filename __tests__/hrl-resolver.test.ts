@@ -20,9 +20,9 @@ jest.mock('../src/utils/logger', () => {
         error: jest.fn(),
         debug: jest.fn(),
         warn: jest.fn(),
-        getLevel: jest.fn().mockReturnValue('info')
-      }))
-    }
+        getLevel: jest.fn().mockReturnValue('info'),
+      })),
+    },
   };
 });
 
@@ -39,16 +39,16 @@ describe('HRLResolver', () => {
       const validHrls = [
         {
           input: 'hcs://1/0.0.5669398',
-          expected: { standard: '1', topicId: '0.0.5669398' }
+          expected: { standard: '1', topicId: '0.0.5669398' },
         },
         {
           input: 'hcs://2/0.0.5669431',
-          expected: { standard: '2', topicId: '0.0.5669431' }
+          expected: { standard: '2', topicId: '0.0.5669431' },
         },
         {
           input: 'hcs://10/0.0.1234567',
-          expected: { standard: '10', topicId: '0.0.1234567' }
-        }
+          expected: { standard: '10', topicId: '0.0.1234567' },
+        },
       ];
 
       validHrls.forEach(({ input, expected }) => {
@@ -65,7 +65,7 @@ describe('HRLResolver', () => {
         'http://example.com',
         '',
         null,
-        undefined
+        undefined,
       ];
 
       invalidHrls.forEach(input => {
@@ -87,7 +87,7 @@ describe('HRLResolver', () => {
       const validHrls = [
         'hcs://1/0.0.5669398',
         'hcs://2/0.0.5669431',
-        'hcs://10/0.0.1234567'
+        'hcs://10/0.0.1234567',
       ];
 
       validHrls.forEach(hrl => {
@@ -104,7 +104,7 @@ describe('HRLResolver', () => {
         'hcs://0/0.0.1234567', // Standard 0 is invalid
         '',
         null,
-        undefined
+        undefined,
       ];
 
       invalidHrls.forEach(hrl => {
@@ -126,86 +126,99 @@ describe('HRLResolver', () => {
   describe('resolveHRL', () => {
     it('should handle text content properly', async () => {
       mockedAxios.head.mockResolvedValue({
-        headers: { 'content-type': 'text/plain' }
+        headers: { 'content-type': 'text/plain' },
       });
 
       mockedAxios.get.mockResolvedValue({
-        data: 'Sample text content'
+        data: 'Sample text content',
       });
 
-      const result = await resolver.resolveHRL('hcs://1/0.0.5669398', { network: 'testnet' });
+      const result = await resolver.resolveHRL('hcs://1/0.0.5669398', {
+        network: 'testnet',
+      });
 
-      expect(mockedAxios.head).toHaveBeenCalledWith(expect.stringContaining('0.0.5669398'));
-      expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining('0.0.5669398'));
+      expect(mockedAxios.head).toHaveBeenCalledWith(
+        expect.stringContaining('0.0.5669398'),
+      );
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('0.0.5669398'),
+      );
 
       expect(result).toEqual({
         content: 'Sample text content',
         contentType: 'text/plain',
         topicId: '0.0.5669398',
-        isBinary: false
+        isBinary: false,
       });
     });
 
     it('should handle JSON content properly', async () => {
       mockedAxios.head.mockResolvedValue({
-        headers: { 'content-type': 'application/json' }
+        headers: { 'content-type': 'application/json' },
       });
 
-      const mockJsonData = { content: 'JSON content value', metadata: { type: 'test' } };
+      const mockJsonData = {
+        content: 'JSON content value',
+        metadata: { type: 'test' },
+      };
       mockedAxios.get.mockResolvedValue({
-        data: mockJsonData
+        data: mockJsonData,
       });
 
-      const result = await resolver.resolveHRL('hcs://1/0.0.5669431', { network: 'testnet' });
+      const result = await resolver.resolveHRL('hcs://1/0.0.5669431', {
+        network: 'testnet',
+      });
 
       expect(result).toEqual({
         content: 'JSON content value',
         contentType: 'application/json',
         topicId: '0.0.5669431',
-        isBinary: false
+        isBinary: false,
       });
     });
 
     it('should handle binary content properly', async () => {
       mockedAxios.head.mockResolvedValue({
-        headers: { 'content-type': 'image/png' }
+        headers: { 'content-type': 'image/png' },
       });
 
       const mockBinaryData = Buffer.from('Mock binary image data');
       mockedAxios.get.mockResolvedValue({
-        data: mockBinaryData
+        data: mockBinaryData,
       });
 
-      const result = await resolver.resolveHRL('hcs://1/0.0.5669368', { network: 'testnet' });
+      const result = await resolver.resolveHRL('hcs://1/0.0.5669368', {
+        network: 'testnet',
+      });
 
       expect(mockedAxios.get).toHaveBeenCalledWith(
         expect.stringContaining('0.0.5669368'),
-        expect.objectContaining({ responseType: 'arraybuffer' })
+        expect.objectContaining({ responseType: 'arraybuffer' }),
       );
 
       expect(result).toEqual({
         content: mockBinaryData,
         contentType: 'image/png',
         topicId: '0.0.5669368',
-        isBinary: true
+        isBinary: true,
       });
     });
 
     it('should throw error for invalid HRL', async () => {
       await expect(
-        resolver.resolveHRL('invalid-hrl', { network: 'testnet' })
+        resolver.resolveHRL('invalid-hrl', { network: 'testnet' }),
       ).rejects.toThrow('Invalid HRL format');
     });
 
     it('should throw error when API request fails', async () => {
       mockedAxios.head.mockResolvedValue({
-        headers: { 'content-type': 'text/plain' }
+        headers: { 'content-type': 'text/plain' },
       });
 
       mockedAxios.get.mockRejectedValue(new Error('API error'));
 
       await expect(
-        resolver.resolveHRL('hcs://1/0.0.5669398', { network: 'testnet' })
+        resolver.resolveHRL('hcs://1/0.0.5669398', { network: 'testnet' }),
       ).rejects.toThrow('Error resolving HRL reference');
     });
   });
@@ -220,9 +233,9 @@ describe('HRLResolver', () => {
         'application/octet-stream',
         'application/pdf',
         'application/zip',
-        'application/wasm'
+        'application/wasm',
       ];
-      
+
       binaryContentTypes.forEach(contentType => {
         // We need to access the private method using type assertion
         expect((resolver as any).isBinaryContentType(contentType)).toBe(true);
@@ -236,9 +249,9 @@ describe('HRLResolver', () => {
         'application/json',
         'application/xml',
         'text/css',
-        'application/javascript'
+        'application/javascript',
       ];
-      
+
       nonBinaryContentTypes.forEach(contentType => {
         // We need to access the private method using type assertion
         expect((resolver as any).isBinaryContentType(contentType)).toBe(false);
@@ -249,48 +262,54 @@ describe('HRLResolver', () => {
   describe('getContentWithType', () => {
     it('should handle text content properly', async () => {
       mockedAxios.head.mockResolvedValue({
-        headers: { 'content-type': 'text/plain' }
-      });
-      
-      mockedAxios.get.mockResolvedValue({
-        data: 'Sample text content'
+        headers: { 'content-type': 'text/plain' },
       });
 
-      const result = await resolver.getContentWithType('hcs://1/0.0.5669398', { network: 'testnet' });
-      
+      mockedAxios.get.mockResolvedValue({
+        data: 'Sample text content',
+      });
+
+      const result = await resolver.getContentWithType('hcs://1/0.0.5669398', {
+        network: 'testnet',
+      });
+
       expect(result).toEqual({
         content: 'Sample text content',
         contentType: 'text/plain',
-        isBinary: false
+        isBinary: false,
       });
     });
 
     it('should handle binary content properly', async () => {
       mockedAxios.head.mockResolvedValue({
-        headers: { 'content-type': 'image/png' }
-      });
-      
-      const mockBinaryData = Buffer.from('Mock binary image data');
-      mockedAxios.get.mockResolvedValue({
-        data: mockBinaryData
+        headers: { 'content-type': 'image/png' },
       });
 
-      const result = await resolver.getContentWithType('hcs://1/0.0.5669368', { network: 'testnet' });
-      
+      const mockBinaryData = Buffer.from('Mock binary image data');
+      mockedAxios.get.mockResolvedValue({
+        data: mockBinaryData,
+      });
+
+      const result = await resolver.getContentWithType('hcs://1/0.0.5669368', {
+        network: 'testnet',
+      });
+
       expect(result).toEqual({
         content: mockBinaryData,
         contentType: 'image/png',
-        isBinary: true
+        isBinary: true,
       });
     });
 
     it('should handle non-HRL content gracefully', async () => {
-      const result = await resolver.getContentWithType('not an HRL', { network: 'testnet' });
-      
+      const result = await resolver.getContentWithType('not an HRL', {
+        network: 'testnet',
+      });
+
       expect(result).toEqual({
         content: 'not an HRL',
         contentType: 'text/plain',
-        isBinary: false
+        isBinary: false,
       });
 
       expect(mockedAxios.head).not.toHaveBeenCalled();

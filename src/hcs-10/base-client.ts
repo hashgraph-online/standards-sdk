@@ -25,14 +25,14 @@ export enum Hcs10MemoType {
 
 /**
  * Configuration for HCS-10 client.
- * 
+ *
  * @example
  * // Using default Hedera mirror nodes
  * const config = {
  *   network: 'testnet',
  *   logLevel: 'info'
  * };
- * 
+ *
  * @example
  * // Using HGraph custom mirror node provider
  * const config = {
@@ -43,7 +43,7 @@ export enum Hcs10MemoType {
  *     apiKey: 'your-hgraph-api-key'
  *   }
  * };
- * 
+ *
  * @example
  * // Using custom mirror node with headers
  * const config = {
@@ -123,7 +123,7 @@ export abstract class HCS10BaseClient extends Registration {
     this.mirrorNode = new HederaMirrorNode(
       config.network as NetworkType,
       this.logger,
-      config.mirrorNode
+      config.mirrorNode,
     );
     this.feeAmount = config.feeAmount || 0.001;
   }
@@ -132,7 +132,7 @@ export abstract class HCS10BaseClient extends Registration {
     topicId: string,
     payload: object | string,
     submitKey?: PrivateKey,
-    requiresFee?: boolean
+    requiresFee?: boolean,
   ): Promise<TransactionReceipt>;
 
   abstract getAccountAndSigner(): { accountId: string; signer: any };
@@ -174,13 +174,13 @@ export abstract class HCS10BaseClient extends Registration {
    * @returns A stream of filtered messages valid for connection topics
    */
   public async getMessageStream(
-    topicId: string
+    topicId: string,
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId);
       const validOps = ['message', 'close_connection', 'transaction'];
 
-      const filteredMessages = messages.filter((msg) => {
+      const filteredMessages = messages.filter(msg => {
         if (msg.p !== 'hcs-10' || !validOps.includes(msg.op)) {
           return false;
         }
@@ -235,7 +235,7 @@ export abstract class HCS10BaseClient extends Registration {
     } catch (error) {
       this.logger.error(
         `Error getting public topic info for ${topicId}:`,
-        error
+        error,
       );
       return null;
     }
@@ -249,7 +249,7 @@ export abstract class HCS10BaseClient extends Registration {
    */
   public async canSubmitToTopic(
     topicId: string,
-    userAccountId: string
+    userAccountId: string,
   ): Promise<{ canSubmit: boolean; requiresFee: boolean; reason?: string }> {
     try {
       const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
@@ -273,7 +273,7 @@ export abstract class HCS10BaseClient extends Registration {
           const keyBytes = Buffer.from(topicInfo.submit_key.key, 'hex');
           const hasAccess = await this.mirrorNode.checkKeyListAccess(
             keyBytes,
-            userPublicKey
+            userPublicKey,
           );
 
           if (hasAccess) {
@@ -289,7 +289,7 @@ export abstract class HCS10BaseClient extends Registration {
         this.logger.error(
           `Key validation error: ${
             error instanceof Error ? error.message : String(error)
-          }`
+          }`,
         );
       }
 
@@ -327,12 +327,12 @@ export abstract class HCS10BaseClient extends Registration {
    * @returns All messages from the topic
    */
   public async getMessages(
-    topicId: string
+    topicId: string,
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId);
 
-      const validatedMessages = messages.filter((msg) => {
+      const validatedMessages = messages.filter(msg => {
         if (msg.p !== 'hcs-10') {
           return false;
         }
@@ -394,7 +394,7 @@ export abstract class HCS10BaseClient extends Registration {
    */
   public async retrieveProfile(
     accountId: string,
-    disableCache?: boolean
+    disableCache?: boolean,
   ): Promise<ProfileResponse> {
     this.logger.debug(`Retrieving profile for account: ${accountId}`);
 
@@ -418,13 +418,13 @@ export abstract class HCS10BaseClient extends Registration {
 
       const profileResult = await hcs11Client.fetchProfileByAccountId(
         accountId,
-        this.network
+        this.network,
       );
 
       if (!profileResult?.success) {
         this.logger.error(
           `Failed to retrieve profile for account ID: ${accountId}`,
-          profileResult?.error
+          profileResult?.error,
         );
         return {
           profile: null,
@@ -475,7 +475,7 @@ export abstract class HCS10BaseClient extends Registration {
    * @returns {TopicInfo} Topic Info from target profile.
    */
   public async retrieveOutboundConnectTopic(
-    accountId: string
+    accountId: string,
   ): Promise<TopicInfo> {
     return await this.retrieveCommunicationTopics(accountId, true);
   }
@@ -488,12 +488,12 @@ export abstract class HCS10BaseClient extends Registration {
    */
   public async retrieveCommunicationTopics(
     accountId: string,
-    disableCache?: boolean
+    disableCache?: boolean,
   ): Promise<TopicInfo> {
     try {
       const profileResponse = await this.retrieveProfile(
         accountId,
-        disableCache
+        disableCache,
       );
 
       if (!profileResponse?.success) {
@@ -504,13 +504,13 @@ export abstract class HCS10BaseClient extends Registration {
 
       if (!profile.inboundTopicId || !profile.outboundTopicId) {
         throw new Error(
-          `Invalid HCS-11 profile for HCS-10 agent: missing inboundTopicId or outboundTopicId`
+          `Invalid HCS-11 profile for HCS-10 agent: missing inboundTopicId or outboundTopicId`,
         );
       }
 
       if (!profileResponse.topicInfo) {
         throw new Error(
-          `TopicInfo is missing in the profile for account ${accountId}`
+          `TopicInfo is missing in the profile for account ${accountId}`,
         );
       }
 
@@ -529,23 +529,23 @@ export abstract class HCS10BaseClient extends Registration {
    * @returns The outbound messages
    */
   public async retrieveOutboundMessages(
-    agentAccountId: string
+    agentAccountId: string,
   ): Promise<HCSMessage[]> {
     try {
       const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
       if (!topicInfo) {
         this.logger.warn(
-          `No outbound connect topic found for agentAccountId: ${agentAccountId}`
+          `No outbound connect topic found for agentAccountId: ${agentAccountId}`,
         );
         return [];
       }
       const response = await this.getMessages(topicInfo.outboundTopic);
       return response.messages.filter(
-        (msg) =>
+        msg =>
           msg.p === 'hcs-10' &&
           (msg.op === 'connection_request' ||
             msg.op === 'connection_created' ||
-            msg.op === 'message')
+            msg.op === 'message'),
       );
     } catch (e: any) {
       const error = e as Error;
@@ -563,18 +563,17 @@ export abstract class HCS10BaseClient extends Registration {
    */
   public async hasConnectionCreated(
     agentAccountId: string,
-    connectionId: number
+    connectionId: number,
   ): Promise<boolean> {
     try {
-      const outBoundTopic = await this.retrieveCommunicationTopics(
-        agentAccountId
-      );
+      const outBoundTopic =
+        await this.retrieveCommunicationTopics(agentAccountId);
       const messages = await this.retrieveOutboundMessages(
-        outBoundTopic.outboundTopic
+        outBoundTopic.outboundTopic,
       );
       return messages.some(
-        (msg) =>
-          msg.op === 'connection_created' && msg.connection_id === connectionId
+        msg =>
+          msg.op === 'connection_created' && msg.connection_id === connectionId,
       );
     } catch (e: any) {
       const error = e as Error;
@@ -592,7 +591,7 @@ export abstract class HCS10BaseClient extends Registration {
    */
   async getMessageContent(
     data: string,
-    forceRaw = false
+    forceRaw = false,
   ): Promise<string | ArrayBuffer> {
     if (!data.match(/^hcs:\/\/(\d+)\/([0-9]+\.[0-9]+\.[0-9]+)$/)) {
       return data;
@@ -627,7 +626,7 @@ export abstract class HCS10BaseClient extends Registration {
    */
   async getMessageContentWithType(
     data: string,
-    forceRaw = false
+    forceRaw = false,
   ): Promise<{
     content: string | ArrayBuffer;
     contentType: string;
@@ -664,7 +663,7 @@ export abstract class HCS10BaseClient extends Registration {
    */
   async submitConnectionRequest(
     inboundTopicId: string,
-    memo: string
+    memo: string,
   ): Promise<TransactionReceipt> {
     const accountResponse = this.getAccountAndSigner();
     if (!accountResponse?.accountId) {
@@ -675,16 +674,15 @@ export abstract class HCS10BaseClient extends Registration {
 
     const submissionCheck = await this.canSubmitToTopic(
       inboundTopicId,
-      accountId
+      accountId,
     );
 
     if (!submissionCheck?.canSubmit) {
       throw new Error(`Cannot submit to topic: ${submissionCheck.reason}`);
     }
 
-    const inboundAccountOwner = await this.retrieveInboundAccountId(
-      inboundTopicId
-    );
+    const inboundAccountOwner =
+      await this.retrieveInboundAccountId(inboundTopicId);
 
     if (!inboundAccountOwner) {
       throw new Error('Failed to retrieve topic info account ID');
@@ -702,11 +700,11 @@ export abstract class HCS10BaseClient extends Registration {
       inboundTopicId,
       connectionRequestMessage,
       undefined,
-      requiresFee
+      requiresFee,
     );
 
     this.logger.info(
-      `Submitted connection request to topic ID: ${inboundTopicId}`
+      `Submitted connection request to topic ID: ${inboundTopicId}`,
     );
 
     const outboundTopic = await this.retrieveCommunicationTopics(accountId);
@@ -786,24 +784,24 @@ export abstract class HCS10BaseClient extends Registration {
     connectionRequestId: number,
     maxAttempts = 60,
     delayMs = 2000,
-    recordConfirmation = true
+    recordConfirmation = true,
   ): Promise<WaitForConnectionConfirmationResponse> {
     this.logger.info(
-      `Waiting for connection confirmation on inbound topic ${inboundTopicId} for request ID ${connectionRequestId}`
+      `Waiting for connection confirmation on inbound topic ${inboundTopicId} for request ID ${connectionRequestId}`,
     );
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       this.logger.info(
-        `Attempt ${attempt + 1}/${maxAttempts} to find connection confirmation`
+        `Attempt ${attempt + 1}/${maxAttempts} to find connection confirmation`,
       );
       const messages = await this.mirrorNode.getTopicMessages(inboundTopicId);
 
       const connectionCreatedMessages = messages.filter(
-        (m) => m.op === 'connection_created'
+        m => m.op === 'connection_created',
       );
 
       this.logger.info(
-        `Found ${connectionCreatedMessages.length} connection_created messages`
+        `Found ${connectionCreatedMessages.length} connection_created messages`,
       );
 
       if (connectionCreatedMessages.length > 0) {
@@ -817,7 +815,7 @@ export abstract class HCS10BaseClient extends Registration {
             };
 
             const confirmedByAccountId = this.extractAccountFromOperatorId(
-              confirmationResult.confirmedBy
+              confirmationResult.confirmedBy,
             );
 
             const account = this.getAccountAndSigner();
@@ -829,7 +827,7 @@ export abstract class HCS10BaseClient extends Registration {
 
             this.logger.info(
               'Connection confirmation found',
-              confirmationResult
+              confirmationResult,
             );
 
             if (recordConfirmation) {
@@ -856,14 +854,14 @@ export abstract class HCS10BaseClient extends Registration {
 
       if (attempt < maxAttempts - 1) {
         this.logger.info(
-          `No matching confirmation found, waiting ${delayMs}ms before retrying...`
+          `No matching confirmation found, waiting ${delayMs}ms before retrying...`,
         );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
 
     throw new Error(
-      `Connection confirmation not found after ${maxAttempts} attempts for request ID ${connectionRequestId}`
+      `Connection confirmation not found after ${maxAttempts} attempts for request ID ${connectionRequestId}`,
     );
   }
 
@@ -900,7 +898,7 @@ export abstract class HCS10BaseClient extends Registration {
    * @returns The account ID of the owner of the inbound topic
    */
   public async retrieveInboundAccountId(
-    inboundTopicId: string
+    inboundTopicId: string,
   ): Promise<string> {
     const topicInfo = await this.mirrorNode.getTopicInfo(inboundTopicId);
 
@@ -937,7 +935,7 @@ export abstract class HCS10BaseClient extends Registration {
       accountId?: string;
       inboundTopicId?: string;
       connectionId?: number;
-    }
+    },
   ): string {
     const ttl = options.ttl ?? 60;
 
@@ -952,7 +950,7 @@ export abstract class HCS10BaseClient extends Registration {
       case Hcs10MemoType.CONNECTION:
         if (!options.inboundTopicId || options.connectionId === undefined) {
           throw new Error(
-            'inboundTopicId and connectionId are required for connection memo'
+            'inboundTopicId and connectionId are required for connection memo',
           );
         }
         return `hcs-10:1:${ttl}:2:${options.inboundTopicId}:${options.connectionId}`;
@@ -964,7 +962,7 @@ export abstract class HCS10BaseClient extends Registration {
   protected async checkRegistrationStatus(
     transactionId: string,
     network: string,
-    baseUrl: string
+    baseUrl: string,
   ): Promise<{ status: 'pending' | 'success' | 'failed' }> {
     try {
       const response = await fetch(`${baseUrl}/api/request-confirm`, {
@@ -978,7 +976,7 @@ export abstract class HCS10BaseClient extends Registration {
 
       if (!response.ok) {
         throw new Error(
-          `Failed to confirm registration: ${response.statusText}`
+          `Failed to confirm registration: ${response.statusText}`,
         );
       }
 
@@ -1039,7 +1037,7 @@ export abstract class HCS10BaseClient extends Registration {
    */
   public async getTransactionRequests(
     topicId: string,
-    limit?: number
+    limit?: number,
   ): Promise<TransactMessage[]> {
     this.logger.debug(`Retrieving transaction requests from topic ${topicId}`);
 
@@ -1047,8 +1045,8 @@ export abstract class HCS10BaseClient extends Registration {
 
     const transactOperations = (
       messages
-        .filter((m) => m.op === 'transaction' && m.schedule_id)
-        .map((m) => ({
+        .filter(m => m.op === 'transaction' && m.schedule_id)
+        .map(m => ({
           operator_id: m.operator_id || '',
           schedule_id: m.schedule_id || '',
           data: m.data || '',

@@ -11,13 +11,13 @@ import { Buffer } from 'buffer';
 
 export class FileParser {
   static parseFileCreate(
-    body: proto.IFileCreateTransactionBody
+    body: proto.IFileCreateTransactionBody,
   ): FileCreateData | undefined {
     if (!body) return undefined;
     const data: FileCreateData = {};
     if (body.expirationTime?.seconds) {
       data.expirationTime = `${Long.fromValue(
-        body.expirationTime.seconds
+        body.expirationTime.seconds,
       ).toString()}.${body.expirationTime.nanos}`;
     }
     if (body.keys) {
@@ -33,7 +33,7 @@ export class FileParser {
   }
 
   static parseFileAppend(
-    body: proto.IFileAppendTransactionBody
+    body: proto.IFileAppendTransactionBody,
   ): FileAppendData | undefined {
     if (!body) return undefined;
     const data: FileAppendData = {};
@@ -49,7 +49,7 @@ export class FileParser {
   }
 
   static parseFileUpdate(
-    body: proto.IFileUpdateTransactionBody
+    body: proto.IFileUpdateTransactionBody,
   ): FileUpdateData | undefined {
     if (!body) return undefined;
     const data: FileUpdateData = {};
@@ -60,7 +60,7 @@ export class FileParser {
     }
     if (body.expirationTime?.seconds) {
       data.expirationTime = `${Long.fromValue(
-        body.expirationTime.seconds
+        body.expirationTime.seconds,
       ).toString()}.${body.expirationTime.nanos}`;
     }
     if (body.keys) {
@@ -76,7 +76,7 @@ export class FileParser {
   }
 
   static parseFileDelete(
-    body: proto.IFileDeleteTransactionBody
+    body: proto.IFileDeleteTransactionBody,
   ): FileDeleteData | undefined {
     if (!body) return undefined;
     const data: FileDeleteData = {};

@@ -112,7 +112,7 @@ export class WasmBridge {
 
   private encodeString(
     arg: string,
-    view: Uint8Array
+    view: Uint8Array,
   ): { read: number; written: number } {
     if (arg.length === 0) {
       return { read: 0, written: 0 };
@@ -126,7 +126,7 @@ export class WasmBridge {
   private passStringToWasm(
     arg: string,
     malloc: (a: number, b: number) => number,
-    realloc?: (a: number, b: number, c: number, d: number) => number
+    realloc?: (a: number, b: number, c: number, d: number) => number,
   ): number {
     if (realloc === undefined) {
       const buf = this.textEncoder.encode(arg);
@@ -158,7 +158,7 @@ export class WasmBridge {
         ptr,
         len,
         (len = offset + this.textEncoder.encode(arg).length * 3),
-        1
+        1,
       );
       const view = this.getUint8Memory().subarray(ptr + offset, ptr + len);
       const ret = this.encodeString(arg, view);
@@ -173,12 +173,12 @@ export class WasmBridge {
   private getStringFromWasm(ptr: number, len: number): string {
     ptr = ptr >>> 0;
     return this.textDecoder.decode(
-      this.getUint8Memory().subarray(ptr, ptr + len)
+      this.getUint8Memory().subarray(ptr, ptr + len),
     );
   }
 
   createWasmFunction(
-    wasmFn: (...args: any[]) => any
+    wasmFn: (...args: any[]) => any,
   ): (...args: string[]) => string {
     if (!this.wasm) {
       throw new Error('WASM not initialized');
@@ -189,11 +189,11 @@ export class WasmBridge {
       let deferred: [number, number] = [0, 0];
 
       try {
-        const ptrLenPairs = args.map((arg) => {
+        const ptrLenPairs = args.map(arg => {
           const ptr = this.passStringToWasm(
             arg,
             this.wasm!.__wbindgen_malloc,
-            this.wasm!.__wbindgen_realloc
+            this.wasm!.__wbindgen_realloc,
           );
           return [ptr, this.WASM_VECTOR_LEN];
         });
@@ -245,30 +245,49 @@ export class WasmBridge {
 
     if (wasmConfig?.c?.inputType?.stateData) {
       // Special case: if we have latestRoundData with all the fields we need
-      if (stateData.latestRoundData && 
-          Object.keys(wasmConfig.c.inputType.stateData).every(key => key in stateData.latestRoundData)) {
+      if (
+        stateData.latestRoundData &&
+        Object.keys(wasmConfig.c.inputType.stateData).every(
+          key => key in stateData.latestRoundData,
+        )
+      ) {
         // Return the nested structure for Chainlink
         dynamicStateData.latestRoundData = {};
         Object.entries(wasmConfig.c.inputType.stateData).forEach(([key, _]) => {
-          dynamicStateData.latestRoundData[key] = String(stateData.latestRoundData[key]);
+          dynamicStateData.latestRoundData[key] = String(
+            stateData.latestRoundData[key],
+          );
         });
       } else {
         // Handle flat structure (launchpage case)
-        Object.entries(wasmConfig.c.inputType.stateData).forEach(([key, type]) => {
-          const result = stateData[key];
-          if (result && typeof result === 'object' && 'values' in result && result.values.length > 0) {
-            dynamicStateData[key] = String(result.values[0]);
-          } else {
-            dynamicStateData[key] = this.getDefaultValueForType(type as string);
-          }
-        });
+        Object.entries(wasmConfig.c.inputType.stateData).forEach(
+          ([key, type]) => {
+            const result = stateData[key];
+            if (
+              result &&
+              typeof result === 'object' &&
+              'values' in result &&
+              result.values.length > 0
+            ) {
+              dynamicStateData[key] = String(result.values[0]);
+            } else {
+              dynamicStateData[key] = this.getDefaultValueForType(
+                type as string,
+              );
+            }
+          },
+        );
       }
     }
     return dynamicStateData;
   }
 
   private getDefaultValueForType(type: string): string {
-    if (type.startsWith('uint') || type.startsWith('int') || type === 'number') {
+    if (
+      type.startsWith('uint') ||
+      type.startsWith('int') ||
+      type === 'number'
+    ) {
       return '0';
     } else if (type === 'bool') {
       return 'false';

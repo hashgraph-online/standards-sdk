@@ -39,7 +39,7 @@ async function handleConnectionRequest(
     outboundTopicId: string;
   },
   message: HCSMessage,
-  connectionManager: ConnectionsManager
+  connectionManager: ConnectionsManager,
 ): Promise<string | null> {
   if (!message.operator_id) {
     logger.warn('Missing operator_id in connection request');
@@ -54,7 +54,7 @@ async function handleConnectionRequest(
     message.sequence_number <= 0
   ) {
     logger.warn(
-      `Invalid sequence_number in connection request: ${message.sequence_number}`
+      `Invalid sequence_number in connection request: ${message.sequence_number}`,
     );
     return null;
   }
@@ -67,7 +67,7 @@ async function handleConnectionRequest(
   }
 
   logger.info(
-    `Processing connection request #${message.sequence_number} from ${requesterOperatorId}`
+    `Processing connection request #${message.sequence_number} from ${requesterOperatorId}`,
   );
 
   // Look for any existing connection for this sequence number
@@ -85,12 +85,12 @@ async function handleConnectionRequest(
       existingConnection.connectionTopicId.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)
     ) {
       logger.warn(
-        `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConnection.connectionTopicId}`
+        `Connection already exists for request #${message.sequence_number} from ${requesterOperatorId}. Topic: ${existingConnection.connectionTopicId}`,
       );
       return existingConnection.connectionTopicId;
     } else {
       logger.warn(
-        `Connection exists for request #${message.sequence_number} but has invalid topic ID format: ${existingConnection.connectionTopicId}`
+        `Connection exists for request #${message.sequence_number} but has invalid topic ID format: ${existingConnection.connectionTopicId}`,
       );
     }
   }
@@ -100,7 +100,7 @@ async function handleConnectionRequest(
       await agent.client.handleConnectionRequest(
         agent.inboundTopicId,
         requesterAccountId,
-        message.sequence_number
+        message.sequence_number,
       );
 
     await connectionManager.fetchConnectionData(agent.accountId);
@@ -108,16 +108,16 @@ async function handleConnectionRequest(
     await agent.client.sendMessage(
       connectionTopicId,
       `Hello! I'm the transact agent, your friendly Hedera agent! 🤖
-      I can help you create transactions on Hedera.`
+      I can help you create transactions on Hedera.`,
     );
 
     logger.info(
-      `Connection established with ${requesterOperatorId} on topic ${connectionTopicId}`
+      `Connection established with ${requesterOperatorId} on topic ${connectionTopicId}`,
     );
     return connectionTopicId;
   } catch (error) {
     logger.error(
-      `Error handling connection request #${message.sequence_number} from ${requesterOperatorId}: ${error}`
+      `Error handling connection request #${message.sequence_number} from ${requesterOperatorId}: ${error}`,
     );
     return null;
   }
@@ -130,7 +130,7 @@ async function handleStandardMessage(
     operatorId: string;
   },
   message: HCSMessage,
-  connectionTopicId: string
+  connectionTopicId: string,
 ): Promise<void> {
   if (message.data === undefined) {
     return;
@@ -158,7 +158,7 @@ async function handleStandardMessage(
   const agentSigner = new ServerSigner(
     process.env.HEDERA_ACCOUNT_ID!,
     process.env.HEDERA_PRIVATE_KEY!,
-    'testnet'
+    'testnet',
   );
 
   let messageContent = rawContent;
@@ -172,8 +172,8 @@ async function handleStandardMessage(
         logger.debug(
           `Extracted from JSON: "${messageContent}" (original: "${rawContent.substring(
             0,
-            50
-          )}${rawContent.length > 50 ? '...' : ''}")`
+            50,
+          )}${rawContent.length > 50 ? '...' : ''}")`,
         );
       }
     } catch {
@@ -212,25 +212,23 @@ async function handleStandardMessage(
     if (response.output && !response?.transactionBytes) {
       await agent.client.sendMessage(
         connectionTopicId,
-        `[Reply to #${message.sequence_number}] ${response.output}`
+        `[Reply to #${message.sequence_number}] ${response.output}`,
       );
     }
 
     if (response.notes && !response?.transactionBytes) {
-      const formattedNotes = response.notes
-        .map((note) => `- ${note}`)
-        .join('\n');
+      const formattedNotes = response.notes.map(note => `- ${note}`).join('\n');
       const inferenceMessage =
         "I've made some inferences based on your prompt. If this isn't what you expected, please try a more refined prompt.";
       await agent.client.sendMessage(
         connectionTopicId,
-        `[Reply to #${message.sequence_number}]\n${inferenceMessage}\n${formattedNotes}`
+        `[Reply to #${message.sequence_number}]\n${inferenceMessage}\n${formattedNotes}`,
       );
     }
 
     if (response.transactionBytes) {
       const transaction = ScheduleCreateTransaction.fromBytes(
-        Buffer.from(response.transactionBytes || '', 'base64')
+        Buffer.from(response.transactionBytes || '', 'base64'),
       );
 
       let reply = `[Reply to #${message.sequence_number}]`;
@@ -238,7 +236,7 @@ async function handleStandardMessage(
         const inferenceMessage =
           "I've made some inferences based on your prompt. If this isn't what you expected, please try a more refined prompt.";
         const formattedNotes = response.notes
-          .map((note) => `- ${note}`)
+          .map(note => `- ${note}`)
           .join('\n');
         reply += `\n${inferenceMessage}\n${formattedNotes}`;
       }
@@ -249,13 +247,13 @@ async function handleStandardMessage(
         connectionTopicId,
         transaction,
         reply,
-        { schedulePayerAccountId: schedulePayerAccountId || undefined }
+        { schedulePayerAccountId: schedulePayerAccountId || undefined },
       );
     }
   } catch (error) {
     console.error(error);
     logger.error(
-      `Failed to send response to topic ${connectionTopicId}: ${error}`
+      `Failed to send response to topic ${connectionTopicId}: ${error}`,
     );
   }
 }
@@ -267,7 +265,7 @@ async function main() {
 
     if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
       throw new Error(
-        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set'
+        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set',
       );
     }
 
@@ -305,8 +303,8 @@ async function main() {
       logger,
       handleConnectionRequest,
       handleStandardMessage,
-      (message) => Boolean(message?.data?.includes('transact:')),
-      agentData
+      message => Boolean(message?.data?.includes('transact:')),
+      agentData,
     );
   } catch (error) {
     logger.error(`Error in main function: ${error}`);

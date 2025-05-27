@@ -27,7 +27,7 @@ export abstract class Registration {
     transactionId: string,
     network: string,
     baseUrl: string,
-    logger?: Logger
+    logger?: Logger,
   ): Promise<RegistrationStatusResponse> {
     try {
       const response = await fetch(`${baseUrl}/api/request-confirm`, {
@@ -73,13 +73,13 @@ export abstract class Registration {
     baseUrl: string,
     maxAttempts: number = 60,
     delayMs: number = 2000,
-    logger?: Logger
+    logger?: Logger,
   ): Promise<boolean> {
     let attempts = 0;
     while (attempts < maxAttempts) {
       if (logger) {
         logger.info(
-          `Checking registration status. Attempt ${attempts + 1}/${maxAttempts}`
+          `Checking registration status. Attempt ${attempts + 1}/${maxAttempts}`,
         );
       }
 
@@ -87,7 +87,7 @@ export abstract class Registration {
         transactionId,
         network,
         baseUrl,
-        logger
+        logger,
       );
 
       if (status.status === 'success') {
@@ -106,10 +106,10 @@ export abstract class Registration {
 
       if (logger) {
         logger.info(
-          `Registration still pending. Waiting ${delayMs}ms before next attempt`
+          `Registration still pending. Waiting ${delayMs}ms before next attempt`,
         );
       }
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await new Promise(resolve => setTimeout(resolve, delayMs));
       attempts++;
     }
 
@@ -132,7 +132,7 @@ export abstract class Registration {
     accountId: string,
     network: string = 'mainnet',
     baseUrl: string = 'https://moonscape.tech',
-    logger?: Logger
+    logger?: Logger,
   ): Promise<RegistrationResult> {
     try {
       if (logger) {
@@ -145,12 +145,12 @@ export abstract class Registration {
           auth: { operatorId: '0.0.0' },
         });
         logger?.info(
-          `Fetching profile by account ID ${accountId} on ${network}`
+          `Fetching profile by account ID ${accountId} on ${network}`,
         );
         await sleep(5000);
         const profileResult = await hcs11Client.fetchProfileByAccountId(
           accountId,
-          network
+          network,
         );
         logger?.info('Profile fetched', profileResult);
 
@@ -193,7 +193,7 @@ export abstract class Registration {
 
         if (logger) {
           logger.info(
-            `Profile validation successful. Inbound topic: ${profileResult.profile.inboundTopicId}, Outbound topic: ${profileResult.profile.outboundTopicId}`
+            `Profile validation successful. Inbound topic: ${profileResult.profile.inboundTopicId}, Outbound topic: ${profileResult.profile.outboundTopicId}`,
           );
         }
       } catch (profileError: any) {
@@ -239,7 +239,7 @@ export abstract class Registration {
 
       if (logger) {
         logger.info(
-          `Created new registration request. Transaction ID: ${data.transaction_id}`
+          `Created new registration request. Transaction ID: ${data.transaction_id}`,
         );
       }
 
@@ -265,13 +265,11 @@ export abstract class Registration {
    */
   async findRegistrations(
     options: RegistrationSearchOptions = {},
-    baseUrl: string = 'https://moonscape.tech'
+    baseUrl: string = 'https://moonscape.tech',
   ): Promise<RegistrationSearchResult> {
     try {
       const queryParams = new URLSearchParams();
-      options.tags?.forEach((tag) =>
-        queryParams.append('tags', tag.toString())
-      );
+      options.tags?.forEach(tag => queryParams.append('tags', tag.toString()));
       if (options.accountId) {
         queryParams.append('accountId', options.accountId);
       }
@@ -288,7 +286,7 @@ export abstract class Registration {
             Origin: baseUrl,
             Referer: `${baseUrl}/`,
           },
-        }
+        },
       );
 
       if (!response.ok) {

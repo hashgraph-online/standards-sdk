@@ -61,7 +61,7 @@ export class HRLResolver {
       'application/wasm',
     ];
 
-    return binaryTypes.some((prefix) => mimeType.startsWith(prefix));
+    return binaryTypes.some(prefix => mimeType.startsWith(prefix));
   }
 
   /**
@@ -108,7 +108,7 @@ export class HRLResolver {
 
   public async getContentWithType(
     hrl: string,
-    options: HRLResolutionOptions
+    options: HRLResolutionOptions,
   ): Promise<ContentWithType> {
     if (!this.isValidHRL(hrl)) {
       return {
@@ -138,7 +138,7 @@ export class HRLResolver {
    */
   public async resolveHRL(
     hrl: string,
-    options: HRLResolutionOptions
+    options: HRLResolutionOptions,
   ): Promise<HRLResolutionResult> {
     const parsed = this.parseHRL(hrl);
 
@@ -149,7 +149,7 @@ export class HRLResolver {
     const { standard, topicId } = parsed;
 
     this.logger.debug(
-      `Resolving HRL reference: standard=${standard}, topicId=${topicId}`
+      `Resolving HRL reference: standard=${standard}, topicId=${topicId}`,
     );
 
     try {

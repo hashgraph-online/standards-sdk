@@ -45,10 +45,12 @@ export class ProgressReporter {
   constructor(options: ProgressReporterOptions = {}) {
     this.module = options.module || 'Progress';
     this.callback = options.callback;
-    this.logger = options.logger || new Logger({
-      level: 'info',
-      module: 'ProgressReporter',
-    });
+    this.logger =
+      options.logger ||
+      new Logger({
+        level: 'info',
+        module: 'ProgressReporter',
+      });
     this.logProgress = options.logProgress ?? true;
     this.minPercent = options.minPercent ?? 0;
     this.maxPercent = options.maxPercent ?? 100;
@@ -115,11 +117,11 @@ export class ProgressReporter {
 
     const logPrefix = options.logPrefix || '';
 
-    subReporter.setCallback((data) => {
+    subReporter.setCallback(data => {
       const scaledPercent = this.scalePercent(
         data.progressPercent,
         options.minPercent,
-        options.maxPercent
+        options.maxPercent,
       );
 
       let formattedMessage = data.message;
@@ -167,7 +169,7 @@ export class ProgressReporter {
         `[${this.module}] [${data.stage.toUpperCase()}] ${
           data.message
         } (${scaledPercent.toFixed(1)}%)`,
-        data.details
+        data.details,
       );
     }
 
@@ -183,7 +185,7 @@ export class ProgressReporter {
   private scalePercent(
     percent: number,
     sourceMin: number,
-    sourceMax: number
+    sourceMax: number,
   ): number {
     const range = this.maxPercent - this.minPercent;
     const sourceRange = sourceMax - sourceMin;
@@ -195,7 +197,7 @@ export class ProgressReporter {
   preparing(
     message: string,
     percent: number,
-    details?: Record<string, any>
+    details?: Record<string, any>,
   ): void {
     this.report({
       stage: 'preparing',
@@ -208,7 +210,7 @@ export class ProgressReporter {
   submitting(
     message: string,
     percent: number,
-    details?: Record<string, any>
+    details?: Record<string, any>,
   ): void {
     this.report({
       stage: 'submitting',
@@ -221,7 +223,7 @@ export class ProgressReporter {
   confirming(
     message: string,
     percent: number,
-    details?: Record<string, any>
+    details?: Record<string, any>,
   ): void {
     this.report({
       stage: 'confirming',
@@ -234,7 +236,7 @@ export class ProgressReporter {
   verifying(
     message: string,
     percent: number,
-    details?: Record<string, any>
+    details?: Record<string, any>,
   ): void {
     this.report({
       stage: 'verifying',

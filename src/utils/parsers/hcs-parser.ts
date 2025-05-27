@@ -11,7 +11,7 @@ import { Buffer } from 'buffer';
 
 export class HCSParser {
   static parseConsensusCreateTopic(
-    body: proto.IConsensusCreateTopicTransactionBody
+    body: proto.IConsensusCreateTopicTransactionBody,
   ): ConsensusCreateTopicData | undefined {
     if (!body) return undefined;
     const data: ConsensusCreateTopicData = {};
@@ -22,21 +22,21 @@ export class HCSParser {
     data.submitKey = parseKey(body.submitKey);
     if (body.autoRenewPeriod?.seconds) {
       data.autoRenewPeriod = Long.fromValue(
-        body.autoRenewPeriod.seconds
+        body.autoRenewPeriod.seconds,
       ).toString();
     }
     if (body.autoRenewAccount) {
       data.autoRenewAccountId = new AccountId(
         body.autoRenewAccount.shardNum ?? 0,
         body.autoRenewAccount.realmNum ?? 0,
-        body.autoRenewAccount.accountNum ?? 0
+        body.autoRenewAccount.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseConsensusSubmitMessage(
-    body: proto.IConsensusSubmitMessageTransactionBody
+    body: proto.IConsensusSubmitMessageTransactionBody,
   ): ConsensusSubmitMessageData | undefined {
     if (!body) return undefined;
     const data: ConsensusSubmitMessageData = {};
@@ -86,7 +86,7 @@ export class HCSParser {
   }
 
   static parseConsensusUpdateTopic(
-    body: proto.IConsensusUpdateTopicTransactionBody
+    body: proto.IConsensusUpdateTopicTransactionBody,
   ): ConsensusUpdateTopicData | undefined {
     if (!body) return undefined;
     const data: ConsensusUpdateTopicData = {};
@@ -114,21 +114,21 @@ export class HCSParser {
     }
     if (body.autoRenewPeriod?.seconds) {
       data.autoRenewPeriod = Long.fromValue(
-        body.autoRenewPeriod.seconds
+        body.autoRenewPeriod.seconds,
       ).toString();
     }
     if (body.autoRenewAccount) {
       data.autoRenewAccountId = new AccountId(
         body.autoRenewAccount.shardNum ?? 0,
         body.autoRenewAccount.realmNum ?? 0,
-        body.autoRenewAccount.accountNum ?? 0
+        body.autoRenewAccount.accountNum ?? 0,
       ).toString();
     }
     return data;
   }
 
   static parseConsensusDeleteTopic(
-    body: proto.IConsensusDeleteTopicTransactionBody
+    body: proto.IConsensusDeleteTopicTransactionBody,
   ): ConsensusDeleteTopicData | undefined {
     if (!body) return undefined;
     const data: ConsensusDeleteTopicData = {};

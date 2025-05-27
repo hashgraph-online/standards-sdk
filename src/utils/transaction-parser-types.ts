@@ -257,13 +257,26 @@ export type NftAllowance = {
 };
 
 export type CryptoApproveAllowanceData = {
-  hbarAllowances?: { ownerAccountId?: string; spenderAccountId?: string; amount?: string }[];
-  tokenAllowances?: { tokenId?: string; ownerAccountId?: string; spenderAccountId?: string; amount?: string }[];
+  hbarAllowances?: {
+    ownerAccountId?: string;
+    spenderAccountId?: string;
+    amount?: string;
+  }[];
+  tokenAllowances?: {
+    tokenId?: string;
+    ownerAccountId?: string;
+    spenderAccountId?: string;
+    amount?: string;
+  }[];
   nftAllowances?: NftAllowance[];
 };
 
 export type CryptoDeleteAllowanceData = {
-  nftAllowancesToRemove?: { ownerAccountId?: string; tokenId?: string; serialNumbers?: string[] }[];
+  nftAllowancesToRemove?: {
+    ownerAccountId?: string;
+    tokenId?: string;
+    serialNumbers?: string[];
+  }[];
 };
 
 export type ContractCreateData = {

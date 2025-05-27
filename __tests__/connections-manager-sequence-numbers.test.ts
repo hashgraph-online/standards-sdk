@@ -5,7 +5,6 @@ import { TopicInfo } from '../src/services/types';
 
 // Mock the baseClient
 class MockHCS10Client implements HCS10BaseClient {
-
   // For tests we don't need the actual implementation
   // @ts-ignore - intentionally incomplete mock for tests
   async submitPayload() {
@@ -54,7 +53,7 @@ class MockHCS10Client implements HCS10BaseClient {
     return {
       inboundTopic: '0.0.100002',
       outboundTopic: '0.0.100001',
-      profileTopicId: '0.0.100003' // Added to match TopicInfo interface
+      profileTopicId: '0.0.100003', // Added to match TopicInfo interface
     };
   }
 
@@ -66,8 +65,8 @@ class MockHCS10Client implements HCS10BaseClient {
         inboundTopicId: `0.0.${accountId.split('.').pop()}IN`,
         outboundTopicId: `0.0.${accountId.split('.').pop()}OUT`,
         type: 1,
-        version: "1.0",
-      }
+        version: '1.0',
+      },
     };
   }
 
@@ -77,16 +76,16 @@ class MockHCS10Client implements HCS10BaseClient {
 
   async fetchProfile(): Promise<AIAgentProfile> {
     return {
-        alias: 'agent',
-        display_name: 'Agent 123456',
-        bio: 'Agent 123456',
+      alias: 'agent',
+      display_name: 'Agent 123456',
+      bio: 'Agent 123456',
+      type: 1,
+      version: '1.0',
+      aiAgent: {
+        model: 'gpt-4o',
+        capabilities: [AIAgentCapability.API_INTEGRATION],
         type: 1,
-        version: "1.0",
-        aiAgent: {
-            model: 'gpt-4o',
-            capabilities: [AIAgentCapability.API_INTEGRATION],
-            type: 1,
-        }
+      },
     };
   }
 }
@@ -99,10 +98,10 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
   beforeEach(() => {
     mockClient = new MockHCS10Client();
     // @ts-ignore - type error in mock is acceptable for tests
-      manager = new ConnectionsManager({
-        // @ts-ignore - type error in mock is acceptable for tests
+    manager = new ConnectionsManager({
+      // @ts-ignore - type error in mock is acceptable for tests
       baseClient: mockClient,
-      logLevel: 'error'
+      logLevel: 'error',
     });
   });
 
@@ -143,14 +142,16 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       manager.processOutboundMessages(outboundMessagesAgent2, mockAccountId);
 
       // Verify we have 2 pending connections with the same sequence number
-      const pendingConnections = Array.from(manager['connections'].values()).filter(
-        conn => conn.status === 'pending'
-      );
+      const pendingConnections = Array.from(
+        manager['connections'].values(),
+      ).filter(conn => conn.status === 'pending');
 
       expect(pendingConnections.length).toBe(2);
 
       // Verify they have the correct target account IDs
-      const targetAccounts = pendingConnections.map(conn => conn.targetAccountId);
+      const targetAccounts = pendingConnections.map(
+        conn => conn.targetAccountId,
+      );
       expect(targetAccounts).toContain('0.0.654321');
       expect(targetAccounts).toContain('0.0.765432');
 
@@ -209,15 +210,18 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       const connections = Array.from(manager['connections'].values());
 
       // Find the established connection
-      const establishedConnection = connections.find(conn =>
-        conn.status === 'established' && conn.targetAccountId === '0.0.654321'
+      const establishedConnection = connections.find(
+        conn =>
+          conn.status === 'established' &&
+          conn.targetAccountId === '0.0.654321',
       );
       expect(establishedConnection).toBeDefined();
       expect(establishedConnection!.connectionTopicId).toBe('0.0.333333');
 
       // Find the pending connection - should still exist
-      const pendingConnection = connections.find(conn =>
-        conn.status === 'pending' && conn.targetAccountId === '0.0.765432'
+      const pendingConnection = connections.find(
+        conn =>
+          conn.status === 'pending' && conn.targetAccountId === '0.0.765432',
       );
       expect(pendingConnection).toBeDefined();
 
@@ -251,17 +255,22 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       };
 
       // Process both inbound messages
-      manager.processInboundMessages([inboundMessageAgent1, inboundMessageAgent2]);
+      manager.processInboundMessages([
+        inboundMessageAgent1,
+        inboundMessageAgent2,
+      ]);
 
       // Verify we have 2 connections needing confirmation
-      const needsConfirmationConnections = Array.from(manager['connections'].values()).filter(
-        conn => conn.status === 'needs_confirmation'
-      );
+      const needsConfirmationConnections = Array.from(
+        manager['connections'].values(),
+      ).filter(conn => conn.status === 'needs_confirmation');
 
       expect(needsConfirmationConnections.length).toBe(2);
 
       // Verify they have the correct target account IDs
-      const targetAccounts = needsConfirmationConnections.map(conn => conn.targetAccountId);
+      const targetAccounts = needsConfirmationConnections.map(
+        conn => conn.targetAccountId,
+      );
       expect(targetAccounts).toContain('0.0.654321');
       expect(targetAccounts).toContain('0.0.765432');
 
@@ -315,15 +324,19 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       const connections = Array.from(manager['connections'].values());
 
       // Find the established connection
-      const establishedConnection = connections.find(conn =>
-        conn.status === 'established' && conn.targetAccountId === '0.0.654321'
+      const establishedConnection = connections.find(
+        conn =>
+          conn.status === 'established' &&
+          conn.targetAccountId === '0.0.654321',
       );
       expect(establishedConnection).toBeDefined();
       expect(establishedConnection!.connectionTopicId).toBe('0.0.333333');
 
       // Find the needs_confirmation connection - should still exist
-      const pendingConnection = connections.find(conn =>
-        conn.status === 'needs_confirmation' && conn.targetAccountId === '0.0.765432'
+      const pendingConnection = connections.find(
+        conn =>
+          conn.status === 'needs_confirmation' &&
+          conn.targetAccountId === '0.0.765432',
       );
       expect(pendingConnection).toBeDefined();
 
@@ -344,7 +357,7 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
         sequence_number: 1,
         created: new Date('2023-01-01'),
         payer: mockAccountId,
-        data: ''
+        data: '',
       };
 
       const outboundMessage2: HCSMessage = {
@@ -356,11 +369,14 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
         sequence_number: 1,
         created: new Date('2023-01-01'),
         payer: mockAccountId,
-        data: ''
+        data: '',
       };
 
       // Set up mock messages for outbound and inbound topics
-      mockClient.setMockMessages('0.0.100001', [outboundMessage1, outboundMessage2]); // Outbound topic
+      mockClient.setMockMessages('0.0.100001', [
+        outboundMessage1,
+        outboundMessage2,
+      ]); // Outbound topic
 
       // Set up inbound topic with both request and confirmation
       mockClient.setMockMessages('0.0.100002', [
@@ -373,7 +389,7 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
           sequence_number: 1,
           created: new Date('2023-01-01'),
           payer: mockAccountId,
-          data: ''
+          data: '',
         },
         {
           p: 'hcs-10',
@@ -387,8 +403,8 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
           data: '',
           connection_request_id: 1,
           confirmed_request_id: 1,
-          connected_account_id: '0.0.654321'
-        }
+          connected_account_id: '0.0.654321',
+        },
       ]);
 
       // Call fetchConnectionData to process everything
@@ -398,18 +414,20 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       const connections = Array.from(manager['connections'].values());
 
       // Find the established connection for agent 1
-      const agent1Connection = connections.find(conn =>
-        conn.targetAccountId === '0.0.654321' && conn.status === 'established'
+      const agent1Connection = connections.find(
+        conn =>
+          conn.targetAccountId === '0.0.654321' &&
+          conn.status === 'established',
       );
-
 
       expect(agent1Connection).toBeDefined();
       expect(agent1Connection!.status).toBe('established');
       expect(agent1Connection!.connectionTopicId).toBe('0.0.333333');
 
       // Find the pending connection for agent 2 - should still be pending
-      const agent2Connection = connections.find(conn =>
-        conn.targetAccountId === '0.0.765432' && conn.status === 'pending'
+      const agent2Connection = connections.find(
+        conn =>
+          conn.targetAccountId === '0.0.765432' && conn.status === 'pending',
       );
 
       // Could be either still pending or not found (if your filter excludes pending)
@@ -418,8 +436,8 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       } else {
         // If filtering excludes pending, verify it exists in the raw connections map
         const rawConnections = Array.from(manager['connections'].values());
-        const rawAgent2Connection = rawConnections.find(conn =>
-          conn.targetAccountId === '0.0.765432'
+        const rawAgent2Connection = rawConnections.find(
+          conn => conn.targetAccountId === '0.0.765432',
         );
         expect(rawAgent2Connection).toBeDefined();
       }
@@ -446,7 +464,9 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       // Verify the pending connection is in the map
       const connectionsBefore = Array.from(manager['connections'].entries());
       const pendingKey = 'req-100:0.0.999000@0.0.999999';
-      const hasPendingBefore = connectionsBefore.some(([key]) => key === pendingKey);
+      const hasPendingBefore = connectionsBefore.some(
+        ([key]) => key === pendingKey,
+      );
       expect(hasPendingBefore).toBe(true);
 
       // Now confirm the connection with a direct confirmation
@@ -469,11 +489,15 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       // Verify the pending connection key is no longer in the map
       // and the new connection is there instead
       const connectionsAfter = Array.from(manager['connections'].entries());
-      const hasPendingAfter = connectionsAfter.some(([key]) => key === pendingKey);
+      const hasPendingAfter = connectionsAfter.some(
+        ([key]) => key === pendingKey,
+      );
       expect(hasPendingAfter).toBe(false);
 
       // The new confirmed connection should be in the map
-      const hasConfirmed = connectionsAfter.some(([key]) => key === '0.0.777777');
+      const hasConfirmed = connectionsAfter.some(
+        ([key]) => key === '0.0.777777',
+      );
       expect(hasConfirmed).toBe(true);
 
       // Check that we have exactly one connection with this target account ID
@@ -502,7 +526,9 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       // Verify the needs_confirmation connection is in the map
       const connectionsBefore = Array.from(manager['connections'].entries());
       const pendingKey = 'inb-5:0.0.888000@0.0.888888';
-      const hasPendingBefore = connectionsBefore.some(([key]) => key === pendingKey);
+      const hasPendingBefore = connectionsBefore.some(
+        ([key]) => key === pendingKey,
+      );
       expect(hasPendingBefore).toBe(true);
 
       // Now confirm the connection
@@ -524,11 +550,15 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       // Verify the needs_confirmation connection key is no longer in the map
       // and the new connection is there instead
       const connectionsAfter = Array.from(manager['connections'].entries());
-      const hasPendingAfter = connectionsAfter.some(([key]) => key === pendingKey);
+      const hasPendingAfter = connectionsAfter.some(
+        ([key]) => key === pendingKey,
+      );
       expect(hasPendingAfter).toBe(false);
 
       // The new confirmed connection should be in the map
-      const hasConfirmed = connectionsAfter.some(([key]) => key === '0.0.666666');
+      const hasConfirmed = connectionsAfter.some(
+        ([key]) => key === '0.0.666666',
+      );
       expect(hasConfirmed).toBe(true);
 
       // Check that we have exactly one connection with this target account ID
@@ -544,7 +574,9 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
   describe('error handling for invalid topic IDs', () => {
     it('should catch errors when trying to fetch messages from invalid topic IDs', async () => {
       // Spy on console.error to verify errors are caught and not propagated
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
 
       // Create a connection with a composite key as connectionTopicId
       const compositeKey = 'inb-100:0.0.999000@0.0.999999';
@@ -557,12 +589,14 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
         needsConfirmation: false,
         created: new Date('2023-01-01'),
         connectionRequestId: 100,
-        processed: false
+        processed: false,
       });
 
       // Call fetchConnectionData which will call various methods
       // This should not throw even though the MockHCS10Client will throw for invalid topics
-      await expect(manager.fetchConnectionData(mockAccountId)).resolves.not.toThrow();
+      await expect(
+        manager.fetchConnectionData(mockAccountId),
+      ).resolves.not.toThrow();
 
       // Clean up
       consoleErrorSpy.mockRestore();
@@ -580,7 +614,7 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
         needsConfirmation: false,
         created: new Date('2023-01-01'),
         connectionRequestId: 200,
-        processed: false
+        processed: false,
       });
 
       // Create a valid connection for comparison
@@ -593,7 +627,7 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
         isPending: false,
         needsConfirmation: false,
         created: new Date('2023-01-01'),
-        processed: false
+        processed: false,
       });
 
       // Call fetchConnectionData which will invoke the private methods internally
@@ -601,7 +635,9 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
       const result = await manager.fetchConnectionData(mockAccountId);
 
       // The result should include the valid connection
-      const validConnection = result.find(conn => conn.connectionTopicId === validTopicId);
+      const validConnection = result.find(
+        conn => conn.connectionTopicId === validTopicId,
+      );
       expect(validConnection).toBeDefined();
     });
   });

@@ -101,7 +101,7 @@ export type RegisteredAgent = {
 
 export class BrowserHCSClient extends HCS10BaseClient {
   private hwc: HashinalsWalletConnectSDK;
-  protected declare logger: Logger;
+  declare protected logger: Logger;
   private guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client | null = null;
 
@@ -151,7 +151,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       }
     } else {
       this.logger.error(
-        'BrowserHCSClient initialized in server environment - browser-specific features will not be available. Use HCS10Client instead.'
+        'BrowserHCSClient initialized in server environment - browser-specific features will not be available. Use HCS10Client instead.',
       );
     }
   }
@@ -165,7 +165,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       progressCallback?: RegistrationProgressCallback;
       waitMaxAttempts?: number;
       waitIntervalMs?: number;
-    }
+    },
   ): Promise<TransactionReceipt> {
     this.logger.info('Sending message');
     const operatorId = await this.getOperatorId();
@@ -180,7 +180,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
     const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
-      this.hwc.getAccountInfo().accountId
+      this.hwc.getAccountInfo().accountId,
     );
 
     const payloadString = JSON.stringify(payload);
@@ -188,7 +188,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
     if (isLargePayload) {
       this.logger.info(
-        'Message payload exceeds 1000 bytes, storing via inscription'
+        'Message payload exceeds 1000 bytes, storing via inscription',
       );
       try {
         const contentBuffer = Buffer.from(data);
@@ -200,13 +200,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
             progressCallback: options?.progressCallback,
             waitMaxAttempts: options?.waitMaxAttempts,
             waitIntervalMs: options?.waitIntervalMs,
-          }
+          },
         );
 
         if (inscriptionResult?.topic_id) {
           payload.data = `hcs://1/${inscriptionResult.topic_id}`;
           this.logger.info(
-            `Large message inscribed with topic ID: ${inscriptionResult.topic_id}`
+            `Large message inscribed with topic ID: ${inscriptionResult.topic_id}`,
           );
         } else {
           throw new Error('Failed to inscribe large message content');
@@ -216,7 +216,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         throw new Error(
           `Failed to handle large message: ${
             error instanceof Error ? error.message : 'Unknown error'
-          }`
+          }`,
         );
       }
     }
@@ -225,7 +225,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       connectionTopicId,
       payload,
       submitKey,
-      submissionCheck.requiresFee
+      submissionCheck.requiresFee,
     );
   }
 
@@ -238,7 +238,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     requestingAccountId: string,
     connectionId: number,
     connectionMemo: string = 'Connection accepted. Looking forward to collaborating!',
-    ttl: number = 60
+    ttl: number = 60,
   ): Promise<HandleConnectionRequestResponse> {
     this.logger.info('Handling connection request');
     const userAccountId = this.hwc.getAccountInfo().accountId;
@@ -246,9 +246,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
       throw new Error('Failed to retrieve user account ID');
     }
 
-    const requesterKey = await this.mirrorNode.getPublicKey(
-      requestingAccountId
-    );
+    const requesterKey =
+      await this.mirrorNode.getPublicKey(requestingAccountId);
     const accountKey = await this.mirrorNode.getPublicKey(userAccountId);
 
     if (!accountKey) {
@@ -271,7 +270,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     this.logger.debug('Executing topic creation transaction');
     const txResponse = await this.hwc.executeTransactionWithErrorHandling(
       transaction,
-      false
+      false,
     );
     if (txResponse?.error) {
       this.logger.error(txResponse.error);
@@ -292,14 +291,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
       requestingAccountId,
       connectionId,
       operatorId,
-      connectionMemo
+      connectionMemo,
     );
 
     const accountTopics = await this.retrieveCommunicationTopics(userAccountId);
 
-    const requestingAccountTopics = await this.retrieveCommunicationTopics(
-      requestingAccountId
-    );
+    const requestingAccountTopics =
+      await this.retrieveCommunicationTopics(requestingAccountId);
 
     const requestingAccountOperatorId = `${requestingAccountTopics.inboundTopic}@${requestingAccountId}`;
 
@@ -326,7 +324,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     connectedAccountId: string,
     connectionId: number,
     operatorId: string,
-    memo: string
+    memo: string,
   ): Promise<number> {
     this.logger.info('Confirming connection');
     const payload = {
@@ -341,11 +339,11 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
     const transactionResponse = await this.submitPayload(
       inboundTopicId,
-      payload
+      payload,
     );
     if (!transactionResponse?.topicSequenceNumber) {
       this.logger.error(
-        'Failed to confirm connection: sequence number is null'
+        'Failed to confirm connection: sequence number is null',
       );
       throw new Error('Failed to confirm connection: sequence number is null');
     }
@@ -359,7 +357,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       existingState?: AgentCreationState;
       ttl?: number;
       updateAccountMemo?: boolean;
-    }
+    },
   ): Promise<RegisteredAgent | InscribeProfileResponse> {
     const progressCallback = options?.progressCallback;
     const progressReporter = new ProgressReporter({
@@ -395,7 +393,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         0,
         {
           state,
-        }
+        },
       );
 
       const {
@@ -432,13 +430,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
           hasPfpBuffer,
           pfpFileName,
           state,
-          progressReporter
+          progressReporter,
         );
       } else if (pfpTopicId) {
         progressReporter.preparing(
           `Using existing profile picture: ${pfpTopicId}`,
           50,
-          { state }
+          { state },
         );
         state.pfpTopicId = pfpTopicId;
       }
@@ -451,7 +449,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         inboundTopicId,
         outboundTopicId,
         options,
-        progressReporter
+        progressReporter,
       );
 
       state.currentStage = 'complete';
@@ -464,7 +462,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
           outboundTopicId,
           pfpTopicId,
           state,
-        }
+        },
       );
 
       let outTopicId = '';
@@ -519,7 +517,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     pfpBuffer: Buffer,
     pfpFileName: string,
     state: AgentCreationState,
-    progressReporter: ProgressReporter
+    progressReporter: ProgressReporter,
   ): Promise<string> {
     state.currentStage = 'pfp';
     progressReporter.preparing('Creating profile picture', 30, {
@@ -533,7 +531,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     });
 
     const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName, {
-      progressCallback: (data) =>
+      progressCallback: data =>
         pfpProgress.report({
           ...data,
           progressPercent: data.progressPercent ?? 0,
@@ -571,7 +569,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     options?: {
       updateAccountMemo?: boolean;
     },
-    progressReporter?: ProgressReporter
+    progressReporter?: ProgressReporter,
   ): Promise<void> {
     if (!this.hcs11Client) {
       if (progressReporter) {
@@ -585,7 +583,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       if (progressReporter) {
         progressReporter.preparing(
           `Storing HCS-11 ${isAgentBuilder ? 'agent' : 'person'} profile`,
-          80
+          80,
         );
       }
 
@@ -605,7 +603,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
               ([platform, handle]) => ({
                 platform: platform as SocialPlatform,
                 handle: handle as string,
-              })
+              }),
             )
           : [];
 
@@ -623,7 +621,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
             inboundTopicId,
             outboundTopicId,
             creator: agentProfile.metadata?.creator,
-          }
+          },
         );
       } else {
         const personProfile = (builder as PersonBuilder).build();
@@ -642,7 +640,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
             properties: personProfile.properties,
             inboundTopicId,
             outboundTopicId,
-          }
+          },
         );
       }
 
@@ -650,12 +648,12 @@ export class BrowserHCSClient extends HCS10BaseClient {
         hcs11Profile,
         options?.updateAccountMemo ?? true,
         {
-          progressCallback: (data) =>
+          progressCallback: data =>
             profileProgress?.report({
               ...data,
               progressPercent: data.progressPercent ?? 0,
             }),
-        }
+        },
       );
 
       if (!profileResult.success) {
@@ -664,7 +662,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
             `Failed to inscribe ${isAgentBuilder ? 'agent' : 'person'} profile`,
             {
               error: profileResult.error,
-            }
+            },
           );
         }
 
@@ -692,14 +690,14 @@ export class BrowserHCSClient extends HCS10BaseClient {
         95,
         {
           state,
-        }
+        },
       );
     }
   }
 
   private initializeRegistrationState(
     inboundTopicId: string,
-    existingState?: AgentCreationState
+    existingState?: AgentCreationState,
   ): AgentCreationState {
     const state = existingState || {
       inboundTopicId,
@@ -720,7 +718,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
   private updateStateForCompletedRegistration(
     state: AgentCreationState,
-    inboundTopicId: string
+    inboundTopicId: string,
   ): void {
     state.currentStage = 'complete';
     state.completedPercentage = 100;
@@ -737,7 +735,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       maxAttempts?: number;
       delayMs?: number;
       existingState?: AgentCreationState;
-    }
+    },
   ): Promise<AgentRegistrationResult> {
     try {
       this.logger.info('Registering agent with guarded registry');
@@ -746,7 +744,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       const inboundTopicId = agentProfile.topicInfo.inboundTopic;
       const state = this.initializeRegistrationState(
         inboundTopicId,
-        options?.existingState
+        options?.existingState,
       );
       const progressReporter = new ProgressReporter({
         module: 'AgentRegistration',
@@ -763,7 +761,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         accountId,
         network as string,
         this.guardedRegistryBaseUrl,
-        this.logger
+        this.logger,
       );
 
       if (!registrationResult.success) {
@@ -779,13 +777,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
       if (registrationResult.transaction) {
         const transaction = Transaction.fromBytes(
-          Buffer.from(registrationResult.transaction, 'base64')
+          Buffer.from(registrationResult.transaction, 'base64'),
         );
 
         this.logger.info(`Processing registration transaction`);
         const txResult = await this.hwc.executeTransactionWithErrorHandling(
           transaction as any,
-          true
+          true,
         );
 
         if (txResult.error) {
@@ -815,7 +813,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         this.guardedRegistryBaseUrl,
         maxAttempts,
         delayMs,
-        this.logger
+        this.logger,
       );
 
       this.updateStateForCompletedRegistration(state, inboundTopicId);
@@ -854,7 +852,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       delayMs?: number;
       existingState?: AgentCreationState;
       baseUrl?: string;
-    }
+    },
   ): Promise<AgentRegistrationResult> {
     try {
       const agentConfig = builder.build();
@@ -907,7 +905,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
         if (!createResult.success) {
           throw new Error(
-            createResult.error || 'Failed to create agent resources'
+            createResult.error || 'Failed to create agent resources',
           );
         }
 
@@ -918,7 +916,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       progressReporter.preparing(
         `Agent creation status: ${state.currentStage}, ${state.completedPercentage}%`,
         30,
-        { state }
+        { state },
       );
 
       const { accountId } = this.getAccountAndSigner();
@@ -926,7 +924,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       if (
         state.currentStage !== 'complete' ||
         !state.createdResources?.includes(
-          `registration:${state.inboundTopicId}`
+          `registration:${state.inboundTopicId}`,
         )
       ) {
         if (options?.baseUrl) {
@@ -937,7 +935,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
           accountId,
           agentConfig.network,
           {
-            progressCallback: (progress) => {
+            progressCallback: progress => {
               const adjustedPercent =
                 30 + (progress.progressPercent || 0) * 0.7;
               progressReporter.report({
@@ -952,12 +950,13 @@ export class BrowserHCSClient extends HCS10BaseClient {
             maxAttempts: options?.maxAttempts,
             delayMs: options?.delayMs,
             existingState: state,
-          }
+          },
         );
 
         if (!registrationResult.success) {
           throw new Error(
-            registrationResult.error || 'Failed to register agent with registry'
+            registrationResult.error ||
+              'Failed to register agent with registry',
           );
         }
 
@@ -966,7 +965,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         if (state.profileTopicId) {
           await this.hcs11Client?.updateAccountMemoWithProfile(
             accountId,
-            state.profileTopicId
+            state.profileTopicId,
           );
         }
       }
@@ -991,7 +990,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       };
     } catch (error: any) {
       this.logger.error(
-        `Failed to create and register agent: ${error.message}`
+        `Failed to create and register agent: ${error.message}`,
       );
       return {
         success: false,
@@ -1019,7 +1018,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     existingPfpTopicId?: string,
     options?: {
       progressCallback?: RegistrationProgressCallback;
-    }
+    },
   ): Promise<StoreHCS11ProfileResponse> {
     try {
       const progressCallback = options?.progressCallback;
@@ -1041,7 +1040,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         });
 
         const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName, {
-          progressCallback: (data) => {
+          progressCallback: data => {
             pfpProgress.report({
               stage: data.stage,
               message: data.message,
@@ -1053,7 +1052,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
         if (!pfpResult.success) {
           progressReporter.failed(
-            'Failed to inscribe profile picture, continuing without PFP'
+            'Failed to inscribe profile picture, continuing without PFP',
           );
         } else {
           pfpTopicId = pfpResult.pfpTopicId;
@@ -1061,7 +1060,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       } else if (existingPfpTopicId) {
         progressReporter.preparing(
           `Using existing profile picture: ${existingPfpTopicId}`,
-          30
+          30,
         );
       } else {
         progressReporter.preparing('No profile picture provided', 30);
@@ -1069,7 +1068,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
       if (!this.hcs11Client) {
         progressReporter.failed(
-          'HCS11Client is not available in this environment'
+          'HCS11Client is not available in this environment',
         );
         return {
           profileTopicId: '',
@@ -1117,7 +1116,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
           inboundTopicId,
           outboundTopicId,
           creator: metadata.creator,
-        }
+        },
       );
 
       const profileProgress = progressReporter.createSubProgress({
@@ -1130,7 +1129,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         profile,
         true,
         {
-          progressCallback: (profileData) => {
+          progressCallback: profileData => {
             profileProgress.report({
               stage: profileData.stage,
               message: profileData.message,
@@ -1138,7 +1137,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
               details: profileData.details,
             });
           },
-        }
+        },
       );
 
       if (!profileResult.success) {
@@ -1175,7 +1174,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
   async createTopic(
     memo: string,
     adminKey?: boolean,
-    submitKey?: boolean
+    submitKey?: boolean,
   ): Promise<{
     success: boolean;
     topicId?: string;
@@ -1200,7 +1199,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     const transactionResponse =
       await this.hwc.executeTransactionWithErrorHandling(
         transaction as any,
-        false
+        false,
       );
 
     const error = transactionResponse.error;
@@ -1233,7 +1232,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     topicId: string,
     payload: object | string,
     submitKey?: PrivateKey,
-    requiresFee?: boolean
+    requiresFee?: boolean,
   ): Promise<TransactionReceipt> {
     this.logger.debug(`Submitting payload to topic ${topicId}`);
 
@@ -1255,7 +1254,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
     if (requiresFee) {
       this.logger.info(
-        'Topic requires fee payment, setting max transaction fee'
+        'Topic requires fee payment, setting max transaction fee',
       );
       transaction.setMaxTransactionFee(new Hbar(this.feeAmount));
     }
@@ -1266,25 +1265,25 @@ export class BrowserHCSClient extends HCS10BaseClient {
       const signedTransaction = await transaction.sign(submitKey);
       transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
         signedTransaction,
-        true
+        true,
       );
     } else {
       transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
         transaction,
-        false
+        false,
       );
     }
 
     if (transactionResponse?.error) {
       this.logger.error(
-        `Failed to submit payload: ${transactionResponse.error}`
+        `Failed to submit payload: ${transactionResponse.error}`,
       );
       throw new Error(`Failed to submit payload: ${transactionResponse.error}`);
     }
 
     if (!transactionResponse?.result) {
       this.logger.error(
-        'Failed to submit message: receipt is null or undefined'
+        'Failed to submit message: receipt is null or undefined',
       );
       throw new Error('Failed to submit message: receipt is null or undefined');
     }
@@ -1300,7 +1299,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       progressCallback?: RegistrationProgressCallback;
       waitMaxAttempts?: number;
       waitIntervalMs?: number;
-    }
+    },
   ): Promise<RetrievedInscriptionResult> {
     const { accountId, signer } = this.getAccountAndSigner();
 
@@ -1336,7 +1335,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         ...inscriptionOptions,
         network: this.network as 'testnet' | 'mainnet',
       },
-      sdk
+      sdk,
     );
 
     if (!response.confirmed || !response.inscription) {
@@ -1349,7 +1348,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
   getAccountAndSigner(): GetAccountAndSignerResponse {
     const accountInfo = this?.hwc?.getAccountInfo();
     const accountId = accountInfo?.accountId?.toString();
-    const signer = this?.hwc?.dAppConnector?.signers?.find((s) => {
+    const signer = this?.hwc?.dAppConnector?.signers?.find(s => {
       return s.getAccountId().toString() === accountId;
     });
 
@@ -1378,7 +1377,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     fileName: string,
     options?: {
       progressCallback?: RegistrationProgressCallback;
-    }
+    },
   ): Promise<InscribePfpResponse> {
     try {
       const progressCallback = options?.progressCallback;
@@ -1390,7 +1389,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
       if (!this.hcs11Client) {
         progressReporter.failed(
-          'HCS11Client is not available in this environment'
+          'HCS11Client is not available in this environment',
         );
         return {
           pfpTopicId: '',
@@ -1415,7 +1414,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       const imageResult = await this.hcs11Client.inscribeImage(
         buffer,
         fileName,
-        { progressCallback: wrappedProgressCallback }
+        { progressCallback: wrappedProgressCallback },
       );
 
       if (!imageResult.success) {
@@ -1442,7 +1441,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       });
 
       this.logger.info(
-        `Successfully inscribed profile picture with topic ID: ${imageResult.imageTopicId}`
+        `Successfully inscribed profile picture with topic ID: ${imageResult.imageTopicId}`,
       );
       return {
         pfpTopicId: imageResult.imageTopicId,
@@ -1465,7 +1464,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       existingState?: AgentCreationState;
       ttl?: number;
     },
-    progressReporter?: ProgressReporter
+    progressReporter?: ProgressReporter,
   ): Promise<{
     inboundTopicId: string;
     outboundTopicId: string;
@@ -1500,7 +1499,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       const outboundResult = await this.createTopic(outboundMemo, true, true);
       if (!outboundResult.success || !outboundResult.topicId) {
         throw new Error(
-          outboundResult.error || 'Failed to create outbound topic'
+          outboundResult.error || 'Failed to create outbound topic',
         );
       }
       state.outboundTopicId = outboundResult.topicId;
@@ -1523,7 +1522,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       const inboundResult = await this.createTopic(inboundMemo, true, false);
       if (!inboundResult.success || !inboundResult.topicId) {
         throw new Error(
-          inboundResult.error || 'Failed to create inbound topic'
+          inboundResult.error || 'Failed to create inbound topic',
         );
       }
       state.inboundTopicId = inboundResult.topicId;

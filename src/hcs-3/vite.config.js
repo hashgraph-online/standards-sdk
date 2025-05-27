@@ -7,7 +7,8 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, 'src/index.ts'),
       name: 'HCSRecusionSDK',
-      fileName: (format) => format === 'es' ? `hcs-recursion-sdk.esm.js` : `hcs-recursion-sdk.js`,
+      fileName: format =>
+        format === 'es' ? `hcs-recursion-sdk.esm.js` : `hcs-recursion-sdk.js`,
       formats: ['umd', 'es'],
     },
     rollupOptions: {
@@ -20,7 +21,7 @@ export default defineConfig({
     sourcemap: false,
     terserOptions: {
       format: {
-        comments: false
+        comments: false,
       },
     },
   },

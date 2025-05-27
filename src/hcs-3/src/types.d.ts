@@ -48,12 +48,12 @@ export interface HCSSDK {
   fetchWithRetry(
     url: string,
     retries?: number,
-    backoff?: number
+    backoff?: number,
   ): Promise<Response>;
   retrieveHCS1Data(
     topicId: string,
     cdnUrl?: string,
-    network?: string
+    network?: string,
   ): Promise<Blob>;
   isDuplicate(topicId: string): boolean;
   loadScript(scriptElement: HTMLElement): Promise<void>;
@@ -64,7 +64,7 @@ export interface HCSSDK {
   loadResource(
     element: HTMLElement,
     type: string,
-    order: number
+    order: number,
   ): Promise<void>;
   processQueue(): Promise<void>;
   loadAndPlayAudio(topicId: string, autoplay?: boolean, volume?: number): void;
