@@ -21,7 +21,7 @@ export class TransactionParser {
    * @returns The parsed transaction
    */
   static parseTransactionBody(
-    transactionBodyBase64: string
+    transactionBodyBase64: string,
   ): ParsedTransaction {
     try {
       const buffer = ethers.decodeBase64(transactionBodyBase64);
@@ -43,7 +43,7 @@ export class TransactionParser {
 
       if (txBody.transactionFee) {
         const hbarAmount = Hbar.fromTinybars(
-          Long.fromValue(txBody.transactionFee)
+          Long.fromValue(txBody.transactionFee),
         );
         result.transactionFee = hbarAmount.toString(HbarUnit.Hbar);
       }
@@ -54,32 +54,32 @@ export class TransactionParser {
 
       if (txBody.cryptoDelete) {
         result.cryptoDelete = CryptoParser.parseCryptoDelete(
-          txBody.cryptoDelete
+          txBody.cryptoDelete,
         );
       }
 
       if (txBody.cryptoCreateAccount) {
         result.cryptoCreateAccount = CryptoParser.parseCryptoCreateAccount(
-          txBody.cryptoCreateAccount
+          txBody.cryptoCreateAccount,
         );
       }
 
       if (txBody.cryptoUpdateAccount) {
         result.cryptoUpdateAccount = CryptoParser.parseCryptoUpdateAccount(
-          txBody.cryptoUpdateAccount
+          txBody.cryptoUpdateAccount,
         );
       }
 
       if (txBody.cryptoApproveAllowance) {
         result.cryptoApproveAllowance =
           CryptoParser.parseCryptoApproveAllowance(
-            txBody.cryptoApproveAllowance
+            txBody.cryptoApproveAllowance,
           );
       }
 
       if (txBody.cryptoDeleteAllowance) {
         result.cryptoDeleteAllowance = CryptoParser.parseCryptoDeleteAllowance(
-          txBody.cryptoDeleteAllowance
+          txBody.cryptoDeleteAllowance,
         );
       }
 
@@ -89,19 +89,19 @@ export class TransactionParser {
 
       if (txBody.contractCreateInstance) {
         result.contractCreate = SCSParser.parseContractCreate(
-          txBody.contractCreateInstance
+          txBody.contractCreateInstance,
         );
       }
 
       if (txBody.contractUpdateInstance) {
         result.contractUpdate = SCSParser.parseContractUpdate(
-          txBody.contractUpdateInstance
+          txBody.contractUpdateInstance,
         );
       }
 
       if (txBody.contractDeleteInstance) {
         result.contractDelete = SCSParser.parseContractDelete(
-          txBody.contractDeleteInstance
+          txBody.contractDeleteInstance,
         );
       }
 
@@ -123,7 +123,7 @@ export class TransactionParser {
 
       if (txBody.tokenFeeScheduleUpdate) {
         result.tokenFeeScheduleUpdate = HTSParser.parseTokenFeeScheduleUpdate(
-          txBody.tokenFeeScheduleUpdate
+          txBody.tokenFeeScheduleUpdate,
         );
       }
 
@@ -133,19 +133,19 @@ export class TransactionParser {
 
       if (txBody.tokenUnfreeze) {
         result.tokenUnfreeze = HTSParser.parseTokenUnfreeze(
-          txBody.tokenUnfreeze
+          txBody.tokenUnfreeze,
         );
       }
 
       if (txBody.tokenGrantKyc) {
         result.tokenGrantKyc = HTSParser.parseTokenGrantKyc(
-          txBody.tokenGrantKyc
+          txBody.tokenGrantKyc,
         );
       }
 
       if (txBody.tokenRevokeKyc) {
         result.tokenRevokeKyc = HTSParser.parseTokenRevokeKyc(
-          txBody.tokenRevokeKyc
+          txBody.tokenRevokeKyc,
         );
       }
 
@@ -159,7 +159,7 @@ export class TransactionParser {
 
       if (txBody.tokenWipe) {
         result.tokenWipeAccount = HTSParser.parseTokenWipeAccount(
-          txBody.tokenWipe
+          txBody.tokenWipe,
         );
       }
 
@@ -169,37 +169,37 @@ export class TransactionParser {
 
       if (txBody.tokenAssociate) {
         result.tokenAssociate = HTSParser.parseTokenAssociate(
-          txBody.tokenAssociate
+          txBody.tokenAssociate,
         );
       }
 
       if (txBody.tokenDissociate) {
         result.tokenDissociate = HTSParser.parseTokenDissociate(
-          txBody.tokenDissociate
+          txBody.tokenDissociate,
         );
       }
 
       if (txBody.consensusCreateTopic) {
         result.consensusCreateTopic = HCSParser.parseConsensusCreateTopic(
-          txBody.consensusCreateTopic
+          txBody.consensusCreateTopic,
         );
       }
 
       if (txBody.consensusSubmitMessage) {
         result.consensusSubmitMessage = HCSParser.parseConsensusSubmitMessage(
-          txBody.consensusSubmitMessage
+          txBody.consensusSubmitMessage,
         );
       }
 
       if (txBody.consensusUpdateTopic) {
         result.consensusUpdateTopic = HCSParser.parseConsensusUpdateTopic(
-          txBody.consensusUpdateTopic
+          txBody.consensusUpdateTopic,
         );
       }
 
       if (txBody.consensusDeleteTopic) {
         result.consensusDeleteTopic = HCSParser.parseConsensusDeleteTopic(
-          txBody.consensusDeleteTopic
+          txBody.consensusDeleteTopic,
         );
       }
 
@@ -228,7 +228,7 @@ export class TransactionParser {
       throw new Error(
         `Failed to parse transaction body: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
@@ -261,7 +261,7 @@ export class TransactionParser {
    * @returns The type of the transaction
    */
   private static getTransactionType(
-    txBody: proto.SchedulableTransactionBody
+    txBody: proto.SchedulableTransactionBody,
   ): string {
     let transactionType = 'unknown';
 
@@ -431,7 +431,7 @@ export class TransactionParser {
 
       if (senders.length > 0 && receivers.length > 0) {
         return `Transfer of HBAR from ${senders.join(', ')} to ${receivers.join(
-          ', '
+          ', ',
         )}`;
       } else {
         return parsedTx.humanReadableType;
@@ -483,11 +483,11 @@ export class TransactionParser {
           const transferAmountValue = parseFloat(transfer.amount.toString());
           if (transferAmountValue < 0) {
             tokenSenders.push(
-              `${transfer.accountId} (${Math.abs(transferAmountValue)})`
+              `${transfer.accountId} (${Math.abs(transferAmountValue)})`,
             );
           } else if (transferAmountValue > 0) {
             tokenReceivers.push(
-              `${transfer.accountId} (${transferAmountValue})`
+              `${transfer.accountId} (${transferAmountValue})`,
             );
           }
         }
@@ -495,8 +495,8 @@ export class TransactionParser {
         if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
           tokenSummaries.push(
             `Transfer of token ${tokenId} from ${tokenSenders.join(
-              ', '
-            )} to ${tokenReceivers.join(', ')}`
+              ', ',
+            )} to ${tokenReceivers.join(', ')}`,
           );
         }
       }
@@ -592,7 +592,7 @@ export class TransactionParser {
       let summary = `Wipe Token ${parsedTx.tokenWipeAccount.tokenId} from Account ${parsedTx.tokenWipeAccount.accountId}`;
       if (parsedTx.tokenWipeAccount.serialNumbers?.length) {
         summary += ` (Serials: ${parsedTx.tokenWipeAccount.serialNumbers.join(
-          ', '
+          ', ',
         )})`;
       }
       if (parsedTx.tokenWipeAccount.amount) {
@@ -682,24 +682,24 @@ export class TransactionParser {
       const tokenSummaries = [];
       for (const [tokenId, transfers] of Object.entries(tokenGroups)) {
         const tokenSenders = transfers
-          .filter((t) => t.amount < 0)
-          .map((t) => `${t.accountId} (${Math.abs(t.amount)})`);
+          .filter(t => t.amount < 0)
+          .map(t => `${t.accountId} (${Math.abs(t.amount)})`);
         const tokenReceivers = transfers
-          .filter((t) => t.amount > 0)
-          .map((t) => `${t.accountId} (${t.amount})`);
+          .filter(t => t.amount > 0)
+          .map(t => `${t.accountId} (${t.amount})`);
         if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
           tokenSummaries.push(
             `Transfer of token ${tokenId} from ${tokenSenders.join(
-              ', '
-            )} to ${tokenReceivers.join(', ')}`
+              ', ',
+            )} to ${tokenReceivers.join(', ')}`,
           );
         } else if (tokenReceivers.length > 0) {
           tokenSummaries.push(
-            `Token ${tokenId} received by ${tokenReceivers.join(', ')}`
+            `Token ${tokenId} received by ${tokenReceivers.join(', ')}`,
           );
         } else if (tokenSenders.length > 0) {
           tokenSummaries.push(
-            `Token ${tokenId} sent from ${tokenSenders.join(', ')}`
+            `Token ${tokenId} sent from ${tokenSenders.join(', ')}`,
           );
         }
       }

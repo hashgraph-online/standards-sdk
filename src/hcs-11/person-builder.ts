@@ -43,7 +43,7 @@ export class PersonBuilder {
       this.config.socials = [];
     }
     const existingSocial = this.config.socials.find(
-      (s: SocialLink) => s.platform === platform
+      (s: SocialLink) => s.platform === platform,
     );
     if (!existingSocial) {
       this.config.socials.push({ platform, handle });

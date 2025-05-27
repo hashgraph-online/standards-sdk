@@ -43,7 +43,7 @@ export class EVMBridge {
   constructor(
     network: string = 'mainnet-public',
     mirrorNodeUrl: string = `mirrornode.hedera.com/api/v1/contracts/call`,
-    cache?: EVMCache
+    cache?: EVMCache,
   ) {
     this.network = network;
     this.mirrorNodeUrl = mirrorNodeUrl;
@@ -53,7 +53,7 @@ export class EVMBridge {
 
   async executeCommands(
     evmConfigs: EVMConfig[],
-    initialState: Record<string, string> = {}
+    initialState: Record<string, string> = {},
   ): Promise<{
     results: Record<string, any>;
     stateData: Record<string, any>;
@@ -80,20 +80,23 @@ export class EVMBridge {
         ]);
         const command = iface.encodeFunctionData(config.c.abi.name);
         const contractId = ContractId.fromSolidityAddress(
-          config.c.contractAddress
+          config.c.contractAddress,
         );
 
         const result = await this.readFromMirrorNode(
           command,
           AccountId.fromString('0.0.800'),
-          contractId
+          contractId,
         );
 
-        this.logger.info(`Result for ${config.c.contractAddress}:`, result?.result);
+        this.logger.info(
+          `Result for ${config.c.contractAddress}:`,
+          result?.result,
+        );
 
         if (!result?.result) {
           this.logger.warn(
-            `Failed to get result from mirror node for ${config.c.contractAddress}`
+            `Failed to get result from mirror node for ${config.c.contractAddress}`,
           );
           results[config.c.abi.name] = '0';
           Object.assign(stateData, results[config.c.abi.name]); // Flatten the values into stateData
@@ -102,7 +105,7 @@ export class EVMBridge {
 
         const decodedResult = iface?.decodeFunctionResult(
           config.c.abi.name,
-          result.result
+          result.result,
         );
         let processedResult: Record<string, any> = {
           values: [], // Initialize array for values
@@ -132,7 +135,7 @@ export class EVMBridge {
       } catch (error) {
         this.logger.error(
           `Error executing command for ${config.c.contractAddress}:`,
-          error
+          error,
         );
         results[config.c.abi.name] = '0';
         Object.assign(stateData, results[config.c.abi.name]); // Flatten the values into stateData
@@ -144,11 +147,11 @@ export class EVMBridge {
 
   async executeCommand(
     evmConfig: EVMConfig,
-    stateData: Record<string, string> = {}
+    stateData: Record<string, string> = {},
   ): Promise<any> {
     const { results, stateData: newStateData } = await this.executeCommands(
       [evmConfig],
-      stateData
+      stateData,
     );
     return {
       result: results[evmConfig.c.abi.name],
@@ -159,7 +162,7 @@ export class EVMBridge {
   async readFromMirrorNode(
     command: string,
     from: AccountId,
-    to: ContractId
+    to: ContractId,
   ): Promise<any> {
     try {
       const toAddress = to.toSolidityAddress();
@@ -183,7 +186,7 @@ export class EVMBridge {
             to: toAddress?.startsWith('0x') ? toAddress : `0x${toAddress}`,
             value: 0,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -205,11 +208,11 @@ export class EVMBridge {
   // Add method to remove specific cache entry
   public async clearCacheForContract(
     contractAddress: string,
-    functionName: string
+    functionName: string,
   ): Promise<void> {
     await this.cache.delete(`${contractAddress}-${functionName}`);
   }
-  
+
   // Method to set log level for this bridge instance
   public setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
     this.logger.setLogLevel(level);
@@ -237,7 +240,7 @@ function formatValue(value: any, type: string): string {
   } else if (type.endsWith('[]')) {
     // Handle arrays
     // @ts-ignore
-    return Array.isArray(value) ? value.map((v) => String(v)) : [];
+    return Array.isArray(value) ? value.map(v => String(v)) : [];
   } else {
     // Default to string conversion for unknown types
     return String(value);

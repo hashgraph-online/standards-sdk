@@ -1,5 +1,8 @@
 export class PayloadSizeError extends Error {
-  constructor(message: string, public payloadSize: number) {
+  constructor(
+    message: string,
+    public payloadSize: number,
+  ) {
     super(message);
     this.name = 'PayloadSizeError';
   }

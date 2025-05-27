@@ -13,11 +13,11 @@ import { HederaMirrorNode } from '../services/mirror-node';
 export async function accountIdsToExemptKeys(
   accountIds: string[],
   network: string,
-  logger?: Logger
+  logger?: Logger,
 ): Promise<PublicKey[]> {
   const mirrorNode = new HederaMirrorNode(
     network as 'mainnet' | 'testnet',
-    logger
+    logger,
   );
   const exemptKeys: PublicKey[] = [];
 
@@ -28,7 +28,7 @@ export async function accountIdsToExemptKeys(
     } catch (error) {
       if (logger) {
         logger.warn(
-          `Could not get public key for account ${accountId}: ${error}`
+          `Could not get public key for account ${accountId}: ${error}`,
         );
       }
     }

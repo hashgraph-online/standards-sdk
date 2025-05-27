@@ -64,8 +64,8 @@ import { addSeconds } from 'date-fns';
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
   private operatorPrivateKey: PrivateKey;
-  protected declare network: string;
-  protected declare logger: Logger;
+  declare protected network: string;
+  declare protected logger: Logger;
   protected guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client;
 
@@ -83,7 +83,7 @@ export class HCS10Client extends HCS10BaseClient {
     this.network = config.network;
     this.client.setOperator(
       config.operatorId,
-      this.operatorPrivateKey.toString()
+      this.operatorPrivateKey.toString(),
     );
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
@@ -112,10 +112,10 @@ export class HCS10Client extends HCS10BaseClient {
    * @returns Object with account ID and private key
    */
   async createAccount(
-    initialBalance: number = 50
+    initialBalance: number = 50,
   ): Promise<CreateAccountResponse> {
     this.logger.info(
-      `Creating new account with ${initialBalance} HBAR initial balance`
+      `Creating new account with ${initialBalance} HBAR initial balance`,
     );
     const newKey = PrivateKey.generate();
 
@@ -131,12 +131,12 @@ export class HCS10Client extends HCS10BaseClient {
     if (!newAccountId) {
       this.logger.error('Account creation failed: accountId is null');
       throw new AccountCreationError(
-        'Failed to create account: accountId is null'
+        'Failed to create account: accountId is null',
       );
     }
 
     this.logger.info(
-      `Account created successfully: ${newAccountId.toString()}`
+      `Account created successfully: ${newAccountId.toString()}`,
     );
     return {
       accountId: newAccountId.toString(),
@@ -156,7 +156,7 @@ export class HCS10Client extends HCS10BaseClient {
     accountId: string,
     topicType: InboundTopicType,
     ttl: number = 60,
-    feeConfigBuilder?: FeeConfigBuilderInterface
+    feeConfigBuilder?: FeeConfigBuilderInterface,
   ): Promise<string> {
     const memo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
       accountId,
@@ -177,18 +177,18 @@ export class HCS10Client extends HCS10BaseClient {
         submitKey = false;
         if (!feeConfigBuilder) {
           throw new Error(
-            'Fee configuration builder is required for fee-based topics'
+            'Fee configuration builder is required for fee-based topics',
           );
         }
 
         const internalFees = (feeConfigBuilder as any)
           .customFees as TokenFeeConfig[];
-        internalFees.forEach((fee) => {
+        internalFees.forEach(fee => {
           if (!fee.feeCollectorAccountId) {
             this.logger.debug(
               `Defaulting fee collector for token ${
                 fee.feeTokenId || 'HBAR'
-              } to agent ${accountId}`
+              } to agent ${accountId}`,
             );
             fee.feeCollectorAccountId = accountId;
           }
@@ -211,7 +211,7 @@ export class HCS10Client extends HCS10BaseClient {
    */
   async createAgent(
     builder: AgentBuilder,
-    ttl: number = 60
+    ttl: number = 60,
   ): Promise<CreateAgentResponse> {
     const config = builder.build();
     const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
@@ -231,7 +231,7 @@ export class HCS10Client extends HCS10BaseClient {
       ttl,
       config.inboundTopicType === InboundTopicType.FEE_BASED
         ? config.feeConfig
-        : undefined
+        : undefined,
     );
 
     let pfpTopicId = config.existingPfpTopicId || '';
@@ -240,15 +240,15 @@ export class HCS10Client extends HCS10BaseClient {
       this.logger.info('Inscribing new profile picture');
       const pfpResult = await this.inscribePfp(
         config.pfpBuffer,
-        config.pfpFileName
+        config.pfpFileName,
       );
       pfpTopicId = pfpResult.pfpTopicId;
       this.logger.info(
-        `Profile picture inscribed with topic ID: ${pfpTopicId}`
+        `Profile picture inscribed with topic ID: ${pfpTopicId}`,
       );
     } else if (config.existingPfpTopicId) {
       this.logger.info(
-        `Using existing profile picture with topic ID: ${config.existingPfpTopicId}`
+        `Using existing profile picture with topic ID: ${config.existingPfpTopicId}`,
       );
     }
 
@@ -263,7 +263,7 @@ export class HCS10Client extends HCS10BaseClient {
         ? config.pfpBuffer
         : undefined,
       config.pfpFileName,
-      config.existingPfpTopicId
+      config.existingPfpTopicId,
     );
     const profileTopicId = profileResult.profileTopicId;
     this.logger.info(`Profile stored with topic ID: ${profileTopicId}`);
@@ -284,27 +284,27 @@ export class HCS10Client extends HCS10BaseClient {
    */
   async inscribePfp(
     buffer: Buffer,
-    fileName: string
+    fileName: string,
   ): Promise<InscribePfpResponse> {
     try {
       this.logger.info('Inscribing profile picture using HCS-11 client');
 
       const imageResult = await this.hcs11Client.inscribeImage(
         buffer,
-        fileName
+        fileName,
       );
 
       if (!imageResult.success) {
         this.logger.error(
-          `Failed to inscribe profile picture: ${imageResult.error}`
+          `Failed to inscribe profile picture: ${imageResult.error}`,
         );
         throw new Error(
-          imageResult?.error || 'Failed to inscribe profile picture'
+          imageResult?.error || 'Failed to inscribe profile picture',
         );
       }
 
       this.logger.info(
-        `Successfully inscribed profile picture with topic ID: ${imageResult.imageTopicId}`
+        `Successfully inscribed profile picture with topic ID: ${imageResult.imageTopicId}`,
       );
       return {
         pfpTopicId: imageResult.imageTopicId,
@@ -345,7 +345,7 @@ export class HCS10Client extends HCS10BaseClient {
     metadata: AgentMetadata,
     pfpBuffer?: Buffer,
     pfpFileName?: string,
-    existingPfpTopicId?: string
+    existingPfpTopicId?: string,
   ): Promise<StoreHCS11ProfileResponse> {
     try {
       let pfpTopicId = existingPfpTopicId || '';
@@ -355,14 +355,14 @@ export class HCS10Client extends HCS10BaseClient {
         const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName);
         if (!pfpResult.success) {
           this.logger.warn(
-            `Failed to inscribe profile picture: ${pfpResult.error}, proceeding without pfp`
+            `Failed to inscribe profile picture: ${pfpResult.error}, proceeding without pfp`,
           );
         } else {
           pfpTopicId = pfpResult.pfpTopicId;
         }
       } else if (existingPfpTopicId) {
         this.logger.info(
-          `Using existing profile picture with topic ID: ${existingPfpTopicId} for HCS-11 profile`
+          `Using existing profile picture with topic ID: ${existingPfpTopicId} for HCS-11 profile`,
         );
         pfpTopicId = existingPfpTopicId;
       }
@@ -394,12 +394,12 @@ export class HCS10Client extends HCS10BaseClient {
           inboundTopicId,
           outboundTopicId,
           creator: metadata.creator,
-        }
+        },
       );
 
       const profileResult = await this.hcs11Client.createAndInscribeProfile(
         profile,
-        true
+        true,
       );
 
       if (!profileResult.success) {
@@ -408,7 +408,7 @@ export class HCS10Client extends HCS10BaseClient {
       }
 
       this.logger.info(
-        `Profile inscribed with topic ID: ${profileResult.profileTopicId}, transaction ID: ${profileResult.transactionId}`
+        `Profile inscribed with topic ID: ${profileResult.profileTopicId}, transaction ID: ${profileResult.transactionId}`,
       );
 
       return {
@@ -434,7 +434,7 @@ export class HCS10Client extends HCS10BaseClient {
   private async setupFees(
     transaction: TopicCreateTransaction,
     feeConfig: TopicFeeConfig,
-    additionalExemptAccounts: string[] = []
+    additionalExemptAccounts: string[] = [],
   ): Promise<TopicCreateTransaction> {
     let modifiedTransaction = transaction;
     if (!this.client.operatorPublicKey) {
@@ -448,16 +448,16 @@ export class HCS10Client extends HCS10BaseClient {
 
     if (feeConfig.customFees.length > 10) {
       this.logger.warn(
-        'More than 10 custom fees provided, only the first 10 will be used'
+        'More than 10 custom fees provided, only the first 10 will be used',
       );
       feeConfig.customFees = feeConfig.customFees.slice(0, 10);
     }
 
     const customFees = feeConfig.customFees
-      .map((fee) => {
+      .map(fee => {
         if (!fee.feeCollectorAccountId) {
           this.logger.error(
-            'Internal Error: Fee collector ID missing in setupFees'
+            'Internal Error: Fee collector ID missing in setupFees',
           );
           return null;
         }
@@ -465,12 +465,12 @@ export class HCS10Client extends HCS10BaseClient {
           const customFee = new CustomFixedFee()
             .setAmount(Number(fee.feeAmount.amount))
             .setFeeCollectorAccountId(
-              AccountId.fromString(fee.feeCollectorAccountId)
+              AccountId.fromString(fee.feeCollectorAccountId),
             );
 
           if (fee.feeTokenId) {
             customFee.setDenominatingTokenId(
-              TokenId.fromString(fee.feeTokenId)
+              TokenId.fromString(fee.feeTokenId),
             );
           }
 
@@ -493,7 +493,7 @@ export class HCS10Client extends HCS10BaseClient {
     if (exemptAccountIds.length > 0) {
       modifiedTransaction = await this.setupExemptKeys(
         transaction,
-        exemptAccountIds
+        exemptAccountIds,
       );
     }
 
@@ -504,12 +504,12 @@ export class HCS10Client extends HCS10BaseClient {
 
   private async setupExemptKeys(
     transaction: TopicCreateTransaction,
-    exemptAccountIds: string[]
+    exemptAccountIds: string[],
   ): Promise<TopicCreateTransaction> {
     let modifiedTransaction = transaction;
     const uniqueExemptAccountIds = Array.from(new Set(exemptAccountIds));
     const filteredExemptAccounts = uniqueExemptAccountIds.filter(
-      (account) => account !== this.client.operatorAccountId?.toString()
+      account => account !== this.client.operatorAccountId?.toString(),
     );
 
     let exemptKeys: PublicKey[] = [];
@@ -518,7 +518,7 @@ export class HCS10Client extends HCS10BaseClient {
         exemptKeys = await accountIdsToExemptKeys(
           filteredExemptAccounts,
           this.network,
-          this.logger
+          this.logger,
         );
       } catch (e: any) {
         const error = e as Error;
@@ -548,7 +548,7 @@ export class HCS10Client extends HCS10BaseClient {
     requestingAccountId: string,
     connectionRequestId: number,
     connectionFeeConfig?: FeeConfigBuilderInterface,
-    ttl: number = 60
+    ttl: number = 60,
   ): Promise<HandleConnectionRequestResponse> {
     const memo = this._generateHcs10Memo(Hcs10MemoType.CONNECTION, {
       ttl,
@@ -556,7 +556,7 @@ export class HCS10Client extends HCS10BaseClient {
       connectionId: connectionRequestId,
     });
     this.logger.info(
-      `Handling connection request ${connectionRequestId} from ${requestingAccountId}`
+      `Handling connection request ${connectionRequestId} from ${requestingAccountId}`,
     );
 
     const accountId = this.getClient().operatorAccountId?.toString();
@@ -587,13 +587,13 @@ export class HCS10Client extends HCS10BaseClient {
           memo,
           thresholdKey,
           thresholdKey,
-          modifiedFeeConfig
+          modifiedFeeConfig,
         );
       } else {
         connectionTopicId = await this.createTopic(
           memo,
           thresholdKey,
-          thresholdKey
+          thresholdKey,
         );
       }
 
@@ -611,14 +611,13 @@ export class HCS10Client extends HCS10BaseClient {
       connectionTopicId,
       requestingAccountId,
       connectionRequestId,
-      'Connection accepted. Looking forward to collaborating!'
+      'Connection accepted. Looking forward to collaborating!',
     );
 
     const accountTopics = await this.retrieveCommunicationTopics(accountId);
 
-    const requestingAccountTopics = await this.retrieveCommunicationTopics(
-      requestingAccountId
-    );
+    const requestingAccountTopics =
+      await this.retrieveCommunicationTopics(requestingAccountId);
 
     const requestingAccountOperatorId = `${requestingAccountTopics.inboundTopic}@${requestingAccountId}`;
 
@@ -655,7 +654,7 @@ export class HCS10Client extends HCS10BaseClient {
     connectedAccountId: string,
     connectionId: number,
     memo: string,
-    submitKey?: PrivateKey
+    submitKey?: PrivateKey,
   ): Promise<number> {
     const operatorId = await this.getOperatorId();
     this.logger.info(`Confirming connection with ID ${connectionId}`);
@@ -671,21 +670,21 @@ export class HCS10Client extends HCS10BaseClient {
 
     const submissionCheck = await this.canSubmitToTopic(
       inboundTopicId,
-      this.client.operatorAccountId?.toString() || ''
+      this.client.operatorAccountId?.toString() || '',
     );
 
     const result = await this.submitPayload(
       inboundTopicId,
       payload,
       submitKey,
-      submissionCheck.requiresFee
+      submissionCheck.requiresFee,
     );
 
     const sequenceNumber = result.topicSequenceNumber?.toNumber();
 
     if (!sequenceNumber) {
       throw new ConnectionConfirmationError(
-        'Failed to confirm connection: sequence number is null'
+        'Failed to confirm connection: sequence number is null',
       );
     }
 
@@ -701,11 +700,11 @@ export class HCS10Client extends HCS10BaseClient {
       progressCallback?: RegistrationProgressCallback;
       waitMaxAttempts?: number;
       waitIntervalMs?: number;
-    }
+    },
   ): Promise<TransactionReceipt> {
     const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
-      this.client.operatorAccountId?.toString() || ''
+      this.client.operatorAccountId?.toString() || '',
     );
 
     const operatorId = await this.getOperatorId();
@@ -723,7 +722,7 @@ export class HCS10Client extends HCS10BaseClient {
 
     if (isLargePayload) {
       this.logger.info(
-        'Message payload exceeds 1000 bytes, storing via inscription'
+        'Message payload exceeds 1000 bytes, storing via inscription',
       );
       try {
         const contentBuffer = Buffer.from(data);
@@ -735,13 +734,13 @@ export class HCS10Client extends HCS10BaseClient {
             progressCallback: options?.progressCallback,
             waitMaxAttempts: options?.waitMaxAttempts,
             waitIntervalMs: options?.waitIntervalMs,
-          }
+          },
         );
 
         if (inscriptionResult?.topic_id) {
           payload.data = `hcs://1/${inscriptionResult.topic_id}`;
           this.logger.info(
-            `Large message inscribed with topic ID: ${inscriptionResult.topic_id}`
+            `Large message inscribed with topic ID: ${inscriptionResult.topic_id}`,
           );
         } else {
           throw new Error('Failed to inscribe large message content');
@@ -758,7 +757,7 @@ export class HCS10Client extends HCS10BaseClient {
       connectionTopicId,
       payload,
       submitKey,
-      submissionCheck.requiresFee
+      submissionCheck.requiresFee,
     );
   }
 
@@ -766,7 +765,7 @@ export class HCS10Client extends HCS10BaseClient {
     memo: string,
     adminKey?: boolean | PublicKey | KeyList,
     submitKey?: boolean | PublicKey | KeyList,
-    feeConfig?: TopicFeeConfig
+    feeConfig?: TopicFeeConfig,
   ): Promise<string> {
     this.logger.info('Creating topic');
     const transaction = new TopicCreateTransaction().setTopicMemo(memo);
@@ -823,7 +822,7 @@ export class HCS10Client extends HCS10BaseClient {
     topicId: string,
     payload: object | string,
     submitKey?: PrivateKey,
-    requiresFee: boolean = false
+    requiresFee: boolean = false,
   ): Promise<TransactionReceipt> {
     const message =
       typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -832,7 +831,7 @@ export class HCS10Client extends HCS10BaseClient {
     if (payloadSizeInBytes > 1000) {
       throw new PayloadSizeError(
         'Payload size exceeds 1000 bytes limit',
-        payloadSizeInBytes
+        payloadSizeInBytes,
       );
     }
 
@@ -842,7 +841,7 @@ export class HCS10Client extends HCS10BaseClient {
 
     if (requiresFee) {
       this.logger.info(
-        'Topic requires fee payment, setting max transaction fee'
+        'Topic requires fee payment, setting max transaction fee',
       );
       transaction.setMaxTransactionFee(new Hbar(this.feeAmount));
     }
@@ -872,7 +871,7 @@ export class HCS10Client extends HCS10BaseClient {
       progressCallback?: RegistrationProgressCallback;
       waitMaxAttempts?: number;
       waitIntervalMs?: number;
-    }
+    },
   ): Promise<RetrievedInscriptionResult> {
     this.logger.info('Inscribing file');
     if (!this.client.operatorAccountId) {
@@ -918,7 +917,7 @@ export class HCS10Client extends HCS10BaseClient {
         network: this.network as 'testnet' | 'mainnet',
       },
       inscriptionOptions,
-      sdk
+      sdk,
     );
 
     if (!response.confirmed || !response.inscription) {
@@ -941,24 +940,24 @@ export class HCS10Client extends HCS10BaseClient {
     connectionRequestId: number,
     maxAttempts = 60,
     delayMs = 2000,
-    recordConfirmation = true
+    recordConfirmation = true,
   ): Promise<WaitForConnectionConfirmationResponse> {
     this.logger.info(
-      `Waiting for connection confirmation on inbound topic ${inboundTopicId} for request ID ${connectionRequestId}`
+      `Waiting for connection confirmation on inbound topic ${inboundTopicId} for request ID ${connectionRequestId}`,
     );
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       this.logger.info(
-        `Attempt ${attempt + 1}/${maxAttempts} to find connection confirmation`
+        `Attempt ${attempt + 1}/${maxAttempts} to find connection confirmation`,
       );
       const messages = await this.mirrorNode.getTopicMessages(inboundTopicId);
 
       const connectionCreatedMessages = messages.filter(
-        (m) => m.op === 'connection_created'
+        m => m.op === 'connection_created',
       );
 
       this.logger.info(
-        `Found ${connectionCreatedMessages.length} connection_created messages`
+        `Found ${connectionCreatedMessages.length} connection_created messages`,
       );
 
       if (connectionCreatedMessages.length > 0) {
@@ -972,7 +971,7 @@ export class HCS10Client extends HCS10BaseClient {
             };
 
             const confirmedByAccountId = this.extractAccountFromOperatorId(
-              confirmationResult.confirmedBy
+              confirmationResult.confirmedBy,
             );
 
             const account = this.getAccountAndSigner();
@@ -984,7 +983,7 @@ export class HCS10Client extends HCS10BaseClient {
 
             this.logger.info(
               'Connection confirmation found',
-              confirmationResult
+              confirmationResult,
             );
 
             if (recordConfirmation) {
@@ -1011,14 +1010,14 @@ export class HCS10Client extends HCS10BaseClient {
 
       if (attempt < maxAttempts - 1) {
         this.logger.info(
-          `No matching confirmation found, waiting ${delayMs}ms before retrying...`
+          `No matching confirmation found, waiting ${delayMs}ms before retrying...`,
         );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
 
     throw new Error(
-      `Connection confirmation not found after ${maxAttempts} attempts for request ID ${connectionRequestId}`
+      `Connection confirmation not found after ${maxAttempts} attempts for request ID ${connectionRequestId}`,
     );
   }
 
@@ -1049,7 +1048,7 @@ export class HCS10Client extends HCS10BaseClient {
       progressCallback?: RegistrationProgressCallback;
       existingState?: AgentCreationState;
       initialBalance?: number;
-    }
+    },
   ): Promise<AgentRegistrationResult> {
     try {
       const config = builder.build();
@@ -1084,7 +1083,7 @@ export class HCS10Client extends HCS10BaseClient {
         operatorId: account.accountId,
         operatorPrivateKey: account.privateKey,
         operatorPublicKey: PrivateKey.fromString(
-          account.privateKey
+          account.privateKey,
         ).publicKey.toString(),
         logLevel: 'info' as LogLevel,
         guardedRegistryBaseUrl: baseUrl,
@@ -1124,7 +1123,7 @@ export class HCS10Client extends HCS10BaseClient {
           account.accountId,
           config.network,
           {
-            progressCallback: (data) => {
+            progressCallback: data => {
               const adjustedPercent = 60 + (data.progressPercent || 0) * 0.4;
               if (progressCallback) {
                 progressCallback({
@@ -1144,7 +1143,7 @@ export class HCS10Client extends HCS10BaseClient {
               }
             },
             existingState: state,
-          }
+          },
         );
 
       if (!registrationResult.success) {
@@ -1206,7 +1205,7 @@ export class HCS10Client extends HCS10BaseClient {
       maxAttempts?: number;
       delayMs?: number;
       existingState?: AgentCreationState;
-    }
+    },
   ): Promise<AgentRegistrationResult> {
     try {
       this.logger.info('Registering agent with guarded registry');
@@ -1237,7 +1236,7 @@ export class HCS10Client extends HCS10BaseClient {
         accountId,
         network,
         this.guardedRegistryBaseUrl,
-        this.logger
+        this.logger,
       );
 
       if (!registrationResult.success) {
@@ -1261,7 +1260,7 @@ export class HCS10Client extends HCS10BaseClient {
 
       if (registrationResult.transaction) {
         const transaction = Transaction.fromBytes(
-          Buffer.from(registrationResult.transaction, 'base64')
+          Buffer.from(registrationResult.transaction, 'base64'),
         );
 
         this.logger.info(`Processing registration transaction`);
@@ -1288,7 +1287,7 @@ export class HCS10Client extends HCS10BaseClient {
         this.guardedRegistryBaseUrl,
         maxAttempts,
         delayMs,
-        this.logger
+        this.logger,
       );
 
       state.currentStage = 'complete';
@@ -1298,7 +1297,7 @@ export class HCS10Client extends HCS10BaseClient {
       }
       if (registrationResult.transactionId) {
         state.createdResources.push(
-          `registration:${registrationResult.transactionId}`
+          `registration:${registrationResult.transactionId}`,
         );
       }
 
@@ -1344,7 +1343,7 @@ export class HCS10Client extends HCS10BaseClient {
     accountId: string,
     inboundTopicId: string,
     memo: string,
-    submitKey?: PrivateKey
+    submitKey?: PrivateKey,
   ): Promise<void> {
     this.logger.info('Registering agent');
     const payload = {
@@ -1384,7 +1383,7 @@ export class HCS10Client extends HCS10BaseClient {
           customFees.fixed_fees.length > 0
         ) {
           this.logger.info(
-            `Topic ${topicId} is fee-based with ${customFees.fixed_fees.length} custom fees`
+            `Topic ${topicId} is fee-based with ${customFees.fixed_fees.length} custom fees`,
           );
           return InboundTopicType.FEE_BASED;
         }
@@ -1426,7 +1425,7 @@ export class HCS10Client extends HCS10BaseClient {
     transaction: Transaction,
     memo?: string,
     expirationTime?: number,
-    schedulePayerAccountId?: string
+    schedulePayerAccountId?: string,
   ): Promise<{
     scheduleId: string;
     transactionId: string;
@@ -1438,7 +1437,7 @@ export class HCS10Client extends HCS10BaseClient {
       .setPayerAccountId(
         schedulePayerAccountId
           ? AccountId.fromString(schedulePayerAccountId)
-          : this.client.operatorAccountId
+          : this.client.operatorAccountId,
       );
 
     if (memo) {
@@ -1457,10 +1456,10 @@ export class HCS10Client extends HCS10BaseClient {
 
     if (!scheduleReceipt.scheduleId) {
       this.logger.error(
-        'Failed to create scheduled transaction: scheduleId is null'
+        'Failed to create scheduled transaction: scheduleId is null',
       );
       throw new Error(
-        'Failed to create scheduled transaction: scheduleId is null'
+        'Failed to create scheduled transaction: scheduleId is null',
       );
     }
 
@@ -1468,7 +1467,7 @@ export class HCS10Client extends HCS10BaseClient {
     const transactionId = scheduleResponse.transactionId.toString();
 
     this.logger.info(
-      `Scheduled transaction created successfully: ${scheduleId}`
+      `Scheduled transaction created successfully: ${scheduleId}`,
     );
 
     return {
@@ -1493,11 +1492,11 @@ export class HCS10Client extends HCS10BaseClient {
     submitKey?: PrivateKey,
     options?: {
       memo?: string;
-    }
+    },
   ): Promise<TransactionReceipt> {
     const submissionCheck = await this.canSubmitToTopic(
       connectionTopicId,
-      this.client.operatorAccountId?.toString() || ''
+      this.client.operatorAccountId?.toString() || '',
     );
 
     const operatorId = await this.getOperatorId();
@@ -1513,13 +1512,13 @@ export class HCS10Client extends HCS10BaseClient {
 
     this.logger.info(
       'Submitting transaction operation to connection topic',
-      payload
+      payload,
     );
     return await this.submitPayload(
       connectionTopicId,
       payload,
       submitKey,
-      submissionCheck.requiresFee
+      submissionCheck.requiresFee,
     );
   }
 
@@ -1541,21 +1540,21 @@ export class HCS10Client extends HCS10BaseClient {
       submitKey?: PrivateKey;
       operationMemo?: string;
       schedulePayerAccountId?: string;
-    }
+    },
   ): Promise<{
     scheduleId: string;
     transactionId: string;
     receipt: TransactionReceipt;
   }> {
     this.logger.info(
-      'Creating scheduled transaction and sending transaction operation'
+      'Creating scheduled transaction and sending transaction operation',
     );
 
     const { scheduleId, transactionId } = await this.createScheduledTransaction(
       transaction,
       options?.scheduleMemo,
       options?.expirationTime,
-      options?.schedulePayerAccountId
+      options?.schedulePayerAccountId,
     );
 
     const receipt = await this.sendTransactionOperation(
@@ -1565,7 +1564,7 @@ export class HCS10Client extends HCS10BaseClient {
       options?.submitKey,
       {
         memo: options?.operationMemo,
-      }
+      },
     );
 
     return {
