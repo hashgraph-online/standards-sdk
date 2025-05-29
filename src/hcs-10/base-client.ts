@@ -68,6 +68,8 @@ export interface HCS10Config {
   feeAmount?: number;
   /** Custom mirror node configuration */
   mirrorNode?: MirrorNodeConfig;
+  /** Whether to run logger in silent mode */
+  silent?: boolean;
 }
 
 export interface HCSMessage {
@@ -119,6 +121,7 @@ export abstract class HCS10BaseClient extends Registration {
       level: config.logLevel || 'info',
       module: 'HCS10-BaseClient',
       prettyPrint: config.prettyPrint,
+      silent: config.silent,
     });
     this.mirrorNode = new HederaMirrorNode(
       config.network as NetworkType,

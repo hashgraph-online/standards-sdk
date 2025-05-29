@@ -105,6 +105,7 @@ export interface HCS11ClientConfig {
   network: NetworkType;
   auth: HCS11Auth;
   logLevel?: LogLevel;
+  silent?: boolean;
 }
 
 export interface TransactionResult<T = unknown> {

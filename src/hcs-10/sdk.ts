@@ -76,6 +76,7 @@ export class HCS10Client extends HCS10BaseClient {
       prettyPrint: config.prettyPrint,
       feeAmount: config.feeAmount,
       mirrorNode: config.mirrorNode,
+      silent: config.silent,
     });
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
@@ -88,6 +89,7 @@ export class HCS10Client extends HCS10BaseClient {
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
       module: 'HCS-SDK',
+      silent: config.silent,
     });
     this.guardedRegistryBaseUrl =
       config.guardedRegistryBaseUrl || 'https://moonscape.tech';
@@ -99,6 +101,7 @@ export class HCS10Client extends HCS10BaseClient {
         privateKey: config.operatorPrivateKey,
       },
       logLevel: config.logLevel,
+      silent: config.silent,
     });
   }
 

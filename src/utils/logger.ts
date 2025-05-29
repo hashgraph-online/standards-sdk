@@ -1,6 +1,6 @@
 import pino from 'pino';
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 export interface LoggerOptions {
   level?: LogLevel;
@@ -8,30 +8,33 @@ export interface LoggerOptions {
   prettyPrint?: boolean;
   silent?: boolean;
 }
-
 export class Logger {
   private static instances: Map<string, Logger> = new Map();
   private logger: pino.Logger;
   private moduleContext: string;
 
   constructor(options: LoggerOptions = {}) {
-    const level = options.level || 'info';
+    const globalDisable = process.env.DISABLE_LOGS === 'true';
+
+    const shouldSilence = options.silent || globalDisable;
+    const level = shouldSilence ? 'silent' : options.level || 'info';
     this.moduleContext = options.module || 'app';
 
+    const shouldEnablePrettyPrint =
+      !shouldSilence && options.prettyPrint !== false;
     const pinoOptions: pino.LoggerOptions = {
       level,
-      enabled: !options.silent,
-      transport:
-        options.prettyPrint !== false
-          ? {
-              target: 'pino-pretty',
-              options: {
-                colorize: true,
-                translateTime: 'SYS:standard',
-                ignore: 'pid,hostname',
-              },
-            }
-          : undefined,
+      enabled: !shouldSilence,
+      transport: shouldEnablePrettyPrint
+        ? {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'SYS:standard',
+              ignore: 'pid,hostname',
+            },
+          }
+        : undefined,
     };
 
     this.logger = pino(pinoOptions);
@@ -39,6 +42,15 @@ export class Logger {
 
   static getInstance(options: LoggerOptions = {}): Logger {
     const moduleKey = options.module || 'default';
+
+    const globalDisable = process.env.DISABLE_LOGS === 'true';
+
+    if (globalDisable && Logger.instances.has(moduleKey)) {
+      const existingLogger = Logger.instances.get(moduleKey)!;
+      if (existingLogger.getLevel() !== 'silent') {
+        Logger.instances.delete(moduleKey);
+      }
+    }
 
     if (!Logger.instances.has(moduleKey)) {
       Logger.instances.set(moduleKey, new Logger(options));
