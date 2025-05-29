@@ -93,7 +93,7 @@ export class HederaMirrorNode {
   private maxDelayMs: number = 30000;
   private backoffFactor: number = 2;
 
-  constructor(network: NetworkType, logger: Logger, config?: MirrorNodeConfig) {
+  constructor(network: NetworkType, logger?: Logger, config?: MirrorNodeConfig) {
     this.network = network;
     this.apiKey = config?.apiKey;
     this.customHeaders = config?.headers || {};

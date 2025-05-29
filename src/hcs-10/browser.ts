@@ -80,6 +80,8 @@ export type BrowserHCSClientConfig = {
   feeAmount?: number;
   /** Custom mirror node configuration */
   mirrorNode?: import('../services').MirrorNodeConfig;
+  /** Whether to run logger in silent mode */
+  silent?: boolean;
 };
 
 export type BrowserAgentConfig = Omit<
@@ -112,6 +114,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       prettyPrint: config.prettyPrint,
       feeAmount: config.feeAmount,
       mirrorNode: config.mirrorNode,
+      silent: config.silent,
     });
 
     this.hwc = config.hwc;
@@ -132,6 +135,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
       level: logLevel,
       module: 'HCS-Browser',
       prettyPrint: config.prettyPrint,
+      silent: config.silent,
     });
 
     if (isBrowser) {
@@ -145,6 +149,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
             signer: signer as any,
           },
           logLevel: config.logLevel,
+          silent: config.silent,
         });
       } catch (err) {
         this.logger.warn(`Failed to initialize HCS11Client: ${err}`);

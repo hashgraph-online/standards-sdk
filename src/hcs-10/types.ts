@@ -81,6 +81,8 @@ export interface HCSClientConfig {
   feeAmount?: number;
   /** Custom mirror node configuration */
   mirrorNode?: MirrorNodeConfig;
+  /** Whether to run logger in silent mode */
+  silent?: boolean;
 }
 
 export interface Message {
