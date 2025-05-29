@@ -53,6 +53,7 @@ export interface ConnectionsManagerOptions {
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
   filterPendingAccountIds?: string[];
   baseClient: HCS10BaseClient;
+  silent?: boolean;
 }
 
 /**
@@ -239,6 +240,7 @@ export class ConnectionsManager implements IConnectionsManager {
       module: 'ConnectionsManager',
       level: options?.logLevel || 'info',
       prettyPrint: true,
+      silent: options?.silent,
     };
     this.logger = new Logger(loggerOptions);
 

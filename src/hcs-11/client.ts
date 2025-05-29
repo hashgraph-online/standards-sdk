@@ -91,6 +91,13 @@ export class HCS11Client {
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
     this.auth = config.auth;
     this.network = config.network;
+    
+    this.logger = Logger.getInstance({
+      level: config.logLevel || 'info',
+      module: 'HCS-11',
+      silent: config.silent,
+    });
+    
     this.mirrorNode = new HederaMirrorNode(
       this.network as 'mainnet' | 'testnet',
       this.logger,
@@ -100,11 +107,6 @@ export class HCS11Client {
       const privateKey = PrivateKey.fromString(this.auth.privateKey);
       this.client.setOperator(this.auth.operatorId, privateKey);
     }
-
-    this.logger = Logger.getInstance({
-      level: config.logLevel || 'info',
-      module: 'HCS-11',
-    });
   }
 
   public getClient(): Client {
