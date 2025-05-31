@@ -11,6 +11,8 @@ import {
   ConnectionsManager,
   Connection,
   HCSMessage,
+  RegistrationProgressData,
+  AgentCreationState,
 } from '../../src';
 import { TransferTransaction, Hbar } from '@hashgraph/sdk';
 import * as fs from 'fs';
@@ -186,10 +188,155 @@ export async function createAgent(
   try {
     logger.info(`Creating ${agentName} agent...`);
 
-    const result = await baseClient.createAndRegisterAgent(
-      agentBuilder,
-      options,
-    );
+    // Check for existing partial state in env
+    const existingState: Partial<AgentCreationState> = {};
+
+    const pfpTopicId = process.env[`${envPrefix}_PFP_TOPIC_ID`];
+    const inboundTopicId = process.env[`${envPrefix}_INBOUND_TOPIC_ID`];
+    const outboundTopicId = process.env[`${envPrefix}_OUTBOUND_TOPIC_ID`];
+    const profileTopicId = process.env[`${envPrefix}_PROFILE_TOPIC_ID`];
+    const accountId = process.env[`${envPrefix}_ACCOUNT_ID`];
+    const privateKey = process.env[`${envPrefix}_PRIVATE_KEY`];
+
+    if (pfpTopicId) {
+      existingState.pfpTopicId = pfpTopicId;
+    }
+    if (inboundTopicId) {
+      existingState.inboundTopicId = inboundTopicId;
+    }
+    if (outboundTopicId) {
+      existingState.outboundTopicId = outboundTopicId;
+    }
+    if (profileTopicId) {
+      existingState.profileTopicId = profileTopicId;
+    }
+
+    // Determine current stage based on what we have
+    if (profileTopicId && inboundTopicId && outboundTopicId) {
+      existingState.currentStage = 'registration';
+      existingState.completedPercentage = 80;
+    } else if (inboundTopicId && outboundTopicId) {
+      existingState.currentStage = 'profile';
+      existingState.completedPercentage = 60;
+    } else if (pfpTopicId) {
+      existingState.currentStage = 'topics';
+      existingState.completedPercentage = 40;
+    } else if (accountId && privateKey) {
+      existingState.currentStage = 'pfp';
+      existingState.completedPercentage = 20;
+    } else {
+      existingState.currentStage = 'init';
+      existingState.completedPercentage = 0;
+    }
+
+    // Add created resources based on what exists
+    existingState.createdResources = [];
+    if (accountId) {
+      existingState.createdResources.push(`account:${accountId}`);
+    }
+    if (pfpTopicId) {
+      existingState.createdResources.push(`pfp:${pfpTopicId}`);
+    }
+    if (inboundTopicId) {
+      existingState.createdResources.push(`inbound:${inboundTopicId}`);
+    }
+    if (outboundTopicId) {
+      existingState.createdResources.push(`outbound:${outboundTopicId}`);
+    }
+    if (profileTopicId) {
+      existingState.createdResources.push(`profile:${profileTopicId}`);
+    }
+
+    const hasPartialState = Object.keys(existingState).length > 2; // More than just currentStage and completedPercentage
+
+    if (hasPartialState) {
+      logger.info(`Found partial state for ${agentName}:`);
+      logger.info(
+        `  Stage: ${existingState.currentStage} (${existingState.completedPercentage}%)`,
+      );
+      logger.info(`  Resources: ${existingState.createdResources?.join(', ')}`);
+
+      // If we have an existing account, update the builder
+      if (accountId && privateKey) {
+        agentBuilder.setExistingAccount(accountId, privateKey);
+      }
+    }
+
+    const result = await baseClient.createAndRegisterAgent(agentBuilder, {
+      ...options,
+      existingState: hasPartialState
+        ? (existingState as AgentCreationState)
+        : undefined,
+      progressCallback: async (data: RegistrationProgressData) => {
+        logger.info(`[${data.stage}] ${data.message}`);
+
+        if (data.progressPercent !== undefined) {
+          logger.info(`Progress: ${data.progressPercent}%`);
+        }
+
+        const envUpdates: Record<string, string> = {};
+
+        if (data.details) {
+          if (data.details.account?.accountId) {
+            envUpdates[`${envPrefix}_ACCOUNT_ID`] =
+              data.details.account.accountId;
+            logger.debug(`Account created: ${data.details.account.accountId}`);
+          }
+          if (data.details.account?.privateKey) {
+            envUpdates[`${envPrefix}_PRIVATE_KEY`] =
+              data.details.account.privateKey;
+          }
+          if (data.details.outboundTopicId) {
+            envUpdates[`${envPrefix}_OUTBOUND_TOPIC_ID`] =
+              data.details.outboundTopicId;
+            logger.debug(`Outbound topic: ${data.details.outboundTopicId}`);
+          }
+          if (data.details.inboundTopicId) {
+            envUpdates[`${envPrefix}_INBOUND_TOPIC_ID`] =
+              data.details.inboundTopicId;
+            logger.debug(`Inbound topic: ${data.details.inboundTopicId}`);
+          }
+          if (data.details.pfpTopicId) {
+            envUpdates[`${envPrefix}_PFP_TOPIC_ID`] = data.details.pfpTopicId;
+            logger.debug(`Profile picture topic: ${data.details.pfpTopicId}`);
+          }
+          if (data.details.profileTopicId) {
+            envUpdates[`${envPrefix}_PROFILE_TOPIC_ID`] =
+              data.details.profileTopicId;
+            logger.debug(`Profile topic: ${data.details.profileTopicId}`);
+          }
+          if (data.details.operatorId) {
+            envUpdates[`${envPrefix}_OPERATOR_ID`] = data.details.operatorId;
+            logger.debug(`Operator ID: ${data.details.operatorId}`);
+          }
+
+          // Save stage information for recovery
+          if (data.details.state) {
+            if (data.details.state.currentStage) {
+              envUpdates[`${envPrefix}_CREATION_STAGE`] = data.details.state.currentStage;
+            } else {
+              envUpdates[`${envPrefix}_CREATION_STAGE`] = '';
+            }
+            
+            let progressPercent: number;
+            if (data.details.state.completedPercentage !== undefined && data.details.state.completedPercentage !== null) {
+              progressPercent = data.details.state.completedPercentage;
+            } else {
+              progressPercent = 0;
+            }
+            envUpdates[`${envPrefix}_CREATION_PROGRESS`] = progressPercent.toString();
+          }
+        }
+
+        // Update env file if there are any new values
+        if (Object.keys(envUpdates).length > 0) {
+          await updateEnvFile(ENV_FILE_PATH, envUpdates);
+          logger.debug(
+            `Updated env file with ${Object.keys(envUpdates).length} new values`,
+          );
+        }
+      },
+    });
 
     if (!result.metadata) {
       logger.error(`${agentName} agent creation failed`);
@@ -203,15 +350,6 @@ export async function createAgent(
     logger.info(`${agentName} private key: ${metadata.privateKey}`);
     logger.info(`${agentName} inbound topic ID: ${metadata.inboundTopicId}`);
     logger.info(`${agentName} outbound topic ID: ${metadata.outboundTopicId}`);
-
-    const envVars = {
-      [`${envPrefix}_ACCOUNT_ID`]: metadata.accountId,
-      [`${envPrefix}_PRIVATE_KEY`]: metadata.privateKey,
-      [`${envPrefix}_INBOUND_TOPIC_ID`]: metadata.inboundTopicId,
-      [`${envPrefix}_OUTBOUND_TOPIC_ID`]: metadata.outboundTopicId,
-    };
-
-    await updateEnvFile(ENV_FILE_PATH, envVars);
 
     const client = new HCS10Client({
       network: 'testnet',
@@ -348,15 +486,22 @@ export async function getOrCreateBob(
   const __dirname = dirname(__filename);
 
   const bobPfpPath = path.join(__dirname, 'assets', 'bob-icon.svg');
-  const pfpBuffer = fs.existsSync(bobPfpPath)
-    ? fs.readFileSync(bobPfpPath)
-    : undefined;
-
-  if (!pfpBuffer) {
-    logger.warn('Bob profile picture not found, using default');
+  let pfpBuffer: Buffer | undefined;
+  if (fs.existsSync(bobPfpPath)) {
+    pfpBuffer = fs.readFileSync(bobPfpPath);
+  } else {
+    pfpBuffer = undefined;
   }
 
-  const bobBuilder = createBobBuilder(pfpBuffer);
+  const enableImageCreation = process.env.ENABLE_DEMO_PFP === 'true';
+  let pfpForBuilder: Buffer | undefined;
+  if (enableImageCreation) {
+    pfpForBuilder = pfpBuffer;
+  } else {
+    pfpForBuilder = undefined;
+  }
+  const bobBuilder = createBobBuilder(pfpForBuilder);
+
   return await createAgent(logger, baseClient, 'Bob', bobBuilder, 'BOB');
 }
 
@@ -379,9 +524,12 @@ export async function getOrCreateAlice(
   const __dirname = dirname(__filename);
 
   const alicePfpPath = path.join(__dirname, 'assets', 'alice-icon.svg');
-  const pfpBuffer = fs.existsSync(alicePfpPath)
-    ? fs.readFileSync(alicePfpPath)
-    : undefined;
+  let pfpBuffer: Buffer | undefined;
+  if (fs.existsSync(alicePfpPath)) {
+    pfpBuffer = fs.readFileSync(alicePfpPath);
+  } else {
+    pfpBuffer = undefined;
+  }
 
   if (!pfpBuffer) {
     logger.warn('Alice profile picture not found, using default');
@@ -404,7 +552,8 @@ export async function getOrCreateAlice(
     .setNetwork('testnet')
     .setInboundTopicType(InboundTopicType.PUBLIC);
 
-  if (pfpBuffer) {
+  const enableImageCreation = process.env.ENABLE_DEMO_PFP === 'true';
+  if (pfpBuffer && enableImageCreation) {
     aliceBuilder.setProfilePicture(pfpBuffer, 'alice-icon.svg');
   }
 
@@ -427,9 +576,12 @@ export async function getOrCreateFoo(
   const network = baseClient.getNetwork() as NetworkType;
 
   const fooPfpPath = path.join(__dirname, 'assets', 'foo-icon.svg');
-  const pfpBuffer = fs.existsSync(fooPfpPath)
-    ? fs.readFileSync(fooPfpPath)
-    : undefined;
+  let pfpBuffer: Buffer | undefined;
+  if (fs.existsSync(fooPfpPath)) {
+    pfpBuffer = fs.readFileSync(fooPfpPath);
+  } else {
+    pfpBuffer = undefined;
+  }
 
   if (!pfpBuffer) {
     logger.warn('Foo profile picture not found, proceeding without it');
@@ -462,9 +614,12 @@ export async function getOrCreateBar(
   const network = baseClient.getNetwork() as NetworkType;
 
   const barPfpPath = path.join(__dirname, 'assets', 'bar-icon.svg');
-  const pfpBuffer = fs.existsSync(barPfpPath)
-    ? fs.readFileSync(barPfpPath)
-    : undefined;
+  let pfpBuffer: Buffer | undefined;
+  if (fs.existsSync(barPfpPath)) {
+    pfpBuffer = fs.readFileSync(barPfpPath);
+  } else {
+    pfpBuffer = undefined;
+  }
 
   if (!pfpBuffer) {
     logger.warn('Bar profile picture not found, proceeding without it.');
@@ -532,8 +687,20 @@ export async function monitorIncomingRequests(
           message.sequence_number,
         );
 
-        const operator_id = message.operator_id || '';
-        const accountId = operator_id.split('@')[1] || '';
+        let operator_id: string;
+        if (message.operator_id) {
+          operator_id = message.operator_id;
+        } else {
+          operator_id = '';
+        }
+        
+        const splitResult = operator_id.split('@')[1];
+        let accountId: string;
+        if (splitResult) {
+          accountId = splitResult;
+        } else {
+          accountId = '';
+        }
 
         if (!accountId) {
           logger.warn('Invalid operator_id format, missing account ID');

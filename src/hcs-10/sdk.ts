@@ -210,34 +210,49 @@ export class HCS10Client extends HCS10BaseClient {
    * Creates a new agent with inbound and outbound topics
    * @param builder The agent builder object
    * @param ttl Optional Time-To-Live for the topic memos, defaults to 60
+   * @param existingState Optional existing state to resume from
    * @returns Object with topic IDs
    */
   async createAgent(
     builder: AgentBuilder,
     ttl: number = 60,
+    existingState?: Partial<AgentCreationState>,
   ): Promise<CreateAgentResponse> {
     const config = builder.build();
-    const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
-      ttl,
-    });
-    const outboundTopicId = await this.createTopic(outboundMemo, true, true);
-    this.logger.info(`Created new outbound topic ID: ${outboundTopicId}`);
+    
+    let outboundTopicId = existingState?.outboundTopicId || '';
+    let inboundTopicId = existingState?.inboundTopicId || '';
+    let pfpTopicId = existingState?.pfpTopicId || config.existingPfpTopicId || '';
+    let profileTopicId = existingState?.profileTopicId || '';
 
     const accountId = this.client.operatorAccountId?.toString();
     if (!accountId) {
       throw new Error('Failed to retrieve operator account ID');
     }
 
-    const inboundTopicId = await this.createInboundTopic(
-      accountId,
-      config.inboundTopicType,
-      ttl,
-      config.inboundTopicType === InboundTopicType.FEE_BASED
-        ? config.feeConfig
-        : undefined,
-    );
+    if (!outboundTopicId) {
+      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+        ttl,
+      });
+      outboundTopicId = await this.createTopic(outboundMemo, true, true);
+      this.logger.info(`Created new outbound topic ID: ${outboundTopicId}`);
+    } else {
+      this.logger.info(`Using existing outbound topic ID: ${outboundTopicId}`);
+    }
 
-    let pfpTopicId = config.existingPfpTopicId || '';
+    if (!inboundTopicId) {
+      inboundTopicId = await this.createInboundTopic(
+        accountId,
+        config.inboundTopicType,
+        ttl,
+        config.inboundTopicType === InboundTopicType.FEE_BASED
+          ? config.feeConfig
+          : undefined,
+      );
+      this.logger.info(`Created new inbound topic ID: ${inboundTopicId}`);
+    } else {
+      this.logger.info(`Using existing inbound topic ID: ${inboundTopicId}`);
+    }
 
     if (!pfpTopicId && config.pfpBuffer && config.pfpBuffer.length > 0) {
       this.logger.info('Inscribing new profile picture');
@@ -249,27 +264,31 @@ export class HCS10Client extends HCS10BaseClient {
       this.logger.info(
         `Profile picture inscribed with topic ID: ${pfpTopicId}`,
       );
-    } else if (config.existingPfpTopicId) {
+    } else if (pfpTopicId) {
       this.logger.info(
-        `Using existing profile picture with topic ID: ${config.existingPfpTopicId}`,
+        `Using existing profile picture with topic ID: ${pfpTopicId}`,
       );
     }
 
-    const profileResult = await this.storeHCS11Profile(
-      config.name,
-      config.bio,
-      inboundTopicId,
-      outboundTopicId,
-      config.capabilities,
-      config.metadata,
-      config.pfpBuffer && config.pfpBuffer.length > 0
-        ? config.pfpBuffer
-        : undefined,
-      config.pfpFileName,
-      config.existingPfpTopicId,
-    );
-    const profileTopicId = profileResult.profileTopicId;
-    this.logger.info(`Profile stored with topic ID: ${profileTopicId}`);
+    if (!profileTopicId) {
+      const profileResult = await this.storeHCS11Profile(
+        config.name,
+        config.bio,
+        inboundTopicId,
+        outboundTopicId,
+        config.capabilities,
+        config.metadata,
+        config.pfpBuffer && config.pfpBuffer.length > 0 && !pfpTopicId
+          ? config.pfpBuffer
+          : undefined,
+        config.pfpFileName,
+        pfpTopicId,
+      );
+      profileTopicId = profileResult.profileTopicId;
+      this.logger.info(`Profile stored with topic ID: ${profileTopicId}`);
+    } else {
+      this.logger.info(`Using existing profile topic ID: ${profileTopicId}`);
+    }
 
     return {
       inboundTopicId,
@@ -1057,100 +1076,221 @@ export class HCS10Client extends HCS10BaseClient {
       const config = builder.build();
       const progressCallback = options?.progressCallback;
       const baseUrl = options?.baseUrl || this.guardedRegistryBaseUrl;
-      let state = options?.existingState || undefined;
+
+      let state =
+        options?.existingState ||
+        ({
+          currentStage: 'init',
+          completedPercentage: 0,
+          createdResources: [],
+        } as AgentCreationState);
+
+      state.agentMetadata = config.metadata;
 
       if (progressCallback) {
         progressCallback({
           stage: 'preparing',
-          message: 'Preparing agent registration',
-          progressPercent: 10,
+          message: 'Starting agent creation process',
+          progressPercent: 0,
           details: { state },
         });
       }
 
-      const account =
-        config.existingAccount ||
-        (await this.createAccount(options?.initialBalance));
+      let account = config.existingAccount;
+      let agentClient: HCS10Client;
 
-      if (progressCallback) {
-        progressCallback({
-          stage: 'preparing',
-          message: 'Created account or using existing account',
-          progressPercent: 20,
-          details: { state, account },
+      if (
+        !state.inboundTopicId ||
+        !state.outboundTopicId ||
+        !state.profileTopicId
+      ) {
+        if (!account) {
+          if (
+            state.createdResources &&
+            state.createdResources.some(r => r.startsWith('account:'))
+          ) {
+            const accountResource = state.createdResources.find(r =>
+              r.startsWith('account:'),
+            );
+            const existingAccountId = accountResource?.split(':')[1];
+
+            if (existingAccountId && config.existingAccount) {
+              account = config.existingAccount;
+              this.logger.info(
+                `Resuming with existing account: ${existingAccountId}`,
+              );
+            } else {
+              account = await this.createAccount(options?.initialBalance);
+              state.createdResources = state.createdResources || [];
+              state.createdResources.push(`account:${account.accountId}`);
+            }
+          } else {
+            account = await this.createAccount(options?.initialBalance);
+            state.createdResources = state.createdResources || [];
+            state.createdResources.push(`account:${account.accountId}`);
+          }
+        }
+
+        if (progressCallback) {
+          progressCallback({
+            stage: 'preparing',
+            message: 'Created account or using existing account',
+            progressPercent: 20,
+            details: { state, account },
+          });
+        }
+
+        agentClient = new HCS10Client({
+          network: config.network,
+          operatorId: account.accountId,
+          operatorPrivateKey: account.privateKey,
+          operatorPublicKey: PrivateKey.fromString(
+            account.privateKey,
+          ).publicKey.toString(),
+          logLevel: 'info' as LogLevel,
+          guardedRegistryBaseUrl: baseUrl,
         });
-      }
 
-      const agentClient = new HCS10Client({
-        network: config.network,
-        operatorId: account.accountId,
-        operatorPrivateKey: account.privateKey,
-        operatorPublicKey: PrivateKey.fromString(
-          account.privateKey,
-        ).publicKey.toString(),
-        logLevel: 'info' as LogLevel,
-        guardedRegistryBaseUrl: baseUrl,
-      });
+        if (progressCallback) {
+          progressCallback({
+            stage: 'preparing',
+            message: 'Initialized agent client',
+            progressPercent: 25,
+            details: { state },
+          });
+        }
 
-      if (progressCallback) {
-        progressCallback({
-          stage: 'preparing',
-          message: 'Initialized agent client',
-          progressPercent: 30,
-          details: { state },
-        });
-      }
+        let outboundTopicId = state.outboundTopicId;
+        let inboundTopicId = state.inboundTopicId;
+        let pfpTopicId = state.pfpTopicId;
+        let profileTopicId = state.profileTopicId;
 
-      const { outboundTopicId, inboundTopicId, pfpTopicId, profileTopicId } =
-        await agentClient.createAgent(builder);
+        if (!outboundTopicId || !inboundTopicId || !profileTopicId) {
+          if (pfpTopicId) {
+            builder.setExistingProfilePicture(pfpTopicId);
+          }
+          
+          const createResult = await agentClient.createAgent(builder, 60, state);
 
-      if (progressCallback) {
-        progressCallback({
-          stage: 'submitting',
-          message: 'Created agent with topics and profile',
-          progressPercent: 60,
-          details: {
-            state,
-            outboundTopicId,
-            inboundTopicId,
-            pfpTopicId,
-            profileTopicId,
-          },
-        });
-      }
+          outboundTopicId = createResult.outboundTopicId;
+          inboundTopicId = createResult.inboundTopicId;
+          pfpTopicId = createResult.pfpTopicId;
+          profileTopicId = createResult.profileTopicId;
 
-      const operatorId = `${inboundTopicId}@${account.accountId}`;
+          state.outboundTopicId = outboundTopicId;
+          state.inboundTopicId = inboundTopicId;
+          state.pfpTopicId = pfpTopicId;
+          state.profileTopicId = profileTopicId;
 
-      const registrationResult =
-        await agentClient.registerAgentWithGuardedRegistry(
-          account.accountId,
-          config.network,
-          {
-            progressCallback: data => {
-              const adjustedPercent = 60 + (data.progressPercent || 0) * 0.4;
-              if (progressCallback) {
-                progressCallback({
-                  stage: data.stage,
-                  message: data.message,
-                  progressPercent: adjustedPercent,
-                  details: {
-                    ...data.details,
-                    outboundTopicId,
-                    inboundTopicId,
-                    pfpTopicId,
-                    profileTopicId,
-                    operatorId,
-                    state: data.details?.state || state,
-                  },
-                });
-              }
+          if (!state.createdResources) {
+            state.createdResources = [];
+          }
+
+          if (
+            pfpTopicId &&
+            !state.createdResources.includes(`pfp:${pfpTopicId}`)
+          ) {
+            state.createdResources.push(`pfp:${pfpTopicId}`);
+          }
+          if (!state.createdResources.includes(`inbound:${inboundTopicId}`)) {
+            state.createdResources.push(`inbound:${inboundTopicId}`);
+          }
+          if (!state.createdResources.includes(`outbound:${outboundTopicId}`)) {
+            state.createdResources.push(`outbound:${outboundTopicId}`);
+          }
+          if (!state.createdResources.includes(`profile:${profileTopicId}`)) {
+            state.createdResources.push(`profile:${profileTopicId}`);
+          }
+        }
+
+        state.currentStage = 'profile';
+        state.completedPercentage = 60;
+
+        if (progressCallback) {
+          progressCallback({
+            stage: 'submitting',
+            message: 'Created agent with topics and profile',
+            progressPercent: 60,
+            details: {
+              state,
+              outboundTopicId,
+              inboundTopicId,
+              pfpTopicId,
+              profileTopicId,
             },
-            existingState: state,
-          },
-        );
+          });
+        }
+      } else {
+        account = account || config.existingAccount;
+        if (!account) {
+          throw new Error(
+            'Cannot resume registration without account information',
+          );
+        }
 
-      if (!registrationResult.success) {
-        return registrationResult;
+        agentClient = new HCS10Client({
+          network: config.network,
+          operatorId: account.accountId,
+          operatorPrivateKey: account.privateKey,
+          operatorPublicKey: PrivateKey.fromString(
+            account.privateKey,
+          ).publicKey.toString(),
+          logLevel: 'info' as LogLevel,
+          guardedRegistryBaseUrl: baseUrl,
+        });
+
+        this.logger.info('Resuming registration with existing state', {
+          inboundTopicId: state.inboundTopicId,
+          outboundTopicId: state.outboundTopicId,
+          profileTopicId: state.profileTopicId,
+          pfpTopicId: state.pfpTopicId,
+        });
+      }
+
+      const operatorId = `${state.inboundTopicId}@${account.accountId}`;
+
+      if (
+        state.currentStage !== 'complete' ||
+        !state.createdResources?.includes(
+          `registration:${state.inboundTopicId}`,
+        )
+      ) {
+        const registrationResult =
+          await agentClient.registerAgentWithGuardedRegistry(
+            account.accountId,
+            config.network,
+            {
+              progressCallback: data => {
+                const adjustedPercent = 60 + (data.progressPercent || 0) * 0.4;
+                if (progressCallback) {
+                  progressCallback({
+                    stage: data.stage,
+                    message: data.message,
+                    progressPercent: adjustedPercent,
+                    details: {
+                      ...data.details,
+                      outboundTopicId: state.outboundTopicId,
+                      inboundTopicId: state.inboundTopicId,
+                      pfpTopicId: state.pfpTopicId,
+                      profileTopicId: state.profileTopicId,
+                      operatorId,
+                      state: data.details?.state || state,
+                    },
+                  });
+                }
+              },
+              existingState: state,
+            },
+          );
+
+        if (!registrationResult.success) {
+          return {
+            ...registrationResult,
+            state,
+          };
+        }
+
+        state = registrationResult.state || state;
       }
 
       if (progressCallback) {
@@ -1159,26 +1299,27 @@ export class HCS10Client extends HCS10BaseClient {
           message: 'Agent creation and registration complete',
           progressPercent: 100,
           details: {
-            outboundTopicId,
-            inboundTopicId,
-            pfpTopicId,
-            profileTopicId,
+            outboundTopicId: state.outboundTopicId,
+            inboundTopicId: state.inboundTopicId,
+            pfpTopicId: state.pfpTopicId,
+            profileTopicId: state.profileTopicId,
             operatorId,
-            state: registrationResult.state,
+            state,
           },
         });
       }
 
       return {
-        ...registrationResult,
+        success: true,
+        state,
         metadata: {
           accountId: account.accountId,
           privateKey: account.privateKey,
           operatorId,
-          inboundTopicId,
-          outboundTopicId,
-          profileTopicId,
-          pfpTopicId,
+          inboundTopicId: state.inboundTopicId!,
+          outboundTopicId: state.outboundTopicId!,
+          profileTopicId: state.profileTopicId!,
+          pfpTopicId: state.pfpTopicId!,
         },
       };
     } catch (e: any) {
@@ -1188,6 +1329,13 @@ export class HCS10Client extends HCS10BaseClient {
       return {
         error: error.message,
         success: false,
+        state:
+          options?.existingState ||
+          ({
+            currentStage: 'init',
+            completedPercentage: 0,
+            error: error.message,
+          } as AgentCreationState),
       };
     }
   }
