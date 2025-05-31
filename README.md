@@ -47,12 +47,13 @@ The SDK includes demo implementations that showcase various features. Follow the
 4. Edit the `.env` file with your Hedera credentials:
 
    ```
-   API_KEY=your_api_key_here
    HEDERA_ACCOUNT_ID=0.0.12345
    HEDERA_PRIVATE_KEY=your_private_key_here
    HEDERA_NETWORK=testnet
    REGISTRY_URL=https://moonscape.tech
    ```
+
+   **Note**: The SDK automatically saves agent creation progress to the `.env` file. If agent creation is interrupted, it will resume from the last successful step when you run the demo again. See `.env.example` for details on the auto-generated agent state variables.
 
 5. Run the demos:
 
@@ -109,8 +110,9 @@ The HCS-10 demo (`demo/hcs-10/index.ts`) demonstrates trustless peer-to-peer com
 - Sending and retrieving small messages
 - Sending and retrieving large messages with recursive storage
 - Message data processing
+- **Resumable agent creation**: If agent creation is interrupted, the SDK automatically resumes from where it left off using state saved in environment variables
 
-The demo automatically handles agent funding, topic creation, and registration with the global registry.
+The demo automatically handles agent funding, topic creation, and registration with the global registry. Agent creation progress is tracked in real-time and saved to the `.env` file, allowing recovery from any interruption.
 
 ## Contributing
 
