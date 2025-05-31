@@ -687,7 +687,7 @@ export class HederaMirrorNode {
 
         if (
           statusCode &&
-          statusCode >= 400 &&
+          statusCode > 404 &&
           statusCode < 500 &&
           statusCode !== 429
         ) {
