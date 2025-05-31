@@ -106,6 +106,7 @@ export interface HCS11ClientConfig {
   auth: HCS11Auth;
   logLevel?: LogLevel;
   silent?: boolean;
+  keyType?: 'ed25519' | 'ecdsa';
 }
 
 export interface TransactionResult<T = unknown> {

@@ -313,18 +313,23 @@ export async function createAgent(
           // Save stage information for recovery
           if (data.details.state) {
             if (data.details.state.currentStage) {
-              envUpdates[`${envPrefix}_CREATION_STAGE`] = data.details.state.currentStage;
+              envUpdates[`${envPrefix}_CREATION_STAGE`] =
+                data.details.state.currentStage;
             } else {
               envUpdates[`${envPrefix}_CREATION_STAGE`] = '';
             }
-            
+
             let progressPercent: number;
-            if (data.details.state.completedPercentage !== undefined && data.details.state.completedPercentage !== null) {
+            if (
+              data.details.state.completedPercentage !== undefined &&
+              data.details.state.completedPercentage !== null
+            ) {
               progressPercent = data.details.state.completedPercentage;
             } else {
               progressPercent = 0;
             }
-            envUpdates[`${envPrefix}_CREATION_PROGRESS`] = progressPercent.toString();
+            envUpdates[`${envPrefix}_CREATION_PROGRESS`] =
+              progressPercent.toString();
           }
         }
 
@@ -655,7 +660,7 @@ export async function monitorIncomingRequests(
   const processedRequestIds = new Set<number>();
 
   logger.info(`Monitoring incoming requests on topic ${inboundTopicId}`);
-  const operatorAccountId = client.getClient().operatorAccountId?.toString();
+  const operatorAccountId = client?.getClient()?.operatorAccountId?.toString();
 
   if (!operatorAccountId) {
     throw new Error('Operator account ID is not set');
@@ -687,23 +692,17 @@ export async function monitorIncomingRequests(
           message.sequence_number,
         );
 
-        let operator_id: string;
-        if (message.operator_id) {
-          operator_id = message.operator_id;
-        } else {
-          operator_id = '';
-        }
-        
-        const splitResult = operator_id.split('@')[1];
-        let accountId: string;
-        if (splitResult) {
-          accountId = splitResult;
-        } else {
-          accountId = '';
-        }
+        const operatorId: string = message.operator_id || '';
+
+        const accountId = client.extractAccountFromOperatorId(operatorId);
 
         if (!accountId) {
-          logger.warn('Invalid operator_id format, missing account ID');
+          console.warn(
+            'Invalid operator_id format, missing account ID',
+            accountId,
+            'message',
+            message,
+          );
           continue;
         }
 
