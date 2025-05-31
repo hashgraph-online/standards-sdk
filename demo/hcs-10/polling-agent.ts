@@ -1,13 +1,12 @@
 import dotenv from 'dotenv';
 import { OpenAI } from 'openai';
-// @ts-ignore
 import { HCS10Client, HCSMessage, Logger, ConnectionsManager } from '../../src';
 import {
   extractAllText,
   getOrCreateBob,
   monitorTopics,
   stripAnsiCodes,
-} from './utils.js';
+} from './utils';
 import { Hbar, TransferTransaction } from '@hashgraph/sdk';
 
 const logger = new Logger({

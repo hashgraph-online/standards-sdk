@@ -3,7 +3,6 @@ import { FeeConfigBuilder, HCS10Client, Logger } from '../../src';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  ensureAgentHasEnoughHbar,
   getOrCreateBob,
   getOrCreateAlice,
   monitorIncomingRequests,
