@@ -70,6 +70,8 @@ export interface HCS10Config {
   mirrorNode?: MirrorNodeConfig;
   /** Whether to run logger in silent mode */
   silent?: boolean;
+  /** The key type to use for the operator */
+  keyType?: 'ed25519' | 'ecdsa';
 }
 
 export interface HCSMessage {
@@ -373,6 +375,9 @@ export abstract class HCS10BaseClient extends Registration {
    */
   public async requestAccount(account: string): Promise<AccountResponse> {
     try {
+      if (!account) {
+        throw new Error('Account ID is required');
+      }
       return await this.mirrorNode.requestAccount(account);
     } catch (e) {
       this.logger.error('Failed to fetch account', e);

@@ -83,6 +83,8 @@ export interface HCSClientConfig {
   mirrorNode?: MirrorNodeConfig;
   /** Whether to run logger in silent mode */
   silent?: boolean;
+  /** The key type to use for the operator */
+  keyType?: 'ed25519' | 'ecdsa';
 }
 
 export interface Message {

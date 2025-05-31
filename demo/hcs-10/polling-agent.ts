@@ -188,12 +188,6 @@ function encodeToMorse(text: string): string {
     .join(' ');
 }
 
-function extractAccountId(operatorId: string): string | null {
-  if (!operatorId) return null;
-  const parts = operatorId.split('@');
-  return parts.length === 2 ? parts[1] : null;
-}
-
 async function handleConnectionRequest(
   agent: {
     client: HCS10Client;
@@ -224,7 +218,9 @@ async function handleConnectionRequest(
   }
 
   const requesterOperatorId = message.operator_id;
-  const requesterAccountId = extractAccountId(requesterOperatorId);
+  const requesterAccountId = agent.client.extractAccountFromOperatorId(
+    requesterOperatorId,
+  );
   if (!requesterAccountId) {
     logger.warn(`Invalid operator_id format: ${requesterOperatorId}`);
     return null;

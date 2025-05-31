@@ -12,7 +12,7 @@ import {
   InscriptionInput,
   InscriptionOptions,
 } from '../inscribe';
-import { Logger } from '../utils/logger';
+import { Logger, detectKeyTypeFromString } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
@@ -85,12 +85,15 @@ export class HCS11Client {
   private network: string;
   private logger: Logger;
   private mirrorNode: HederaMirrorNode;
+  private keyType: 'ed25519' | 'ecdsa';
+  private operatorId: string;
 
   constructor(config: HCS11ClientConfig) {
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
     this.auth = config.auth;
     this.network = config.network;
+    this.operatorId = config.auth.operatorId;
     
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
@@ -104,8 +107,21 @@ export class HCS11Client {
     );
 
     if (this.auth.privateKey) {
-      const privateKey = PrivateKey.fromString(this.auth.privateKey);
-      this.client.setOperator(this.auth.operatorId, privateKey);
+      if (config.keyType) {
+        this.keyType = config.keyType;
+        this.initializeOperatorWithKeyType();
+      } else {
+        try {
+          const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
+          this.keyType = keyDetection.detectedType;
+          this.client.setOperator(this.operatorId, keyDetection.privateKey);
+        } catch (error) {
+          this.logger.warn('Failed to detect key type from private key format, will query mirror node');
+          this.keyType = 'ed25519';
+        }
+        
+        this.initializeOperator();
+      }
     }
   }
 
@@ -115,6 +131,34 @@ export class HCS11Client {
 
   public getOperatorId(): string {
     return this.auth.operatorId;
+  }
+
+  public async initializeOperator() {
+    const account = await this.mirrorNode.requestAccount(this.operatorId);
+    const keyType = account?.key?._type;
+
+    if (keyType && keyType.includes('ECDSA')) {
+      this.keyType = 'ecdsa';
+    } else if (keyType && keyType.includes('ED25519')) {
+      this.keyType = 'ed25519';
+    } else {
+      this.keyType = 'ed25519';
+    }
+
+    this.initializeOperatorWithKeyType();
+  }
+
+  private initializeOperatorWithKeyType() {
+    if (!this.auth.privateKey) {
+      return;
+    }
+
+    const PK =
+      this.keyType === 'ecdsa'
+        ? PrivateKey.fromStringECDSA(this.auth.privateKey)
+        : PrivateKey.fromStringED25519(this.auth.privateKey);
+
+    this.client.setOperator(this.operatorId, PK);
   }
 
   public createPersonalProfile(
