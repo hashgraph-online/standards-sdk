@@ -34,6 +34,7 @@ import {
   HCSClientConfig,
   CreateAccountResponse,
   CreateAgentResponse,
+  CreateMCPServerResponse,
   StoreHCS11ProfileResponse,
   AgentRegistrationResult,
   HandleConnectionRequestResponse,
@@ -42,6 +43,7 @@ import {
   AgentCreationState,
   RegistrationProgressCallback,
   InscribePfpResponse,
+  MCPServerCreationState,
 } from './types';
 import { MirrorNodeConfig } from '../services';
 import {
@@ -51,6 +53,7 @@ import {
   SocialPlatform,
   InboundTopicType,
   AgentMetadata,
+  MCPServerBuilder,
 } from '../hcs-11';
 import { FeeConfigBuilderInterface, TopicFeeConfig } from '../fees';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
@@ -151,7 +154,7 @@ export class HCS10Client extends HCS10BaseClient {
         : PrivateKey.fromStringED25519(this.operatorPrivateKey);
 
     this.logger.debug(
-      `Setting operator: ${this.operatorId} with key type: ${this.keyType}`,
+      `Setting operator: ${this.operatorAccountId} with key type: ${this.keyType}`,
     );
 
     this.client.setOperator(this.operatorAccountId, PK);
@@ -284,90 +287,95 @@ export class HCS10Client extends HCS10BaseClient {
     builder: AgentBuilder,
     ttl: number = 60,
     existingState?: Partial<AgentCreationState>,
+    progressCallback?: RegistrationProgressCallback,
   ): Promise<CreateAgentResponse> {
     if (!this.keyType) {
       await this.initializeOperator();
     }
 
     const config = builder.build();
-
-    let outboundTopicId = existingState?.outboundTopicId || '';
-    let inboundTopicId = existingState?.inboundTopicId || '';
-    let pfpTopicId =
-      existingState?.pfpTopicId || config.existingPfpTopicId || '';
-    let profileTopicId = existingState?.profileTopicId || '';
-
     const accountId = this.client.operatorAccountId?.toString();
     if (!accountId) {
       throw new Error('Failed to retrieve operator account ID');
     }
 
-    if (!outboundTopicId) {
-      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
-        ttl,
-      });
-      outboundTopicId = await this.createTopic(outboundMemo, true, true);
-      this.logger.info(`Created new outbound topic ID: ${outboundTopicId}`);
-    } else {
-      this.logger.info(`Using existing outbound topic ID: ${outboundTopicId}`);
-    }
+    const result = await this._createEntityTopics(
+      ttl,
+      {
+        outboundTopicId: existingState?.outboundTopicId || '',
+        inboundTopicId: existingState?.inboundTopicId || '',
+        pfpTopicId:
+          existingState?.pfpTopicId || config.existingPfpTopicId || '',
+        profileTopicId: existingState?.profileTopicId || '',
+      },
+      accountId,
+      config.inboundTopicType,
+      config.feeConfig,
+      config.pfpBuffer,
+      config.pfpFileName,
+      progressCallback,
+    );
 
-    if (!inboundTopicId) {
-      inboundTopicId = await this.createInboundTopic(
-        accountId,
-        config.inboundTopicType,
-        ttl,
-        config.inboundTopicType === InboundTopicType.FEE_BASED
-          ? config.feeConfig
-          : undefined,
-      );
-      this.logger.info(`Created new inbound topic ID: ${inboundTopicId}`);
-    } else {
-      this.logger.info(`Using existing inbound topic ID: ${inboundTopicId}`);
-    }
+    if (!result.profileTopicId) {
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Creating agent profile',
+          progressPercent: 60,
+          details: {
+            outboundTopicId: result.outboundTopicId,
+            inboundTopicId: result.inboundTopicId,
+            pfpTopicId: result.pfpTopicId,
+            state: {
+              currentStage: 'profile',
+              completedPercentage: 60,
+            },
+          },
+        });
+      }
 
-    if (!pfpTopicId && config.pfpBuffer && config.pfpBuffer.length > 0) {
-      this.logger.info('Inscribing new profile picture');
-      const pfpResult = await this.inscribePfp(
-        config.pfpBuffer,
-        config.pfpFileName,
-      );
-      pfpTopicId = pfpResult.pfpTopicId;
-      this.logger.info(
-        `Profile picture inscribed with topic ID: ${pfpTopicId}`,
-      );
-    } else if (pfpTopicId) {
-      this.logger.info(
-        `Using existing profile picture with topic ID: ${pfpTopicId}`,
-      );
-    }
-
-    if (!profileTopicId) {
       const profileResult = await this.storeHCS11Profile(
         config.name,
         config.bio,
-        inboundTopicId,
-        outboundTopicId,
+        result.inboundTopicId,
+        result.outboundTopicId,
         config.capabilities,
         config.metadata,
-        config.pfpBuffer && config.pfpBuffer.length > 0 && !pfpTopicId
+        config.pfpBuffer && config.pfpBuffer.length > 0 && !result.pfpTopicId
           ? config.pfpBuffer
           : undefined,
         config.pfpFileName,
-        pfpTopicId,
+        result.pfpTopicId,
       );
-      profileTopicId = profileResult.profileTopicId;
-      this.logger.info(`Profile stored with topic ID: ${profileTopicId}`);
+      result.profileTopicId = profileResult.profileTopicId;
+      this.logger.info(
+        `Profile stored with topic ID: ${result.profileTopicId}`,
+      );
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Agent profile created',
+          progressPercent: 70,
+          details: {
+            outboundTopicId: result.outboundTopicId,
+            inboundTopicId: result.inboundTopicId,
+            pfpTopicId: result.pfpTopicId,
+            profileTopicId: result.profileTopicId,
+            state: {
+              currentStage: 'profile',
+              completedPercentage: 70,
+            },
+          },
+        });
+      }
     } else {
-      this.logger.info(`Using existing profile topic ID: ${profileTopicId}`);
+      this.logger.info(
+        `Using existing profile topic ID: ${result.profileTopicId}`,
+      );
     }
 
-    return {
-      inboundTopicId,
-      outboundTopicId,
-      pfpTopicId,
-      profileTopicId,
-    };
+    return result;
   }
 
   /**
@@ -1217,13 +1225,21 @@ export class HCS10Client extends HCS10BaseClient {
           });
         }
 
+        const keyType = detectKeyTypeFromString(account.privateKey);
+
+        const privateKey =
+          keyType.detectedType === 'ed25519'
+            ? PrivateKey.fromStringED25519(account.privateKey)
+            : PrivateKey.fromStringECDSA(account.privateKey);
+
+        const publicKey = privateKey.publicKey.toString();
+
         agentClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
-          operatorPublicKey: PrivateKey.fromString(
-            account.privateKey,
-          ).publicKey.toString(),
+          operatorPublicKey: publicKey,
+          keyType: keyType.detectedType as 'ed25519' | 'ecdsa',
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
@@ -1251,6 +1267,22 @@ export class HCS10Client extends HCS10BaseClient {
             builder,
             60,
             state,
+            data => {
+              if (progressCallback) {
+                progressCallback({
+                  stage: data.stage,
+                  message: data.message,
+                  progressPercent: data.progressPercent || 0,
+                  details: {
+                    ...data.details,
+                    state: {
+                      ...state,
+                      ...data.details?.state,
+                    },
+                  },
+                });
+              }
+            },
           );
 
           outboundTopicId = createResult.outboundTopicId;
@@ -1717,7 +1749,7 @@ export class HCS10Client extends HCS10BaseClient {
    * @param options Optional parameters including memo (timestamp is no longer used here)
    * @returns Transaction receipt
    */
-  private async sendTransactionOperation(
+  public async sendTransactionOperation(
     connectionTopicId: string,
     scheduleId: string,
     data: string,
@@ -1804,5 +1836,608 @@ export class HCS10Client extends HCS10BaseClient {
       transactionId,
       receipt,
     };
+  }
+
+  /**
+   * Creates a new MCP server with inbound and outbound topics.
+   *
+   * This method creates communication topics and profiles required for an MCP server,
+   * registers the profile with the server's account, and handles profile picture
+   * inscriptions if provided.
+   *
+   * @param builder The MCP server builder object
+   * @param ttl Optional Time-To-Live for the topic memos, defaults to 60
+   * @param existingState Optional existing state to resume from
+   * @returns Object with topic IDs
+   */
+  async createMCPServer(
+    builder: MCPServerBuilder,
+    ttl: number = 60,
+    existingState?: Partial<MCPServerCreationState>,
+    progressCallback?: RegistrationProgressCallback,
+  ): Promise<CreateMCPServerResponse> {
+    if (!this.keyType) {
+      await this.initializeOperator();
+    }
+
+    const config = builder.build();
+    const accountId = this.client.operatorAccountId?.toString();
+    if (!accountId) {
+      throw new Error('Failed to retrieve operator account ID');
+    }
+
+    const result = await this._createEntityTopics(
+      ttl,
+      {
+        outboundTopicId: existingState?.outboundTopicId || '',
+        inboundTopicId: existingState?.inboundTopicId || '',
+        pfpTopicId:
+          existingState?.pfpTopicId || config.existingPfpTopicId || '',
+        profileTopicId: existingState?.profileTopicId || '',
+      },
+      accountId,
+      InboundTopicType.PUBLIC,
+      undefined,
+      config.pfpBuffer,
+      config.pfpFileName,
+      progressCallback,
+    );
+
+    if (!result.profileTopicId) {
+      this.logger.info('Creating and storing HCS-11 MCP server profile');
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Creating MCP server profile',
+          progressPercent: 60,
+          details: {
+            outboundTopicId: result.outboundTopicId,
+            inboundTopicId: result.inboundTopicId,
+            pfpTopicId: result.pfpTopicId,
+            state: {
+              currentStage: 'profile',
+              completedPercentage: 60,
+            },
+          },
+        });
+      }
+
+      await this.hcs11Client.initializeOperator();
+      const profile = this.hcs11Client.createMCPServerProfile(
+        config.name,
+        config.mcpServer,
+        {
+          alias: config.alias,
+          bio: config.bio,
+          socials: config.socials || [],
+          inboundTopicId: result.inboundTopicId,
+          outboundTopicId: result.outboundTopicId,
+          profileImage: result.pfpTopicId
+            ? `hcs://1/${result.pfpTopicId}`
+            : undefined,
+        },
+      );
+
+      const profileResult = await this.hcs11Client.inscribeProfile(profile);
+
+      if (!profileResult.success) {
+        this.logger.error(
+          `Failed to inscribe MCP server profile: ${profileResult.error}`,
+        );
+        throw new Error(
+          profileResult.error || 'Failed to inscribe MCP server profile',
+        );
+      }
+
+      result.profileTopicId = profileResult.profileTopicId;
+      this.logger.info(
+        `MCP server profile stored with topic ID: ${result.profileTopicId}`,
+      );
+
+      const memoResult = await this.hcs11Client.updateAccountMemoWithProfile(
+        accountId,
+        result.profileTopicId,
+      );
+
+      if (!memoResult.success) {
+        this.logger.warn(
+          `Failed to update account memo: ${memoResult.error}, but continuing with MCP server creation`,
+        );
+      } else {
+        this.logger.info(`Updated account memo with profile reference`);
+      }
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'MCP server profile created',
+          progressPercent: 70,
+          details: {
+            outboundTopicId: result.outboundTopicId,
+            inboundTopicId: result.inboundTopicId,
+            pfpTopicId: result.pfpTopicId,
+            profileTopicId: result.profileTopicId,
+            state: {
+              currentStage: 'profile',
+              completedPercentage: 70,
+            },
+          },
+        });
+      }
+    } else {
+      this.logger.info(
+        `Using existing profile topic ID: ${result.profileTopicId}`,
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Creates the base topic structure for an entity (agent or MCP server).
+   *
+   * @param ttl Time-To-Live for topic memos
+   * @param existingTopics Object containing any existing topic IDs to reuse
+   * @param accountId The account ID associated with the entity
+   * @param inboundTopicType Type of inbound topic
+   * @param feeConfig Optional fee configuration for fee-based topics
+   * @param pfpBuffer Optional profile picture buffer
+   * @param pfpFileName Optional profile picture filename
+   * @param progressCallback Optional callback for reporting progress
+   * @returns Object with created topic IDs
+   */
+  private async _createEntityTopics(
+    ttl: number,
+    existingTopics: {
+      outboundTopicId: string;
+      inboundTopicId: string;
+      pfpTopicId: string;
+      profileTopicId: string;
+    },
+    accountId: string,
+    inboundTopicType: InboundTopicType,
+    feeConfig?: FeeConfigBuilderInterface,
+    pfpBuffer?: Buffer,
+    pfpFileName?: string,
+    progressCallback?: RegistrationProgressCallback,
+  ): Promise<CreateAgentResponse> {
+    let { outboundTopicId, inboundTopicId, pfpTopicId, profileTopicId } =
+      existingTopics;
+
+    if (!outboundTopicId) {
+      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+        ttl,
+      });
+      outboundTopicId = await this.createTopic(outboundMemo, true, true);
+      this.logger.info(`Created new outbound topic ID: ${outboundTopicId}`);
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Created outbound topic',
+          progressPercent: 30,
+          details: {
+            outboundTopicId,
+            state: {
+              currentStage: 'topics',
+              completedPercentage: 30,
+            },
+          },
+        });
+      }
+    } else {
+      this.logger.info(`Using existing outbound topic ID: ${outboundTopicId}`);
+    }
+
+    if (!inboundTopicId) {
+      inboundTopicId = await this.createInboundTopic(
+        accountId,
+        inboundTopicType,
+        ttl,
+        inboundTopicType === InboundTopicType.FEE_BASED ? feeConfig : undefined,
+      );
+      this.logger.info(`Created new inbound topic ID: ${inboundTopicId}`);
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Created inbound topic',
+          progressPercent: 40,
+          details: {
+            outboundTopicId,
+            inboundTopicId,
+            state: {
+              currentStage: 'topics',
+              completedPercentage: 40,
+            },
+          },
+        });
+      }
+    } else {
+      this.logger.info(`Using existing inbound topic ID: ${inboundTopicId}`);
+    }
+
+    if (!pfpTopicId && pfpBuffer && pfpBuffer.length > 0 && pfpFileName) {
+      this.logger.info('Inscribing new profile picture');
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Inscribing profile picture',
+          progressPercent: 50,
+          details: {
+            outboundTopicId,
+            inboundTopicId,
+            state: {
+              currentStage: 'pfp',
+              completedPercentage: 50,
+            },
+          },
+        });
+      }
+
+      const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName);
+      pfpTopicId = pfpResult.pfpTopicId;
+      this.logger.info(
+        `Profile picture inscribed with topic ID: ${pfpTopicId}`,
+      );
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Profile picture inscribed',
+          progressPercent: 55,
+          details: {
+            outboundTopicId,
+            inboundTopicId,
+            pfpTopicId,
+            state: {
+              currentStage: 'pfp',
+              completedPercentage: 55,
+            },
+          },
+        });
+      }
+    } else if (pfpTopicId) {
+      this.logger.info(
+        `Using existing profile picture with topic ID: ${pfpTopicId}`,
+      );
+    }
+
+    return {
+      inboundTopicId,
+      outboundTopicId,
+      pfpTopicId,
+      profileTopicId,
+    };
+  }
+
+  /**
+   * Creates and registers an MCP server with a Guarded registry.
+   *
+   * This function creates a new account if needed, initializes an HCS10 client,
+   * creates an MCP server with inbound and outbound topics, and registers
+   * it with the Hashgraph Online Guarded Registry.
+   *
+   * @param builder The MCP server builder object with configuration
+   * @param options Optional settings for registration process
+   * @returns Registration result with success status and metadata
+   */
+  async createAndRegisterMCPServer(
+    builder: MCPServerBuilder,
+    options?: {
+      baseUrl?: string;
+      progressCallback?: RegistrationProgressCallback;
+      existingState?: MCPServerCreationState;
+      initialBalance?: number;
+    },
+  ): Promise<AgentRegistrationResult> {
+    try {
+      const config = builder.build();
+      const progressCallback = options?.progressCallback;
+      const baseUrl = options?.baseUrl || this.guardedRegistryBaseUrl;
+
+      let state =
+        options?.existingState ||
+        ({
+          currentStage: 'init',
+          completedPercentage: 0,
+          createdResources: [],
+        } as MCPServerCreationState);
+
+      state.serverMetadata = {
+        name: config.name,
+        description: config.mcpServer.description,
+        services: config.mcpServer.services,
+      };
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Starting MCP server creation process',
+          progressPercent: 0,
+          details: { state },
+        });
+      }
+
+      let account = config.existingAccount;
+      let serverClient: HCS10Client;
+
+      if (
+        !state.inboundTopicId ||
+        !state.outboundTopicId ||
+        !state.profileTopicId
+      ) {
+        if (!account) {
+          if (
+            state.createdResources &&
+            state.createdResources.some(r => r.startsWith('account:'))
+          ) {
+            const accountResource = state.createdResources.find(r =>
+              r.startsWith('account:'),
+            );
+            const existingAccountId = accountResource?.split(':')[1];
+
+            if (existingAccountId && config.existingAccount) {
+              account = config.existingAccount;
+              this.logger.info(
+                `Resuming with existing account: ${existingAccountId}`,
+              );
+            } else {
+              account = await this.createAccount(options?.initialBalance);
+              state.createdResources = state.createdResources || [];
+              state.createdResources.push(`account:${account.accountId}`);
+            }
+          } else {
+            account = await this.createAccount(options?.initialBalance);
+            state.createdResources = state.createdResources || [];
+            state.createdResources.push(`account:${account.accountId}`);
+          }
+        }
+
+        if (progressCallback) {
+          progressCallback({
+            stage: 'preparing',
+            message: 'Created account or using existing account',
+            progressPercent: 20,
+            details: { state, account },
+          });
+        }
+        const keyType = detectKeyTypeFromString(account.privateKey);
+
+        builder.setExistingAccount(account.accountId, account.privateKey);
+
+        const privateKey =
+          keyType.detectedType === 'ed25519'
+            ? PrivateKey.fromStringED25519(account.privateKey)
+            : PrivateKey.fromStringECDSA(account.privateKey);
+
+        const publicKey = privateKey.publicKey.toString();
+
+        serverClient = new HCS10Client({
+          network: config.network,
+          operatorId: account.accountId,
+          operatorPrivateKey: account.privateKey,
+          operatorPublicKey: publicKey,
+          logLevel: 'info' as LogLevel,
+          guardedRegistryBaseUrl: baseUrl,
+        });
+
+        if (progressCallback) {
+          progressCallback({
+            stage: 'preparing',
+            message: 'Initialized MCP server client',
+            progressPercent: 25,
+            details: { state },
+          });
+        }
+
+        let outboundTopicId = state.outboundTopicId;
+        let inboundTopicId = state.inboundTopicId;
+        let pfpTopicId = state.pfpTopicId;
+        let profileTopicId = state.profileTopicId;
+
+        if (!outboundTopicId || !inboundTopicId || !profileTopicId) {
+          if (pfpTopicId) {
+            builder.setExistingProfilePicture(pfpTopicId);
+          }
+
+          const createResult = await serverClient.createMCPServer(
+            builder,
+            60,
+            state,
+            data => {
+              if (progressCallback) {
+                progressCallback({
+                  stage: data.stage,
+                  message: data.message,
+                  progressPercent: data.progressPercent || 0,
+                  details: {
+                    ...data.details,
+                    state: {
+                      ...state,
+                      ...data.details?.state,
+                    },
+                  },
+                });
+              }
+            },
+          );
+
+          outboundTopicId = createResult.outboundTopicId;
+          inboundTopicId = createResult.inboundTopicId;
+          pfpTopicId = createResult.pfpTopicId;
+          profileTopicId = createResult.profileTopicId;
+
+          state.outboundTopicId = outboundTopicId;
+          state.inboundTopicId = inboundTopicId;
+          state.pfpTopicId = pfpTopicId;
+          state.profileTopicId = profileTopicId;
+
+          if (!state.createdResources) {
+            state.createdResources = [];
+          }
+
+          if (
+            pfpTopicId &&
+            !state.createdResources.includes(`pfp:${pfpTopicId}`)
+          ) {
+            state.createdResources.push(`pfp:${pfpTopicId}`);
+          }
+          if (!state.createdResources.includes(`inbound:${inboundTopicId}`)) {
+            state.createdResources.push(`inbound:${inboundTopicId}`);
+          }
+          if (!state.createdResources.includes(`outbound:${outboundTopicId}`)) {
+            state.createdResources.push(`outbound:${outboundTopicId}`);
+          }
+          if (!state.createdResources.includes(`profile:${profileTopicId}`)) {
+            state.createdResources.push(`profile:${profileTopicId}`);
+          }
+        }
+
+        state.currentStage = 'profile';
+        state.completedPercentage = 60;
+
+        if (progressCallback) {
+          progressCallback({
+            stage: 'submitting',
+            message: 'Created MCP server with topics and profile',
+            progressPercent: 60,
+            details: {
+              state,
+              outboundTopicId,
+              inboundTopicId,
+              pfpTopicId,
+              profileTopicId,
+            },
+          });
+        }
+      } else {
+        account = account || config.existingAccount;
+        if (!account) {
+          throw new Error(
+            'Cannot resume registration without account information',
+          );
+        }
+
+        const keyType = detectKeyTypeFromString(account.privateKey);
+
+        const privateKey =
+          keyType.detectedType === 'ed25519'
+            ? PrivateKey.fromStringED25519(account.privateKey)
+            : PrivateKey.fromStringECDSA(account.privateKey);
+
+        const publicKey = privateKey.publicKey.toString();
+
+        serverClient = new HCS10Client({
+          network: config.network,
+          operatorId: account.accountId,
+          operatorPrivateKey: account.privateKey,
+          operatorPublicKey: publicKey,
+          keyType: keyType.detectedType as 'ed25519' | 'ecdsa',
+          logLevel: 'info' as LogLevel,
+          guardedRegistryBaseUrl: baseUrl,
+        });
+
+        this.logger.info('Resuming registration with existing state', {
+          inboundTopicId: state.inboundTopicId,
+          outboundTopicId: state.outboundTopicId,
+          profileTopicId: state.profileTopicId,
+          pfpTopicId: state.pfpTopicId,
+        });
+      }
+
+      const operatorId = `${state.inboundTopicId}@${account.accountId}`;
+
+      if (
+        state.currentStage !== 'complete' ||
+        !state.createdResources?.includes(
+          `registration:${state.inboundTopicId}`,
+        )
+      ) {
+        const registrationResult =
+          await serverClient.registerAgentWithGuardedRegistry(
+            account.accountId,
+            config.network,
+            {
+              progressCallback: data => {
+                const adjustedPercent = 60 + (data.progressPercent || 0) * 0.4;
+                if (progressCallback) {
+                  progressCallback({
+                    stage: data.stage,
+                    message: data.message,
+                    progressPercent: adjustedPercent,
+                    details: {
+                      ...data.details,
+                      outboundTopicId: state.outboundTopicId,
+                      inboundTopicId: state.inboundTopicId,
+                      pfpTopicId: state.pfpTopicId,
+                      profileTopicId: state.profileTopicId,
+                      operatorId,
+                      state: data.details?.state || state,
+                    },
+                  });
+                }
+              },
+              existingState: state,
+            },
+          );
+
+        if (!registrationResult.success) {
+          return {
+            ...registrationResult,
+            state,
+          };
+        }
+
+        state = registrationResult.state || state;
+      }
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'completed',
+          message: 'MCP server creation and registration complete',
+          progressPercent: 100,
+          details: {
+            outboundTopicId: state.outboundTopicId,
+            inboundTopicId: state.inboundTopicId,
+            pfpTopicId: state.pfpTopicId,
+            profileTopicId: state.profileTopicId,
+            operatorId,
+            state,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        state,
+        metadata: {
+          accountId: account.accountId,
+          privateKey: account.privateKey,
+          operatorId,
+          inboundTopicId: state.inboundTopicId!,
+          outboundTopicId: state.outboundTopicId!,
+          profileTopicId: state.profileTopicId!,
+          pfpTopicId: state.pfpTopicId!,
+        },
+      };
+    } catch (e: any) {
+      const error = e as Error;
+      const logMessage = `Failed to create and register MCP server: ${error.message}`;
+      this.logger.error(logMessage);
+      return {
+        error: error.message,
+        success: false,
+        state:
+          options?.existingState ||
+          ({
+            currentStage: 'init',
+            completedPercentage: 0,
+            error: error.message,
+          } as MCPServerCreationState),
+      };
+    }
   }
 }
