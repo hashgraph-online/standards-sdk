@@ -324,7 +324,7 @@ async function main() {
             msg.data.startsWith('hcs://1/'),
         );
 
-        if (largeMessage) {
+        if (largeMessage && largeMessage.data) {
           logger.info('Found large message reference:', largeMessage.data);
           try {
             const resolvedContent = await bob.client.getMessageContent(

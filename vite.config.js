@@ -17,6 +17,7 @@ export default defineConfig(async () => {
   }
 
   const externalDependencies = [
+    '@hashgraphonline/hedera-agent-kit',
     '@hashgraph/proto',
     '@hashgraph/sdk',
     'fetch-retry',
@@ -51,7 +52,7 @@ export default defineConfig(async () => {
         modules: {
           buffer: true,
         },
-      })
+      }),
     );
   }
 
@@ -62,12 +63,11 @@ export default defineConfig(async () => {
       lib: {
         entry: resolve(__dirname, 'src/index.ts'),
         name: format === 'umd' ? 'StandardsSDK' : undefined,
-        fileName: (fmt) =>
-          `standards-sdk.${fmt === 'cjs' ? 'cjs' : fmt + '.js'}`,
+        fileName: fmt => `standards-sdk.${fmt === 'cjs' ? 'cjs' : fmt + '.js'}`,
         formats: [format],
       },
       rollupOptions: {
-        external: (id) => {
+        external: id => {
           if (id.startsWith('@kiloscribe/inscription-sdk')) {
             return false;
           }
@@ -76,7 +76,7 @@ export default defineConfig(async () => {
           }
           return (
             externalDependencies.some(
-              (dep) => id === dep || id.startsWith(dep + '/')
+              dep => id === dep || id.startsWith(dep + '/'),
             ) ||
             (!id.startsWith('.') &&
               !id.startsWith('/') &&
@@ -90,7 +90,7 @@ export default defineConfig(async () => {
                 format: 'cjs',
               }
             : {
-                globals: (id) => id,
+                globals: id => id,
                 preserveModules: format === 'es',
                 preserveModulesRoot: format === 'es' ? 'src' : undefined,
                 exports: 'named',

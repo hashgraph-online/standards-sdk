@@ -88,12 +88,16 @@ export class HederaMirrorNode {
   private apiKey?: string;
   private customHeaders: Record<string, string>;
 
-  private maxRetries: number = 3;
-  private initialDelayMs: number = 1000;
+  private maxRetries: number = 5;
+  private initialDelayMs: number = 2000;
   private maxDelayMs: number = 30000;
   private backoffFactor: number = 2;
 
-  constructor(network: NetworkType, logger?: Logger, config?: MirrorNodeConfig) {
+  constructor(
+    network: NetworkType,
+    logger?: Logger,
+    config?: MirrorNodeConfig,
+  ) {
     this.network = network;
     this.apiKey = config?.apiKey;
     this.customHeaders = config?.headers || {};
@@ -164,6 +168,11 @@ export class HederaMirrorNode {
       : `${this.baseUrl}/${endpoint}`;
   }
 
+  /**
+   * Returns the base URL for the Hedera mirror node based on the network type
+   * @returns The mirror node base URL
+   * @private
+   */
   private getMirrorNodeUrl(): string {
     return this.network === 'mainnet'
       ? 'https://mainnet-public.mirrornode.hedera.com'
@@ -323,18 +332,58 @@ export class HederaMirrorNode {
       return null;
     }
   }
-
   /**
-   * Retrieves messages for a given topic ID from the mirror node.
+   * Retrieves messages for a given topic ID from the mirror node. Supports filtering by sequence number
+   * based on the OpenAPI specification.
    * @param topicId The ID of the topic to retrieve messages for.
+   * @param options Optional filtering parameters.
    * @returns A promise that resolves to the messages for the given topic.
-   * @throws An error if the topic ID is invalid or the messages cannot be retrieved.
    */
-  async getTopicMessages(topicId: string): Promise<HCSMessage[]> {
-    this.logger.trace(`Querying messages for topic ${topicId}`);
+  async getTopicMessages(
+    topicId: string,
+    options?: {
+      sequenceNumber?: string | number;
+      limit?: number;
+      order?: 'asc' | 'desc';
+    },
+  ): Promise<HCSMessage[]> {
+    this.logger.trace(
+      `Querying messages for topic ${topicId}${options ? ' with filters' : ''}`,
+    );
 
-    let nextEndpoint = `/api/v1/topics/${topicId}/messages`;
+    let endpoint = `/api/v1/topics/${topicId}/messages`;
+    const params = new URLSearchParams();
+
+    if (options) {
+      if (options.sequenceNumber !== undefined) {
+        const seqNum =
+          typeof options.sequenceNumber === 'number'
+            ? options.sequenceNumber.toString()
+            : options.sequenceNumber;
+
+        if (!seqNum.match(/^(gt|gte|lt|lte|eq|ne):/)) {
+          params.append('sequencenumber', `gt:${seqNum}`);
+        } else {
+          params.append('sequencenumber', seqNum);
+        }
+      }
+
+      if (options.limit) {
+        params.append('limit', options.limit.toString());
+      }
+
+      if (options.order) {
+        params.append('order', options.order);
+      }
+    }
+
+    const queryString = params.toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+
     const messages: HCSMessage[] = [];
+    let nextEndpoint = endpoint;
 
     while (nextEndpoint) {
       try {

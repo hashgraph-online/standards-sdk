@@ -13,6 +13,8 @@ import {
   HCSMessage,
   RegistrationProgressData,
   AgentCreationState,
+  MCPServerBuilder,
+  MCPServerCapability,
 } from '../../src';
 import { TransferTransaction, Hbar } from '@hashgraph/sdk';
 import * as fs from 'fs';
@@ -142,13 +144,21 @@ export async function getAgentFromEnv(
   const privateKeyEnvVar = `${envPrefix}_PRIVATE_KEY`;
   const inboundTopicIdEnvVar = `${envPrefix}_INBOUND_TOPIC_ID`;
   const outboundTopicIdEnvVar = `${envPrefix}_OUTBOUND_TOPIC_ID`;
+  const profileTopicIdEnvVar = `${envPrefix}_PROFILE_TOPIC_ID`;
 
   const accountId = process.env[accountIdEnvVar];
   const privateKey = process.env[privateKeyEnvVar];
   const inboundTopicId = process.env[inboundTopicIdEnvVar];
   const outboundTopicId = process.env[outboundTopicIdEnvVar];
+  const profileTopicId = process.env[profileTopicIdEnvVar];
 
-  if (!accountId || !privateKey || !inboundTopicId || !outboundTopicId) {
+  if (
+    !accountId ||
+    !privateKey ||
+    !inboundTopicId ||
+    !outboundTopicId ||
+    !profileTopicId
+  ) {
     logger.info(`${agentName} agent not found in environment variables`);
     return null;
   }
@@ -181,7 +191,7 @@ export async function createAgent(
   logger: Logger,
   baseClient: HCS10Client,
   agentName: string,
-  agentBuilder: AgentBuilder,
+  agentBuilder: AgentBuilder | MCPServerBuilder,
   envPrefix: string,
   options: { initialBalance?: number } = {},
 ): Promise<AgentData | null> {
@@ -262,7 +272,12 @@ export async function createAgent(
       }
     }
 
-    const result = await baseClient.createAndRegisterAgent(agentBuilder, {
+    const method =
+      agentBuilder instanceof AgentBuilder
+        ? 'createAndRegisterAgent'
+        : 'createAndRegisterMCPServer';
+
+    const result = await baseClient[method](agentBuilder as any, {
       ...options,
       existingState: hasPartialState
         ? (existingState as AgentCreationState)
@@ -475,6 +490,43 @@ export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
   }
 
   return bobBuilder;
+}
+
+export async function createMCPServer(
+  logger: Logger,
+  baseClient: HCS10Client,
+  serverName: string,
+): Promise<AgentData | null> {
+  const existingServer = await getAgentFromEnv(
+    logger,
+    baseClient,
+    serverName,
+    serverName,
+  );
+
+  if (existingServer) {
+    return existingServer;
+  }
+
+  const operator = baseClient.getAccountAndSigner();
+
+  const mcpServerBuilder = new MCPServerBuilder()
+    .setName(serverName)
+    .setBio(serverName)
+    .setNetworkType('testnet')
+    .setServerDescription(serverName)
+    .setExistingAccount(operator.accountId, operator.signer.toString())
+    .setVersion('1.0.0')
+    .setServices([MCPServerCapability.COMMUNICATION])
+    .setConnectionInfo('https://mcp.hashgraphonline.com', 'sse');
+
+  return await createAgent(
+    logger,
+    baseClient,
+    serverName,
+    mcpServerBuilder,
+    serverName,
+  );
 }
 
 export async function getOrCreateBob(

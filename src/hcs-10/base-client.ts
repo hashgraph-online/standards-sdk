@@ -176,13 +176,19 @@ export abstract class HCS10BaseClient extends Registration {
   /**
    * Get a stream of messages from a connection topic
    * @param topicId The connection topic ID to get messages from
+   * @param options Optional filtering options for messages
    * @returns A stream of filtered messages valid for connection topics
    */
   public async getMessageStream(
     topicId: string,
+    options?: {
+      sequenceNumber?: string | number;
+      limit?: number;
+      order?: 'asc' | 'desc';
+    }
   ): Promise<{ messages: HCSMessage[] }> {
     try {
-      const messages = await this.mirrorNode.getTopicMessages(topicId);
+      const messages = await this.mirrorNode.getTopicMessages(topicId, options);
       const validOps = ['message', 'close_connection', 'transaction'];
 
       const filteredMessages = messages.filter(msg => {
@@ -329,13 +335,19 @@ export abstract class HCS10BaseClient extends Registration {
   /**
    * Get all messages from a topic
    * @param topicId The topic ID to get messages from
+   * @param options Optional filtering options for messages
    * @returns All messages from the topic
    */
   public async getMessages(
     topicId: string,
+    options?: {
+      sequenceNumber?: string | number;
+      limit?: number;
+      order?: 'asc' | 'desc';
+    }
   ): Promise<{ messages: HCSMessage[] }> {
     try {
-      const messages = await this.mirrorNode.getTopicMessages(topicId);
+      const messages = await this.mirrorNode.getTopicMessages(topicId, options);
 
       const validatedMessages = messages.filter(msg => {
         if (msg.p !== 'hcs-10') {
@@ -419,7 +431,7 @@ export abstract class HCS10BaseClient extends Registration {
       const hcs11Client = new HCS11Client({
         network: this.network as 'mainnet' | 'testnet',
         auth: {
-          operatorId: '0.0.0', // Read-only operations only
+          operatorId: '0.0.0',
         },
         logLevel: 'info',
       });
@@ -534,10 +546,16 @@ export abstract class HCS10BaseClient extends Registration {
   /**
    * Retrieves outbound messages for an agent
    * @param agentAccountId The account ID of the agent
+   * @param options Optional filtering options for messages
    * @returns The outbound messages
    */
   public async retrieveOutboundMessages(
     agentAccountId: string,
+    options?: {
+      sequenceNumber?: string | number;
+      limit?: number;
+      order?: 'asc' | 'desc';
+    }
   ): Promise<HCSMessage[]> {
     try {
       const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
@@ -547,7 +565,7 @@ export abstract class HCS10BaseClient extends Registration {
         );
         return [];
       }
-      const response = await this.getMessages(topicInfo.outboundTopic);
+      const response = await this.getMessages(topicInfo.outboundTopic, options);
       return response.messages.filter(
         msg =>
           msg.p === 'hcs-10' &&
@@ -802,7 +820,11 @@ export abstract class HCS10BaseClient extends Registration {
       this.logger.info(
         `Attempt ${attempt + 1}/${maxAttempts} to find connection confirmation`,
       );
-      const messages = await this.mirrorNode.getTopicMessages(inboundTopicId);
+
+      const messages = await this.mirrorNode.getTopicMessages(inboundTopicId, {
+        order: 'desc',
+        limit: 100
+      });
 
       const connectionCreatedMessages = messages.filter(
         m => m.op === 'connection_created',
@@ -839,10 +861,6 @@ export abstract class HCS10BaseClient extends Registration {
             );
 
             if (recordConfirmation) {
-              /**
-               * Record's the confirmation of the connection request from the
-               * confirmedBy account to the agent account.
-               */
               await this.recordOutboundConnectionConfirmation({
                 requestorOutboundTopicId:
                   confirmedByConnectionTopics.outboundTopic,
@@ -1040,16 +1058,24 @@ export abstract class HCS10BaseClient extends Registration {
   /**
    * Retrieves all transaction requests from a topic
    * @param topicId The topic ID to retrieve transactions from
-   * @param limit Optional maximum number of messages to retrieve
+   * @param options Optional filtering and retrieval options
    * @returns Array of transaction requests sorted by timestamp (newest first)
    */
   public async getTransactionRequests(
     topicId: string,
-    limit?: number,
+    options?: {
+      limit?: number;
+      sequenceNumber?: string | number;
+      order?: 'asc' | 'desc';
+    },
   ): Promise<TransactMessage[]> {
     this.logger.debug(`Retrieving transaction requests from topic ${topicId}`);
 
-    const { messages } = await this.getMessageStream(topicId);
+    const { messages } = await this.getMessageStream(topicId, {
+      limit: options?.limit,
+      sequenceNumber: options?.sequenceNumber,
+      order: options?.order || 'desc',
+    });
 
     const transactOperations = (
       messages
@@ -1068,8 +1094,8 @@ export abstract class HCS10BaseClient extends Registration {
       return 0;
     });
 
-    const result = limit
-      ? transactOperations.slice(0, limit)
+    const result = options?.limit
+      ? transactOperations.slice(0, options.limit)
       : transactOperations;
 
     return result;
