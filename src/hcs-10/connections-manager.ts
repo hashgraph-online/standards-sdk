@@ -188,12 +188,16 @@ export interface IConnectionsManager {
   /**
    * Gets pending transactions from a specific connection
    * @param connectionTopicId - The connection topic ID to check for transactions
-   * @param limit - Optional limit for the number of transactions to return
+   * @param options - Optional filtering and retrieval options
    * @returns Array of pending transaction messages sorted by timestamp (newest first)
    */
   getPendingTransactions(
     connectionTopicId: string,
-    limit?: number,
+    options?: {
+      limit?: number;
+      sequenceNumber?: string | number;
+      order?: 'asc' | 'desc';
+    },
   ): Promise<TransactMessage[]>;
 
   /**
@@ -1276,17 +1280,21 @@ export class ConnectionsManager implements IConnectionsManager {
   /**
    * Gets pending transactions from a specific connection
    * @param connectionTopicId - The connection topic ID to check for transactions
-   * @param limit - Optional limit for the number of transactions to return
+   * @param options - Optional filtering and retrieval options
    * @returns Array of pending transaction messages sorted by timestamp (newest first)
    */
   async getPendingTransactions(
     connectionTopicId: string,
-    limit?: number,
+    options?: {
+      limit?: number;
+      sequenceNumber?: string | number;
+      order?: 'asc' | 'desc';
+    },
   ): Promise<TransactMessage[]> {
     try {
       const transactMessages = await this.baseClient.getTransactionRequests(
         connectionTopicId,
-        limit,
+        options ? { ...options } : undefined,
       );
 
       const pendingTransactions: TransactMessage[] = [];
@@ -1319,7 +1327,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * @param scheduleId - The schedule ID to check
    * @returns Status of the scheduled transaction
    */
-  async getScheduledTransactionStatus(scheduleId: string): Promise<{
+  getScheduledTransactionStatus(scheduleId: string): Promise<{
     executed: boolean;
     executedTimestamp?: string;
     deleted: boolean;
@@ -1339,25 +1347,25 @@ export class ConnectionsManager implements IConnectionsManager {
     operatorAccountId: string,
   ): Promise<Date | undefined> {
     try {
-      const { messages } =
+      const messages =
         await this.baseClient.getMessageStream(connectionTopicId);
 
-      const operatorMessages = messages.filter(
+      const filteredMessages = messages.messages.filter(
         msg =>
           msg.operator_id &&
           msg.operator_id.includes(operatorAccountId) &&
           msg.created,
       );
 
-      if (operatorMessages.length === 0) {
+      if (filteredMessages.length === 0) {
         return undefined;
       }
 
-      operatorMessages.sort(
+      filteredMessages.sort(
         (a, b) => b.created!.getTime() - a.created!.getTime(),
       );
 
-      return operatorMessages[0].created;
+      return filteredMessages[0].created;
     } catch (error) {
       this.logger.error(`Error getting last operator activity: ${error}`);
       return undefined;

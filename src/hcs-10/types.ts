@@ -117,6 +117,13 @@ export interface CreateAgentResponse {
   profileTopicId: string;
 }
 
+export interface CreateMCPServerResponse {
+  inboundTopicId: string;
+  outboundTopicId: string;
+  pfpTopicId: string;
+  profileTopicId: string;
+}
+
 export interface CreateAccountResponse {
   accountId: string;
   privateKey: string;
@@ -199,6 +206,24 @@ export interface AgentCreationState {
   error?: string;
   createdResources?: string[];
   agentMetadata?: Record<string, any>;
+}
+
+export interface MCPServerCreationState {
+  pfpTopicId?: string;
+  inboundTopicId?: string;
+  outboundTopicId?: string;
+  profileTopicId?: string;
+  currentStage:
+    | 'init'
+    | 'pfp'
+    | 'topics'
+    | 'profile'
+    | 'registration'
+    | 'complete';
+  completedPercentage: number;
+  error?: string;
+  createdResources?: string[];
+  serverMetadata?: Record<string, any>;
 }
 
 export type RegistrationResult = {
