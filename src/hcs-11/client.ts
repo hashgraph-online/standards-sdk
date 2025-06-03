@@ -36,6 +36,10 @@ import {
   InscribeImageOptions,
   InscribeProfileOptions,
   capabilityNameToCapabilityMap,
+  MCPServerDetails,
+  MCPServerProfile,
+  MCPServerCapability,
+  VerificationType,
 } from './types';
 
 const SocialLinkSchema = z.object({
@@ -48,6 +52,47 @@ const AIAgentDetailsSchema = z.object({
   capabilities: z.array(z.nativeEnum(AIAgentCapability)).min(1),
   model: z.string().min(1),
   creator: z.string().optional(),
+});
+
+const MCPServerConnectionInfoSchema = z.object({
+  url: z.string().min(1),
+  transport: z.enum(['stdio', 'sse']),
+});
+
+const MCPServerVerificationSchema = z.object({
+  type: z.nativeEnum(VerificationType),
+  value: z.string(),
+  dns_field: z.string().optional(),
+  challenge_path: z.string().optional(),
+});
+
+const MCPServerHostSchema = z.object({
+  minVersion: z.string().optional(),
+});
+
+const MCPServerResourceSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+});
+
+const MCPServerToolSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+});
+
+const MCPServerDetailsSchema = z.object({
+  version: z.string().min(1),
+  connectionInfo: MCPServerConnectionInfoSchema,
+  services: z.array(z.nativeEnum(MCPServerCapability)).min(1),
+  description: z.string().min(1),
+  verification: MCPServerVerificationSchema.optional(),
+  host: MCPServerHostSchema.optional(),
+  capabilities: z.array(z.string()).optional(),
+  resources: z.array(MCPServerResourceSchema).optional(),
+  tools: z.array(MCPServerToolSchema).optional(),
+  maintainer: z.string().optional(),
+  repository: z.string().optional(),
+  docs: z.string().optional(),
 });
 
 const BaseProfileSchema = z.object({
@@ -74,9 +119,15 @@ const AIAgentProfileSchema = BaseProfileSchema.extend({
   aiAgent: AIAgentDetailsSchema,
 });
 
+const MCPServerProfileSchema = BaseProfileSchema.extend({
+  type: z.literal(ProfileType.MCP_SERVER),
+  mcpServer: MCPServerDetailsSchema,
+});
+
 const HCS11ProfileSchema = z.union([
   PersonalProfileSchema,
   AIAgentProfileSchema,
+  MCPServerProfileSchema,
 ]);
 
 export class HCS11Client {
@@ -94,13 +145,13 @@ export class HCS11Client {
     this.auth = config.auth;
     this.network = config.network;
     this.operatorId = config.auth.operatorId;
-    
+
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
       module: 'HCS-11',
       silent: config.silent,
     });
-    
+
     this.mirrorNode = new HederaMirrorNode(
       this.network as 'mainnet' | 'testnet',
       this.logger,
@@ -116,10 +167,12 @@ export class HCS11Client {
           this.keyType = keyDetection.detectedType;
           this.client.setOperator(this.operatorId, keyDetection.privateKey);
         } catch (error) {
-          this.logger.warn('Failed to detect key type from private key format, will query mirror node');
+          this.logger.warn(
+            'Failed to detect key type from private key format, will query mirror node',
+          );
           this.keyType = 'ed25519';
         }
-        
+
         this.initializeOperator();
       }
     }
@@ -247,6 +300,62 @@ export class HCS11Client {
         model,
         creator: options?.creator,
       },
+    };
+  }
+
+  /**
+   * Creates an MCP server profile.
+   *
+   * @param displayName - The display name for the MCP server
+   * @param serverDetails - The MCP server details
+   * @param options - Additional profile options
+   * @returns An MCPServerProfile object
+   */
+  public createMCPServerProfile(
+    displayName: string,
+    serverDetails: MCPServerDetails,
+    options?: {
+      alias?: string;
+      bio?: string;
+      socials?: SocialLink[];
+      profileImage?: string;
+      properties?: Record<string, any>;
+      inboundTopicId?: string;
+      outboundTopicId?: string;
+    },
+  ): MCPServerProfile {
+    const validation = this.validateProfile({
+      version: '1.0',
+      type: ProfileType.MCP_SERVER,
+      display_name: displayName,
+      alias: options?.alias,
+      bio: options?.bio,
+      socials: options?.socials,
+      profileImage: options?.profileImage,
+      properties: options?.properties,
+      inboundTopicId: options?.inboundTopicId,
+      outboundTopicId: options?.outboundTopicId,
+      mcpServer: serverDetails,
+    });
+
+    if (!validation.valid) {
+      throw new Error(
+        `Invalid MCP Server Profile: ${validation.errors.join(', ')}`,
+      );
+    }
+
+    return {
+      version: '1.0',
+      type: ProfileType.MCP_SERVER,
+      display_name: displayName,
+      alias: options?.alias,
+      bio: options?.bio,
+      socials: options?.socials,
+      profileImage: options?.profileImage,
+      properties: options?.properties,
+      inboundTopicId: options?.inboundTopicId,
+      outboundTopicId: options?.outboundTopicId,
+      mcpServer: serverDetails,
     };
   }
 
@@ -555,12 +664,17 @@ export class HCS11Client {
 
       progressReporter.submitting('Submitting profile to Hedera network', 30);
 
+      const privateKey =
+        this.keyType === 'ed25519'
+          ? PrivateKey.fromStringED25519(this.auth.privateKey as string)
+          : PrivateKey.fromStringECDSA(this.auth.privateKey as string);
+
       const inscriptionResponse = this.auth.privateKey
         ? await inscribe(
             input,
             {
               accountId: this.auth.operatorId,
-              privateKey: this.auth.privateKey,
+              privateKey,
               network: this.network as 'mainnet' | 'testnet',
             },
             inscriptionOptions,

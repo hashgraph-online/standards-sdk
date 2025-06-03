@@ -170,7 +170,7 @@ describe('HRLResolver', () => {
       });
 
       expect(result).toEqual({
-        content: 'JSON content value',
+        content: { content: 'JSON content value', metadata: { type: 'test' } },
         contentType: 'application/json',
         topicId: '0.0.5669431',
         isBinary: false,

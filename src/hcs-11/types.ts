@@ -8,6 +8,7 @@ import { NetworkType } from '../utils/types';
 export enum ProfileType {
   PERSONAL = 0,
   AI_AGENT = 1,
+  MCP_SERVER = 2,
 }
 
 export enum AIAgentType {
@@ -43,6 +44,31 @@ export enum AIAgentCapability {
   WORKFLOW_AUTOMATION = 18,
 }
 
+export enum MCPServerCapability {
+  RESOURCE_PROVIDER = 0,
+  TOOL_PROVIDER = 1,
+  PROMPT_TEMPLATE_PROVIDER = 2,
+  LOCAL_FILE_ACCESS = 3,
+  DATABASE_INTEGRATION = 4,
+  API_INTEGRATION = 5,
+  WEB_ACCESS = 6,
+  KNOWLEDGE_BASE = 7,
+  MEMORY_PERSISTENCE = 8,
+  CODE_ANALYSIS = 9,
+  CONTENT_GENERATION = 10,
+  COMMUNICATION = 11,
+  DOCUMENT_PROCESSING = 12,
+  CALENDAR_SCHEDULE = 13,
+  SEARCH = 14,
+  ASSISTANT_ORCHESTRATION = 15,
+}
+
+export enum VerificationType {
+  DNS = 'dns',
+  SIGNATURE = 'signature',
+  CHALLENGE = 'challenge',
+}
+
 export type SocialPlatform =
   | 'twitter'
   | 'github'
@@ -63,6 +89,47 @@ export interface AIAgentDetails {
   capabilities: AIAgentCapability[];
   model: string;
   creator?: string;
+}
+
+export interface MCPServerVerification {
+  type: VerificationType;
+  value: string;
+  dns_field?: string;
+  challenge_path?: string;
+}
+
+export interface MCPServerConnectionInfo {
+  url: string;
+  transport: 'stdio' | 'sse';
+}
+
+export interface MCPServerHost {
+  minVersion?: string;
+}
+
+export interface MCPServerResource {
+  name: string;
+  description: string;
+}
+
+export interface MCPServerTool {
+  name: string;
+  description: string;
+}
+
+export interface MCPServerDetails {
+  version: string;
+  connectionInfo: MCPServerConnectionInfo;
+  services: MCPServerCapability[];
+  description: string;
+  verification?: MCPServerVerification;
+  host?: MCPServerHost;
+  capabilities?: string[];
+  resources?: MCPServerResource[];
+  tools?: MCPServerTool[];
+  maintainer?: string;
+  repository?: string;
+  docs?: string;
 }
 
 export interface BaseProfile {
@@ -87,7 +154,12 @@ export interface AIAgentProfile extends BaseProfile {
   aiAgent: AIAgentDetails;
 }
 
-export type HCS11Profile = PersonalProfile | AIAgentProfile;
+export interface MCPServerProfile extends BaseProfile {
+  type: ProfileType.MCP_SERVER;
+  mcpServer: MCPServerDetails;
+}
+
+export type HCS11Profile = PersonalProfile | AIAgentProfile | MCPServerProfile;
 
 export enum InboundTopicType {
   PUBLIC = 'PUBLIC',
@@ -176,6 +248,22 @@ export interface PersonConfig extends BaseProfile {
   pfpFileName?: string;
 }
 
+export interface MCPServerConfig {
+  name: string;
+  alias?: string;
+  bio?: string;
+  socials?: SocialLink[];
+  network: NetworkType;
+  mcpServer: MCPServerDetails;
+  pfpBuffer?: Buffer;
+  pfpFileName?: string;
+  existingPfpTopicId?: string;
+  existingAccount?: {
+    accountId: string;
+    privateKey: string;
+  };
+}
+
 export const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
   'twitter',
   'github',
@@ -212,19 +300,24 @@ export const capabilityNameToCapabilityMap: Record<string, AIAgentCapability> =
     workflow_automation: AIAgentCapability.WORKFLOW_AUTOMATION,
   };
 
-export interface AgentMetadata {
-  type: 'autonomous' | 'manual';
-  model?: string;
-  socials?: {
-    twitter?: string;
-    discord?: string;
-    github?: string;
-    website?: string;
-    x?: string;
-    linkedin?: string;
-    youtube?: string;
-    telegram?: string;
-  };
-  creator?: string;
-  properties?: Record<string, any>;
-}
+export const mcpServiceNameToCapabilityMap: Record<
+  string,
+  MCPServerCapability
+> = {
+  resource_provider: MCPServerCapability.RESOURCE_PROVIDER,
+  tool_provider: MCPServerCapability.TOOL_PROVIDER,
+  prompt_template_provider: MCPServerCapability.PROMPT_TEMPLATE_PROVIDER,
+  local_file_access: MCPServerCapability.LOCAL_FILE_ACCESS,
+  database_integration: MCPServerCapability.DATABASE_INTEGRATION,
+  api_integration: MCPServerCapability.API_INTEGRATION,
+  web_access: MCPServerCapability.WEB_ACCESS,
+  knowledge_base: MCPServerCapability.KNOWLEDGE_BASE,
+  memory_persistence: MCPServerCapability.MEMORY_PERSISTENCE,
+  code_analysis: MCPServerCapability.CODE_ANALYSIS,
+  content_generation: MCPServerCapability.CONTENT_GENERATION,
+  communication: MCPServerCapability.COMMUNICATION,
+  document_processing: MCPServerCapability.DOCUMENT_PROCESSING,
+  calendar_schedule: MCPServerCapability.CALENDAR_SCHEDULE,
+  search: MCPServerCapability.SEARCH,
+  assistant_orchestration: MCPServerCapability.ASSISTANT_ORCHESTRATION,
+};
