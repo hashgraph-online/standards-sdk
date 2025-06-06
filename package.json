@@ -57,6 +57,9 @@
     "demo:connection-manager": "tsx demo/hcs-10/connection-manager.ts",
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
     "demo:mcp-chat": "tsx demo/hcs-10/create-mcp-server.ts",
+    "demo:hcs-20:deploy-and-mint": "tsx demo/hcs-20/deploy-and-mint.ts",
+    "demo:hcs-20:deploy-points": "tsx demo/hcs-20/deploy-points.ts",
+    "demo:hcs-20:mint-transfer-burn": "tsx demo/hcs-20/mint-transfer-burn.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest",
     "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
@@ -99,7 +102,7 @@
     "file-type": "^20.4.1",
     "ioredis": "^5.6.0",
     "mime-types": "^2.1.35",
-    "pino": "^9.6.0",
+    "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.24.2"
   }

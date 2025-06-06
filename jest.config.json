@@ -2,7 +2,7 @@
   "transform": {
     "^.+\\.(t|j)sx?$": ["@swc/jest"]
   },
-  "testEnvironment": "jsdom",
+  "testEnvironment": "./jest-environment-hedera.js",
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
   "setupFilesAfterEnv": [],
   "testPathIgnorePatterns": ["/node_modules/"]

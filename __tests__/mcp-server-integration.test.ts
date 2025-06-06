@@ -4,7 +4,7 @@ import {
   MCPServerCapability,
   VerificationType,
   ProfileType,
-  MCPServerConfig
+  MCPServerConfig,
 } from '../src/hcs-11/types';
 
 /**
@@ -19,12 +19,12 @@ describe('MCP Server Integration Tests', () => {
   const mockInscribeProfile = jest.fn().mockResolvedValue({
     profileTopicId: '0.0.123456',
     transactionId: '0.0.12345@1234567890.000000000',
-    success: true
+    success: true,
   });
 
   // Mock updateAccountMemo to avoid actual network calls
   const mockUpdateAccountMemo = jest.fn().mockResolvedValue({
-    success: true
+    success: true,
   });
 
   // Mock fetchProfileByAccountId
@@ -57,7 +57,8 @@ describe('MCP Server Integration Tests', () => {
           MCPServerCapability.SEARCH,
           MCPServerCapability.COMMUNICATION,
         ],
-        description: 'Provides tools and resources for Hedera consensus integration',
+        description:
+          'Provides tools and resources for Hedera consensus integration',
         host: {
           minVersion: '2024-05-01',
         },
@@ -68,13 +69,31 @@ describe('MCP Server Integration Tests', () => {
           'tools.invoke',
         ],
         resources: [
-          { name: 'hcs_topics', description: 'Access message streams from Hedera Consensus Service topics' },
-          { name: 'hcs_messages', description: 'Browse historical messages from consensus topics' },
+          {
+            name: 'hcs_topics',
+            description:
+              'Access message streams from Hedera Consensus Service topics',
+          },
+          {
+            name: 'hcs_messages',
+            description: 'Browse historical messages from consensus topics',
+          },
         ],
         tools: [
-          { name: 'topic_submit', description: 'Submit new messages to Hedera Consensus Service topics' },
-          { name: 'topic_subscribe', description: 'Subscribe to real-time messages from HCS topics' },
-          { name: 'topic_search', description: 'Search for messages in HCS topics by content or timestamp' },
+          {
+            name: 'topic_submit',
+            description:
+              'Submit new messages to Hedera Consensus Service topics',
+          },
+          {
+            name: 'topic_subscribe',
+            description: 'Subscribe to real-time messages from HCS topics',
+          },
+          {
+            name: 'topic_search',
+            description:
+              'Search for messages in HCS topics by content or timestamp',
+          },
         ],
         maintainer: 'Hedera Consensus Team',
         repository: 'https://github.com/hedera-consensus/mcp-server',
@@ -88,9 +107,11 @@ describe('MCP Server Integration Tests', () => {
     };
 
     // Mock the builder's build method
-    jest.spyOn(MCPServerBuilder.prototype, 'build').mockImplementation(function() {
-      return mockConfig;
-    });
+    jest
+      .spyOn(MCPServerBuilder.prototype, 'build')
+      .mockImplementation(function () {
+        return mockConfig;
+      });
 
     client = new HCS11Client({
       auth: { operatorId: '0.0.12345' },
@@ -104,7 +125,9 @@ describe('MCP Server Integration Tests', () => {
     client.fetchProfileByAccountId = mockFetchProfile;
 
     // Mock validateProfile to avoid validation issues
-    jest.spyOn(client, 'validateProfile').mockReturnValue({ valid: true, errors: [] });
+    jest
+      .spyOn(client, 'validateProfile')
+      .mockReturnValue({ valid: true, errors: [] });
   });
 
   afterEach(() => {
@@ -124,7 +147,7 @@ describe('MCP Server Integration Tests', () => {
         alias: config.alias,
         bio: config.bio,
         socials: config.socials,
-      }
+      },
     );
 
     // Verify profile structure
@@ -159,7 +182,7 @@ describe('MCP Server Integration Tests', () => {
     // Step 7: Update account memo with profile reference (mocked)
     const memoResult = await client.updateAccountMemoWithProfile(
       '0.0.12345',
-      inscriptionResult.profileTopicId
+      inscriptionResult.profileTopicId,
     );
 
     // Verify that updateAccountMemoWithProfile was called
@@ -176,7 +199,7 @@ describe('MCP Server Integration Tests', () => {
       profile: profile,
       topicInfo: {
         profileTopicId: '0.0.123456',
-      }
+      },
     });
 
     // Mock end-to-end workflow
