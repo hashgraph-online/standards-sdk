@@ -5,13 +5,11 @@
  * No mocking - tests the actual HCS-20 implementation end-to-end.
  */
 
-import { HCS20Client } from '../src';
+import { HCS20Client, HCS20PointsIndexer, HederaMirrorNode } from '../src';
 import * as dotenv from 'dotenv';
 import { describe, it, beforeAll, expect } from '@jest/globals';
 
 dotenv.config();
-
-import { HCS20PointsIndexer } from '../src';
 
 describe('HCS-20 Integration Tests', () => {
   let client: HCS20Client;
@@ -225,10 +223,18 @@ describe('HCS-20 Integration Tests', () => {
 
   describe('Register Topic', () => {
     it('should register a topic in the registry', async () => {
-      if (!deployedTopicId) {
-        console.log('Skipping register test - no deployed topic ID');
-        return;
-      }
+      const registryTestTick = `REG${Date.now()}`;
+
+      const deployResult = await client.deployPoints({
+        name: 'Registry Test Points',
+        tick: registryTestTick,
+        maxSupply: '100000',
+        limitPerMint: '1000',
+        metadata: 'Points for registry test',
+        usePrivateTopic: true,
+      });
+
+      const deployedTopicId = deployResult.topicId;
 
       console.log('Creating registry topic for testnet...');
       const registryTopicId = await client.createRegistryTopic('Test Registry');
@@ -246,10 +252,35 @@ describe('HCS-20 Integration Tests', () => {
         },
       });
 
-      expect(true).toBe(true);
       console.log(
         `Registered topic ${deployedTopicId} in registry ${registryTopicId}`,
       );
+
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      const mirrorNode = new HederaMirrorNode('testnet');
+      const messages = await mirrorNode.getTopicMessages(registryTopicId, {
+        limit: 10,
+        order: 'desc',
+      });
+
+      const registrationMessage = messages.find((msg: any) => {
+        return (
+          msg.p === 'hcs-20' &&
+          msg.op === 'register' &&
+          msg.t_id === deployedTopicId
+        );
+      });
+
+      expect(registrationMessage).toBeDefined();
+      expect(registrationMessage).toBeTruthy();
+
+      expect(registrationMessage.p).toBe('hcs-20');
+      expect(registrationMessage.op).toBe('register');
+      expect(registrationMessage.t_id).toBe(deployedTopicId);
+      expect(registrationMessage.name).toBe('Integration Test Points');
+      expect(registrationMessage.metadata).toBe('Registered for testing');
+      expect(registrationMessage.private).toBe(false);
     }, 30000);
   });
 
