@@ -185,7 +185,7 @@ export abstract class HCS10BaseClient extends Registration {
       sequenceNumber?: string | number;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
@@ -344,7 +344,7 @@ export abstract class HCS10BaseClient extends Registration {
       sequenceNumber?: string | number;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
@@ -555,7 +555,7 @@ export abstract class HCS10BaseClient extends Registration {
       sequenceNumber?: string | number;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<HCSMessage[]> {
     try {
       const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
@@ -823,7 +823,7 @@ export abstract class HCS10BaseClient extends Registration {
 
       const messages = await this.mirrorNode.getTopicMessages(inboundTopicId, {
         order: 'desc',
-        limit: 100
+        limit: 100,
       });
 
       const connectionCreatedMessages = messages.filter(
