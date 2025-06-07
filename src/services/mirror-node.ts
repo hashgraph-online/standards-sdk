@@ -1,7 +1,7 @@
 import { PublicKey, Timestamp, AccountId } from '@hashgraph/sdk';
 import axios, { AxiosRequestConfig } from 'axios';
 import { Logger } from '../utils/logger';
-import { HCSMessage } from '../hcs-10/base-client';
+import { HCSMessage } from '../hcs-10/types';
 import { proto } from '@hashgraph/proto';
 import {
   AccountResponse,
