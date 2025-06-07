@@ -268,3 +268,37 @@ export interface RegistrationsApiResponse {
   error?: string;
   details?: ValidationError[];
 }
+
+export interface HCSMessage {
+  p: 'hcs-10';
+  op:
+    | 'connection_request'
+    | 'connection_created'
+    | 'message'
+    | 'close_connection'
+    | 'transaction'
+    | 'register'
+    | 'delete'
+    | 'migrate'
+    | 'connection_closed';
+  data?: string;
+  created?: Date;
+  consensus_timestamp?: string;
+  m?: string;
+  payer: string;
+  outbound_topic_id?: string;
+  connection_request_id?: number;
+  confirmed_request_id?: number;
+  connection_topic_id?: string;
+  connected_account_id?: string;
+  requesting_account_id?: string;
+  connection_id?: number;
+  sequence_number: number;
+  operator_id?: string;
+  reason?: string;
+  close_method?: string;
+  schedule_id?: string;
+  account_id?: string;
+  uid?: string;
+  t_id?: string;
+}

@@ -1252,6 +1252,11 @@ export class BrowserHCSClient extends HCS10BaseClient {
       .setTopicId(topicId)
       .setMessage(message);
 
+    const transactionMemo = this.getHcs10TransactionMemo(payload);
+    if (transactionMemo) {
+      transaction.setTransactionMemo(transactionMemo);
+    }
+
     let transactionResponse: {
       result?: TransactionReceipt;
       error?: string;
