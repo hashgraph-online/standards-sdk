@@ -1,7 +1,7 @@
 import { Logger, LoggerOptions } from '../utils/logger';
-import { HCSMessage, HCS10BaseClient } from './base-client';
+import { HCS10BaseClient } from './base-client';
 import { AIAgentProfile } from '../hcs-11';
-import { TransactMessage } from './types';
+import { TransactMessage, HCSMessage } from './types';
 
 /**
  * Represents a connection request between agents
