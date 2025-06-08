@@ -941,6 +941,11 @@ export class HCS10Client extends HCS10BaseClient {
       .setTopicId(TopicId.fromString(topicId))
       .setMessage(message);
 
+    const transactionMemo = this.getHcs10TransactionMemo(payload);
+    if (transactionMemo) {
+      transaction.setTransactionMemo(transactionMemo);
+    }
+
     if (requiresFee) {
       this.logger.info(
         'Topic requires fee payment, setting max transaction fee',

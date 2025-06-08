@@ -14,6 +14,7 @@ import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import {
   WaitForConnectionConfirmationResponse,
   TransactMessage,
+  HCSMessage,
 } from './types';
 import { HRLResolver } from '../utils/hrl-resolver';
 
@@ -74,32 +75,6 @@ export interface HCS10Config {
   keyType?: 'ed25519' | 'ecdsa';
 }
 
-export interface HCSMessage {
-  p: 'hcs-10';
-  op:
-    | 'connection_request'
-    | 'connection_created'
-    | 'message'
-    | 'close_connection'
-    | 'transaction';
-  data?: string;
-  created?: Date;
-  consensus_timestamp?: string;
-  m?: string;
-  payer: string;
-  outbound_topic_id?: string;
-  connection_request_id?: number;
-  confirmed_request_id?: number;
-  connection_topic_id?: string;
-  connected_account_id?: string;
-  requesting_account_id?: string;
-  connection_id?: number;
-  sequence_number: number;
-  operator_id?: string;
-  reason?: string;
-  close_method?: string;
-  schedule_id?: string;
-}
 
 export interface ProfileResponse {
   profile: any;
@@ -1099,6 +1074,66 @@ export abstract class HCS10BaseClient extends Registration {
       : transactOperations;
 
     return result;
+  }
+
+  /**
+   * Gets the HCS-10 transaction memo for analytics based on the operation type
+   * @param payload The operation payload
+   * @returns The transaction memo in format hcs-10:op:{operation_enum}:{topic_type_enum}
+   */
+  protected getHcs10TransactionMemo(payload: object | string): string | null {
+    if (typeof payload !== 'object' || !('op' in payload)) {
+      return null;
+    }
+
+    const typedPayload = payload as HCSMessage;
+    const operation = typedPayload.op;
+    let operationEnum: string;
+    let topicTypeEnum: string;
+
+    switch (operation) {
+      case 'register':
+        operationEnum = '0';
+        topicTypeEnum = '0';
+        break;
+      case 'delete':
+        operationEnum = '1';
+        topicTypeEnum = '0';
+        break;
+      case 'migrate':
+        operationEnum = '2';
+        topicTypeEnum = '0';
+        break;
+      case 'connection_request':
+        operationEnum = '3';
+        topicTypeEnum = typedPayload.outbound_topic_id ? '2' : '1';
+        break;
+      case 'connection_created':
+        operationEnum = '4';
+        topicTypeEnum = typedPayload.outbound_topic_id ? '2' : '1';
+        break;
+      case 'connection_closed':
+        operationEnum = '5';
+        topicTypeEnum = typedPayload.outbound_topic_id ? '2' : '3';
+        break;
+      case 'message':
+        operationEnum = '6';
+        topicTypeEnum = '3';
+        break;
+      case 'close_connection':
+        operationEnum = '5';
+        topicTypeEnum = '3';
+        break;
+      case 'transaction':
+        operationEnum = '6';
+        topicTypeEnum = '3';
+        break;
+      default:
+        operationEnum = '6';
+        topicTypeEnum = '3';
+    }
+
+    return `hcs-10:op:${operationEnum}:${topicTypeEnum}`;
   }
 }
 
