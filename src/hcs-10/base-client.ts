@@ -1,14 +1,9 @@
 import { Logger, LogLevel } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
-import {
-  AccountResponse,
-  TopicResponse,
-  ScheduleInfo,
-} from '../services/types';
+import { AccountResponse, TopicResponse } from '../services/types';
 import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
-import axios from 'axios';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import {
@@ -74,7 +69,6 @@ export interface HCS10Config {
   /** The key type to use for the operator */
   keyType?: 'ed25519' | 'ecdsa';
 }
-
 
 export interface ProfileResponse {
   profile: any;
@@ -160,7 +154,7 @@ export abstract class HCS10BaseClient extends Registration {
       sequenceNumber?: string | number;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
@@ -319,7 +313,7 @@ export abstract class HCS10BaseClient extends Registration {
       sequenceNumber?: string | number;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<{ messages: HCSMessage[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
@@ -530,7 +524,7 @@ export abstract class HCS10BaseClient extends Registration {
       sequenceNumber?: string | number;
       limit?: number;
       order?: 'asc' | 'desc';
-    }
+    },
   ): Promise<HCSMessage[]> {
     try {
       const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
@@ -798,7 +792,7 @@ export abstract class HCS10BaseClient extends Registration {
 
       const messages = await this.mirrorNode.getTopicMessages(inboundTopicId, {
         order: 'desc',
-        limit: 100
+        limit: 100,
       });
 
       const connectionCreatedMessages = messages.filter(

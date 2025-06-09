@@ -36,11 +36,7 @@ describe('MCP Server Profile', () => {
         host: {
           minVersion: '2024-05-01',
         },
-        capabilities: [
-          'resources.get',
-          'resources.list',
-          'tools.invoke',
-        ],
+        capabilities: ['resources.get', 'resources.list', 'tools.invoke'],
         resources: [{ name: 'test_resource', description: 'A test resource' }],
         tools: [{ name: 'test_tool', description: 'A test tool' }],
         maintainer: 'Test Team',
@@ -79,9 +75,11 @@ describe('MCP Server Profile', () => {
     };
 
     // Mock the constructor
-    jest.spyOn(MCPServerBuilder.prototype, 'build').mockImplementation(function() {
-      return mockConfig;
-    });
+    jest
+      .spyOn(MCPServerBuilder.prototype, 'build')
+      .mockImplementation(function () {
+        return mockConfig;
+      });
   });
 
   afterEach(() => {
@@ -103,17 +101,27 @@ describe('MCP Server Profile', () => {
 
       expect(config.mcpServer).toBeDefined();
       expect(config.mcpServer.version).toBe('2024-06-01');
-      expect(config.mcpServer.connectionInfo.url).toBe('https://mcp.example.com');
+      expect(config.mcpServer.connectionInfo.url).toBe(
+        'https://mcp.example.com',
+      );
       expect(config.mcpServer.connectionInfo.transport).toBe('sse');
-      expect(config.mcpServer.services).toContain(MCPServerCapability.TOOL_PROVIDER);
-      expect(config.mcpServer.services).toContain(MCPServerCapability.API_INTEGRATION);
-      expect(config.mcpServer.description).toBe('This is a test MCP server for unit testing');
+      expect(config.mcpServer.services).toContain(
+        MCPServerCapability.TOOL_PROVIDER,
+      );
+      expect(config.mcpServer.services).toContain(
+        MCPServerCapability.API_INTEGRATION,
+      );
+      expect(config.mcpServer.description).toBe(
+        'This is a test MCP server for unit testing',
+      );
       expect(config.mcpServer.host?.minVersion).toBe('2024-05-01');
       expect(config.mcpServer.capabilities).toContain('tools.invoke');
       expect(config.mcpServer.resources).toHaveLength(1);
       expect(config.mcpServer.tools).toHaveLength(1);
       expect(config.mcpServer.maintainer).toBe('Test Team');
-      expect(config.mcpServer.repository).toBe('https://github.com/test/test-mcp');
+      expect(config.mcpServer.repository).toBe(
+        'https://github.com/test/test-mcp',
+      );
       expect(config.mcpServer.docs).toBe('https://docs.example.com/mcp');
       expect(config.mcpServer.verification?.type).toBe(VerificationType.DNS);
       expect(config.mcpServer.verification?.value).toBe('example.com');
@@ -128,7 +136,9 @@ describe('MCP Server Profile', () => {
         type: VerificationType.DNS,
         value: 'example.com',
       };
-      jest.spyOn(MCPServerBuilder.prototype, 'build').mockReturnValueOnce(dnsMockConfig);
+      jest
+        .spyOn(MCPServerBuilder.prototype, 'build')
+        .mockReturnValueOnce(dnsMockConfig);
 
       const builder = new MCPServerBuilder();
       const dnsConfig = builder.build();
@@ -142,11 +152,17 @@ describe('MCP Server Profile', () => {
         type: VerificationType.SIGNATURE,
         value: 'a1b2c3d4e5f6',
       };
-      jest.spyOn(MCPServerBuilder.prototype, 'build').mockReturnValueOnce(signatureMockConfig);
+      jest
+        .spyOn(MCPServerBuilder.prototype, 'build')
+        .mockReturnValueOnce(signatureMockConfig);
 
       const signatureConfig = builder.build();
-      expect(signatureConfig.mcpServer.verification?.type).toBe(VerificationType.SIGNATURE);
-      expect(signatureConfig.mcpServer.verification?.value).toBe('a1b2c3d4e5f6');
+      expect(signatureConfig.mcpServer.verification?.type).toBe(
+        VerificationType.SIGNATURE,
+      );
+      expect(signatureConfig.mcpServer.verification?.value).toBe(
+        'a1b2c3d4e5f6',
+      );
 
       // Test challenge verification
       const challengeMockConfig = { ...mockConfig };
@@ -156,11 +172,17 @@ describe('MCP Server Profile', () => {
         value: '',
         challenge_path: 'verify-path',
       };
-      jest.spyOn(MCPServerBuilder.prototype, 'build').mockReturnValueOnce(challengeMockConfig);
+      jest
+        .spyOn(MCPServerBuilder.prototype, 'build')
+        .mockReturnValueOnce(challengeMockConfig);
 
       const challengeConfig = builder.build();
-      expect(challengeConfig.mcpServer.verification?.type).toBe(VerificationType.CHALLENGE);
-      expect(challengeConfig.mcpServer.verification?.challenge_path).toBe('verify-path');
+      expect(challengeConfig.mcpServer.verification?.type).toBe(
+        VerificationType.CHALLENGE,
+      );
+      expect(challengeConfig.mcpServer.verification?.challenge_path).toBe(
+        'verify-path',
+      );
     });
   });
 
@@ -174,7 +196,9 @@ describe('MCP Server Profile', () => {
         silent: true,
       });
 
-      jest.spyOn(client, 'validateProfile').mockReturnValue({ valid: true, errors: [] });
+      jest
+        .spyOn(client, 'validateProfile')
+        .mockReturnValue({ valid: true, errors: [] });
     });
 
     it('should create an MCP server profile', () => {
@@ -214,7 +238,7 @@ describe('MCP Server Profile', () => {
             { platform: 'github', handle: 'test-org' },
             { platform: 'twitter', handle: 'test_mcp' },
           ],
-        }
+        },
       );
 
       expect(profile).toBeDefined();
@@ -226,9 +250,13 @@ describe('MCP Server Profile', () => {
 
       expect(profile.mcpServer).toBeDefined();
       expect(profile.mcpServer.version).toBe('2024-06-01');
-      expect(profile.mcpServer.connectionInfo.url).toBe('https://mcp.example.com');
+      expect(profile.mcpServer.connectionInfo.url).toBe(
+        'https://mcp.example.com',
+      );
       expect(profile.mcpServer.connectionInfo.transport).toBe('sse');
-      expect(profile.mcpServer.services).toContain(MCPServerCapability.TOOL_PROVIDER);
+      expect(profile.mcpServer.services).toContain(
+        MCPServerCapability.TOOL_PROVIDER,
+      );
       expect(profile.mcpServer.verification?.type).toBe(VerificationType.DNS);
     });
 
@@ -258,7 +286,10 @@ describe('MCP Server Profile', () => {
       expect(validationResult.valid).toBe(true);
 
       // For the invalid profile test
-      validateSpy.mockReturnValueOnce({ valid: false, errors: ['Missing required field'] });
+      validateSpy.mockReturnValueOnce({
+        valid: false,
+        errors: ['Missing required field'],
+      });
 
       const invalidProfile = {
         version: '1.0',
