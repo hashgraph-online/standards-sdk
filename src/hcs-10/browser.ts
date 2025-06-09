@@ -1270,7 +1270,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     }
 
     if (submitKey) {
-      const { accountId, signer } = this.getAccountAndSigner();
+      const { signer } = this.getAccountAndSigner();
       transaction.freezeWithSigner(signer as any);
       const signedTransaction = await transaction.sign(submitKey);
       transactionResponse = await this.hwc.executeTransactionWithErrorHandling(

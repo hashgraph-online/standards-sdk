@@ -218,9 +218,8 @@ async function handleConnectionRequest(
   }
 
   const requesterOperatorId = message.operator_id;
-  const requesterAccountId = agent.client.extractAccountFromOperatorId(
-    requesterOperatorId,
-  );
+  const requesterAccountId =
+    agent.client.extractAccountFromOperatorId(requesterOperatorId);
   if (!requesterAccountId) {
     logger.warn(`Invalid operator_id format: ${requesterOperatorId}`);
     return null;
