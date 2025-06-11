@@ -1,30 +1,30 @@
 # Maintainers
 
-This file lists the maintainers of the Hashgraph Online Standards SDK project.
+This file represents the maintainers of this repository.
 
-## Current Maintainers
+## Maintainer Scopes, GitHub Roles and GitHub Teams
 
-| Name        | GitHub                                        | Organization     |
-| ----------- | --------------------------------------------- | ---------------- |
-| kantorcodes | [kantorcodes](https://github.com/kantorcodes) | Hashgraph Online |
-| HGraphPunks | [HGraphPunks](https://github.com/HGraphPunks) | TurtleMoon       |
-| 3nigma      | [3nigma](https://github.com/3nigma)           | BuilderLabs      |
-| victorholo  | [victorholo](https://github.com/victorholo)   | BuilderLabs      |
-| vla-dev     | [vla-dev](https://github.com/vla-dev)         | BuilderLabs      |
-| rocketmay   | [rocketmay](https://github.com/rocketmay)     | HashPack         |
+Maintainers are assigned the following scopes in this repository:
 
-## Becoming a Maintainer
+| Scope      | Definition               | GitHub Role | GitHub Team                        |
+| ---------- | ------------------------ | ----------- | ---------------------------------- |
+| Maintainer | The GitHub Maintain role | Maintain    | `standards-sdk-maintainers` |
 
-If you're interested in becoming a maintainer, please reach out to one of the current maintainers.
-New maintainers are added based on their contributions to the project and their expertise with the Hedera ecosystem.
+## Active Maintainers
 
-## Responsibilities
 
-Maintainers are responsible for:
+| Name                | GitHub ID              | Scope | LFID | Discord ID | Email | Company Affiliation |
+|-------------------- | ---------------------- | ----- | ---- | ---------- | ----- | ------------------- |
+| Michael Kantor      | kantorcodes         |       |      |            |       | Hashgraph Online           |
+| May Chan         | rocketmay             |       |      |            |       | HashPack           |
+| HGraphPunks      | hgraphpunks           |       |      |            |       | Turtlemoon           |
 
-- Reviewing and merging pull requests
-- Addressing issues
-- Ensuring code quality
-- Guiding the project's direction
-- Releasing new versions
-- Maintaining documentation
+## Emeritus Maintainers
+
+| Name | GitHub ID | Scope | LFID | Discord ID | Email | Company Affiliation |
+|----- | --------- | ----- | ---- | ---------- | ----- | ------------------- |
+|      |           |       |      |            |       |                     |
+
+## The Duties of a Maintainer
+
+Maintainers are expected to perform duties in alignment with **[Hiero-Ledger's defined maintainer guidelines](https://github.com/hiero-ledger/governance/blob/main/roles-and-groups.md#maintainers).**
