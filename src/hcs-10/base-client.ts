@@ -17,6 +17,7 @@ export enum Hcs10MemoType {
   INBOUND = 'inbound',
   OUTBOUND = 'outbound',
   CONNECTION = 'connection',
+  REGISTRY = 'registry',
 }
 
 /**
@@ -951,6 +952,54 @@ export abstract class HCS10BaseClient extends Registration {
         return `hcs-10:1:${ttl}:2:${options.inboundTopicId}:${options.connectionId}`;
       default:
         throw new Error(`Invalid HCS-10 memo type: ${type}`);
+    }
+  }
+
+  /**
+   * Reads a topic's memo and determines its HCS-10 type
+   * @param topicId The topic ID to check
+   * @returns The HCS-10 memo type or null if not an HCS-10 topic
+   */
+  public async getTopicMemoType(topicId: string): Promise<Hcs10MemoType | null> {
+    try {
+      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
+
+      if (!topicInfo?.memo) {
+        this.logger.debug(`No memo found for topic ${topicId}`);
+        return null;
+      }
+
+      const memo = topicInfo.memo.toString();
+
+      if (!memo.startsWith('hcs-10:')) {
+        this.logger.debug(`Topic ${topicId} is not an HCS-10 topic`);
+        return null;
+      }
+
+      const parts = memo.split(':');
+      if (parts.length < 4) {
+        this.logger.warn(`Invalid HCS-10 memo format for topic ${topicId}: ${memo}`);
+        return null;
+      }
+
+      const typeEnum = parts[3];
+
+      switch (typeEnum) {
+        case '0':
+          return Hcs10MemoType.INBOUND;
+        case '1':
+          return Hcs10MemoType.OUTBOUND;
+        case '2':
+          return Hcs10MemoType.CONNECTION;
+        case '3':
+          return Hcs10MemoType.REGISTRY;
+        default:
+          this.logger.warn(`Unknown HCS-10 type enum: ${typeEnum} for topic ${topicId}`);
+          return null;
+      }
+    } catch (error) {
+      this.logger.error(`Error getting topic memo type for ${topicId}:`, error);
+      return null;
     }
   }
 
