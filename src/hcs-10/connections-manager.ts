@@ -1160,6 +1160,17 @@ export class ConnectionsManager implements IConnectionsManager {
   }
 
   /**
+   * Gets a connection by its unique request key
+   * @param identifier - The unique request key to look up
+   * @returns The connection with the given unique request key, or undefined if not found
+   */
+  getConnectionByIdentifier(identifier: string): Connection | undefined {
+    return Array.from(this.connections.values()).find(
+      conn => conn.uniqueRequestKey === identifier,
+    );
+  }
+
+  /**
    * Gets a connection by account ID
    * @param accountId - The account ID to look up
    * @returns The connection with the given account ID, or undefined if not found
