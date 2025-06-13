@@ -2,6 +2,7 @@ import { LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode } from '../services/mirror-node';
 import { TransactionReceipt } from '@hashgraph/sdk';
+import { z } from 'zod';
 
 /**
  * HCS-2 operation types
@@ -181,4 +182,62 @@ export interface MigrateTopicOptions {
 export interface QueryRegistryOptions {
   limit?: number;
   order?: 'asc' | 'desc';
-} 
+}
+
+/**
+ * Zod schemas for HCS-2 message validation
+ */
+
+// Topic ID validation (e.g., "0.0.123456")
+export const topicIdSchema = z.string().regex(/^\d+\.\d+\.\d+$/, {
+  message: "Topic ID must be in Hedera format (e.g., '0.0.123456')"
+});
+
+// Base HCS-2 message schema
+export const baseMessageSchema = z.object({
+  p: z.literal('hcs-2'),
+  op: z.enum([
+    HCS2Operation.REGISTER, 
+    HCS2Operation.UPDATE, 
+    HCS2Operation.DELETE, 
+    HCS2Operation.MIGRATE
+  ]),
+  m: z.string().max(500, "Memo must not exceed 500 characters").optional(),
+  ttl: z.number().int().positive().optional()
+});
+
+// Register message schema
+export const registerMessageSchema = baseMessageSchema.extend({
+  op: z.literal(HCS2Operation.REGISTER),
+  t_id: topicIdSchema,
+  metadata: z.string().optional()
+});
+
+// Update message schema
+export const updateMessageSchema = baseMessageSchema.extend({
+  op: z.literal(HCS2Operation.UPDATE),
+  uid: z.string(),
+  t_id: topicIdSchema,
+  metadata: z.string().optional()
+});
+
+// Delete message schema
+export const deleteMessageSchema = baseMessageSchema.extend({
+  op: z.literal(HCS2Operation.DELETE),
+  uid: z.string()
+});
+
+// Migrate message schema
+export const migrateMessageSchema = baseMessageSchema.extend({
+  op: z.literal(HCS2Operation.MIGRATE),
+  t_id: topicIdSchema,
+  metadata: z.string().optional()
+});
+
+// Combined schema for all message types
+export const hcs2MessageSchema = z.discriminatedUnion("op", [
+  registerMessageSchema,
+  updateMessageSchema,
+  deleteMessageSchema,
+  migrateMessageSchema
+]); 
