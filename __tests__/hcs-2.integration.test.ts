@@ -449,7 +449,7 @@ describe('HCS-2 Integration Tests', () => {
       };
       const wrongProtocolResult = (client as any).validateMessage(wrongProtocol);
       expect(wrongProtocolResult.valid).toBe(false);
-      expect(wrongProtocolResult.errors).toContain('Protocol field "p" must be "hcs-2"');
+      expect(wrongProtocolResult.errors).toContain('p: Invalid literal value, expected "hcs-2"');
       
       // Missing t_id in register
       const missingTargetId = {
@@ -458,7 +458,7 @@ describe('HCS-2 Integration Tests', () => {
       };
       const missingTargetIdResult = (client as any).validateMessage(missingTargetId);
       expect(missingTargetIdResult.valid).toBe(false);
-      expect(missingTargetIdResult.errors).toContain(`Operation "${HCS2Operation.REGISTER}" requires a target topic ID (t_id)`);
+      expect(missingTargetIdResult.errors).toContain(`t_id: Required`);
       
       // Missing uid in update
       const missingUid = {
@@ -468,7 +468,7 @@ describe('HCS-2 Integration Tests', () => {
       };
       const missingUidResult = (client as any).validateMessage(missingUid);
       expect(missingUidResult.valid).toBe(false);
-      expect(missingUidResult.errors).toContain('Update operation requires a unique ID (uid)');
+      expect(missingUidResult.errors).toContain('uid: Required');
       
       // Memo too long (over 500 chars)
       const longMemo = {
@@ -479,7 +479,7 @@ describe('HCS-2 Integration Tests', () => {
       };
       const longMemoResult = (client as any).validateMessage(longMemo);
       expect(longMemoResult.valid).toBe(false);
-      expect(longMemoResult.errors).toContain('Memo field "m" must not exceed 500 characters');
+      expect(longMemoResult.errors).toContain('m: Memo must not exceed 500 characters');
     });
 
     it('should handle attempts to get registry info from non-HCS-2 topics', async () => {
