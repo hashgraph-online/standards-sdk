@@ -18,10 +18,12 @@ import {
   UpdateEntryOptions,
   DeleteEntryOptions,
   MigrateTopicOptions,
-  QueryRegistryOptions
+  QueryRegistryOptions,
+  hcs2MessageSchema
 } from './types';
 import { TransactionReceipt } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
+import { ZodError } from 'zod';
 
 /**
  * Base client for HCS-2 operations
@@ -149,53 +151,27 @@ export abstract class HCS2BaseClient {
    * @returns Validation result
    */
   protected validateMessage(message: any): { valid: boolean; errors: string[] } {
+    try {
+      // Use Zod schema for validation
+      hcs2MessageSchema.parse(message);
+      return { valid: true, errors: [] };
+    } catch (error) {
     const errors: string[] = [];
 
-    // Check if the message is an object
-    if (!message || typeof message !== 'object') {
-      errors.push('Message must be an object');
+      if (error instanceof ZodError) {
+        // Format Zod errors for better readability
+        error.errors.forEach(err => {
+          const path = err.path.join('.');
+          errors.push(`${path ? path + ': ' : ''}${err.message}`);
+        });
+      } else {
+        // Handle non-Zod errors
+        errors.push(`Unexpected error: ${error}`);
+      }
+      
+      this.logger.debug(`Message validation failed: ${errors.join(', ')}`);
       return { valid: false, errors };
     }
-
-    // Check required protocol field
-    if (message.p !== 'hcs-2') {
-      errors.push('Protocol field "p" must be "hcs-2"');
-    }
-
-    // Check operation field
-    if (!Object.values(HCS2Operation).includes(message.op)) {
-      errors.push(`Operation field "op" must be one of: ${Object.values(HCS2Operation).join(', ')}`);
-    }
-
-    // Check operation-specific required fields
-    switch (message.op) {
-      case HCS2Operation.REGISTER:
-      case HCS2Operation.MIGRATE:
-        if (!message.t_id) {
-          errors.push(`Operation "${message.op}" requires a target topic ID (t_id)`);
-        }
-        break;
-      case HCS2Operation.UPDATE:
-        if (!message.uid) {
-          errors.push('Update operation requires a unique ID (uid)');
-        }
-        if (!message.t_id) {
-          errors.push('Update operation requires a target topic ID (t_id)');
-        }
-        break;
-      case HCS2Operation.DELETE:
-        if (!message.uid) {
-          errors.push('Delete operation requires a unique ID (uid)');
-        }
-        break;
-    }
-
-    // Check memo length constraint
-    if (message.m && typeof message.m === 'string' && message.m.length > 500) {
-      errors.push('Memo field "m" must not exceed 500 characters');
-    }
-
-    return { valid: errors.length === 0, errors };
   }
 
   /**
