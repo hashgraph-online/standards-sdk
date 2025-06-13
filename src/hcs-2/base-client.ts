@@ -156,8 +156,8 @@ export abstract class HCS2BaseClient {
       hcs2MessageSchema.parse(message);
       return { valid: true, errors: [] };
     } catch (error) {
-    const errors: string[] = [];
-
+      const errors: string[] = [];
+      
       if (error instanceof ZodError) {
         // Format Zod errors for better readability
         error.errors.forEach(err => {

@@ -182,7 +182,7 @@ export interface MigrateTopicOptions {
 export interface QueryRegistryOptions {
   limit?: number;
   order?: 'asc' | 'desc';
-} 
+}
 
 /**
  * Zod schemas for HCS-2 message validation
