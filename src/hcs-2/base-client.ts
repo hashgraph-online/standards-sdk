@@ -283,9 +283,19 @@ export abstract class HCS2BaseClient {
     const entries: RegistryEntry[] = [];
     let latestEntry: RegistryEntry | undefined;
 
+    this.logger.debug(`Parsing ${messages.length} messages for topic ${topicId}`);
+    
     for (const msg of messages) {
       try {
-        const message = JSON.parse(msg.message);
+        if (!msg.message) {
+          this.logger.debug(`Message is missing 'message' property: ${JSON.stringify(msg)}`);
+          continue;
+        }
+        
+        const decodedMessage = Buffer.from(msg.message, 'base64').toString('utf-8');
+        const message = JSON.parse(decodedMessage);
+        
+        this.logger.debug(`Successfully parsed message: ${JSON.stringify(message)}`);
         
         // Validate message
         const { valid, errors } = this.validateMessage(message);
@@ -315,6 +325,8 @@ export abstract class HCS2BaseClient {
       }
     }
 
+    this.logger.debug(`Parsed ${entries.length} valid entries for topic ${topicId}`);
+    
     return {
       topicId,
       registryType,
