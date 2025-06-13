@@ -22,7 +22,8 @@ import {
   UpdateEntryOptions,
   DeleteEntryOptions,
   MigrateTopicOptions,
-  QueryRegistryOptions
+  QueryRegistryOptions,
+  RegistryEntry
 } from './types';
 import { NetworkType } from '../utils/types';
 
@@ -229,10 +230,7 @@ export class HCS2Client extends HCS2BaseClient {
       };
     } catch (error) {
       this.logger.error(`Failed to update entry: ${error}`);
-      return {
-        success: false,
-        error: `Failed to update entry: ${error}`
-      };
+      throw error;
     }
   }
 
@@ -270,10 +268,7 @@ export class HCS2Client extends HCS2BaseClient {
       };
     } catch (error) {
       this.logger.error(`Failed to delete entry: ${error}`);
-      return {
-        success: false,
-        error: `Failed to delete entry: ${error}`
-      };
+      throw error;
     }
   }
 
@@ -304,10 +299,7 @@ export class HCS2Client extends HCS2BaseClient {
       };
     } catch (error) {
       this.logger.error(`Failed to migrate registry: ${error}`);
-      return {
-        success: false,
-        error: `Failed to migrate registry: ${error}`
-      };
+      throw error;
     }
   }
 
@@ -321,6 +313,8 @@ export class HCS2Client extends HCS2BaseClient {
     try {
       // Get topic info to determine registry type
       const topicInfo = await this.getTopicInfo(topicId);
+      this.logger.debug(`Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`);
+      
       const memoInfo = this.parseRegistryTypeFromMemo(topicInfo.memo);
       
       if (!memoInfo) {
@@ -328,21 +322,72 @@ export class HCS2Client extends HCS2BaseClient {
       }
       
       // Get messages from the topic
-      const messages = await this.mirrorNode.getTopicMessages(
+      this.logger.debug(`Retrieving messages for topic ${topicId} with limit ${options.limit ?? 100}`);
+      const rawMessages = await this.mirrorNode.getTopicMessages(
         topicId,
         {
           limit: options.limit ?? 100,
           order: options.order ?? 'asc'
         }
-      );
+      ) as any[];
       
-      // Parse messages into registry entries
-      return this.parseRegistryEntries(
+      this.logger.debug(`Retrieved ${rawMessages.length} messages for topic ${topicId}`);
+      
+      // Convert messages to the format expected by parseRegistryEntries
+      const entries: RegistryEntry[] = [];
+      let latestEntry: RegistryEntry | undefined;
+      
+      for (const msg of rawMessages) {
+        try {
+          // The mirror node service already parsed the JSON, so we can use it directly
+          const message: HCS2Message = {
+            p: 'hcs-2',
+            op: msg.op,
+            t_id: msg.t_id,
+            uid: msg.uid,
+            metadata: msg.metadata,
+            m: msg.m
+          } as HCS2Message;
+          
+          // Validate message
+          const { valid, errors } = this.validateMessage(message);
+          if (!valid) {
+            this.logger.warn(`Invalid HCS-2 message: ${errors.join(', ')}`);
+            continue;
+          }
+          
+          const entry: RegistryEntry = {
+            topicId,
+            sequence: msg.sequence_number,
+            timestamp: msg.consensus_timestamp,
+            payer: msg.payer_account_id || msg.payer || '',
+            message,
+            consensus_timestamp: msg.consensus_timestamp,
+            registry_type: memoInfo.registryType
+          };
+          
+          entries.push(entry);
+          
+          // For non-indexed registries, we only care about the latest message
+          if (memoInfo.registryType === HCS2RegistryType.NON_INDEXED || !latestEntry || entry.timestamp > latestEntry.timestamp) {
+            latestEntry = entry;
+          }
+        } catch (error) {
+          this.logger.warn(`Error processing message: ${error}`);
+        }
+      }
+      
+      this.logger.debug(`Processed ${entries.length} valid entries for registry ${topicId}`);
+      
+      const registry: TopicRegistry = {
         topicId,
-        messages,
-        memoInfo.registryType,
-        memoInfo.ttl
-      );
+        registryType: memoInfo.registryType,
+        ttl: memoInfo.ttl,
+        entries: memoInfo.registryType === HCS2RegistryType.INDEXED ? entries : (latestEntry ? [latestEntry] : []),
+        latestEntry
+      };
+      
+      return registry;
     } catch (error) {
       this.logger.error(`Failed to get registry: ${error}`);
       throw error;
@@ -386,7 +431,14 @@ export class HCS2Client extends HCS2BaseClient {
    */
   private async getTopicInfo(topicId: string): Promise<any> {
     try {
-      return await this.mirrorNode.getTopicInfo(topicId);
+      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
+      
+      // Verify this is an HCS-2 topic by checking the memo
+      if (!topicInfo.memo || !topicInfo.memo.startsWith('hcs-2:')) {
+        throw new Error(`Topic ${topicId} is not an HCS-2 registry (invalid memo format)`);
+      }
+      
+      return topicInfo;
     } catch (error) {
       this.logger.error(`Failed to get topic info: ${error}`);
       throw error;
