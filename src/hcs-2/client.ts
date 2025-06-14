@@ -203,7 +203,7 @@ export class HCS2Client extends HCS2BaseClient {
   async updateEntry(registryTopicId: string, options: UpdateEntryOptions): Promise<RegistryOperationResponse> {
     try {
       // Verify registry type (only indexed registries support updates)
-      const registryInfo = await this.getTopicInfo(registryTopicId);
+      const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
       
       if (!memoInfo || memoInfo.registryType !== HCS2RegistryType.INDEXED) {
@@ -243,7 +243,7 @@ export class HCS2Client extends HCS2BaseClient {
   async deleteEntry(registryTopicId: string, options: DeleteEntryOptions): Promise<RegistryOperationResponse> {
     try {
       // Verify registry type (only indexed registries support deletions)
-      const registryInfo = await this.getTopicInfo(registryTopicId);
+      const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
       
       if (!memoInfo || memoInfo.registryType !== HCS2RegistryType.INDEXED) {
@@ -312,7 +312,7 @@ export class HCS2Client extends HCS2BaseClient {
   async getRegistry(topicId: string, options: QueryRegistryOptions = {}): Promise<TopicRegistry> {
     try {
       // Get topic info to determine registry type
-      const topicInfo = await this.getTopicInfo(topicId);
+      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
       this.logger.debug(`Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`);
       
       const memoInfo = this.parseRegistryTypeFromMemo(topicInfo.memo);
@@ -326,6 +326,7 @@ export class HCS2Client extends HCS2BaseClient {
       const rawMessages = await this.mirrorNode.getTopicMessages(
         topicId,
         {
+          sequenceNumber: options.skip && options.skip > 0 ? `gt:${options.skip}` : undefined,
           limit: options.limit ?? 100,
           order: options.order ?? 'asc'
         }
@@ -393,7 +394,7 @@ export class HCS2Client extends HCS2BaseClient {
       throw error;
     }
   }
-  
+
   /**
    * Submit a message to a topic
    * @param topicId The topic ID to submit to
@@ -414,33 +415,14 @@ export class HCS2Client extends HCS2BaseClient {
         .setMessage(JSON.stringify(payload));
       
       // Execute transaction
-      const response = await transaction.execute(this.client);
+      const txResponse = await transaction.execute(this.client);
       
       // Get receipt
-      return await response.getReceipt(this.client);
+      const receipt = await txResponse.getReceipt(this.client);
+      
+      return receipt;
     } catch (error) {
       this.logger.error(`Failed to submit message: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Get information about a topic
-   * @param topicId The topic ID
-   * @returns Promise resolving to the topic information
-   */
-  private async getTopicInfo(topicId: string): Promise<any> {
-    try {
-      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
-      
-      // Verify this is an HCS-2 topic by checking the memo
-      if (!topicInfo.memo || !topicInfo.memo.startsWith('hcs-2:')) {
-        throw new Error(`Topic ${topicId} is not an HCS-2 registry (invalid memo format)`);
-      }
-      
-      return topicInfo;
-    } catch (error) {
-      this.logger.error(`Failed to get topic info: ${error}`);
       throw error;
     }
   }
