@@ -203,7 +203,7 @@ export class HCS2Client extends HCS2BaseClient {
   async updateEntry(registryTopicId: string, options: UpdateEntryOptions): Promise<RegistryOperationResponse> {
     try {
       // Verify registry type (only indexed registries support updates)
-      const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
+      const registryInfo = await this.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
       
       if (!memoInfo || memoInfo.registryType !== HCS2RegistryType.INDEXED) {
@@ -243,7 +243,7 @@ export class HCS2Client extends HCS2BaseClient {
   async deleteEntry(registryTopicId: string, options: DeleteEntryOptions): Promise<RegistryOperationResponse> {
     try {
       // Verify registry type (only indexed registries support deletions)
-      const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
+      const registryInfo = await this.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
       
       if (!memoInfo || memoInfo.registryType !== HCS2RegistryType.INDEXED) {
@@ -312,7 +312,7 @@ export class HCS2Client extends HCS2BaseClient {
   async getRegistry(topicId: string, options: QueryRegistryOptions = {}): Promise<TopicRegistry> {
     try {
       // Get topic info to determine registry type
-      const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
+      const topicInfo = await this.getTopicInfo(topicId);
       this.logger.debug(`Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`);
       
       const memoInfo = this.parseRegistryTypeFromMemo(topicInfo.memo);
@@ -323,7 +323,7 @@ export class HCS2Client extends HCS2BaseClient {
       
       // Get messages from the topic
       this.logger.debug(`Retrieving messages for topic ${topicId} with limit ${options.limit ?? 100}`);
-      const rawMessages = await this.mirrorNode.getTopicMessages(
+      const rawMessagesResult = await this.mirrorNode.getTopicMessages(
         topicId,
         {
           sequenceNumber: options.skip && options.skip > 0 ? `gt:${options.skip}` : undefined,
@@ -332,7 +332,10 @@ export class HCS2Client extends HCS2BaseClient {
         }
       ) as any[];
       
-      this.logger.debug(`Retrieved ${rawMessages.length} messages for topic ${topicId}`);
+      // Since getTopicMessages fetches all pages, we must manually truncate if a limit was set.
+      const rawMessages = options.limit ? rawMessagesResult.slice(0, options.limit) : rawMessagesResult;
+      
+      this.logger.debug(`Retrieved ${rawMessagesResult.length} messages, using ${rawMessages.length} after applying limit.`);
       
       // Convert messages to the format expected by parseRegistryEntries
       const entries: RegistryEntry[] = [];
@@ -425,5 +428,23 @@ export class HCS2Client extends HCS2BaseClient {
       this.logger.error(`Failed to submit message: ${error}`);
       throw error;
     }
+  }
+
+  /**
+   * Get information about a topic
+   * @param topicId The topic ID
+   * @returns Promise resolving to the topic information
+   */
+  private async getTopicInfo(topicId: string): Promise<any> {
+    try {
+      return await this.mirrorNode.getTopicInfo(topicId);
+    } catch (error) {
+      this.logger.error(`Failed to get topic info for ${topicId}: ${error}`);
+      throw error;
+    }
+  }
+
+  public getClient(): Client {
+    return this.client;
   }
 } 
