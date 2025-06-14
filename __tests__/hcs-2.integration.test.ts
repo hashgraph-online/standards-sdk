@@ -502,4 +502,77 @@ describe('HCS-2 Integration Tests', () => {
       );
     }, 30000);
   });
+
+  describe('Pagination', () => {
+    let paginationTestTopicId: string;
+    const totalEntries = 5;
+
+    beforeAll(async () => {
+      // Ensure targetTopicId exists
+      if (!targetTopicId) {
+        const result = await client.createRegistry({
+          memo: 'Pagination test target topic',
+        });
+        targetTopicId = result.topicId!;
+        console.log(`Created target topic for pagination: ${targetTopicId}`);
+      }
+
+      // Create a dedicated topic for pagination tests
+      const result = await client.createRegistry({
+        registryType: HCS2RegistryType.INDEXED,
+        memo: 'Pagination test registry',
+      });
+      paginationTestTopicId = result.topicId!;
+      console.log(`Created pagination test topic: ${paginationTestTopicId}`);
+
+      // Add 5 entries to it
+      for (let i = 1; i <= totalEntries; i++) {
+        await client.registerEntry(paginationTestTopicId, {
+          targetTopicId: targetTopicId, // Use the globally created target topic
+          metadata: `Entry ${i}`,
+          memo: `Pagination test entry ${i}`,
+        });
+        // Short delay between transactions to avoid duplicates
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Wait for all messages to propagate
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    }, 60000);
+
+    it('should skip the first 2 entries and limit to 2', async () => {
+      const registry = await client.getRegistry(paginationTestTopicId, {
+        skip: 2,
+        limit: 2,
+        order: 'asc',
+      });
+
+      expect(registry.entries.length).toBe(2);
+      // Since we skipped 2, we should get sequence numbers 3 and 4
+      expect(registry.entries[0].sequence).toBe(3);
+      expect(registry.entries[1].sequence).toBe(4);
+    }, 30000);
+
+    it('should get the last page of results', async () => {
+      const registry = await client.getRegistry(paginationTestTopicId, {
+        skip: 4,
+        limit: 2,
+        order: 'asc',
+      });
+
+      expect(registry.entries.length).toBe(1);
+      // Since we skipped 4, we should get the last entry with sequence number 5
+      expect(registry.entries[0].sequence).toBe(5);
+    }, 30000);
+
+    it('should return 0 entries if skip is greater than total entries', async () => {
+      const registry = await client.getRegistry(paginationTestTopicId, {
+        skip: totalEntries,
+        limit: 2,
+        order: 'asc',
+      });
+
+      expect(registry.entries.length).toBe(0);
+    }, 30000);
+  });
 }); 
