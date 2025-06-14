@@ -313,15 +313,18 @@ export class BrowserHCS2Client extends HCS2BaseClient {
       const messages = await this.mirrorNode.getTopicMessages(
         topicId,
         {
-          limit: options.limit ?? 100,
+          limit: options.limit ? options.limit + (options.skip || 0) : 100,
           order: options.order ?? 'asc'
         }
       );
       
+      // Apply skip if specified
+      const skippedMessages = options.skip && options.skip > 0 ? messages.slice(options.skip) : messages;
+      
       // Parse messages into registry entries
       return this.parseRegistryEntries(
         topicId,
-        messages,
+        skippedMessages,
         memoInfo.registryType,
         memoInfo.ttl
       );

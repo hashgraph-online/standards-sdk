@@ -182,6 +182,7 @@ export interface MigrateTopicOptions {
 export interface QueryRegistryOptions {
   limit?: number;
   order?: 'asc' | 'desc';
+  skip?: number;
 }
 
 /**
