@@ -5,7 +5,7 @@
  * No mocking - tests the actual HCS-2 implementation end-to-end.
  */
 
-import { TopicCreateTransaction } from '@hashgraph/sdk';
+import { PrivateKey, TopicCreateTransaction } from '@hashgraph/sdk';
 import { HCS2Client } from '../src/hcs-2/client';
 import { HCS2RegistryType, HCS2Operation } from '../src/hcs-2/types';
 import * as dotenv from 'dotenv';
@@ -79,6 +79,33 @@ describe('HCS-2 Integration Tests', () => {
       // Verify the memo format is correct (hcs-2:1:3600)
       const topicInfo = await (client as any).getTopicInfo(nonIndexedRegistryTopicId);
       expect(topicInfo.memo).toContain(`hcs-2:${HCS2RegistryType.NON_INDEXED}:${NON_INDEXED_TTL}`);
+    }, 30000);
+
+    it('should create a registry with a custom admin and submit key', async () => {
+      // 1. Generate a new key pair
+      const customKey = PrivateKey.generateED25519();
+
+      // 2. Create a registry using the custom key instance
+      const result = await client.createRegistry({
+        registryType: HCS2RegistryType.INDEXED,
+        memo: 'Integration test custom key registry',
+        adminKey: customKey,
+        submitKey: customKey,
+        
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.topicId).toBeDefined();
+      const customTopicId = result.topicId!;
+      console.log(`Created registry with custom key: ${customTopicId}`);
+
+      // 3. Wait for propagation and verify the keys on the topic
+      await new Promise(resolve => setTimeout(resolve, 8000)); // Wait for propagation
+      const topicInfo = await client.getTopicInfo(customTopicId);
+      
+      console.log('Topic info:', topicInfo);
+      expect(topicInfo.admin_key).toBeDefined();
+      expect(topicInfo.submit_key).toBeDefined();
     }, 30000);
 
     it('should create a target topic for testing', async () => {
@@ -574,5 +601,37 @@ describe('HCS-2 Integration Tests', () => {
 
       expect(registry.entries.length).toBe(0);
     }, 30000);
+  });
+
+  describe('Key Type Detection', () => {
+    it('should detect ED25519 key type and retain the correct operator key', () => {
+      const privateKey = PrivateKey.generateED25519();
+      const keyString = privateKey.toString();
+      const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet' });
+      expect(client.getKeyType()).toBe('ed25519');
+      expect(client.getOperatorKey().toString()).toBe(keyString);
+    });
+
+    it('should detect ECDSA key type when explicitly set', () => {
+      const privateKey = PrivateKey.generateECDSA();
+      const raw = privateKey.toStringRaw();
+      // Using raw hex for ECDSA
+      const client = new HCS2Client({ operatorId, operatorKey: raw, network: 'testnet', keyType: 'ecdsa' });
+      expect(client.getKeyType()).toBe('ecdsa');
+      expect(client.getOperatorKey().toStringRaw()).toBe(raw);
+    });
+
+    it('should auto-detect ECDSA key with 0x prefix', () => {
+      const privateKey = PrivateKey.generateECDSA();
+      const raw = privateKey.toStringRaw();
+      const keyString = '0x' + raw;
+      const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet' });
+      expect(client.getKeyType()).toBe('ecdsa');
+      expect(client.getOperatorKey().toStringRaw()).toBe(raw);
+    });
+  });
+
+  afterAll(async () => {
+     client.close();
   });
 }); 
