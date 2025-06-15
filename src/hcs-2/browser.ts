@@ -2,7 +2,8 @@ import {
   TransactionReceipt, 
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
-  TopicId
+  TopicId,
+  PublicKey,
 } from '@hashgraph/sdk';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import { HCS2BaseClient } from './base-client';
@@ -78,32 +79,43 @@ export class BrowserHCS2Client extends HCS2BaseClient {
    */
   async createRegistry(options: CreateRegistryOptions = {}): Promise<TopicRegistrationResponse> {
     try {
-      // Set default values
       const registryType = options.registryType ?? HCS2RegistryType.INDEXED;
       const ttl = options.ttl ?? 86400; // Default TTL: 24 hours
       
-      // Generate memo
       const memo = options.memo 
         ? `${this.generateRegistryMemo(registryType, ttl)} ${options.memo}`.trim() 
         : this.generateRegistryMemo(registryType, ttl);
       
-      // Create transaction
       let transaction = new TopicCreateTransaction()
         .setTopicMemo(memo);
       
       // Add admin key if requested (using connected wallet)
       if (options.adminKey) {
-        const publicKey = await this.mirrorNode.getPublicKey(this.getOperatorId());
-        transaction = transaction.setAdminKey(publicKey);
+        let adminPublicKey: PublicKey;
+        if (typeof options.adminKey === 'string') {
+          adminPublicKey = PublicKey.fromString(options.adminKey);
+        } else if (typeof options.adminKey === 'boolean') {
+          adminPublicKey = await this.mirrorNode.getPublicKey(this.getOperatorId());
+        } else {
+          // Provided as PrivateKey instance
+          adminPublicKey = options.adminKey.publicKey;
+        }
+        transaction = transaction.setAdminKey(adminPublicKey);
       }
       
       // Add submit key if requested (using connected wallet)
       if (options.submitKey) {
-        const publicKey = await this.mirrorNode.getPublicKey(this.getOperatorId());
-        transaction = transaction.setSubmitKey(publicKey);
+        let submitPublicKey: PublicKey;
+        if (typeof options.submitKey === 'string') {
+          submitPublicKey = PublicKey.fromString(options.submitKey);
+        } else if (typeof options.submitKey === 'boolean') {
+          submitPublicKey = await this.mirrorNode.getPublicKey(this.getOperatorId());
+        } else {
+          submitPublicKey = options.submitKey.publicKey;
+        }
+        transaction = transaction.setSubmitKey(submitPublicKey);
       }
       
-      // Execute transaction through WalletConnect - use any to avoid type issues
       const txResponse = await (this.hwc as any).executeTransactionWithErrorHandling(
         transaction,
         false,
@@ -156,7 +168,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         throw new Error(`Invalid operation type: ${message.op}, expected ${HCS2Operation.REGISTER}`);
       }
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId}`);
@@ -191,7 +202,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         throw new Error('Update operation is only valid for indexed registries');
       }
       
-      // Create update message
       const message = this.createUpdateMessage(
         options.targetTopicId,
         options.uid,
@@ -199,7 +209,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         options.memo
       );
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Updated entry with UID ${options.uid} in registry ${registryTopicId}`);
@@ -240,7 +249,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         options.memo
       );
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Deleted entry with UID ${options.uid} from registry ${registryTopicId}`);
@@ -267,14 +275,12 @@ export class BrowserHCS2Client extends HCS2BaseClient {
    */
   async migrateRegistry(registryTopicId: string, options: MigrateTopicOptions): Promise<RegistryOperationResponse> {
     try {
-      // Create migrate message
       const message = this.createMigrateMessage(
         options.targetTopicId,
         options.metadata,
         options.memo
       );
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Migrated registry ${registryTopicId} to ${options.targetTopicId}`);
@@ -309,7 +315,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         throw new Error(`Topic ${topicId} is not an HCS-2 registry (invalid memo format)`);
       }
       
-      // Get messages from the topic
       const messagesResult = await this.mirrorNode.getTopicMessages(
         topicId,
         {
@@ -349,12 +354,10 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
       }
       
-      // Create transaction
       const transaction = new TopicMessageSubmitTransaction()
         .setTopicId(TopicId.fromString(topicId))
         .setMessage(JSON.stringify(payload));
       
-      // Execute transaction through WalletConnect - use any to avoid type issues
       const txResponse = await (this.hwc as any).executeTransactionWithErrorHandling(
         transaction,
         false,

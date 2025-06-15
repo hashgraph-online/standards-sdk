@@ -7,7 +7,6 @@ import {
   TransactionReceipt,
   AccountId,
   PublicKey,
-  KeyList
 } from '@hashgraph/sdk';
 import { HCS2BaseClient } from './base-client';
 import {
@@ -26,6 +25,7 @@ import {
   RegistryEntry
 } from './types';
 import { NetworkType } from '../utils/types';
+import { detectKeyTypeFromString } from '../utils/key-type-detector';
 
 /**
  * SDK client configuration for HCS-2
@@ -33,6 +33,7 @@ import { NetworkType } from '../utils/types';
 export interface SDKHCS2ClientConfig extends HCS2ClientConfig {
   operatorId: string | AccountId;
   operatorKey: string | PrivateKey;
+  keyType?: 'ed25519' | 'ecdsa';
 }
 
 /**
@@ -43,6 +44,7 @@ export class HCS2Client extends HCS2BaseClient {
   private operatorId: AccountId;
   private operatorKey: PrivateKey;
   private initialized = false;
+  private keyType: 'ed25519' | 'ecdsa';
 
   /**
    * Create a new HCS-2 client
@@ -61,9 +63,30 @@ export class HCS2Client extends HCS2BaseClient {
       ? AccountId.fromString(config.operatorId) 
       : config.operatorId;
 
-    this.operatorKey = typeof config.operatorKey === 'string'
-      ? PrivateKey.fromString(config.operatorKey)
-      : config.operatorKey;
+    // Handle key type detection
+    if (config.keyType) {
+      this.keyType = config.keyType;
+      this.operatorKey = typeof config.operatorKey === 'string'
+        ? this.keyType === 'ecdsa'
+          ? PrivateKey.fromStringECDSA(config.operatorKey)
+          : PrivateKey.fromStringED25519(config.operatorKey)
+        : config.operatorKey;
+    } else if (typeof config.operatorKey === 'string') {
+      try {
+        const keyDetection = detectKeyTypeFromString(config.operatorKey);
+        this.operatorKey = keyDetection.privateKey;
+        this.keyType = keyDetection.detectedType;
+      } catch (error) {
+        this.logger.warn(
+          'Failed to detect key type from private key format, defaulting to ED25519',
+        );
+        this.keyType = 'ed25519';
+        this.operatorKey = PrivateKey.fromString(config.operatorKey);
+      }
+    } else {
+      this.operatorKey = config.operatorKey;
+      this.keyType = 'ed25519'; // Default if we can't detect
+    }
 
     // Create Hedera client
     this.client = this.createClient(config.network);
@@ -79,7 +102,7 @@ export class HCS2Client extends HCS2BaseClient {
     try {
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
-      this.logger.info('HCS-2 client initialized successfully');
+      this.logger.info(`HCS-2 client initialized successfully with key type: ${this.keyType}`);
     } catch (error) {
       this.logger.error(`Failed to initialize HCS-2 client: ${error}`);
       throw error;
@@ -106,34 +129,61 @@ export class HCS2Client extends HCS2BaseClient {
    */
   async createRegistry(options: CreateRegistryOptions = {}): Promise<TopicRegistrationResponse> {
     try {
-      // Set default values
       const registryType = options.registryType ?? HCS2RegistryType.INDEXED;
       const ttl = options.ttl ?? 86400; // Default TTL: 24 hours
       
-      // Generate memo
       const memo = options.memo 
         ? `${this.generateRegistryMemo(registryType, ttl)} ${options.memo}`.trim() 
         : this.generateRegistryMemo(registryType, ttl);
       
-      // Create transaction
       let transaction = new TopicCreateTransaction()
         .setTopicMemo(memo);
       
       // Add admin key if requested
+      let adminKeyPrivate: PrivateKey | undefined;
       if (options.adminKey) {
-        transaction = transaction.setAdminKey(this.operatorKey);
+        let adminPublicKey: PublicKey;
+        if (typeof options.adminKey === 'string') {
+          adminPublicKey = PublicKey.fromString(options.adminKey);
+        } else if (typeof options.adminKey === 'boolean') {
+          adminPublicKey = this.operatorKey.publicKey;
+        } else {
+          // Provided as PrivateKey instance
+          adminPublicKey = options.adminKey.publicKey;
+          adminKeyPrivate = options.adminKey;
+        }
+        transaction = transaction.setAdminKey(adminPublicKey);
       }
       
       // Add submit key if requested
+      let submitKeyPrivate: PrivateKey | undefined;
       if (options.submitKey) {
-        transaction = transaction.setSubmitKey(this.operatorKey);
+        let submitPublicKey: PublicKey;
+        if (typeof options.submitKey === 'string') {
+          submitPublicKey = PublicKey.fromString(options.submitKey);
+        } else if (typeof options.submitKey === 'boolean') {
+          submitPublicKey = this.operatorKey.publicKey;
+        } else {
+          submitPublicKey = options.submitKey.publicKey;
+          submitKeyPrivate = options.submitKey;
+        }
+        transaction = transaction.setSubmitKey(submitPublicKey);
       }
       
-      // Execute transaction
-      const txResponse = await transaction
-        .execute(this.client);
+
+      const frozenTx = await transaction.freezeWith(this.client);
+
+
+      if (adminKeyPrivate) {
+        await frozenTx.sign(adminKeyPrivate);
+      }
+
+      if (submitKeyPrivate) {
+        await frozenTx.sign(submitKeyPrivate);
+      }
+
+      const txResponse = await frozenTx.execute(this.client);
       
-      // Get receipt
       const receipt = await txResponse.getReceipt(this.client);
       const topicId = receipt.topicId;
       
@@ -175,7 +225,6 @@ export class HCS2Client extends HCS2BaseClient {
       );
 
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId}`);
@@ -210,7 +259,6 @@ export class HCS2Client extends HCS2BaseClient {
         throw new Error('Update operation is only valid for indexed registries');
       }
       
-      // Create update message
       const message = this.createUpdateMessage(
         options.targetTopicId,
         options.uid,
@@ -218,7 +266,6 @@ export class HCS2Client extends HCS2BaseClient {
         options.memo
       );
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Updated entry with UID ${options.uid} in registry ${registryTopicId}`);
@@ -250,13 +297,11 @@ export class HCS2Client extends HCS2BaseClient {
         throw new Error('Delete operation is only valid for indexed registries');
       }
       
-      // Create delete message
       const message = this.createDeleteMessage(
         options.uid,
         options.memo
       );
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Deleted entry with UID ${options.uid} from registry ${registryTopicId}`);
@@ -280,14 +325,12 @@ export class HCS2Client extends HCS2BaseClient {
    */
   async migrateRegistry(registryTopicId: string, options: MigrateTopicOptions): Promise<RegistryOperationResponse> {
     try {
-      // Create migrate message
       const message = this.createMigrateMessage(
         options.targetTopicId,
         options.metadata,
         options.memo
       );
       
-      // Submit message
       const receipt = await this.submitMessage(registryTopicId, message);
       
       this.logger.info(`Migrated registry ${registryTopicId} to ${options.targetTopicId}`);
@@ -311,7 +354,6 @@ export class HCS2Client extends HCS2BaseClient {
    */
   async getRegistry(topicId: string, options: QueryRegistryOptions = {}): Promise<TopicRegistry> {
     try {
-      // Get topic info to determine registry type
       const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
       this.logger.debug(`Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`);
       
@@ -321,7 +363,6 @@ export class HCS2Client extends HCS2BaseClient {
         throw new Error(`Topic ${topicId} is not an HCS-2 registry (invalid memo format)`);
       }
       
-      // Get messages from the topic
       this.logger.debug(`Retrieving messages for topic ${topicId} with limit ${options.limit ?? 100}`);
       const rawMessagesResult = await this.mirrorNode.getTopicMessages(
         topicId,
@@ -332,7 +373,6 @@ export class HCS2Client extends HCS2BaseClient {
         }
       ) as any[];
       
-      // Since getTopicMessages fetches all pages, we must manually truncate if a limit was set.
       const rawMessages = options.limit ? rawMessagesResult.slice(0, options.limit) : rawMessagesResult;
       
       this.logger.debug(`Retrieved ${rawMessagesResult.length} messages, using ${rawMessages.length} after applying limit.`);
@@ -412,15 +452,12 @@ export class HCS2Client extends HCS2BaseClient {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
       }
       
-      // Create transaction
       const transaction = new TopicMessageSubmitTransaction()
         .setTopicId(TopicId.fromString(topicId))
         .setMessage(JSON.stringify(payload));
       
-      // Execute transaction
       const txResponse = await transaction.execute(this.client);
       
-      // Get receipt
       const receipt = await txResponse.getReceipt(this.client);
       
       return receipt;
@@ -428,5 +465,35 @@ export class HCS2Client extends HCS2BaseClient {
       this.logger.error(`Failed to submit message: ${error}`);
       throw error;
     }
+  }
+
+  /**
+   * @param topicId The topic ID to query
+   * @returns Promise resolving to the topic information
+   */
+  public async getTopicInfo(topicId: string): Promise<any> {
+    return this.mirrorNode.getTopicInfo(topicId);
+  }
+
+  /**
+   * Close the client and release resources
+   */
+  public close(): void {
+    this.client.close();
+    this.logger.info('HCS-2 client closed.');
+  }
+
+  /**
+   * Get the configured key type (ed25519 or ecdsa)
+   */
+  public getKeyType(): 'ed25519' | 'ecdsa' {
+    return this.keyType;
+  }
+
+  /**
+   * Get the configured operator private key
+   */
+  public getOperatorKey(): PrivateKey {
+    return this.operatorKey;
   }
 } 
