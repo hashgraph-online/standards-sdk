@@ -1,7 +1,7 @@
 import { LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode } from '../services/mirror-node';
-import { TransactionReceipt } from '@hashgraph/sdk';
+import { TransactionReceipt, PrivateKey } from '@hashgraph/sdk';
 import { z } from 'zod';
 
 /**
@@ -135,8 +135,8 @@ export interface TopicRegistry {
 export interface CreateRegistryOptions {
   memo?: string;
   ttl?: number;
-  adminKey?: boolean;
-  submitKey?: boolean;
+  adminKey?: boolean | string | PrivateKey;
+  submitKey?: boolean | string | PrivateKey;
   registryType?: HCS2RegistryType;
 }
 
