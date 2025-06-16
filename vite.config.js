@@ -1,6 +1,4 @@
 import { defineConfig } from 'vite';
-import path from 'path';
-import StringReplace from 'vite-plugin-string-replace';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
@@ -24,12 +22,6 @@ export default defineConfig(async () => {
   ];
 
   const plugins = [
-    StringReplace([
-      {
-        search: 'VITE_BUILD_FORMAT',
-        replace: format,
-      },
-    ]),
     dts({
       insertTypesEntry: true,
       include: ['src/**/*.ts'],
