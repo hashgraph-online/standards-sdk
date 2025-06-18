@@ -664,26 +664,27 @@ export class HCS11Client {
 
       progressReporter.submitting('Submitting profile to Hedera network', 30);
 
-      const privateKey =
-        this.keyType === 'ed25519'
-          ? PrivateKey.fromStringED25519(this.auth.privateKey as string)
-          : PrivateKey.fromStringECDSA(this.auth.privateKey as string);
-
-      const inscriptionResponse = this.auth.privateKey
-        ? await inscribe(
-            input,
-            {
-              accountId: this.auth.operatorId,
-              privateKey,
-              network: this.network as 'mainnet' | 'testnet',
-            },
-            inscriptionOptions,
-          )
-        : await inscribeWithSigner(
-            input,
-            this.auth.signer as DAppSigner,
-            inscriptionOptions,
-          );
+      let inscriptionResponse;
+      
+      if (this.auth.privateKey) {
+        inscriptionResponse = await inscribe(
+          input,
+          {
+            accountId: this.auth.operatorId,
+            privateKey: this.auth.privateKey, //this breaks when using privateKey Object
+            network: this.network as 'mainnet' | 'testnet',
+          },
+          inscriptionOptions,
+        );
+      } else if (this.auth.signer) {
+        inscriptionResponse = await inscribeWithSigner(
+          input,
+          this.auth.signer as DAppSigner,
+          inscriptionOptions,
+        );
+      } else {
+        throw new Error('No authentication method available - neither private key nor signer');
+      }
 
       if (
         !inscriptionResponse.confirmed ||
