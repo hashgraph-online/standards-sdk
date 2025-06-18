@@ -667,15 +667,11 @@ export class HCS11Client {
       let inscriptionResponse;
       
       if (this.auth.privateKey) {
-        const privateKey = this.keyType === 'ed25519'
-          ? PrivateKey.fromStringED25519(this.auth.privateKey as string)
-          : PrivateKey.fromStringECDSA(this.auth.privateKey as string);
-
         inscriptionResponse = await inscribe(
           input,
           {
             accountId: this.auth.operatorId,
-            privateKey: privateKey,
+            privateKey: this.auth.privateKey, //this breaks when using privateKey Object
             network: this.network as 'mainnet' | 'testnet',
           },
           inscriptionOptions,
