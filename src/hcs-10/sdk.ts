@@ -996,7 +996,7 @@ export class HCS10Client extends HCS10BaseClient {
     const sdk = await InscriptionSDK.createWithAuth({
       type: 'server',
       accountId: this.client.operatorAccountId.toString(),
-      privateKey: this.operatorPrivateKey.toString(),
+      privateKey: this.operatorPrivateKey,
       network: this.network as 'testnet' | 'mainnet',
     });
 
