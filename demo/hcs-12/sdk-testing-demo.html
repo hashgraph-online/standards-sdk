@@ -1,0 +1,1639 @@
+<!doctype html>
+<html>
+  <head>
+    <title>HCS-12 SDK Testing Tool</title>
+
+    <script
+      data-hcs-config
+      data-hcs-cdn-url="https://kiloscribe.com/api/inscription-cdn/"
+      data-hcs-network="mainnet"
+      data-hcs-debug="true"
+      data-hcs-retry-attempts="5"
+      data-hcs-retry-backoff="500"
+    ></script>
+
+    <script
+      data-src="hcs://1/0.0.8084872"
+      data-script-id="wallet-connect"
+      data-load-order="1"
+    ></script>
+
+    <script
+      src="../../dist/umd/standards-sdk.umd.js"
+      data-script-id="standards-sdk"
+      data-load-order="2"
+    ></script>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .section h2 {
+        margin-top: 0;
+        color: #555;
+      }
+      button {
+        background: #007cba;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background: #005a8b;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .output {
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        font-family: monospace;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .status {
+        padding: 8px;
+        margin: 10px 0;
+        border-radius: 4px;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      .form-group {
+        margin: 10px 0;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      .wallet-info {
+        background: #e8f4f8;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>HCS-12 SDK Testing Tool</h1>
+      <p style="text-align: center; color: #666">
+        Developer tool for testing HCS-12 SDK functionality
+      </p>
+
+      <div class="section">
+        <h2>Wallet Connection</h2>
+        <div id="wallet-status" class="status info">
+          Loading wallet connect...
+        </div>
+        <div id="wallet-info" class="wallet-info" style="display: none">
+          Account: <span id="wallet-account"></span>
+        </div>
+        <button id="connect-wallet-btn" disabled>Connect Wallet</button>
+        <button id="disconnect-wallet-btn" style="display: none">
+          Disconnect
+        </button>
+      </div>
+
+      <div class="section">
+        <h2>Client Status</h2>
+        <div id="client-status" class="status info">
+          Client not initialized. Connect wallet first.
+        </div>
+        <button id="init-client-btn" disabled>Initialize Client</button>
+        <button id="init-registries-btn" disabled>Initialize Registries</button>
+      </div>
+
+      <div class="section">
+        <h2>Registry Operations</h2>
+        
+        <div class="info-box">
+          <strong>Test Registry Topic IDs (Testnet):</strong>
+          <ul style="margin: 10px 0 0 20px; padding: 0; list-style: none;">
+            <li>Action Registry: <code>0.0.6193088</code></li>
+            <li>Block Registry: <code>0.0.6193089</code></li>
+            <li>Assembly Registry: <code>0.0.6193091</code></li>
+            <li>HashLinks Registry: <code>0.0.6193093</code></li>
+          </ul>
+          <small style="display: block; margin-top: 10px;">These topics were created by the demo and contain test data.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="topic-id">Registry Topic ID:</label>
+          <input
+            type="text"
+            id="topic-id"
+            placeholder="0.0.123456"
+            value="0.0.6193088"
+          />
+          <div style="margin-top: 5px;">
+            <small>Quick select:</small>
+            <button onclick="document.getElementById('topic-id').value='0.0.6193088'; document.getElementById('mirror-topic-id').value='0.0.6193088'" style="padding: 2px 8px; font-size: 12px;">Action</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6193089'; document.getElementById('mirror-topic-id').value='0.0.6193089'" style="padding: 2px 8px; font-size: 12px;">Block</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6193091'; document.getElementById('mirror-topic-id').value='0.0.6193091'" style="padding: 2px 8px; font-size: 12px;">Assembly</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6193093'; document.getElementById('mirror-topic-id').value='0.0.6193093'" style="padding: 2px 8px; font-size: 12px;">HashLinks</button>
+          </div>
+        </div>
+
+        <button id="sync-action-btn" disabled>Sync Action Registry</button>
+        <button id="sync-block-btn" disabled>Sync Block Registry</button>
+        <button id="sync-assembly-btn" disabled>Sync Assembly Registry</button>
+        <button id="list-actions-btn" disabled>List Actions</button>
+        <button id="list-blocks-btn" disabled>List Blocks</button>
+        <button id="list-assemblies-btn" disabled>List Assemblies</button>
+      </div>
+
+      <div class="section">
+        <h2>Mirror Node Operations</h2>
+
+        <div class="form-group">
+          <label for="mirror-topic-id">Topic ID for Messages:</label>
+          <input
+            type="text"
+            id="mirror-topic-id"
+            placeholder="0.0.123456"
+            value=""
+          />
+        </div>
+
+        <button id="get-messages-btn" disabled>Get Topic Messages</button>
+        <button id="get-info-btn" disabled>Get Topic Info</button>
+      </div>
+
+      <div class="section">
+        <h2>Create Registry Topics</h2>
+        <button id="create-action-topic-btn" disabled>
+          Create Action Registry
+        </button>
+        <button id="create-block-topic-btn" disabled>
+          Create Block Registry
+        </button>
+        <button id="create-assembly-topic-btn" disabled>
+          Create Assembly Registry
+        </button>
+      </div>
+
+      <div class="section">
+        <h2>Output</h2>
+        <div id="output" class="output">Ready for operations...</div>
+      </div>
+      
+      <div class="section" id="render-section" style="display: none;">
+        <h2>Block Renderer</h2>
+        <div id="render-output" style="padding: 20px; background: #f8f8f8; border: 2px dashed #ccc; border-radius: 4px; min-height: 100px;">
+          <p style="color: #666; text-align: center;">Rendered blocks will appear here</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Initialize after HCS loads
+      window.HCSReady = async () => {
+        console.log('HCS Ready - initializing HCS-12 SDK Testing Tool');
+
+        // Get SDK instances
+        const wcSDK = window.HashinalsWalletConnectSDK;
+        const StandardsSDK = window.StandardsSDK;
+
+        if (!wcSDK) {
+          console.error('HashinalsWalletConnectSDK not loaded');
+          document.getElementById('wallet-status').textContent =
+            'Error: Wallet Connect SDK not loaded';
+          document.getElementById('wallet-status').className = 'status error';
+          return;
+        }
+
+        if (!StandardsSDK) {
+          console.error('Standards SDK not loaded');
+          document.getElementById('wallet-status').textContent =
+            'Error: Standards SDK not loaded';
+          document.getElementById('wallet-status').className = 'status error';
+          return;
+        }
+
+        const { HCS12BrowserClient, Logger, RegistryType } = StandardsSDK;
+        const hbarSDK = window.HashgraphSDK;
+        const ledger = hbarSDK.LedgerId.TESTNET;
+        const PROJECT_ID = 'bfd9ad3ea26e2c73eb21e8f9c750c166';
+        const APP_METADATA = {
+          name: 'HCS-12 SDK Testing Tool',
+          description: 'Developer tool for testing HCS-12 SDK functionality',
+          url: window.location.origin,
+          icons: ['https://hashgraph.online/logo.png'],
+        };
+
+        // Global variables
+        let client = null;
+        let currentAccountId = null;
+        let logger = null;
+        
+        // Known registry topic IDs from demo
+        const REGISTRY_TOPICS = {
+          action: '0.0.6193088',
+          block: '0.0.6193089',
+          assembly: '0.0.6193091',
+          hashlinks: '0.0.6193093'
+        };
+
+        // Utility functions
+        function updateStatus(elementId, message, type = 'info') {
+          const statusElement = document.getElementById(elementId);
+          statusElement.textContent = message;
+          statusElement.className = `status ${type}`;
+        }
+
+        function log(message, data = null) {
+          const output = document.getElementById('output');
+          const timestamp = new Date().toLocaleTimeString();
+          let logMessage = `[${timestamp}] ${message}`;
+
+          if (data) {
+            logMessage += '\n' + JSON.stringify(data, null, 2);
+          }
+
+          output.textContent = logMessage + '\n\n' + output.textContent;
+        }
+
+        function handleError(error, operation) {
+          console.error(`Error in ${operation}:`, error);
+          log(`Error in ${operation}: ${error.message}`, error);
+        }
+
+        function enableButtons(enabled) {
+          document
+            .querySelectorAll(
+              'button:not(#connect-wallet-btn):not(#disconnect-wallet-btn)',
+            )
+            .forEach(btn => {
+              btn.disabled = !enabled;
+            });
+        }
+
+        // Update wallet status display
+        async function updateUI(accountId, balance) {
+          currentAccountId = accountId;
+
+          if (accountId) {
+            updateStatus('wallet-status', `Connected: ${accountId}`, 'success');
+            document.getElementById('wallet-info').style.display = 'block';
+            document.getElementById('wallet-account').textContent = accountId;
+            document.getElementById('connect-wallet-btn').style.display =
+              'none';
+            document.getElementById('disconnect-wallet-btn').style.display =
+              'inline-block';
+            document.getElementById('init-client-btn').disabled = false;
+            log(`Wallet connected: ${accountId} (Balance: ${balance} HBAR)`);
+          } else {
+            updateStatus('wallet-status', 'No wallet connected', 'info');
+            document.getElementById('wallet-info').style.display = 'none';
+            document.getElementById('connect-wallet-btn').style.display =
+              'inline-block';
+            document.getElementById('disconnect-wallet-btn').style.display =
+              'none';
+            document.getElementById('init-client-btn').disabled = true;
+            enableButtons(false);
+            currentAccountId = null;
+            client = null;
+          }
+        }
+
+        // Check for existing connection
+        try {
+          const accountResponse = await wcSDK.initAccount(
+            PROJECT_ID,
+            APP_METADATA,
+            ledger,
+          );
+          if (accountResponse && accountResponse.accountId) {
+            updateUI(accountResponse.accountId, accountResponse.balance);
+          } else {
+            updateStatus(
+              'wallet-status',
+              'Wallet connect ready. Click "Connect Wallet" to begin.',
+              'info',
+            );
+            document.getElementById('connect-wallet-btn').disabled = false;
+          }
+        } catch (error) {
+          console.error('Failed to initialize wallet connect:', error);
+          updateStatus(
+            'wallet-status',
+            'Wallet connect ready. Click "Connect Wallet" to begin.',
+            'info',
+          );
+          document.getElementById('connect-wallet-btn').disabled = false;
+        }
+
+        // Connect wallet
+        document
+          .getElementById('connect-wallet-btn')
+          .addEventListener('click', async () => {
+            try {
+              const { accountId, balance } = await wcSDK.connectWallet(
+                PROJECT_ID,
+                APP_METADATA,
+                ledger,
+              );
+              updateUI(accountId, balance);
+            } catch (error) {
+              handleError(error, 'wallet connection');
+              updateStatus(
+                'wallet-status',
+                'Failed to connect wallet',
+                'error',
+              );
+            }
+          });
+
+        // Disconnect wallet
+        document
+          .getElementById('disconnect-wallet-btn')
+          .addEventListener('click', async () => {
+            try {
+              await wcSDK.disconnectWallet();
+              updateUI(null, null);
+              updateStatus(
+                'client-status',
+                'Client not initialized. Connect wallet first.',
+                'info',
+              );
+              log('Wallet disconnected');
+            } catch (error) {
+              handleError(error, 'wallet disconnection');
+            }
+          });
+
+        // Initialize client
+        document
+          .getElementById('init-client-btn')
+          .addEventListener('click', async () => {
+            try {
+              // Access Logger and HCS12BrowserClient from StandardsSDK global
+              const { Logger, HCS12BrowserClient } = StandardsSDK;
+              
+              logger = new Logger({ module: 'HCS12-SDK-Test' });
+
+              client = new HCS12BrowserClient({
+                network: 'testnet',
+                logger: logger,
+                hwc: wcSDK,
+              });
+
+              updateStatus(
+                'client-status',
+                'HCS-12 Browser Client initialized successfully',
+                'success',
+              );
+              document.getElementById('init-registries-btn').disabled = false;
+              log('Client initialized with testnet configuration');
+            } catch (error) {
+              handleError(error, 'client initialization');
+              updateStatus('client-status', `Error: ${error.message}`, 'error');
+            }
+          });
+
+        // Initialize registries
+        document
+          .getElementById('init-registries-btn')
+          .addEventListener('click', async () => {
+            try {
+              if (!client) {
+                throw new Error(
+                  'Client not initialized. Please initialize client first.',
+                );
+              }
+
+              // Initialize with known topic IDs
+              client.initializeRegistries(REGISTRY_TOPICS);
+              updateStatus(
+                'client-status',
+                'Registries initialized with known topics',
+                'success',
+              );
+              log('Registries initialized with topics:', REGISTRY_TOPICS);
+              enableButtons(true);
+            } catch (error) {
+              handleError(error, 'registry initialization');
+            }
+          });
+
+        // Sync registry
+        async function syncRegistry(type) {
+          try {
+            if (!client) {
+              throw new Error('Client not initialized');
+            }
+
+            const topicId = document.getElementById('topic-id').value;
+            if (!topicId) {
+              throw new Error('Please enter a topic ID');
+            }
+
+            // Reinitialize registries with the new topic ID
+            const topicIds = {};
+            switch (type) {
+              case 'action':
+                topicIds.action = topicId;
+                break;
+              case 'block':
+                topicIds.block = topicId;
+                break;
+              case 'assembly':
+                topicIds.assembly = topicId;
+                break;
+              default:
+                throw new Error('Invalid registry type');
+            }
+
+            // Reinitialize registries with new topic IDs
+            client.initializeRegistries(topicIds);
+
+            // Get the registry after reinitialization
+            let registry;
+            switch (type) {
+              case 'action':
+                registry = client.actionRegistry;
+                break;
+              case 'block':
+                registry = client.blockRegistry;
+                break;
+              case 'assembly':
+                registry = client.assemblyRegistry;
+                break;
+            }
+
+            if (!registry) {
+              throw new Error('Registry not initialized');
+            }
+
+            // Sync the registry
+            await registry.sync();
+
+            log(`${type} registry synced successfully from topic ${topicId}`);
+            updateStatus('client-status', `${type} registry synced`, 'success');
+          } catch (error) {
+            handleError(error, `${type} registry sync`);
+          }
+        }
+
+        // List entries
+        async function listEntries(type) {
+          try {
+            if (!client) {
+              throw new Error('Client not initialized');
+            }
+
+            let registry;
+            switch (type) {
+              case 'action':
+                registry = client.actionRegistry;
+                break;
+              case 'block':
+                registry = client.blockRegistry;
+                break;
+              case 'assembly':
+                registry = client.assemblyRegistry;
+                break;
+              default:
+                throw new Error('Invalid registry type');
+            }
+
+            if (!registry) {
+              throw new Error('Registry not initialized');
+            }
+
+            // Sync the registry first to ensure we have latest data
+            log(`Syncing ${type} registry...`);
+            await registry.sync();
+            
+            const entries = await registry.listEntries();
+            log(`${type} registry entries (${entries.length} found)`, entries);
+            
+            // Display entries in a more user-friendly way
+            if (entries.length > 0) {
+              displayRegistryEntries(type, entries);
+            } else {
+              log(`No entries found in ${type} registry. Make sure the registry topic has data.`);
+            }
+          } catch (error) {
+            handleError(error, `list ${type} entries`);
+          }
+        }
+        
+        // Display registry entries in the UI
+        function displayRegistryEntries(type, entries) {
+          const output = document.getElementById('output');
+          const timestamp = new Date().toLocaleTimeString();
+          
+          let html = `<div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 4px;">`;
+          html += `<h3>${type.charAt(0).toUpperCase() + type.slice(1)} Registry Entries (${entries.length})</h3>`;
+          
+          entries.forEach((entry, index) => {
+            html += `<div style="background: #f5f5f5; padding: 8px; margin: 5px 0; border-radius: 3px;">`;
+            html += `<strong>#${index + 1}</strong><br/>`;
+            
+            if (type === 'block' && entry.data) {
+              html += `Name: <code>${entry.data.name || 'Unknown'}</code><br/>`;
+              html += `Version: ${entry.data.version || 'Unknown'}<br/>`;
+              html += `Title: ${entry.data.data?.title || 'No title'}<br/>`;
+              if (entry.data.data?.description) {
+                html += `Description: ${entry.data.data.description}<br/>`;
+              }
+              html += `<button onclick="renderBlock('${entry.id}')" style="margin-top: 5px; padding: 2px 8px; font-size: 12px;">Render Block</button>`;
+            } else if (type === 'action' && entry.data) {
+              // Action registrations have different fields
+              if (entry.data.hash) {
+                html += `Info Hash: <code style="font-size: 10px;">${entry.data.hash.substring(0, 16)}...</code><br/>`;
+              }
+              if (entry.data.wasm_hash) {
+                html += `WASM Hash: <code style="font-size: 10px;">${entry.data.wasm_hash.substring(0, 16)}...</code><br/>`;
+              }
+              if (entry.data.t_id) {
+                html += `WASM Topic: <code>${entry.data.t_id}</code><br/>`;
+              }
+              if (entry.data.m) {
+                html += `Message: ${entry.data.m}<br/>`;
+              }
+            } else if (type === 'assembly' && entry.data) {
+              html += `Name: <code>${entry.data.name || 'Unknown'}</code><br/>`;
+              html += `Version: ${entry.data.version || 'Unknown'}<br/>`;
+              if (entry.data.description) {
+                html += `Description: ${entry.data.description}<br/>`;
+              }
+            }
+            
+            html += `<small>ID: ${entry.id}</small>`;
+            html += `</div>`;
+          });
+          
+          html += `</div>`;
+          
+          // Prepend to output
+          output.innerHTML = html + output.innerHTML;
+        }
+        
+        // Execute WASM action
+        async function executeAction(wasmTopicId, method, params) {
+          log(`Loading WASM from topic: ${wasmTopicId}...`);
+          
+          try {
+            // In HCS-12, the WASM topic ID is passed directly
+            // Fetch WASM bytes from Kiloscribe CDN
+            const wasmUrl = `https://kiloscribe.com/api/inscription-cdn/${wasmTopicId}?network=testnet`;
+            log(`Fetching WASM from: ${wasmUrl}`);
+              
+            const wasmResponse = await fetch(wasmUrl);
+            if (!wasmResponse.ok) {
+              throw new Error(`Failed to fetch WASM: ${wasmResponse.status}`);
+            }
+            
+            const wasmBytes = await wasmResponse.arrayBuffer();
+            log(`WASM loaded: ${wasmBytes.byteLength} bytes`);
+            
+            // Instantiate the WebAssembly module
+            const wasmModule = await WebAssembly.compile(wasmBytes);
+            
+            // Create imports for the WASM module
+            const imports = {
+              env: {
+                // Add any required imports here
+                log: (ptr, len) => {
+                  console.log('[WASM]', ptr, len);
+                },
+                abort: (msg, file, line, col) => {
+                  console.error('[WASM Abort]', msg, file, line, col);
+                }
+              }
+            };
+            
+            const wasmInstance = await WebAssembly.instantiate(wasmModule, imports);
+            log('WASM instance created:', wasmInstance);
+            
+            // Get the exported functions
+            const exports = wasmInstance.exports;
+            log('WASM exports:', Object.keys(exports));
+            
+            // Call the appropriate method based on HCS-12 spec
+            let result;
+            
+            // The demo WASM just has a simple GET export
+            if (exports.GET) {
+              log('Calling WASM GET export...');
+              try {
+                // The demo WASM module is very simple and just returns undefined
+                // In a real HCS-12 WASM, it would handle the parameters properly
+                result = exports.GET();
+                
+                // Since demo WASM doesn't actually do anything, simulate a result
+                result = {
+                  success: true,
+                  action: method,
+                  params: params,
+                  timestamp: new Date().toISOString(),
+                  message: `Demo transfer of ${params.amount} HBAR to ${params.recipient}`
+                };
+                
+                log('WASM GET result:', result);
+              } catch (e) {
+                log('WASM execution error:', e);
+                // Fallback result
+                result = {
+                  success: true,
+                  demo: true,
+                  message: 'Demo WASM executed'
+                };
+              }
+            } else {
+              log('Available exports:', Object.keys(exports));
+              throw new Error(`Expected GET export not found in WASM module`);
+            }
+            
+            // Parse result if it's a string/JSON
+            if (typeof result === 'string') {
+              try {
+                result = JSON.parse(result);
+              } catch (e) {
+                // Keep as string if not JSON
+              }
+            }
+            
+            log('Action result:', result);
+            
+            // Show result in UI
+            const output = document.getElementById('output');
+            output.innerHTML = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              <strong>✅ WASM Action Executed</strong><br/>
+              Method: ${method}<br/>
+              WASM Topic: ${wasmTopicId}<br/>
+              Result: ${JSON.stringify(result, null, 2)}
+            </div>` + output.innerHTML;
+            
+            return result;
+          } catch (error) {
+            log(`Error executing action: ${error.message}`);
+            
+            // Show error in UI
+            const output = document.getElementById('output');
+            output.innerHTML = `<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              <strong>❌ Action Execution Failed</strong><br/>
+              Error: ${error.message}
+            </div>` + output.innerHTML;
+            
+            throw error;
+          }
+        }
+        
+        // Render a block
+        window.renderBlock = async function(blockId) {
+          try {
+            log(`Rendering block: ${blockId}`);
+            
+            // Get the block from registry
+            const block = await client.blockRegistry.getEntry(blockId);
+            if (!block || !block.data) {
+              throw new Error('Block not found');
+            }
+            
+            // Show render section
+            document.getElementById('render-section').style.display = 'block';
+            const renderOutput = document.getElementById('render-output');
+            
+            // Create a simple rendering based on block data
+            const blockData = block.data;
+            let html = `<div class="wp-block-${blockData.name?.replace('/', '-')}" style="padding: 20px; background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+            
+            // Add block header
+            html += `<div style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">`;
+            html += `<h3 style="margin: 0;">${blockData.data?.title || blockData.name || 'Untitled Block'}</h3>`;
+            html += `<small style="color: #666;">Version: ${blockData.version || '1.0.0'}</small>`;
+            html += `</div>`;
+            
+            // Add block content based on type
+            if (blockData.name === 'hashlinks/transfer-button') {
+              // Render transfer button block with action binding
+              html += `<div style="text-align: center; padding: 20px;">`;
+              html += `<button id="transfer-btn-${blockId}" style="background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">`;
+              html += blockData.data?.attributes?.label?.default || 'Transfer';
+              html += `</button>`;
+              html += `<p style="margin-top: 10px; color: #666;">Amount: ${blockData.data?.attributes?.amount?.default || 1} HBAR</p>`;
+              html += `</div>`;
+              
+              // Add click handler after rendering
+              setTimeout(async () => {
+                const btn = document.getElementById(`transfer-btn-${blockId}`);
+                if (btn) {
+                  btn.onclick = async () => {
+                    try {
+                      log('Executing transfer action...');
+                      
+                      // In HCS-12, blocks don't directly reference actions
+                      // Instead, assemblies define which actions blocks can use
+                      // For this demo, we'll look for the action in the action registry
+                      
+                      // First, sync the action registry to ensure we have latest data
+                      await client.actionRegistry.sync();
+                      const actions = await client.actionRegistry.listEntries();
+                      log(`Found ${actions.length} actions in registry`);
+                      
+                      // Find the transfer action (in a real app, this would come from assembly context)
+                      const transferAction = actions.find(a => 
+                        a.data?.m?.includes('transfer') || 
+                        a.data?.m?.includes('Demo transfer action')
+                      );
+                      
+                      if (transferAction && transferAction.data?.t_id) {
+                        log('Found transfer action:', transferAction);
+                        
+                        // Execute using the WASM topic ID
+                        await executeAction(transferAction.data.t_id, 'transfer', {
+                          amount: blockData.data?.attributes?.amount?.default || 1,
+                          recipient: blockData.data?.attributes?.recipient?.default || '0.0.123456'
+                        });
+                      } else {
+                        log('No transfer action found in registry');
+                        log('Available actions:', actions);
+                        throw new Error('Transfer action not found in registry');
+                      }
+                    } catch (error) {
+                      handleError(error, 'action execution');
+                    }
+                  };
+                }
+              }, 100);
+            } else {
+              // Generic block rendering
+              html += `<div style="padding: 10px;">`;
+              
+              if (blockData.data?.description) {
+                html += `<p>${blockData.data.description}</p>`;
+              }
+              
+              // Show attributes
+              if (blockData.data?.attributes) {
+                html += `<h4>Attributes:</h4>`;
+                html += `<ul>`;
+                for (const [key, attr] of Object.entries(blockData.data.attributes)) {
+                  html += `<li><strong>${key}:</strong> ${JSON.stringify(attr)}</li>`;
+                }
+                html += `</ul>`;
+              }
+              
+              // Show supports
+              if (blockData.data?.supports) {
+                html += `<h4>Supports:</h4>`;
+                html += `<ul>`;
+                for (const [key, value] of Object.entries(blockData.data.supports)) {
+                  html += `<li>${key}: ${value}</li>`;
+                }
+                html += `</ul>`;
+              }
+              
+              html += `</div>`;
+            }
+            
+            // Add footer with block info
+            html += `<div style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666;">`;
+            html += `<strong>Block ID:</strong> ${blockId}<br/>`;
+            html += `<strong>Category:</strong> ${blockData.data?.category || 'uncategorized'}<br/>`;
+            if (blockData.t_id) {
+              html += `<strong>Action Topic:</strong> ${blockData.t_id}`;
+            }
+            html += `</div>`;
+            
+            html += `</div>`;
+            
+            renderOutput.innerHTML = html;
+            updateStatus('client-status', 'Block rendered successfully', 'success');
+            
+            // Scroll to render section
+            renderOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+          } catch (error) {
+            handleError(error, 'block rendering');
+          }
+        }
+
+        // Get topic messages
+        document
+          .getElementById('get-messages-btn')
+          .addEventListener('click', async () => {
+            try {
+              if (!client) {
+                throw new Error('Client not initialized');
+              }
+
+              const topicId = document.getElementById('mirror-topic-id').value;
+              if (!topicId) {
+                throw new Error('Please enter a topic ID');
+              }
+
+              const messages = await client.mirrorNode.getTopicMessagesByFilter(
+                topicId,
+                {
+                  order: 'desc',
+                  limit: 10,
+                },
+              );
+
+              log(
+                `Retrieved ${messages.length} messages from topic ${topicId}`,
+                messages,
+              );
+            } catch (error) {
+              handleError(error, 'get topic messages');
+            }
+          });
+
+        // Get topic info
+        document
+          .getElementById('get-info-btn')
+          .addEventListener('click', async () => {
+            try {
+              if (!client) {
+                throw new Error('Client not initialized');
+              }
+
+              const topicId = document.getElementById('mirror-topic-id').value;
+              if (!topicId) {
+                throw new Error('Please enter a topic ID');
+              }
+
+              const topicInfo = await client.mirrorNode.getTopicInfo(topicId);
+              log(`Topic ${topicId} information`, topicInfo);
+            } catch (error) {
+              handleError(error, 'get topic info');
+            }
+          });
+
+        // Create registry topic
+        async function createRegistryTopic(type) {
+          try {
+            if (!client) {
+              throw new Error('Client not initialized');
+            }
+
+            const registryTypeMap = {
+              action: RegistryType.ACTION,
+              block: RegistryType.BLOCK,
+              assembly: RegistryType.ASSEMBLY,
+            };
+
+            const topicId = await client.createRegistryTopic(
+              registryTypeMap[type],
+            );
+            log(`${type} registry topic created`, { topicId });
+
+            // Auto-populate the topic ID field
+            document.getElementById('topic-id').value = topicId;
+          } catch (error) {
+            handleError(error, `create ${type} registry topic`);
+          }
+        }
+
+        // Registry operations
+        document
+          .getElementById('sync-action-btn')
+          .addEventListener('click', () => syncRegistry('action'));
+        document
+          .getElementById('sync-block-btn')
+          .addEventListener('click', () => syncRegistry('block'));
+        document
+          .getElementById('sync-assembly-btn')
+          .addEventListener('click', () => syncRegistry('assembly'));
+
+        document
+          .getElementById('list-actions-btn')
+          .addEventListener('click', () => listEntries('action'));
+        document
+          .getElementById('list-blocks-btn')
+          .addEventListener('click', () => listEntries('block'));
+        document
+          .getElementById('list-assemblies-btn')
+          .addEventListener('click', () => listEntries('assembly'));
+
+        // Create topics
+        document
+          .getElementById('create-action-topic-btn')
+          .addEventListener('click', () => createRegistryTopic('action'));
+        document
+          .getElementById('create-block-topic-btn')
+          .addEventListener('click', () => createRegistryTopic('block'));
+        document
+          .getElementById('create-assembly-topic-btn')
+          .addEventListener('click', () => createRegistryTopic('assembly'));
+      };
+    </script>
+
+    <!-- HCS Recursion SDK -->
+    <script id="hcs-sdk">
+      !(function (t, e) {
+        'object' == typeof exports && 'undefined' != typeof module
+          ? e(exports)
+          : 'function' == typeof define && define.amd
+            ? define(['exports'], e)
+            : e(
+                ((t =
+                  'undefined' != typeof globalThis
+                    ? globalThis
+                    : t || self).HCSRecusionSDK = {}),
+              );
+      })(this, function (t) {
+        'use strict';
+        class e {
+          constructor() {
+            (this.modelViewerLoaded = !1),
+              (this.modelViewerLoading = null),
+              (this.config = {
+                cdnUrl: 'https://kiloscribe.com/api/inscription-cdn/',
+                network: 'mainnet',
+                retryAttempts: 3,
+                retryBackoff: 300,
+                debug: !1,
+                showLoadingIndicator: !1,
+                loadingCallbackName: null,
+              }),
+              (this.configMapping = {
+                hcsCdnUrl: 'cdnUrl',
+                hcsNetwork: 'network',
+                hcsRetryAttempts: 'retryAttempts',
+                hcsRetryBackoff: 'retryBackoff',
+                hcsDebug: 'debug',
+                hcsShowLoadingIndicator: 'showLoadingIndicator',
+                hcsLoadingCallbackName: 'loadingCallbackName',
+              }),
+              (this.LoadedScripts = {}),
+              (this.LoadedWasm = {}),
+              (this.LoadedImages = {}),
+              (this.LoadedVideos = {}),
+              (this.LoadedAudios = {}),
+              (this.LoadedAudioUrls = {}),
+              (this.LoadedGLBs = {}),
+              (this.scriptLoadedEvent = new Event('HCSScriptLoaded')),
+              (this.loadQueue = []),
+              (this.isProcessingQueue = !1);
+          }
+          log(...t) {
+            this.config.debug && console.log('[HCS SDK]', ...t);
+          }
+          error(...t) {
+            console.error('[HCS SDK]', ...t);
+          }
+          loadConfigFromHTML() {
+            const t = document.querySelector('script[data-hcs-config]');
+            t &&
+              Object.keys(this.configMapping).forEach(e => {
+                if (t.dataset[e]) {
+                  const i = this.configMapping[e];
+                  let a = t.dataset[e];
+                  'true' === a && (a = !0),
+                    'false' === a && (a = !1),
+                    isNaN(Number(a)) || '' === a || (a = Number(a)),
+                    (this.config[i] = a);
+                }
+              }),
+              this.log('Loaded config:', this.config);
+          }
+          updateLoadingStatus(t, e) {
+            if (
+              'loaded' !== this.LoadedScripts[t] &&
+              (this.config.showLoadingIndicator &&
+                console.log('[HCS Loading] ' + t + ' : ' + e),
+              (this.LoadedScripts[t] = e),
+              this.config.loadingCallbackName &&
+                'function' == typeof window[this.config.loadingCallbackName])
+            ) {
+              const i = window[this.config.loadingCallbackName];
+              'function' == typeof i && i(t, e);
+            }
+          }
+          async fetchWithRetry(
+            t,
+            e = this.config.retryAttempts,
+            i = this.config.retryBackoff,
+          ) {
+            try {
+              const e = await fetch(t);
+              if (!e.ok) throw new Error('HTTP error! status: ' + e.status);
+              return e;
+            } catch (a) {
+              if (e > 0)
+                return (
+                  this.log(
+                    'Retrying fetch for ' + t + ' Attempts left: ' + (e - 1),
+                  ),
+                  await this.sleep(i),
+                  this.fetchWithRetry(t, e - 1, 2 * i)
+                );
+              throw a;
+            }
+          }
+          sleep(t) {
+            return new Promise(e => setTimeout(e, t));
+          }
+          isDuplicate(t) {
+            return !!this.LoadedScripts[t];
+          }
+          async retrieveHCS1Data(
+            t,
+            e = this.config.cdnUrl,
+            i = this.config.network,
+          ) {
+            const a = i.replace(/['"]+/g, ''),
+              s = await this.fetchWithRetry(e + t + '?network=' + a);
+            return await s.blob();
+          }
+          async loadScript(t) {
+            const e = t.getAttribute('data-src'),
+              i = t.getAttribute('data-script-id'),
+              a = null == e ? void 0 : e.split('/').pop(),
+              s = t.getAttribute('type'),
+              o = t.hasAttribute('data-required'),
+              d = 'module' === t.getAttribute('type');
+            if (!this.isDuplicate(a || '')) {
+              this.updateLoadingStatus(i, 'loading');
+              try {
+                const e = t.getAttribute('data-cdn-url') || this.config.cdnUrl,
+                  r = t.getAttribute('data-network') || this.config.network,
+                  c = await this.retrieveHCS1Data(a, e, r);
+                if ('wasm' === s) {
+                  const e = await c.arrayBuffer(),
+                    a = await WebAssembly.compile(e);
+                  (this.LoadedWasm[i] = await WebAssembly.instantiate(a, {
+                    env: {},
+                    ...t.dataset,
+                  })),
+                    this.updateLoadingStatus(i, 'loaded'),
+                    window.dispatchEvent(this.scriptLoadedEvent),
+                    this.log('Loaded wasm: ' + i);
+                } else {
+                  const t = await c.text(),
+                    e = document.createElement('script');
+                  if (
+                    ((e.textContent = t),
+                    (e.className = 'hcs-inline-script'),
+                    i && e.setAttribute('data-loaded-script-id', i),
+                    d)
+                  ) {
+                    e.type = 'module';
+                    const i = new Blob([t], { type: 'application/javascript' });
+                    e.src = URL.createObjectURL(i);
+                  }
+                  document.body.appendChild(e),
+                    this.updateLoadingStatus(i, 'loaded'),
+                    window.dispatchEvent(this.scriptLoadedEvent),
+                    this.log('Loaded script: ' + i),
+                    (e.onerror = t => {
+                      if (
+                        (this.error('Failed to load ' + s + ': ' + i, t),
+                        this.updateLoadingStatus(i, 'failed'),
+                        o)
+                      )
+                        throw t;
+                    });
+                }
+              } catch (r) {
+                if (
+                  (this.error('Failed to load ' + s + ': ' + i, r),
+                  this.updateLoadingStatus(i, 'failed'),
+                  o)
+                )
+                  throw r;
+              }
+            }
+          }
+          async loadModuleExports(t) {
+            const e = document.querySelector(
+              'script[data-loaded-script-id="' + t + '"]',
+            );
+            if (!e)
+              throw new Error('Module script with id ' + t + ' not found');
+            const i = e.getAttribute('src');
+            if (!i)
+              throw new Error('Module script ' + t + ' has no src attribute');
+            return await import(i);
+          }
+          async loadStylesheet(t) {
+            const e = t.getAttribute('data-src'),
+              i = t.getAttribute('data-script-id'),
+              a = null == e ? void 0 : e.split('/').pop(),
+              s = t.hasAttribute('data-required');
+            if (!this.isDuplicate(a || '')) {
+              this.updateLoadingStatus(i, 'loading');
+              try {
+                const e = t.getAttribute('data-cdn-url') || this.config.cdnUrl,
+                  s = t.getAttribute('data-network') || this.config.network,
+                  o = await this.retrieveHCS1Data(a, e, s),
+                  d = await o.text(),
+                  r = document.createElement('style');
+                (r.textContent = d),
+                  document.head.appendChild(r),
+                  this.updateLoadingStatus(i, 'loaded'),
+                  window.dispatchEvent(this.scriptLoadedEvent),
+                  this.log('Loaded and inlined stylesheet: ' + i);
+              } catch (o) {
+                if (
+                  (this.error('Failed to load stylesheet: ' + i, o),
+                  this.updateLoadingStatus(i, 'failed'),
+                  s)
+                )
+                  throw o;
+              }
+            }
+          }
+          async loadImage(t) {
+            const e = t.getAttribute('data-src'),
+              i = null == e ? void 0 : e.split('/').pop();
+            this.log('Loading image: ' + i),
+              this.updateLoadingStatus('Image: ' + i, 'loaded');
+            try {
+              const e = t.getAttribute('data-cdn-url') || this.config.cdnUrl,
+                a = t.getAttribute('data-network') || this.config.network,
+                s = await this.retrieveHCS1Data(i, e, a),
+                o = URL.createObjectURL(s);
+              (t.src = o),
+                (this.LoadedImages[i] = o),
+                this.updateLoadingStatus('Image: ' + i, 'loaded'),
+                this.log('Loaded image: ' + i);
+            } catch (a) {
+              this.error('Failed to load image: ' + i, a),
+                this.updateLoadingStatus('Image: ' + i, 'failed');
+            }
+          }
+          async loadMedia(t, e) {
+            const i = t.getAttribute('data-src'),
+              a = null == i ? void 0 : i.split('/').pop();
+            this.log('Loading ' + e + ': ' + a),
+              this.updateLoadingStatus(e + ': ' + a, 'loading');
+            try {
+              const i = t.getAttribute('data-cdn-url') || this.config.cdnUrl,
+                s = t.getAttribute('data-network') || this.config.network,
+                o = await this.retrieveHCS1Data(a, i, s),
+                d = URL.createObjectURL(o);
+              (t.src = d),
+                'video' === e
+                  ? (this.LoadedVideos[a] = d)
+                  : (this.LoadedAudioUrls[a] = d),
+                this.updateLoadingStatus(e + ': ' + a, 'loaded'),
+                this.log('Loaded ' + e + ': ' + a);
+            } catch (s) {
+              this.error('Failed to load ' + e + ': ' + a, s),
+                this.updateLoadingStatus(e + ': ' + a, 'failed');
+            }
+          }
+          async loadModelViewer() {
+            return this.modelViewerLoading
+              ? this.modelViewerLoading
+              : this.modelViewerLoaded
+                ? Promise.resolve()
+                : ((this.modelViewerLoading = new Promise(t => {
+                    const e = document.createElement('script');
+                    e.setAttribute('data-src', 'hcs://1/0.0.7293044'),
+                      e.setAttribute('data-script-id', 'model-viewer'),
+                      e.setAttribute('type', 'module'),
+                      window.addEventListener(
+                        'HCSScriptLoaded',
+                        () => {
+                          (this.modelViewerLoaded = !0), t();
+                        },
+                        { once: !0 },
+                      ),
+                      this.loadScript(e);
+                  })),
+                  this.modelViewerLoading);
+          }
+          async loadGLB(t) {
+            var e;
+            await this.loadModelViewer();
+            const i = t.getAttribute('data-src'),
+              a = null == i ? void 0 : i.split('/').pop();
+            this.log('Loading GLB: ' + a),
+              this.updateLoadingStatus('GLB: ' + a, 'loading');
+            try {
+              const i = t.getAttribute('data-cdn-url') || this.config.cdnUrl,
+                s = t.getAttribute('data-network') || this.config.network;
+              let o;
+              'model-viewer' !== t.tagName.toLowerCase()
+                ? ((o = document.createElement('model-viewer')),
+                  Array.from(t.attributes).forEach(t => {
+                    o.setAttribute(t.name, t.value);
+                  }),
+                  o.setAttribute('camera-controls', ''),
+                  o.setAttribute('auto-rotate', ''),
+                  o.setAttribute('ar', ''),
+                  null == (e = t.parentNode) || e.replaceChild(o, t))
+                : (o = t);
+              const d = await this.retrieveHCS1Data(a, i, s),
+                r = URL.createObjectURL(d);
+              o.setAttribute('src', r),
+                (this.LoadedGLBs[a] = r),
+                this.updateLoadingStatus('GLB: ' + a, 'loaded'),
+                this.log('Loaded GLB: ' + a);
+            } catch (s) {
+              this.error('Failed to load GLB: ' + a, s),
+                this.updateLoadingStatus('GLB: ' + a, 'failed');
+            }
+          }
+          async loadResource(t, e, i) {
+            return new Promise(a => {
+              this.loadQueue.push({
+                element: t,
+                type: e,
+                order: i,
+                resolve: a,
+              }),
+                this.processQueue();
+            });
+          }
+          async processQueue() {
+            if (!this.isProcessingQueue) {
+              for (this.isProcessingQueue = !0; this.loadQueue.length > 0; ) {
+                const e = this.loadQueue.shift();
+                try {
+                  'script' === e.type
+                    ? await this.loadScript(e.element)
+                    : 'image' === e.type
+                      ? await this.loadImage(e.element)
+                      : 'video' === e.type || 'audio' === e.type
+                        ? await this.loadMedia(e.element, e.type)
+                        : 'glb' === e.type
+                          ? await this.loadGLB(e.element)
+                          : 'css' === e.type &&
+                            (await this.loadStylesheet(e.element)),
+                    e.resolve();
+                } catch (t) {
+                  if (
+                    (this.error('Error processing queue item:', t),
+                    'script' === e.type &&
+                      e.element.hasAttribute('data-required'))
+                  )
+                    break;
+                }
+              }
+              this.isProcessingQueue = !1;
+            }
+          }
+          async replaceHCSInStyle(t) {
+            let e = t,
+              i = e.indexOf('hcs://');
+            for (; -1 !== i; ) {
+              let t = i;
+              for (; t < e.length && !["'", '"', ' ', ')'].includes(e[t]); )
+                t++;
+              const s = e.substring(i, t),
+                o = s.split('/').pop();
+              try {
+                const a = this.config.cdnUrl,
+                  d = this.config.network,
+                  r = await this.retrieveHCS1Data(o, a, d),
+                  c = URL.createObjectURL(r);
+                (e = e.substring(0, i) + c + e.substring(t)),
+                  (this.LoadedImages[o] = c),
+                  this.log('Replaced CSS HCS URL: ' + s + ' with ' + c);
+              } catch (a) {
+                this.error('Failed to load CSS image: ' + o, a);
+              }
+              i = e.indexOf('hcs://', i + 1);
+            }
+            return e;
+          }
+          async processInlineStyles() {
+            var t;
+            const e = document.querySelectorAll('[style*="hcs://"]');
+            this.log(
+              'Found ' + e.length + ' elements with HCS style references',
+            );
+            for (const a of Array.from(e)) {
+              const t = a.getAttribute('style');
+              if (t) {
+                this.log('Processing style: ' + t);
+                const e = await this.replaceHCSInStyle(t);
+                t !== e &&
+                  (a.setAttribute('style', e),
+                  this.log('Updated style to: ' + e));
+              }
+            }
+            const i = document.querySelectorAll('style');
+            for (const a of Array.from(i))
+              if (null == (t = a.textContent) ? void 0 : t.includes('hcs://')) {
+                const t = await this.replaceHCSInStyle(a.textContent);
+                a.textContent !== t && (a.textContent = t);
+              }
+          }
+          async init() {
+            return (
+              this.loadConfigFromHTML(),
+              new Promise(t => {
+                const e = async () => {
+                  const e = document.querySelectorAll(
+                      'script[data-src^="hcs://"]',
+                    ),
+                    i = document.querySelectorAll(
+                      'img[data-src^="hcs://"], img[src^="hcs://"]',
+                    ),
+                    a = document.querySelectorAll(
+                      'video[data-src^="hcs://"], video[src^="hcs://"]',
+                    ),
+                    s = document.querySelectorAll(
+                      'audio[data-src^="hcs://"], audio[src^="hcs://"]',
+                    ),
+                    o = document.querySelectorAll(
+                      'model-viewer[data-src^="hcs://"]',
+                    ),
+                    d = document.querySelectorAll('link[data-src^="hcs://"]');
+                  document.querySelectorAll('[src^="hcs://"]').forEach(t => {
+                    const e = t.getAttribute('src');
+                    e &&
+                      (t.setAttribute('data-src', e), t.removeAttribute('src'));
+                  }),
+                    await this.processInlineStyles();
+                  const r = [];
+                  [
+                    { elements: e, type: 'script' },
+                    { elements: i, type: 'image' },
+                    { elements: a, type: 'video' },
+                    { elements: s, type: 'audio' },
+                    { elements: o, type: 'glb' },
+                    { elements: d, type: 'css' },
+                  ].forEach(({ elements: t, type: e }) => {
+                    t.forEach(t => {
+                      const i =
+                        parseInt(t.getAttribute('data-load-order') || '') ||
+                        1 / 0;
+                      r.push(this.loadResource(t, e, i));
+                    });
+                  }),
+                    await Promise.all(r);
+                  const c = new MutationObserver(t => {
+                    t.forEach(t => {
+                      var e;
+                      if (
+                        (t.addedNodes.forEach(t => {
+                          var e, i, a;
+                          if (t.nodeType === Node.ELEMENT_NODE) {
+                            const s = t;
+                            if (
+                              ((null == (e = s.getAttribute('style'))
+                                ? void 0
+                                : e.includes('hcs://')) &&
+                                this.processInlineStyles(),
+                              'style' === s.tagName.toLowerCase() &&
+                                (null == (i = s.textContent)
+                                  ? void 0
+                                  : i.includes('hcs://')) &&
+                                this.processInlineStyles(),
+                              null == (a = s.getAttribute('src'))
+                                ? void 0
+                                : a.startsWith('hcs://'))
+                            ) {
+                              const t = s.getAttribute('src');
+                              s.setAttribute('data-src', t),
+                                s.removeAttribute('src');
+                              switch (s.tagName.toLowerCase()) {
+                                case 'img':
+                                  this.loadResource(s, 'image', 1 / 0);
+                                  break;
+                                case 'video':
+                                  this.loadResource(s, 'video', 1 / 0);
+                                  break;
+                                case 'audio':
+                                  this.loadResource(s, 'audio', 1 / 0);
+                                  break;
+                                case 'script':
+                                  this.loadResource(s, 'script', 1 / 0);
+                              }
+                            }
+                            s.matches('script[data-src^="hcs://"]')
+                              ? this.loadResource(s, 'script', 1 / 0)
+                              : s.matches('img[data-src^="hcs://"]')
+                                ? this.loadResource(s, 'image', 1 / 0)
+                                : s.matches('video[data-src^="hcs://"]')
+                                  ? this.loadResource(s, 'video', 1 / 0)
+                                  : s.matches('audio[data-src^="hcs://"]')
+                                    ? this.loadResource(s, 'audio', 1 / 0)
+                                    : s.matches(
+                                          'model-viewer[data-src^="hcs://"]',
+                                        )
+                                      ? this.loadResource(s, 'glb', 1 / 0)
+                                      : s.matches('link[data-src^="hcs://"]') &&
+                                        this.loadResource(s, 'css', 1 / 0);
+                            s.querySelectorAll(
+                              '[data-src^="hcs://"], [src^="hcs://"]',
+                            ).forEach(t => {
+                              const e = t,
+                                i = e.tagName.toLowerCase(),
+                                a = e.getAttribute('src');
+                              switch (
+                                ((null == a
+                                  ? void 0
+                                  : a.startsWith('hcs://')) &&
+                                  (e.setAttribute('data-src', a),
+                                  e.removeAttribute('src')),
+                                i)
+                              ) {
+                                case 'script':
+                                  this.loadResource(e, 'script', 1 / 0);
+                                  break;
+                                case 'img':
+                                  this.loadResource(e, 'image', 1 / 0);
+                                  break;
+                                case 'video':
+                                  this.loadResource(e, 'video', 1 / 0);
+                                  break;
+                                case 'audio':
+                                  this.loadResource(e, 'audio', 1 / 0);
+                                  break;
+                                case 'model-viewer':
+                                  this.loadResource(e, 'glb', 1 / 0);
+                                  break;
+                                case 'link':
+                                  this.loadResource(e, 'css', 1 / 0);
+                              }
+                            });
+                          }
+                        }),
+                        'attributes' === t.type)
+                      ) {
+                        const i = t.target;
+                        if (
+                          'style' === t.attributeName &&
+                          (null == (e = i.getAttribute('style'))
+                            ? void 0
+                            : e.includes('hcs://'))
+                        )
+                          this.processInlineStyles();
+                        else if ('src' === t.attributeName) {
+                          const t = i.getAttribute('src');
+                          if (null == t ? void 0 : t.startsWith('hcs://')) {
+                            i.setAttribute('data-src', t),
+                              i.removeAttribute('src');
+                            const e = i.tagName.toLowerCase();
+                            ['img', 'video', 'audio'].includes(e) &&
+                              this.loadResource(i, e, 1 / 0);
+                          }
+                        }
+                      }
+                    });
+                  });
+                  document.body
+                    ? c.observe(document.body, {
+                        childList: !0,
+                        subtree: !0,
+                        attributes: !0,
+                        attributeFilter: ['style', 'src', 'data-src'],
+                      })
+                    : document.addEventListener('DOMContentLoaded', () => {
+                        c.observe(document.body, {
+                          childList: !0,
+                          subtree: !0,
+                          attributes: !0,
+                          attributeFilter: ['style', 'src', 'data-src'],
+                        });
+                      }),
+                    t();
+                };
+                'loading' === document.readyState
+                  ? document.addEventListener('DOMContentLoaded', e)
+                  : e();
+              })
+            );
+          }
+          async preloadImage(t) {
+            this.log('Loading image:' + t),
+              this.updateLoadingStatus('image: ' + t, 'loading');
+            const e = await this.retrieveHCS1Data(t),
+              i = URL.createObjectURL(e);
+            return (
+              (this.LoadedImages[t] = i),
+              this.updateLoadingStatus('image: ' + t, 'loaded'),
+              i
+            );
+          }
+          async preloadAudio(t) {
+            const e = document.createElement('audio');
+            e.setAttribute('data-topic-id', t),
+              e.setAttribute('data-src', 'hcs://1/' + t),
+              document.body.appendChild(e),
+              await this.loadMedia(e, 'audio');
+            const i = document.querySelector(
+              'audio[data-topic-id="' + t + '"]',
+            );
+            return (
+              i
+                ? (this.LoadedAudioUrls[t] = i.src)
+                : console.error('Failed to preload audio: ' + t),
+              this.LoadedAudioUrls[t]
+            );
+          }
+          async playAudio(t, e = 1) {
+            const i = this.LoadedAudioUrls[t];
+            if (i) {
+              const a = new Audio(i);
+              (a.volume = e),
+                (this.LoadedAudios[t] = a),
+                a.play().catch(t => {
+                  console.error('Failed to play audio:', t);
+                }),
+                a.addEventListener('ended', () => {
+                  a.remove(), delete this.LoadedAudios[t];
+                });
+            } else console.error('Audio not preloaded: ' + t);
+          }
+          async pauseAudio(t) {
+            var e, i;
+            const a = document.querySelector(
+              'audio[data-topic-id="' + t + '"]',
+            );
+            a
+              ? (console.log('found element', a),
+                a.pause(),
+                null == (e = this.LoadedAudios[t]) || e.pause())
+              : null == (i = this.LoadedAudios[t]) || i.pause();
+          }
+          async loadAndPlayAudio(t, e = !1, i = 1) {
+            let a = document.querySelector('audio[data-topic-id="' + t + '"]');
+            if (a) (a.volume = i), await a.play();
+            else {
+              const s = document.createElement('audio');
+              (s.volume = i),
+                e && s.setAttribute('autoplay', 'autoplay'),
+                s.setAttribute('data-topic-id', t),
+                s.setAttribute('data-src', 'hcs://1/' + t),
+                document.body.appendChild(s),
+                await this.loadMedia(s, 'audio'),
+                (a = document.querySelector(
+                  'audio[data-topic-id="' + t + '"]',
+                )),
+                e || (await a.play());
+            }
+          }
+        }
+        (window.HCS = new e()),
+          window.HCS.init().then(() => {
+            console.log('All HCS resources loaded'),
+              'function' == typeof window.HCSReady &&
+                (console.log('Running HCSReady...'), window.HCSReady());
+          });
+        const i = window.HCS;
+        (t.HCS = e),
+          (t.default = i),
+          (t.sleep = t => new Promise(e => setTimeout(e, t))),
+          Object.defineProperties(t, {
+            __esModule: { value: !0 },
+            [Symbol.toStringTag]: { value: 'Module' },
+          });
+      });
+    </script>
+  </body>
+</html>

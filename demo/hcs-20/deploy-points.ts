@@ -57,7 +57,7 @@ async function deployPoints() {
 
     console.log('\nPoints deployed successfully!');
     console.log('Points Info:', JSON.stringify(pointsInfo, null, 2));
-    
+
     console.log('\n📊 Starting indexer to verify deployment...');
     const indexer = new HCS20PointsIndexer('testnet');
 
@@ -70,7 +70,10 @@ async function deployPoints() {
     });
 
     const indexedPointsInfo = await indexer.getPointsInfo(pointsInfo.tick);
-    const deployerBalance = await indexer.getBalance(pointsInfo.tick, operatorId);
+    const deployerBalance = await indexer.getBalance(
+      pointsInfo.tick,
+      operatorId,
+    );
 
     console.log('\n💵 Deployment Verification:');
     console.log(`- Points name: ${indexedPointsInfo?.name}`);
@@ -78,11 +81,15 @@ async function deployPoints() {
     console.log(`- Max supply: ${indexedPointsInfo?.maxSupply}`);
     console.log(`- Current supply: ${indexedPointsInfo?.currentSupply}`);
     console.log(`- Deployer balance: ${deployerBalance}`);
-    
+
     console.log('\n✅ Verification Results:');
     console.log(`- Deployment found: ${indexedPointsInfo ? '✅' : '❌'}`);
-    console.log(`- Initial supply is 0: ${indexedPointsInfo?.currentSupply === '0' ? '✅' : '❌'}`);
-    console.log(`- Deployer balance is 0: ${deployerBalance === '0' ? '✅' : '❌'}`);
+    console.log(
+      `- Initial supply is 0: ${indexedPointsInfo?.currentSupply === '0' ? '✅' : '❌'}`,
+    );
+    console.log(
+      `- Deployer balance is 0: ${deployerBalance === '0' ? '✅' : '❌'}`,
+    );
   } catch (error) {
     console.error('Failed to deploy points:', error);
   }
