@@ -5,6 +5,7 @@
  * Tests the authentication handling fix for both private key and signer methods.
  */
 
+import { webcrypto } from 'crypto';
 import { HCS11Client } from '../src/hcs-11/client';
 import { ProfileType, PersonalProfile, AIAgentType, AIAgentCapability } from '../src/hcs-11/types';
 import * as dotenv from 'dotenv';
@@ -45,6 +46,8 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         keyType: 'ed25519',
         silent: true,
       });
+
+      (global as any).crypto = webcrypto;
     });
 
     afterEach(() => {
@@ -63,7 +66,6 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
 
       const response = await client.inscribeProfile(mockProfile);
 
-      // Log the actual response for debugging
       console.log('Inscription response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
@@ -73,8 +75,6 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         console.log(`✅ Profile inscribed successfully: ${response.profileTopicId}`);
       } else {
         console.log(`❌ Profile inscription failed: ${response.error}`);
-        // For now, we'll just log the failure instead of failing the test
-        // since this might be due to network/environment issues
         expect(response.success).toBe(false);
         expect(response.error).toBeDefined();
       }
@@ -98,11 +98,12 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         silent: true,
       });
 
+      (global as any).crypto = webcrypto;
+
       const mockProfile = client.createPersonalProfile('Test User');
 
       const response = await clientWithoutAuth.inscribeProfile(mockProfile);
 
-      // The method should return an error response, not throw
       expect(response.success).toBe(false);
       expect(response.error).toContain('No authentication method available');
       
@@ -121,6 +122,7 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         keyType: 'ed25519',
         silent: true,
       });
+      (global as any).crypto = webcrypto;
     });
 
     afterEach(() => {
@@ -133,7 +135,6 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
       const invalidProfile: Partial<PersonalProfile> = {
         version: '1.0',
         type: ProfileType.PERSONAL,
-        // Missing required display_name
       };
 
       const response = await client.inscribeProfile(invalidProfile as any);
@@ -156,7 +157,6 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
 
       const response = await client.inscribeProfile(agentProfile);
 
-      // Log the actual response for debugging
       console.log('AI Agent inscription response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
@@ -165,15 +165,12 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         console.log(`✅ AI Agent profile inscribed: ${response.profileTopicId}`);
       } else {
         console.log(`❌ AI Agent profile inscription failed: ${response.error}`);
-        // For now, we'll just log the failure instead of failing the test
         expect(response.success).toBe(false);
         expect(response.error).toBeDefined();
       }
     }, 60000);
   });
 
-  // Commenting out the profile retrieval test since it depends on successful inscription
-  // and we're having network/environment issues
 
   describe('Profile Retrieval', () => {
     let profileTopicId: string;
@@ -188,6 +185,7 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         keyType: 'ed25519',
         silent: true,
       });
+      (global as any).crypto = webcrypto;
 
       // Create and inscribe a profile for testing retrieval
       const testProfile = client.createPersonalProfile(
@@ -198,15 +196,21 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
       );
 
       const inscribeResult = await client.inscribeProfile(testProfile);
-      expect(inscribeResult.success).toBe(true);
+      if (!inscribeResult.success) {
+        throw new Error(`Profile inscription failed during test setup: ${inscribeResult.error}`);
+      }
       profileTopicId = inscribeResult.profileTopicId;
 
-      // Update account memo with profile reference
       await client.updateAccountMemoWithProfile(operatorId, profileTopicId);
       
-      // Wait for network propagation
       await new Promise(resolve => setTimeout(resolve, 10000));
     }, 60000);
+
+    afterAll(() => {
+      if (client) {
+        client.getClient().close();
+      }
+    });
 
     it('should fetch profile by account ID', async () => {
       const fetchResult = await client.fetchProfileByAccountId(operatorId);
