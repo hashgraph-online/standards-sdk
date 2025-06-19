@@ -1,15 +1,11 @@
-// Polyfill for Web Crypto API in Node.js environment
-const { Crypto } = require('@peculiar/webcrypto');
-
-// Create a crypto instance
-const crypto = new Crypto();
+// Use Node.js's native Web Crypto API
+const { webcrypto } = require('crypto');
 
 // Define it on all possible global objects
 const globalObjects = [global, globalThis];
 
-// Also create a window object if it doesn't exist
 if (typeof window === 'undefined') {
-  global.window = global;
+  global.window = {};
 }
 globalObjects.push(global.window);
 
@@ -17,7 +13,7 @@ globalObjects.push(global.window);
 globalObjects.forEach(obj => {
   if (obj) {
     Object.defineProperty(obj, 'crypto', {
-      value: crypto,
+      value: webcrypto,
       writable: true,
       enumerable: true,
       configurable: true,
@@ -30,16 +26,11 @@ if (!global.crypto.subtle) {
   throw new Error('Crypto subtle API not available after polyfill');
 }
 
-// Additional fallback for modules that might check differently
 if (typeof self === 'undefined') {
   global.self = global;
 }
 if (self && !self.crypto) {
-  self.crypto = crypto;
+  self.crypto = webcrypto;
 }
 
-console.log('✅ Web Crypto API polyfilled successfully');
-console.log('   - global.crypto.subtle:', !!global.crypto?.subtle);
-console.log('   - globalThis.crypto.subtle:', !!globalThis.crypto?.subtle);
-console.log('   - window.crypto.subtle:', !!(global.window?.crypto?.subtle));
-console.log('   - self.crypto.subtle:', !!(global.self?.crypto?.subtle)); 
+console.log('✅ Native Web Crypto API set up successfully for Jest environment'); 
