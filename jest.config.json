@@ -3,7 +3,11 @@
     "^.+\\.(t|j)sx?$": ["@swc/jest"]
   },
   "testEnvironment": "./jest-environment-hedera.js",
+  "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"],
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
-  "setupFilesAfterEnv": [],
-  "testPathIgnorePatterns": ["/node_modules/"]
+  "testPathIgnorePatterns": ["/node_modules/"],
+  "testMatch": ["**/__tests__/**/*.test.ts"],
+  "moduleNameMapper": {
+    "^../src$": "<rootDir>/src"
+  }
 }
