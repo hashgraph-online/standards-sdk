@@ -23,6 +23,12 @@
       data-script-id="standards-sdk"
       data-load-order="2"
     ></script>
+    
+    <script
+      src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"
+      data-script-id="handlebars"
+      data-load-order="3"
+    ></script>
 
     <style>
       body {
@@ -159,40 +165,51 @@
       <div class="section">
         <h2>Registry Operations</h2>
         
-        <div class="info-box">
-          <strong>Test Registry Topic IDs (Testnet):</strong>
+        <div class="info-box" style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+          <strong>Note: Block Registry is deprecated in HCS-12</strong>
+          <p style="margin: 10px 0;">Blocks are now stored as HCS-1 inscriptions, not in a registry.</p>
+          <strong>Test Topic IDs (Testnet) - Updated 2025-06-21:</strong>
           <ul style="margin: 10px 0 0 20px; padding: 0; list-style: none;">
-            <li>Action Registry: <code>0.0.6193088</code></li>
-            <li>Block Registry: <code>0.0.6193089</code></li>
-            <li>Assembly Registry: <code>0.0.6193091</code></li>
-            <li>HashLinks Registry: <code>0.0.6193093</code></li>
+            <li>✅ Action Registry: <code>0.0.6212094</code></li>
+            <li>✅ Assembly Registry: <code>0.0.6212095</code> (global directory)</li>
+            <li>✅ Counter Assembly: <code>0.0.6212100</code> (Complete counter app with add-action operations)</li>
+            <li>📄 Block Definition: <code>0.0.6212099</code></li>
+            <li>📄 Block Template: <code>0.0.6212098</code></li>
           </ul>
-          <small style="display: block; margin-top: 10px;">These topics were created by the demo and contain test data.</small>
+          <p style="background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 13px;">
+            <strong>✅ Fixed (2025-06-21):</strong> Final working version!
+            Template doesn't hardcode state, WasmExecutor merges state generically.
+            WASM expects "count" input and returns "count" output.
+          </p>
+          <small style="display: block; margin-top: 10px;">Latest topics created with rebuilt SDK and fixed WasmExecutor.</small>
         </div>
 
         <div class="form-group">
-          <label for="topic-id">Registry Topic ID:</label>
+          <label for="topic-id">Topic ID:</label>
           <input
             type="text"
             id="topic-id"
             placeholder="0.0.123456"
-            value="0.0.6193088"
+            value="0.0.6212100"
           />
+          <small style="display: block; margin-top: 5px; color: #666;">
+            Enter a topic ID to sync registries or load assemblies/blocks. Use quick select buttons below.
+          </small>
           <div style="margin-top: 5px;">
             <small>Quick select:</small>
-            <button onclick="document.getElementById('topic-id').value='0.0.6193088'; document.getElementById('mirror-topic-id').value='0.0.6193088'" style="padding: 2px 8px; font-size: 12px;">Action</button>
-            <button onclick="document.getElementById('topic-id').value='0.0.6193089'; document.getElementById('mirror-topic-id').value='0.0.6193089'" style="padding: 2px 8px; font-size: 12px;">Block</button>
-            <button onclick="document.getElementById('topic-id').value='0.0.6193091'; document.getElementById('mirror-topic-id').value='0.0.6193091'" style="padding: 2px 8px; font-size: 12px;">Assembly</button>
-            <button onclick="document.getElementById('topic-id').value='0.0.6193093'; document.getElementById('mirror-topic-id').value='0.0.6193093'" style="padding: 2px 8px; font-size: 12px;">HashLinks</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6212094'; document.getElementById('mirror-topic-id').value='0.0.6212094'" style="padding: 2px 8px; font-size: 12px;">Action Registry</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6212095'; document.getElementById('mirror-topic-id').value='0.0.6212095'" style="padding: 2px 8px; font-size: 12px;">Assembly Registry</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6212100'; document.getElementById('mirror-topic-id').value='0.0.6212100'" style="padding: 2px 8px; font-size: 12px;">Counter Assembly</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6212099'; document.getElementById('mirror-topic-id').value='0.0.6212099'" style="padding: 2px 8px; font-size: 12px;">Block Definition</button>
           </div>
         </div>
 
         <button id="sync-action-btn" disabled>Sync Action Registry</button>
-        <button id="sync-block-btn" disabled>Sync Block Registry</button>
         <button id="sync-assembly-btn" disabled>Sync Assembly Registry</button>
         <button id="list-actions-btn" disabled>List Actions</button>
-        <button id="list-blocks-btn" disabled>List Blocks</button>
         <button id="list-assemblies-btn" disabled>List Assemblies</button>
+        <button id="list-blocks-btn" disabled>List Blocks</button>
+        <button id="load-assembly-btn" disabled>Load Assembly Details</button>
       </div>
 
       <div class="section">
@@ -217,11 +234,11 @@
         <button id="create-action-topic-btn" disabled>
           Create Action Registry
         </button>
-        <button id="create-block-topic-btn" disabled>
-          Create Block Registry
-        </button>
         <button id="create-assembly-topic-btn" disabled>
           Create Assembly Registry
+        </button>
+        <button id="create-assembly-instance-btn" disabled>
+          Create New Assembly
         </button>
       </div>
 
@@ -279,13 +296,17 @@
         let currentAccountId = null;
         let logger = null;
         
-        // Known registry topic IDs from demo
+        // Known registry topic IDs from demo - Updated 2025-06-21
         const REGISTRY_TOPICS = {
-          action: '0.0.6193088',
-          block: '0.0.6193089',
-          assembly: '0.0.6193091',
-          hashlinks: '0.0.6193093'
+          action: '0.0.6212094',    // Action registry (type 0)
+          assembly: '0.0.6212095',  // Assembly registry (type 2)  
+          counterAssembly: '0.0.6212100'  // Counter App Assembly (with add-action operations)
         };
+        
+        // Other relevant topic IDs from latest demo:
+        // Block Definition: 0.0.6212099
+        // Block Template: 0.0.6212098
+        // WASM and JS topics are stored in the action registry
 
         // Utility functions
         function updateStatus(elementId, message, type = 'info') {
@@ -455,15 +476,41 @@
                 );
               }
 
-              // Initialize with known topic IDs
-              client.initializeRegistries(REGISTRY_TOPICS);
+              // Initialize with known topic IDs (no block registry in new approach)
+              client.initializeRegistries({
+                action: REGISTRY_TOPICS.action,
+                assembly: REGISTRY_TOPICS.assembly
+              });
+              
               updateStatus(
                 'client-status',
-                'Registries initialized with known topics',
-                'success',
+                'Syncing registries...',
+                'info',
               );
-              log('Registries initialized with topics:', REGISTRY_TOPICS);
-              enableButtons(true);
+              
+              // Automatically sync both registries
+              try {
+                await client.actionRegistry.sync();
+                log('Action registry synced successfully');
+                
+                await client.assemblyRegistry.sync();
+                log('Assembly registry synced successfully');
+                
+                updateStatus(
+                  'client-status',
+                  'Registries initialized and synced',
+                  'success',
+                );
+                enableButtons(true);
+              } catch (syncError) {
+                updateStatus(
+                  'client-status',
+                  'Registry sync failed: ' + syncError.message,
+                  'error',
+                );
+                log('Registry sync error:', syncError);
+                enableButtons(true); // Still enable buttons for manual retry
+              }
             } catch (error) {
               handleError(error, 'registry initialization');
             }
@@ -535,13 +582,104 @@
               throw new Error('Client not initialized');
             }
 
+            if (type === 'block') {
+              // For blocks, we need to load them from an assembly or test a single block definition
+              const topicId = document.getElementById('topic-id').value;
+              if (!topicId) {
+                throw new Error('Please enter an assembly topic ID or block definition topic ID');
+              }
+              
+              // First try to load as an assembly
+              try {
+                log('Trying to load as assembly...');
+                
+                // Debug: try to get messages directly
+                try {
+                  const messages = await client.mirrorNode.getTopicMessagesByFilter(topicId, {
+                    order: 'asc',
+                    limit: 10
+                  });
+                  log(`Found ${messages.length} messages in assembly topic`);
+                  messages.forEach((msg, i) => {
+                    if (msg.message) {
+                      try {
+                        const decoded = atob(msg.message);
+                        const parsed = JSON.parse(decoded);
+                        log(`Message ${i}: ${parsed.op}`, parsed);
+                      } catch (e) {
+                        log(`Failed to decode message ${i}`);
+                      }
+                    }
+                  });
+                } catch (e) {
+                  log('Failed to get messages directly:', e.message);
+                }
+                
+                const assembly = await client.loadAssembly(topicId);
+                
+                if (assembly && assembly.blocks && assembly.blocks.length > 0) {
+                  log(`Found ${assembly.blocks.length} blocks in assembly`);
+                  log('Assembly blocks:', assembly.blocks.map(b => ({
+                    block_t_id: b.block_t_id,
+                    hasDefinition: !!b.definition,
+                    hasTemplate: !!b.template,
+                    actions: b.actions
+                  })));
+                  displayBlockEntries(assembly.blocks);
+                  return;
+                } else {
+                  log('No blocks found in assembly, trying as single block definition...');
+                }
+              } catch (assemblyError) {
+                log(`Assembly loading failed: ${assemblyError.message}, trying as single block definition...`);
+              }
+              
+              // Try to load as a single block definition
+              try {
+                log(`Loading single block definition: ${topicId}`);
+                
+                // Try to fetch directly to see if it's a network issue
+                try {
+                  const testUrl = `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=testnet`;
+                  log(`Testing direct fetch to: ${testUrl}`);
+                  const testResponse = await fetch(testUrl);
+                  log(`Direct fetch status: ${testResponse.status}`);
+                  if (testResponse.ok) {
+                    const testData = await testResponse.text();
+                    log(`Direct fetch successful, data length: ${testData.length}`);
+                  }
+                } catch (fetchError) {
+                  log(`Direct fetch failed: ${fetchError.message}`);
+                }
+                
+                const blockData = await client.loadBlock(topicId);
+                
+                if (blockData && blockData.definition) {
+                  const fakeBlock = {
+                    block_t_id: topicId,
+                    definition: blockData.definition,
+                    template: blockData.template,
+                    actions: {},
+                    attributes: {},
+                    children: []
+                  };
+                  
+                  log('Successfully loaded single block definition', blockData.definition);
+                  displayBlockEntries([fakeBlock]);
+                  return;
+                }
+              } catch (blockError) {
+                console.error('Block loading error details:', blockError);
+                throw new Error(`Failed to load as assembly or block definition: ${blockError.message}`);
+              }
+              
+              throw new Error('No blocks found');
+            }
+
             let registry;
             switch (type) {
               case 'action':
                 registry = client.actionRegistry;
-                break;
-              case 'block':
-                registry = client.blockRegistry;
                 break;
               case 'assembly':
                 registry = client.assemblyRegistry;
@@ -584,15 +722,7 @@
             html += `<div style="background: #f5f5f5; padding: 8px; margin: 5px 0; border-radius: 3px;">`;
             html += `<strong>#${index + 1}</strong><br/>`;
             
-            if (type === 'block' && entry.data) {
-              html += `Name: <code>${entry.data.name || 'Unknown'}</code><br/>`;
-              html += `Version: ${entry.data.version || 'Unknown'}<br/>`;
-              html += `Title: ${entry.data.data?.title || 'No title'}<br/>`;
-              if (entry.data.data?.description) {
-                html += `Description: ${entry.data.data.description}<br/>`;
-              }
-              html += `<button onclick="renderBlock('${entry.id}')" style="margin-top: 5px; padding: 2px 8px; font-size: 12px;">Render Block</button>`;
-            } else if (type === 'action' && entry.data) {
+            if (type === 'action' && entry.data) {
               // Action registrations have different fields
               if (entry.data.hash) {
                 html += `Info Hash: <code style="font-size: 10px;">${entry.data.hash.substring(0, 16)}...</code><br/>`;
@@ -615,6 +745,43 @@
             }
             
             html += `<small>ID: ${entry.id}</small>`;
+            html += `</div>`;
+          });
+          
+          html += `</div>`;
+          
+          // Prepend to output
+          output.innerHTML = html + output.innerHTML;
+        }
+        
+        // Display block entries in the UI
+        function displayBlockEntries(blocks) {
+          const output = document.getElementById('output');
+          
+          let html = `<div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 4px;">`;
+          html += `<h3>Assembly Blocks (${blocks.length})</h3>`;
+          
+          blocks.forEach((block, index) => {
+            html += `<div style="background: #f5f5f5; padding: 8px; margin: 5px 0; border-radius: 3px;">`;
+            html += `<strong>Block #${index + 1}</strong><br/>`;
+            html += `Topic ID: <code>${block.block_t_id}</code><br/>`;
+            
+            if (block.definition) {
+              html += `Name: ${block.definition.name}<br/>`;
+              html += `Title: ${block.definition.title}<br/>`;
+              html += `Category: ${block.definition.category}<br/>`;
+            }
+            
+            if (block.actions && Object.keys(block.actions).length > 0) {
+              html += `Actions: ${Object.entries(block.actions).map(([key, topicId]) => `${key} (${topicId})`).join(', ')}<br/>`;
+            }
+            
+            if (block.attributes && Object.keys(block.attributes).length > 0) {
+              html += `Attributes: ${JSON.stringify(block.attributes)}<br/>`;
+            }
+            
+            // Add render button for each block
+            html += `<button onclick="renderBlock('${block.block_t_id}')" style="background: #28a745; color: white; padding: 4px 8px; border: none; border-radius: 3px; cursor: pointer; margin-top: 5px;">Render Block</button>`;
             html += `</div>`;
           });
           
@@ -740,121 +907,189 @@
           try {
             log(`Rendering block: ${blockId}`);
             
-            // Get the block from registry
-            const block = await client.blockRegistry.getEntry(blockId);
-            if (!block || !block.data) {
+            // Load the block from HCS-1 using BlockLoader
+            const blockData = await client.loadBlock(blockId);
+            if (!blockData || !blockData.definition) {
               throw new Error('Block not found');
             }
+            
+            const { definition, template } = blockData;
+            
+            // Create rendering components
+            const { BlockRenderer, GutenbergBridge, TemplateEngine, BlockStateManager, ResourceManager } = StandardsSDK;
+            
+            const gutenbergBridge = new GutenbergBridge(logger);
+            const resourceManager = new ResourceManager(logger, client.mirrorNode);
+            const templateEngine = new TemplateEngine(logger, resourceManager);
+            const stateManager = new BlockStateManager(logger);
+            const blockRenderer = new BlockRenderer(logger, gutenbergBridge, templateEngine, stateManager);
+            
+            // Set up action handler for the demo
+            // In a real app, this would be handled by a proper WASM runtime
+            stateManager.onBlockMessage(blockId, async (message) => {
+              if (message.type === 'action' && message.payload) {
+                const actionTopicId = message.payload.action;
+                log(`Action clicked: ${actionTopicId}`);
+                
+                try {
+                  // For the demo, we'll simulate the action execution
+                  // In a real implementation, you would:
+                  // 1. Look up the action in the action registry
+                  // 2. Load and execute the WASM module
+                  // 3. Update the state with the result
+                  
+                  const currentState = stateManager.getBlockState(blockId) || {
+                    attributes: { count: 0, step: 1 }
+                  };
+                  
+                  // Extract params from the button
+                  const button = renderOutput.querySelector(`[data-action="${actionTopicId}"]`);
+                  let params = {};
+                  if (button && button.dataset.params) {
+                    try {
+                      params = JSON.parse(button.dataset.params);
+                    } catch (e) {
+                      log('Failed to parse params:', e);
+                    }
+                  }
+                  
+                  log('Action params:', params);
+                  
+                  // Simulate action execution based on operation
+                  let newCount = currentState.attributes.count || 0;
+                  const step = currentState.attributes.step || 1;
+                  
+                  if (params.operation === 'increment') {
+                    newCount += step;
+                  } else if (params.operation === 'decrement') {
+                    newCount -= step;
+                  } else if (params.operation === 'reset') {
+                    newCount = 0;
+                  }
+                  
+                  // Update state
+                  const newState = {
+                    ...currentState,
+                    attributes: {
+                      ...currentState.attributes,
+                      count: newCount
+                    },
+                    actionResults: {
+                      [params.operation]: { value: newCount }
+                    }
+                  };
+                  
+                  stateManager.updateBlockState(blockId, newState);
+                  
+                  log('State updated:', newState);
+                  
+                  // Note: In a real implementation, you would execute the WASM here
+                  // For now, this is just a simulation to demonstrate the UI flow
+                  
+                } catch (error) {
+                  log('Action execution failed:', error);
+                }
+              }
+            });
             
             // Show render section
             document.getElementById('render-section').style.display = 'block';
             const renderOutput = document.getElementById('render-output');
             
-            // Create a simple rendering based on block data
-            const blockData = block.data;
-            let html = `<div class="wp-block-${blockData.name?.replace('/', '-')}" style="padding: 20px; background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+            // Create block definition for renderer
+            const blockDef = {
+              id: blockId,
+              template: template,
+              attributes: definition.attributes || {},
+              styles: '', // Extract styles from template if needed
+              p: 'hcs-12',
+              op: 'register',
+              name: definition.name,
+              version: definition.version || '1.0.0',
+              title: definition.title,
+              description: definition.description
+            };
             
-            // Add block header
-            html += `<div style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">`;
-            html += `<h3 style="margin: 0;">${blockData.data?.title || blockData.name || 'Untitled Block'}</h3>`;
-            html += `<small style="color: #666;">Version: ${blockData.version || '1.0.0'}</small>`;
-            html += `</div>`;
+            // Process template to remove placeholder stylesheet and extract inline styles
+            let processedTemplate = template;
             
-            // Add block content based on type
-            if (blockData.name === 'hashlinks/transfer-button') {
-              // Render transfer button block with action binding
-              html += `<div style="text-align: center; padding: 20px;">`;
-              html += `<button id="transfer-btn-${blockId}" style="background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">`;
-              html += blockData.data?.attributes?.label?.default || 'Transfer';
-              html += `</button>`;
-              html += `<p style="margin-top: 10px; color: #666;">Amount: ${blockData.data?.attributes?.amount?.default || 1} HBAR</p>`;
-              html += `</div>`;
-              
-              // Add click handler after rendering
-              setTimeout(async () => {
-                const btn = document.getElementById(`transfer-btn-${blockId}`);
-                if (btn) {
-                  btn.onclick = async () => {
-                    try {
-                      log('Executing transfer action...');
-                      
-                      // In HCS-12, blocks don't directly reference actions
-                      // Instead, assemblies define which actions blocks can use
-                      // For this demo, we'll look for the action in the action registry
-                      
-                      // First, sync the action registry to ensure we have latest data
-                      await client.actionRegistry.sync();
-                      const actions = await client.actionRegistry.listEntries();
-                      log(`Found ${actions.length} actions in registry`);
-                      
-                      // Find the transfer action (in a real app, this would come from assembly context)
-                      const transferAction = actions.find(a => 
-                        a.data?.m?.includes('transfer') || 
-                        a.data?.m?.includes('Demo transfer action')
-                      );
-                      
-                      if (transferAction && transferAction.data?.t_id) {
-                        log('Found transfer action:', transferAction);
-                        
-                        // Execute using the WASM topic ID
-                        await executeAction(transferAction.data.t_id, 'transfer', {
-                          amount: blockData.data?.attributes?.amount?.default || 1,
-                          recipient: blockData.data?.attributes?.recipient?.default || '0.0.123456'
-                        });
-                      } else {
-                        log('No transfer action found in registry');
-                        log('Available actions:', actions);
-                        throw new Error('Transfer action not found in registry');
-                      }
-                    } catch (error) {
-                      handleError(error, 'action execution');
-                    }
-                  };
-                }
-              }, 100);
-            } else {
-              // Generic block rendering
-              html += `<div style="padding: 10px;">`;
-              
-              if (blockData.data?.description) {
-                html += `<p>${blockData.data.description}</p>`;
+            // Remove the placeholder stylesheet link
+            processedTemplate = processedTemplate.replace(
+              /<link[^>]*data-src="hcs:\/\/1\/0\.0\.STYLES_TOPIC"[^>]*>/gi,
+              ''
+            );
+            
+            // Extract styles from template if present
+            const styleMatch = processedTemplate.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+            if (styleMatch) {
+              blockDef.styles = styleMatch[1];
+              // Remove the style tag from template since BlockRenderer will handle it
+              processedTemplate = processedTemplate.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+            }
+            
+            blockDef.template = processedTemplate;
+            
+            try {
+              // Load the assembly to get action mappings
+              let assembly = null;
+              try {
+                // Get the assembly that contains this block
+                // For the demo, we'll try to load the counter assembly
+                assembly = await client.loadAssembly(REGISTRY_TOPICS.counterAssembly);
+              } catch (e) {
+                log('Could not load assembly:', e.message);
               }
               
-              // Show attributes
-              if (blockData.data?.attributes) {
-                html += `<h4>Attributes:</h4>`;
-                html += `<ul>`;
-                for (const [key, attr] of Object.entries(blockData.data.attributes)) {
-                  html += `<li><strong>${key}:</strong> ${JSON.stringify(attr)}</li>`;
-                }
-                html += `</ul>`;
-              }
+              // Render the block using BlockRenderer with WASM support
+              const renderResult = await blockRenderer.render(blockDef, {
+                container: renderOutput,
+                initialState: {
+                  attributes: {
+                    count: definition.attributes?.count || 0,
+                    step: definition.attributes?.step || 1
+                  },
+                  actionResults: {}
+                },
+                assembly: assembly,
+                actionRegistry: client.actionRegistry,
+                network: 'testnet'
+              });
               
-              // Show supports
-              if (blockData.data?.supports) {
-                html += `<h4>Supports:</h4>`;
-                html += `<ul>`;
-                for (const [key, value] of Object.entries(blockData.data.supports)) {
-                  html += `<li>${key}: ${value}</li>`;
-                }
-                html += `</ul>`;
-              }
+              log('Block rendered successfully', { blockId, hasElement: !!renderResult.element });
               
-              html += `</div>`;
+              // Add info header
+              const header = document.createElement('div');
+              header.style.cssText = 'border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;';
+              header.innerHTML = `
+                <h3 style="margin: 0;">${definition.title || definition.name || 'Untitled Block'}</h3>
+                <small style="color: #666;">Category: ${definition.category || 'uncategorized'}</small>
+                <small style="color: #999;"> | Attributes: ${Object.keys(definition.attributes || {}).join(', ')}</small>
+              `;
+              renderOutput.insertBefore(header, renderOutput.firstChild);
+              
+            } catch (renderError) {
+              log('Block rendering failed:', renderError);
+              renderOutput.innerHTML = `
+                <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px;">
+                  <strong>Rendering Error:</strong> ${renderError.message}
+                </div>
+                <div style="margin-top: 10px;">
+                  <h4>Template Source:</h4>
+                  <pre style="background: #f5f5f5; padding: 10px; overflow: auto;">${template.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                </div>
+              `;
             }
             
             // Add footer with block info
-            html += `<div style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666;">`;
-            html += `<strong>Block ID:</strong> ${blockId}<br/>`;
-            html += `<strong>Category:</strong> ${blockData.data?.category || 'uncategorized'}<br/>`;
-            if (blockData.t_id) {
-              html += `<strong>Action Topic:</strong> ${blockData.t_id}`;
-            }
-            html += `</div>`;
+            const footer = document.createElement('div');
+            footer.style.cssText = 'border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666;';
+            footer.innerHTML = `
+              <strong>Block Definition Topic:</strong> ${blockId}<br/>
+              <strong>Template Topic:</strong> ${definition.template_t_id}<br/>
+              <strong>API Version:</strong> ${definition.apiVersion || '3'}
+            `;
+            renderOutput.appendChild(footer);
             
-            html += `</div>`;
-            
-            renderOutput.innerHTML = html;
             updateStatus('client-status', 'Block rendered successfully', 'success');
             
             // Scroll to render section
@@ -947,9 +1182,6 @@
           .getElementById('sync-action-btn')
           .addEventListener('click', () => syncRegistry('action'));
         document
-          .getElementById('sync-block-btn')
-          .addEventListener('click', () => syncRegistry('block'));
-        document
           .getElementById('sync-assembly-btn')
           .addEventListener('click', () => syncRegistry('assembly'));
 
@@ -957,22 +1189,87 @@
           .getElementById('list-actions-btn')
           .addEventListener('click', () => listEntries('action'));
         document
-          .getElementById('list-blocks-btn')
-          .addEventListener('click', () => listEntries('block'));
-        document
           .getElementById('list-assemblies-btn')
           .addEventListener('click', () => listEntries('assembly'));
+        document
+          .getElementById('list-blocks-btn')
+          .addEventListener('click', () => listEntries('block'));
+        
+        // Load assembly details
+        document
+          .getElementById('load-assembly-btn')
+          .addEventListener('click', async () => {
+            try {
+              const topicId = document.getElementById('topic-id').value;
+              if (!topicId) {
+                throw new Error('Please enter an assembly topic ID');
+              }
+              
+              const assembly = await client.loadAssembly(topicId);
+              log('Loaded assembly details', {
+                topicId: assembly.topicId,
+                state: assembly.state,
+                blocks: assembly.blocks.map(b => ({
+                  block_t_id: b.block_t_id,
+                  hasDefinition: !!b.definition,
+                  hasTemplate: !!b.template,
+                  actions: b.actions ? Object.keys(b.actions) : []
+                }))
+              });
+              
+              // Show render section with assembly blocks
+              if (assembly.blocks.length > 0) {
+                document.getElementById('render-section').style.display = 'block';
+                const renderOutput = document.getElementById('render-output');
+                
+                let html = '<h3>Assembly Blocks</h3>';
+                assembly.blocks.forEach((block, index) => {
+                  html += `<div style="background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px;">`;
+                  html += `<strong>Block #${index + 1}</strong><br/>`;
+                  html += `Topic ID: <code>${block.block_t_id}</code><br/>`;
+                  if (block.definition) {
+                    html += `Name: ${block.definition.name}<br/>`;
+                    html += `Title: ${block.definition.title}<br/>`;
+                  }
+                  if (block.actions) {
+                    html += `Actions: ${Object.entries(block.actions).map(([key, topicId]) => `${key} (${topicId})`).join(', ')}<br/>`;
+                  }
+                  html += `</div>`;
+                });
+                
+                renderOutput.innerHTML = html;
+              }
+            } catch (error) {
+              handleError(error, 'load assembly');
+            }
+          });
 
         // Create topics
         document
           .getElementById('create-action-topic-btn')
           .addEventListener('click', () => createRegistryTopic('action'));
         document
-          .getElementById('create-block-topic-btn')
-          .addEventListener('click', () => createRegistryTopic('block'));
-        document
           .getElementById('create-assembly-topic-btn')
           .addEventListener('click', () => createRegistryTopic('assembly'));
+        
+        // Create new assembly instance
+        document
+          .getElementById('create-assembly-instance-btn')
+          .addEventListener('click', async () => {
+            try {
+              if (!client) {
+                throw new Error('Client not initialized');
+              }
+              
+              const topicId = await client.createAssemblyTopic();
+              log('Created new assembly topic', { topicId });
+              
+              // Auto-populate the topic ID field
+              document.getElementById('topic-id').value = topicId;
+            } catch (error) {
+              handleError(error, 'create assembly topic');
+            }
+          });
       };
     </script>
 

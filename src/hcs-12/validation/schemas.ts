@@ -12,7 +12,6 @@ import { z } from 'zod';
  */
 const baseRegistrationSchema = z.object({
   p: z.literal('hcs-12'),
-  op: z.enum(['register', 'template', 'pattern']),
 });
 
 /**
@@ -114,11 +113,18 @@ const validationRuleSchema: z.ZodType<any> = z.lazy(() =>
 /**
  * Action registration schema - follows HCS-12 spec exactly
  */
-export const actionRegistrationSchema = baseRegistrationSchema.extend({
+export const actionRegistrationSchema = z.object({
+  p: z.literal('hcs-12'),
   op: z.literal('register'),
   t_id: hederaAddressSchema,
   hash: sha256HashSchema,
   wasm_hash: sha256HashSchema,
+  js_t_id: hederaAddressSchema.optional(),
+  js_hash: sha256HashSchema.optional(),
+  interface_version: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/, 'Invalid version format')
+    .optional(),
   info_t_id: hederaAddressSchema.optional(),
   source_verification: sourceVerificationSchema.optional(),
   previous_version: z.string().optional(),
@@ -130,7 +136,8 @@ export const actionRegistrationSchema = baseRegistrationSchema.extend({
 /**
  * Block registration schema - follows HCS-12 spec exactly
  */
-export const blockRegistrationSchema = baseRegistrationSchema.extend({
+export const blockRegistrationSchema = z.object({
+  p: z.literal('hcs-12'),
   op: z.enum(['register', 'template']),
   name: z.string(),
   version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Invalid semver format'),
@@ -139,33 +146,57 @@ export const blockRegistrationSchema = baseRegistrationSchema.extend({
 });
 
 /**
- * Assembly action reference schema
+ * Assembly operations
  */
-const assemblyActionSchema = z.object({
-  id: z.string(),
-  registryId: z.string(),
-  version: z.string().optional(),
-  defaultParams: z.record(z.any()).optional(),
+const assemblyOperationSchema = z.enum([
+  'register',
+  'add-action',
+  'add-block',
+  'update',
+]);
+
+/**
+ * Assembly registration schema
+ */
+const assemblyRegisterSchema = baseRegistrationSchema.extend({
+  op: z.literal('register'),
+  name: z.string(),
+  version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Invalid semver format'),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  author: z.string().optional(),
 });
 
 /**
- * Assembly block reference schema
+ * Assembly add-action schema
  */
-const assemblyBlockSchema = z.object({
-  id: z.string(),
-  registryId: z.string(),
-  version: z.string().optional(),
-  actions: z.array(z.string()).optional(),
+const assemblyAddActionSchema = baseRegistrationSchema.extend({
+  op: z.literal('add-action'),
+  t_id: hederaAddressSchema,
+  alias: z.string(),
+  config: z.any().optional(),
+  data: hederaAddressSchema.optional(),
+});
+
+/**
+ * Assembly add-block schema
+ */
+const assemblyAddBlockSchema = baseRegistrationSchema.extend({
+  op: z.literal('add-block'),
+  block_t_id: hederaAddressSchema,
+  actions: z.record(z.string(), hederaAddressSchema).optional(),
   attributes: z.record(z.any()).optional(),
   children: z.array(z.string()).optional(),
-  bindings: z
-    .array(
-      z.object({
-        action: z.string(),
-        parameters: z.record(z.any()),
-      }),
-    )
-    .optional(),
+  data: hederaAddressSchema.optional(),
+});
+
+/**
+ * Assembly update schema
+ */
+const assemblyUpdateSchema = baseRegistrationSchema.extend({
+  op: z.literal('update'),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 /**
@@ -187,21 +218,19 @@ const assemblySourceVerificationSchema = z.object({
 });
 
 /**
- * Assembly registration schema - follows HCS-12 spec exactly
+ * Assembly message schema - union of all operation types
  */
-export const assemblyRegistrationSchema = baseRegistrationSchema.extend({
-  op: z.literal('register'),
-  t_id: hederaAddressSchema.optional(),
-  name: z.string().regex(/^[a-z0-9-]+$/, 'Invalid assembly name format'),
-  version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Invalid semver format'),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  actions: z.array(assemblyActionSchema).optional(),
-  blocks: z.array(assemblyBlockSchema).optional(),
-  layout: assemblyLayoutSchema.optional(),
-  source_verification: assemblySourceVerificationSchema.optional(),
-  m: z.string().optional(),
-});
+export const assemblyMessageSchema = z.discriminatedUnion('op', [
+  assemblyRegisterSchema,
+  assemblyAddActionSchema,
+  assemblyAddBlockSchema,
+  assemblyUpdateSchema,
+]);
+
+/**
+ * Legacy assembly registration schema for backwards compatibility
+ */
+export const assemblyRegistrationSchema = assemblyRegisterSchema;
 
 /**
  * HashLinks registration schema - for global directory
@@ -238,6 +267,15 @@ export function validateBlockRegistration(
   data: unknown,
 ): z.infer<typeof blockRegistrationSchema> {
   return blockRegistrationSchema.parse(data);
+}
+
+/**
+ * Validate assembly message (any operation type)
+ */
+export function validateAssemblyMessage(
+  data: unknown,
+): z.infer<typeof assemblyMessageSchema> {
+  return assemblyMessageSchema.parse(data);
 }
 
 /**

@@ -47,7 +47,7 @@ describe('ActionRegistry', () => {
       };
 
       const id = await registry.register(registration);
-      expect(id).toMatch(/^local_\d+/);
+      expect(id).toMatch(/^\d+$/);
 
       const retrieved = await registry.getEntry(id);
       expect(retrieved?.data).toEqual(registration);
@@ -110,6 +110,33 @@ describe('ActionRegistry', () => {
       const data = retrieved?.data as ActionRegistration;
       expect(data?.previous_version).toBe('1.0.0');
       expect(data?.migration_notes).toBe('Added support for new input types');
+    });
+
+    it('should register action with JavaScript wrapper', async () => {
+      const registration: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.123456',
+        js_t_id: '0.0.123457',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        js_hash:
+          'd4d4d4d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        interface_version: '0.2.92',
+        m: 'Action with JS wrapper for WASM stability',
+      };
+
+      const id = await registry.register(registration);
+      expect(id).toBeDefined();
+
+      const retrieved = await registry.getEntry(id);
+      const data = retrieved?.data as ActionRegistration;
+      expect(data?.js_t_id).toBe('0.0.123457');
+      expect(data?.js_hash).toBe(
+        'd4d4d4d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+      );
+      expect(data?.interface_version).toBe('0.2.92');
     });
 
     it('should reject invalid protocol identifier', async () => {
@@ -203,6 +230,55 @@ describe('ActionRegistry', () => {
         /Validation failed/,
       );
     });
+
+    it('should reject invalid JavaScript topic ID', async () => {
+      const registration: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.123456',
+        js_t_id: 'invalid-js-topic',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+      };
+
+      await expect(registry.register(registration)).rejects.toThrow(
+        /Validation failed/,
+      );
+    });
+
+    it('should reject invalid JavaScript hash', async () => {
+      const registration: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.123456',
+        js_t_id: '0.0.123457',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        js_hash: 'invalid-hash-format',
+      };
+
+      await expect(registry.register(registration)).rejects.toThrow(
+        /Validation failed/,
+      );
+    });
+
+    it('should reject invalid interface version', async () => {
+      const registration: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.123456',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        interface_version: 'invalid-version',
+      };
+
+      await expect(registry.register(registration)).rejects.toThrow(
+        /Validation failed/,
+      );
+    });
   });
 
   describe('Action Retrieval', () => {
@@ -239,7 +315,7 @@ describe('ActionRegistry', () => {
     });
 
     it('should filter entries by submitter', async () => {
-      const entries = await registry.listEntries({ submitter: '0.0.123456' });
+      const entries = await registry.listEntries({ submitter: 'local' });
       expect(entries).toHaveLength(1);
 
       const noEntries = await registry.listEntries({ submitter: '0.0.999999' });

@@ -5,12 +5,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { AssemblyBuilder } from '../../../src/hcs-12/builders/assembly-builder';
 import { Logger } from '../../../src/utils/logger';
-import {
-  AssemblyAction,
-  AssemblyBlock,
-  AssemblyDependency,
-  AssemblyWorkflowStep,
-} from '../../../src/hcs-12/types';
 
 describe('AssemblyBuilder', () => {
   let builder: AssemblyBuilder;
@@ -28,8 +22,6 @@ describe('AssemblyBuilder', () => {
       const registration = builder
         .setName('my-app')
         .setVersion('1.0.0')
-        .setTitle('My Application')
-        .setCategory('productivity')
         .build();
 
       expect(registration).toMatchObject({
@@ -38,86 +30,73 @@ describe('AssemblyBuilder', () => {
         name: 'my-app',
         version: '1.0.0',
       });
-      expect(registration.actions).toEqual([]);
-      expect(registration.blocks).toEqual([]);
+      expect(registration.description).toBeUndefined();
+      expect(registration.tags).toBeUndefined();
     });
 
     it('should add metadata fields', () => {
       const registration = builder
         .setName('defi-dashboard')
         .setVersion('2.1.0')
-        .setTitle('DeFi Dashboard')
-        .setCategory('finance')
         .setDescription('Complete DeFi portfolio management')
         .setAuthor('0.0.123456')
-        .setLicense('MIT')
-        .setIcon('dashicon:chart-area')
-        .addKeyword('defi')
-        .addKeyword('portfolio')
+        .addTag('defi')
+        .addTag('portfolio')
         .build();
 
       expect(registration.description).toBe(
         'Complete DeFi portfolio management',
       );
       expect(registration.author).toBe('0.0.123456');
-      expect(registration.license).toBe('MIT');
-      expect(registration.icon).toBe('dashicon:chart-area');
-      expect(registration.keywords).toEqual(['defi', 'portfolio']);
+      expect(registration.tags).toEqual(['defi', 'portfolio']);
     });
 
-    it('should add actions', () => {
-      const action1: AssemblyAction = {
-        registryId: '0.0.12345',
-        version: '1.0.0',
-        id: 'transfer',
-      };
+    it('should create add-action operations', () => {
+      const operations = builder
+        .addAction('0.0.12345', 'transfer', { maxAmount: 1000 })
+        .addAction('0.0.12346', 'approve')
+        .buildOperations();
 
-      const action2: AssemblyAction = {
-        id: 'approve',
-        registryId: '0.0.12345',
-        version: '1.2.0',
-      };
-
-      const registration = builder
-        .setName('payment-app')
-        .setVersion('1.0.0')
-        .setTitle('Payment App')
-        .setCategory('finance')
-        .addAction(action1)
-        .addAction(action2)
-        .build();
-
-      expect(registration.actions).toHaveLength(2);
-      expect(registration.actions![0].id).toBe('transfer');
+      expect(operations).toHaveLength(2);
+      expect(operations[0]).toMatchObject({
+        p: 'hcs-12',
+        op: 'add-action',
+        t_id: '0.0.12345',
+        alias: 'transfer',
+        config: { maxAmount: 1000 },
+      });
+      expect(operations[1]).toMatchObject({
+        p: 'hcs-12',
+        op: 'add-action',
+        t_id: '0.0.12346',
+        alias: 'approve',
+      });
     });
 
-    it('should add blocks', () => {
-      const block1: AssemblyBlock = {
-        id: 'payment-form',
-        registryId: '0.0.22345',
-        version: '1.0.0',
-        config: {
+    it('should create add-block operations', () => {
+      const operations = builder
+        .addBlock('0.0.22345', { transfer: '0.0.12345' }, {
           defaultAmount: 100,
-        },
-      };
+        })
+        .addBlock('0.0.22346', undefined, {
+          pageSize: 10,
+        })
+        .buildOperations();
 
-      const block2: AssemblyBlock = {
-        id: 'transaction-list',
-        registryId: '0.0.22345',
-        version: '2.0.0',
-      };
-
-      const registration = builder
-        .setName('payment-ui')
-        .setVersion('1.0.0')
-        .setTitle('Payment UI')
-        .setCategory('finance')
-        .addBlock(block1)
-        .addBlock(block2)
-        .build();
-
-      expect(registration.blocks).toHaveLength(2);
-      expect(registration.blocks![0].config).toBeDefined();
+      expect(operations).toHaveLength(2);
+      expect(operations[0]).toMatchObject({
+        p: 'hcs-12',
+        op: 'add-block',
+        block_t_id: '0.0.22345',
+        actions: { transfer: '0.0.12345' },
+        attributes: { defaultAmount: 100 },
+      });
+      expect(operations[1]).toMatchObject({
+        p: 'hcs-12',
+        op: 'add-block',
+        block_t_id: '0.0.22346',
+        attributes: { pageSize: 10 },
+      });
     });
   });
 
@@ -126,25 +105,15 @@ describe('AssemblyBuilder', () => {
       const result = builder
         .setName('test-app')
         .setVersion('1.0.0')
-        .setTitle('Test App')
-        .setCategory('test')
         .setDescription('Testing')
-        .addKeyword('test')
-        .addAction({ id: 'test-action', registryId: '0.0.12345' })
-        .addBlock({
-          id: 'test-block',
-          registryId: '0.0.22345',
-          version: '1.0.0',
-        });
+        .addTag('test')
+        .addAction('0.0.12345', 'test-action')
+        .addBlock('0.0.22345');
       expect(result).toBe(builder);
     });
 
     it('should allow building multiple assemblies', () => {
-      builder
-        .setName('app1')
-        .setVersion('1.0.0')
-        .setTitle('App 1')
-        .setCategory('test');
+      builder.setName('app1').setVersion('1.0.0').setDescription('First app');
 
       const reg1 = builder.build();
 
@@ -152,8 +121,7 @@ describe('AssemblyBuilder', () => {
         .reset()
         .setName('app2')
         .setVersion('2.0.0')
-        .setTitle('App 2')
-        .setCategory('productivity')
+        .setDescription('Second app')
         .build();
 
       expect(reg1.name).toBe('app1');
@@ -194,49 +162,90 @@ describe('AssemblyBuilder', () => {
       expect(() => builder.setVersion('2.1.0-beta.1')).not.toThrow();
     });
 
-    it('should validate action hashes', () => {
-      builder
-        .setName('test-app')
-        .setVersion('1.0.0')
-        .setTitle('Test App')
-        .setCategory('test');
+    it('should validate action topic IDs', () => {
+      expect(() => builder.addAction('invalid-topic', 'test')).toThrow(
+        'Invalid topic ID format',
+      );
 
-      expect(() =>
-        builder.addAction({
-          registryId: '0.0.12345',
-        } as any),
-      ).toThrow('Action ID is required');
+      expect(() => builder.addAction('0.0.12345', 'test')).not.toThrow();
+    });
+
+    it('should validate block topic IDs', () => {
+      expect(() => builder.addBlock('invalid-topic')).toThrow(
+        'Invalid block topic ID format',
+      );
+
+      expect(() => builder.addBlock('0.0.12345')).not.toThrow();
     });
   });
 
   describe('Helper Methods', () => {
-    it('should build valid assembly', () => {
+    it('should build valid assembly registration', () => {
       const complete = builder
         .setName('test')
         .setVersion('1.0.0')
-        .setTitle('Test Assembly')
-        .setCategory('test')
+        .setDescription('Test Assembly')
         .build();
 
-      expect(complete.actions).toEqual([]);
-      expect(complete.blocks).toEqual([]);
-      expect(complete.name).toBe('test');
-      expect(complete.version).toBe('1.0.0');
+      expect(complete).toMatchObject({
+        p: 'hcs-12',
+        op: 'register',
+        name: 'test',
+        version: '1.0.0',
+        description: 'Test Assembly',
+      });
+    });
+
+    it('should support update operations', () => {
+      const update = builder
+        .setDescription('Updated description')
+        .addTag('new-tag')
+        .buildUpdate();
+
+      expect(update).toMatchObject({
+        p: 'hcs-12',
+        op: 'update',
+        description: 'Updated description',
+        tags: ['new-tag'],
+      });
     });
   });
 
   describe('Advanced Features', () => {
-    it('should calculate assembly hash', async () => {
-      const assembly = builder
-        .setName('hashed-app')
+    it('should build complete operation sequence', () => {
+      const operations = builder
+        .setName('complete-app')
         .setVersion('1.0.0')
-        .setTitle('Hashed App')
-        .setCategory('test')
-        .build();
+        .setDescription('Complete application')
+        .addAction('0.0.12345', 'transfer')
+        .addAction('0.0.12346', 'approve')
+        .addBlock('0.0.22345', { transfer: '0.0.12345', approve: '0.0.12346' })
+        .buildOperations();
 
-      const hash = await builder.calculateAssemblyHash(assembly);
+      expect(operations[0].op).toBe('add-action');
+      expect(operations[1].op).toBe('add-action');
+      expect(operations[2].op).toBe('add-block');
+    });
 
-      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    it('should handle data field for large configs', () => {
+      const operation = builder
+        .addAction(
+          '0.0.12345',
+          'complex-action',
+          {
+            /* large config */
+          },
+          '0.0.99999',
+        )
+        .buildOperations()[0];
+
+      expect(operation).toMatchObject({
+        p: 'hcs-12',
+        op: 'add-action',
+        t_id: '0.0.12345',
+        alias: 'complex-action',
+        data: '0.0.99999',
+      });
     });
   });
 });

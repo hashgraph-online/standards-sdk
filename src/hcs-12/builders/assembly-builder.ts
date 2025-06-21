@@ -1,39 +1,49 @@
 /**
- * AssemblyBuilder utility for creating HCS-12 assembly registrations
+ * Assembly Builder for HCS-12 HashLinks
+ *
+ * Provides a fluent interface for building assemblies using the new
+ * incremental approach with topic-based references.
  */
 
-import { createHash } from 'crypto';
 import { Logger } from '../../utils/logger';
 import {
   AssemblyRegistration,
+  AssemblyAddAction,
+  AssemblyAddBlock,
+  AssemblyUpdate,
   AssemblyAction,
   AssemblyBlock,
-  AssemblyDependency,
-  AssemblyWorkflowStep,
+  AssemblyState,
 } from '../types';
 
 /**
- * Builder for creating assembly registrations with validation
+ * Builder for creating HashLink assemblies using incremental operations
  */
 export class AssemblyBuilder {
   private logger: Logger;
-  private registration: Partial<AssemblyRegistration>;
+  private registration: Partial<AssemblyRegistration> = {
+    p: 'hcs-12',
+    op: 'register',
+  };
+  private operations: (
+    | AssemblyAddAction
+    | AssemblyAddBlock
+    | AssemblyUpdate
+  )[] = [];
+  private updateFields: Partial<AssemblyUpdate> = {
+    p: 'hcs-12',
+    op: 'update',
+  };
 
-  constructor(logger: Logger) {
-    this.logger = logger;
-    this.registration = {
-      p: 'hcs-12',
-      op: 'register',
-      actions: [],
-      blocks: [],
-    };
+  constructor(logger?: Logger) {
+    this.logger = logger || new Logger({ module: 'AssemblyBuilder' });
   }
 
   /**
    * Set assembly name
    */
   setName(name: string): AssemblyBuilder {
-    if (!this.isValidAssemblyName(name)) {
+    if (!this.isValidName(name)) {
       throw new Error('Invalid assembly name format');
     }
     this.registration.name = name;
@@ -52,26 +62,39 @@ export class AssemblyBuilder {
   }
 
   /**
-   * Set assembly title
-   */
-  setTitle(title: string): AssemblyBuilder {
-    this.registration.title = title;
-    return this;
-  }
-
-  /**
-   * Set assembly category
-   */
-  setCategory(category: string): AssemblyBuilder {
-    this.registration.category = category;
-    return this;
-  }
-
-  /**
    * Set assembly description
    */
   setDescription(description: string): AssemblyBuilder {
     this.registration.description = description;
+    if (this.updateFields) {
+      this.updateFields.description = description;
+    }
+    return this;
+  }
+
+  /**
+   * Set assembly tags
+   */
+  setTags(tags: string[]): AssemblyBuilder {
+    this.registration.tags = tags;
+    if (this.updateFields) {
+      this.updateFields.tags = tags;
+    }
+    return this;
+  }
+
+  /**
+   * Add a single tag
+   */
+  addTag(tag: string): AssemblyBuilder {
+    if (!this.registration.tags) {
+      this.registration.tags = [];
+    }
+    if (!this.updateFields.tags) {
+      this.updateFields.tags = [];
+    }
+    this.registration.tags.push(tag);
+    this.updateFields.tags.push(tag);
     return this;
   }
 
@@ -84,85 +107,82 @@ export class AssemblyBuilder {
   }
 
   /**
-   * Set assembly license
+   * Add an action to the assembly
    */
-  setLicense(license: string): AssemblyBuilder {
-    this.registration.license = license;
+  addAction(
+    t_id: string,
+    alias: string,
+    config?: any,
+    data?: string,
+  ): AssemblyBuilder {
+    if (!this.isValidTopicId(t_id)) {
+      throw new Error('Invalid topic ID format');
+    }
+    if (!this.isValidAlias(alias)) {
+      throw new Error('Invalid alias format');
+    }
+
+    const operation: AssemblyAddAction = {
+      p: 'hcs-12',
+      op: 'add-action',
+      t_id,
+      alias,
+      config,
+      data,
+    };
+
+    this.operations.push(operation);
     return this;
   }
 
   /**
-   * Set assembly icon
+   * Add a block to the assembly
    */
-  setIcon(icon: string): AssemblyBuilder {
-    this.registration.icon = icon;
+  addBlock(
+    block_t_id: string,
+    actions?: Record<string, string>,
+    attributes?: Record<string, any>,
+    children?: string[],
+    data?: string,
+  ): AssemblyBuilder {
+    if (!this.isValidTopicId(block_t_id)) {
+      throw new Error('Invalid block topic ID format');
+    }
+
+    if (actions) {
+      for (const [name, topicId] of Object.entries(actions)) {
+        if (!this.isValidTopicId(topicId)) {
+          throw new Error(`Invalid action topic ID for "${name}": ${topicId}`);
+        }
+      }
+    }
+
+    const operation: AssemblyAddBlock = {
+      p: 'hcs-12',
+      op: 'add-block',
+      block_t_id,
+      actions,
+      attributes,
+      children,
+      data,
+    };
+
+    this.operations.push(operation);
     return this;
   }
 
   /**
-   * Add keyword for search
+   * Update assembly metadata
    */
-  addKeyword(keyword: string): AssemblyBuilder {
-    if (!this.registration.keywords) {
-      this.registration.keywords = [];
-    }
-    this.registration.keywords.push(keyword);
-    return this;
-  }
+  updateMetadata(description?: string, tags?: string[]): AssemblyBuilder {
+    const operation: AssemblyUpdate = {
+      p: 'hcs-12',
+      op: 'update',
+      description,
+      tags,
+    };
 
-  /**
-   * Add action to assembly
-   */
-  addAction(action: AssemblyAction): AssemblyBuilder {
-    if (!action.id) {
-      throw new Error('Action ID is required');
-    }
-    if (!action.registryId || !this.isValidTopicId(action.registryId)) {
-      throw new Error('Invalid registry ID');
-    }
-    if (action.version && !this.isValidSemver(action.version)) {
-      throw new Error('Invalid action version');
-    }
-    this.registration.actions!.push(action);
-    return this;
-  }
-
-  /**
-   * Add block to assembly
-   */
-  addBlock(block: AssemblyBlock): AssemblyBuilder {
-    if (!block.id) {
-      throw new Error('Block ID is required');
-    }
-    if (!block.registryId || !this.isValidTopicId(block.registryId)) {
-      throw new Error('Invalid registry ID');
-    }
-    if (block.version && !this.isValidSemver(block.version)) {
-      throw new Error('Invalid block version');
-    }
-    this.registration.blocks!.push(block);
-    return this;
-  }
-
-  /**
-   * Add dependency
-   */
-  addDependency(dependency: AssemblyDependency): AssemblyBuilder {
-    if (!this.registration.dependencies) {
-      this.registration.dependencies = [];
-    }
-    this.registration.dependencies.push(dependency);
-    return this;
-  }
-
-  /**
-   * Add workflow step
-   */
-  addWorkflowStep(step: AssemblyWorkflowStep): AssemblyBuilder {
-    if (!this.registration.workflow) {
-      this.registration.workflow = [];
-    }
-    this.registration.workflow.push(step);
+    this.operations.push(operation);
     return this;
   }
 
@@ -170,8 +190,37 @@ export class AssemblyBuilder {
    * Build the assembly registration
    */
   build(): AssemblyRegistration {
-    this.validate();
+    if (!this.registration.name) {
+      throw new Error('Assembly name is required');
+    }
+    if (!this.registration.version) {
+      throw new Error('Assembly version is required');
+    }
     return { ...this.registration } as AssemblyRegistration;
+  }
+
+  /**
+   * Build an update operation
+   */
+  buildUpdate(): AssemblyUpdate {
+    const update: AssemblyUpdate = {
+      p: 'hcs-12',
+      op: 'update',
+    };
+    if (this.updateFields.description !== undefined) {
+      update.description = this.updateFields.description;
+    }
+    if (this.updateFields.tags !== undefined) {
+      update.tags = this.updateFields.tags;
+    }
+    return update;
+  }
+
+  /**
+   * Build all operations
+   */
+  buildOperations(): (AssemblyAddAction | AssemblyAddBlock | AssemblyUpdate)[] {
+    return [...this.operations];
   }
 
   /**
@@ -181,206 +230,207 @@ export class AssemblyBuilder {
     this.registration = {
       p: 'hcs-12',
       op: 'register',
-      actions: [],
-      blocks: [],
+    };
+    this.operations = [];
+    this.updateFields = {
+      p: 'hcs-12',
+      op: 'update',
     };
     return this;
   }
 
   /**
-   * Create dashboard assembly template
+   * Get the registration message
    */
-  createDashboardAssembly(
-    name: string,
-    version: string,
-    title: string,
-  ): AssemblyRegistration {
-    return this.reset()
-      .setName(name)
-      .setVersion(version)
-      .setTitle(title)
-      .setCategory('productivity')
-      .setDescription(
-        'A dashboard assembly for data visualization and analytics',
-      )
-      .addBlock({
-        name: 'hashlinks/header',
-        version: '1.0.0',
-        config: { title },
-      })
-      .addBlock({
-        name: 'hashlinks/chart',
-        version: '1.0.0',
-        config: { type: 'line' },
-      })
-      .addBlock({
-        name: 'hashlinks/data-table',
-        version: '1.0.0',
-      })
-      .addAction({
-        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-        alias: 'fetch-data',
-      })
-      .build();
+  getRegistration(): AssemblyRegistration {
+    return this.build();
   }
 
   /**
-   * Create form assembly template
+   * Get all operations
    */
-  createFormAssembly(
-    name: string,
-    version: string,
-    title: string,
-  ): AssemblyRegistration {
-    return this.reset()
-      .setName(name)
-      .setVersion(version)
-      .setTitle(title)
-      .setCategory('interactive')
-      .setDescription(
-        'An interactive form assembly with validation and submission',
-      )
-      .addBlock({
-        name: 'hashlinks/form-container',
-        version: '1.0.0',
-      })
-      .addBlock({
-        name: 'hashlinks/input-field',
-        version: '1.0.0',
-      })
-      .addBlock({
-        name: 'hashlinks/submit-button',
-        version: '1.0.0',
-      })
-      .addWorkflowStep({
-        id: 'display-form',
-        type: 'block',
-        block: {
-          name: 'hashlinks/form-container',
-          version: '1.0.0',
-        },
-        next: ['validate'],
-      })
-      .addWorkflowStep({
-        id: 'validate',
-        type: 'action',
-        action: {
-          hash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
-        },
-        next: ['submit', 'show-errors'],
-      })
-      .addWorkflowStep({
-        id: 'submit',
-        type: 'action',
-        action: {
-          hash: 'b1b2b3b4b5b6b7b8b9b0b1b2b3b4b5b6b7b8b9b0b1b2b3b4b5b6b7b8b9b0b1b2',
-        },
-      })
-      .addWorkflowStep({
-        id: 'show-errors',
-        type: 'block',
-        block: {
-          name: 'hashlinks/error-message',
-          version: '1.0.0',
-        },
-      })
-      .build();
+  getOperations(): (AssemblyAddAction | AssemblyAddBlock | AssemblyUpdate)[] {
+    return this.buildOperations();
   }
 
   /**
-   * Calculate assembly hash
+   * Build the complete assembly definition for preview
    */
-  async calculateAssemblyHash(assembly: AssemblyRegistration): Promise<string> {
-    const hash = createHash('sha256');
+  buildPreview(): AssemblyState {
+    const actions: AssemblyAction[] = [];
+    const blocks: AssemblyBlock[] = [];
 
-    const data = {
-      name: assembly.name,
-      version: assembly.version,
-      actions: assembly.actions?.map(a => ({
-        hash: a.hash,
-        version: a.version,
-      })),
-      blocks: assembly.blocks?.map(b => ({ name: b.name, version: b.version })),
+    for (const operation of this.operations) {
+      switch (operation.op) {
+        case 'add-action':
+          actions.push({
+            t_id: operation.t_id,
+            alias: operation.alias,
+            config: operation.config,
+            data: operation.data,
+          });
+          break;
+        case 'add-block':
+          blocks.push({
+            block_t_id: operation.block_t_id,
+            actions: operation.actions,
+            attributes: operation.attributes,
+            children: operation.children,
+            data: operation.data,
+          });
+          break;
+        case 'update':
+          if (operation.description) {
+            this.registration.description = operation.description;
+          }
+          if (operation.tags) {
+            this.registration.tags = operation.tags;
+          }
+          break;
+      }
+    }
+
+    return {
+      topicId: '', // Will be set when deployed
+      name: this.registration.name,
+      version: this.registration.version,
+      description: this.registration.description,
+      tags: this.registration.tags,
+      author: this.registration.author,
+      actions,
+      blocks,
+      created: new Date().toISOString(),
+      updated: new Date().toISOString(),
     };
-
-    hash.update(JSON.stringify(data, Object.keys(data).sort()));
-    return hash.digest('hex');
   }
 
   /**
-   * Check if assembly is complete
+   * Validate the assembly configuration
    */
-  isComplete(assembly: Partial<AssemblyRegistration>): boolean {
-    return !!(
-      assembly.p === 'hcs-12' &&
-      assembly.op === 'register' &&
-      assembly.name &&
-      assembly.version &&
-      assembly.title &&
-      assembly.category &&
-      Array.isArray(assembly.actions) &&
-      Array.isArray(assembly.blocks)
-    );
-  }
+  validate(): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
 
-  /**
-   * Validate the current registration
-   */
-  private validate(): void {
     if (!this.registration.name) {
-      throw new Error('Assembly name is required');
+      errors.push('Assembly name is required');
     }
     if (!this.registration.version) {
-      throw new Error('Assembly version is required');
+      errors.push('Assembly version is required');
     }
-  }
+    if (
+      this.registration.version &&
+      !this.isValidSemver(this.registration.version)
+    ) {
+      errors.push('Invalid semantic version format');
+    }
 
-  /**
-   * Validate workflow structure
-   */
-  private validateWorkflow(workflow: AssemblyWorkflowStep[]): void {
-    const stepIds = new Set(workflow.map(step => step.id));
+    const aliases = new Set<string>();
+    for (const operation of this.operations) {
+      if (operation.op === 'add-action') {
+        if (aliases.has(operation.alias)) {
+          errors.push(`Duplicate alias: ${operation.alias}`);
+        } else {
+          aliases.add(operation.alias);
+        }
 
-    for (const step of workflow) {
-      if (step.next) {
-        for (const nextId of step.next) {
-          if (!stepIds.has(nextId)) {
-            throw new Error(`Workflow references non-existent step: ${nextId}`);
+        if (!this.isValidTopicId(operation.t_id)) {
+          errors.push(
+            `Invalid topic ID for ${operation.alias}: ${operation.t_id}`,
+          );
+        }
+
+        if (!this.isValidAlias(operation.alias)) {
+          errors.push(`Invalid alias format: ${operation.alias}`);
+        }
+      } else if (operation.op === 'add-block') {
+        if (!this.isValidTopicId(operation.block_t_id)) {
+          errors.push(`Invalid block topic ID: ${operation.block_t_id}`);
+        }
+      }
+    }
+
+    const actionAliases = new Set<string>();
+    const blockOperations = this.operations.filter(
+      op => op.op === 'add-action',
+    ) as AssemblyAddAction[];
+    blockOperations.forEach(op => actionAliases.add(op.alias));
+
+    for (const operation of this.operations) {
+      if (operation.op === 'add-block' && operation.actions) {
+        for (const [actionKey, actionTopicId] of Object.entries(
+          operation.actions,
+        )) {
+          if (!this.isValidTopicId(actionTopicId)) {
+            errors.push(
+              `Block ${operation.block_t_id} has invalid action topic ID for key ${actionKey}: ${actionTopicId}`,
+            );
           }
         }
       }
     }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
   }
 
   /**
-   * Validate assembly name format
+   * Create example assemblies for testing
    */
-  private isValidAssemblyName(name: string): boolean {
-    return /^[a-z0-9-]+$/.test(name);
+  static createDataVisualizationExample(): AssemblyBuilder {
+    const builder = new AssemblyBuilder();
+    return builder
+      .setName('data-visualization-dashboard')
+      .setVersion('1.0.0')
+      .setDescription('Interactive dashboard for data visualization')
+      .setTags(['dashboard', 'charts', 'data'])
+      .setAuthor('HashLinks Team')
+      .addAction('0.0.123456', 'fetchData', { endpoint: '/api/data' })
+      .addAction('0.0.123457', 'processData', { format: 'json' })
+      .addBlock('0.0.234567', {}, { title: 'Dashboard' })
+      .addBlock('0.0.234568', { render: '0.0.123456', fetchData: '0.0.123457' })
+      .addBlock('0.0.234569', { display: '0.0.123458' });
+  }
+
+  static createFormExample(): AssemblyBuilder {
+    const builder = new AssemblyBuilder();
+    return builder
+      .setName('contact-form')
+      .setVersion('1.0.0')
+      .setDescription('Simple contact form with validation')
+      .setTags(['form', 'contact', 'validation'])
+      .setAuthor('HashLinks Team')
+      .addAction('0.0.345678', 'validateForm', { required: ['name', 'email'] })
+      .addAction('0.0.345679', 'submitForm', { endpoint: '/api/contact' })
+      .addBlock('0.0.456789', {})
+      .addBlock(
+        '0.0.456790',
+        { validate: '0.0.345678' },
+        { type: 'text', name: 'name' },
+      )
+      .addBlock('0.0.456791', { submit: '0.0.345679' });
   }
 
   /**
-   * Validate semantic version
+   * Helper validation methods
    */
   private isValidSemver(version: string): boolean {
-    return /^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/.test(version);
+    return /^\d+\.\d+\.\d+(-[\w\.\+]+)?$/.test(version);
   }
 
-  /**
-   * Validate hash format
-   */
   private isValidTopicId(topicId: string): boolean {
-    return /^0\.0\.\d+$/.test(topicId);
+    return /^\d+\.\d+\.\d+$/.test(topicId);
   }
 
-  private isValidHash(hash: string): boolean {
-    return /^[a-f0-9]{64}$/.test(hash);
+  private isValidAlias(alias: string): boolean {
+    return (
+      /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(alias) &&
+      alias.length >= 2 &&
+      alias.length <= 50
+    );
   }
 
-  /**
-   * Validate block name format
-   */
-  private isValidBlockName(name: string): boolean {
-    return /^[a-z0-9-]+\/[a-z0-9-]+$/.test(name);
+  private isValidName(name: string): boolean {
+    return /^[a-z0-9-]+$/.test(name) && name.length >= 2 && name.length <= 100;
   }
 }

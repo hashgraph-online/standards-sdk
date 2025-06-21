@@ -11,7 +11,7 @@ import { Logger } from '../../../src/utils/logger';
 import type { NetworkType } from '../../../src/utils/types';
 import {
   ActionRegistry,
-  BlockRegistry,
+  BlockLoader,
   AssemblyRegistry,
 } from '../../../src/hcs-12/registries';
 import {
@@ -61,7 +61,7 @@ describe('HCS-12 Working Integration Tests', () => {
 
       const registrationId = await actionRegistry.register(actionDef);
       expect(registrationId).toBeDefined();
-      expect(registrationId).toContain('local_');
+      expect(registrationId).toBe('1'); // Local mode returns sequence numbers
     });
 
     it('should successfully register blocks', async () => {
@@ -77,29 +77,29 @@ describe('HCS-12 Working Integration Tests', () => {
         logger,
       });
       client.initializeRegistries();
-      const blockRegistry = client.blockRegistry!;
+      const blockLoader = client.blockLoader!;
 
-      const blockDef = {
-        p: 'hcs-12' as const,
-        op: 'register' as const,
+      const blockDefinition = {
+        apiVersion: 3,
         name: 'test/hello-world',
-        version: '1.0.0',
-        data: {
-          apiVersion: 3,
-          name: 'test/hello-world',
-          title: 'Test Block',
-          category: 'common',
-          description: 'A test block',
-          attributes: {},
-          supports: {},
-        },
-        t_id: '0.0.456789',
+        title: 'Test Block',
+        category: 'common',
+        description: 'A test block',
+        attributes: {},
+        supports: {},
       };
 
-      const registrationId = await blockRegistry.register(blockDef);
-      expect(registrationId).toBeDefined();
-      expect(registrationId).toContain('local_');
-    });
+      const template = '<div>Hello World</div>';
+
+      // In local mode, storeBlock returns mock topic IDs
+      const { definitionTopicId, templateTopicId } = await client.storeBlock(
+        template,
+        blockDefinition
+      );
+      
+      expect(definitionTopicId).toBeDefined();
+      expect(templateTopicId).toBeDefined();
+    }, 30000);
   });
 
   describe('Template Engine', () => {
@@ -227,7 +227,7 @@ describe('HCS-12 Working Integration Tests', () => {
       });
       client.initializeRegistries();
       const actionRegistry = client.actionRegistry!;
-      const blockRegistry = client.blockRegistry!;
+      const blockLoader = client.blockLoader!;
 
       const actionId = await actionRegistry.register({
         p: 'hcs-12' as const,
@@ -237,24 +237,24 @@ describe('HCS-12 Working Integration Tests', () => {
         wasm_hash: 'd'.repeat(64),
       });
 
-      const blockId = await blockRegistry.register({
-        p: 'hcs-12' as const,
-        op: 'register' as const,
+      const blockDefinition = {
+        apiVersion: 3,
         name: 'test/interactive',
-        version: '1.0.0',
-        data: {
-          apiVersion: 3,
-          name: 'test/interactive',
-          title: 'Interactive Block',
-          category: 'interactive',
-          description: 'Interactive test block',
-          attributes: {
-            count: { type: 'number', default: 0 },
-          },
-          supports: {},
+        title: 'Interactive Block',
+        category: 'interactive',
+        description: 'Interactive test block',
+        attributes: {
+          count: { type: 'number', default: 0 },
         },
-        t_id: '0.0.222222',
-      });
+        supports: {},
+      };
+
+      const template = '<div><h2>Count: {{count}}</h2></div>';
+      const { definitionTopicId } = await client.storeBlock(
+        template,
+        blockDefinition
+      );
+      const blockId = definitionTopicId;
 
       const stateManager = new BlockStateManager(logger);
       const templateEngine = new TemplateEngine(logger);
@@ -262,7 +262,6 @@ describe('HCS-12 Working Integration Tests', () => {
       const blockInstanceId = 'interactive-1';
       stateManager.createBlockState(blockInstanceId, { count: 0 });
 
-      const template = '<div><h2>Count: {{count}}</h2></div>';
       const state = stateManager.getBlockState(blockInstanceId);
       const rendered = await templateEngine.render(template, state);
 
@@ -273,6 +272,6 @@ describe('HCS-12 Working Integration Tests', () => {
       const reRendered = await templateEngine.render(template, newState);
 
       expect(reRendered).toBe('<div><h2>Count: 5</h2></div>');
-    });
+    }, 30000);
   });
 });

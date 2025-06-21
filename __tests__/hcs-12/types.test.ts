@@ -22,7 +22,6 @@ import type {
   SourceStructure,
   SourceVerification,
   ActionRegistration,
-  BlockRegistration,
   AssemblyRegistration,
   HashLinkReference,
   Capability,

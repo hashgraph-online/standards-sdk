@@ -4,6 +4,6 @@
 
 export * from './base-registry';
 export * from './action-registry';
-export * from './block-registry';
+export * from './block-loader';
 export * from './assembly-registry';
 export * from './hashlinks-registry';

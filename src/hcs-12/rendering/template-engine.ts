@@ -12,7 +12,7 @@ export interface TemplateContext {
   actions?: Array<{
     name: string;
     result?: unknown;
-  }>;
+  }> | Record<string, string>;
   [key: string]: unknown;
 }
 
@@ -49,6 +49,8 @@ export class TemplateEngine {
   ): Promise<string> {
     this.logger.debug('Rendering template', {
       templateLength: template.length,
+      context: JSON.stringify(context, null, 2),
+      attributesType: context.attributes ? typeof context.attributes : 'undefined',
       contextKeys: Object.keys(context),
     });
 

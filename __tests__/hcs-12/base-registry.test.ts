@@ -79,14 +79,14 @@ describe('BaseRegistry Abstract Class', () => {
     });
 
     it('should handle different registry types in memo', () => {
-      const blockRegistry = new TestRegistry(
+      const actionRegistry = new TestRegistry(
         'testnet' as NetworkType,
         logger,
-        RegistryType.BLOCK,
+        RegistryType.ACTION,
         '0.0.888888',
         mockClient,
       );
-      expect(blockRegistry.getTopicMemo()).toBe('hcs-12:1:60:1');
+      expect(actionRegistry.getTopicMemo()).toBe('hcs-12:1:60:0');
 
       const assemblyRegistry = new TestRegistry(
         'testnet' as NetworkType,
@@ -220,12 +220,10 @@ describe('BaseRegistry Abstract Class', () => {
           consensus_timestamp: '2023-01-01T00:00:00.000Z',
           sequence_number: 1,
           payer: '0.0.123456',
-          data: JSON.stringify({
-            p: 'hcs-12',
-            op: 'register',
-            t_id: '0.0.456789',
-            hash: 'abc123',
-          }),
+          p: 'hcs-12',
+          op: 'register',
+          t_id: '0.0.456789',
+          hash: 'abc123',
         },
       ];
 
@@ -348,7 +346,6 @@ describe('BaseRegistry Abstract Class', () => {
   describe('Registry Type Enum', () => {
     it('should have correct registry type values', () => {
       expect(RegistryType.ACTION).toBe(0);
-      expect(RegistryType.BLOCK).toBe(1);
       expect(RegistryType.ASSEMBLY).toBe(2);
       expect(RegistryType.HASHLINKS).toBe(3);
     });

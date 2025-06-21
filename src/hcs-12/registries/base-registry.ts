@@ -12,7 +12,6 @@ import {
   RegistryEntry,
   RegistryConfig,
   ActionRegistration,
-  BlockRegistration,
   AssemblyRegistration,
   HashLinksRegistration,
 } from '../types';
@@ -50,11 +49,7 @@ export abstract class BaseRegistry {
    * Submit a registration to the topic
    */
   abstract register(
-    data:
-      | ActionRegistration
-      | BlockRegistration
-      | AssemblyRegistration
-      | HashLinksRegistration,
+    data: ActionRegistration | AssemblyRegistration | HashLinksRegistration,
   ): Promise<string>;
 
   /**
@@ -70,6 +65,88 @@ export abstract class BaseRegistry {
     }
 
     return null;
+  }
+
+  /**
+   * Get the latest entry from a specific topic ID (for non-indexed topics)
+   */
+  async getLatestEntry(topicId: string): Promise<RegistryEntry | null> {
+    if (!this.client) {
+      return null;
+    }
+
+    try {
+      // For non-indexed topics, we need to get the latest message
+      const messages = await this.client.mirrorNode.getTopicMessagesByFilter(
+        topicId,
+        {
+          order: 'desc',
+          limit: 1,
+        },
+      );
+
+      if (!messages || messages.length === 0) {
+        return null;
+      }
+
+      const latestMessage = messages[0];
+      let data: any;
+
+      // HCSMessage might have the parsed content already, or it might be in raw_content
+      if ((latestMessage as any).raw_content) {
+        data = JSON.parse((latestMessage as any).raw_content);
+      } else {
+        // The message is already parsed with HCS content spread into it
+        // We need to extract just the HCS-12 fields
+        const msgAny = latestMessage as any;
+        if (msgAny.p === 'hcs-12' && msgAny.op) {
+          // Extract only HCS-12 specific fields
+          data = {
+            p: msgAny.p,
+            op: msgAny.op,
+            name: msgAny.name,
+            version: msgAny.version,
+            description: msgAny.description,
+            permissions: msgAny.permissions,
+            metadata: msgAny.metadata,
+            data: msgAny.data,
+            category: msgAny.category,
+            source: msgAny.source,
+            inputs: msgAny.inputs,
+            outputs: msgAny.outputs,
+            tags: msgAny.tags,
+            fields: msgAny.fields,
+            styles: msgAny.styles,
+            actions: msgAny.actions,
+            blocks: msgAny.blocks,
+            refs: msgAny.refs,
+            // Include any other HCS-12 specific fields that might be present
+          };
+
+          // Remove undefined fields
+          Object.keys(data).forEach(key => {
+            if (data[key] === undefined) {
+              delete data[key];
+            }
+          });
+        } else {
+          // If we can't extract HCS-12 data, return null
+          return null;
+        }
+      }
+
+      return {
+        id: latestMessage.sequence_number.toString(),
+        sequenceNumber: latestMessage.sequence_number,
+        timestamp:
+          latestMessage.consensus_timestamp || new Date().toISOString(),
+        submitter: latestMessage.payer || 'unknown',
+        data,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get latest entry', { topicId, error });
+      return null;
+    }
   }
 
   /**
@@ -130,41 +207,75 @@ export abstract class BaseRegistry {
       for (const msg of messages) {
         try {
           let data: any;
-          
-          if (msg.p === 'hcs-12') {
-            data = {
-              p: msg.p,
-              op: msg.op,
-              name: msg.name,
-              version: msg.version,
-              data: msg.data,
-              t_id: msg.t_id,
-              hash: msg.hash,
-              wasm_hash: msg.wasm_hash,
-              m: msg.m,
-              description: msg.description,
-              tags: msg.tags,
-              actions: msg.actions,
-              blocks: msg.blocks,
-              author: msg.author,
-              category: msg.category,
-              featured: msg.featured,
-            };
-            Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
-          } else if (msg.raw_content) {
-            data = JSON.parse(msg.raw_content);
+
+          // HCSMessage might have the parsed content already, or it might be in raw_content
+          if ((msg as any).raw_content) {
+            data = JSON.parse((msg as any).raw_content);
           } else {
-            continue;
+            // The message is already parsed with HCS content spread into it
+            // We need to extract just the HCS-12 fields
+            const msgAny = msg as any;
+            if (msgAny.p === 'hcs-12' && msgAny.op) {
+              // Extract only HCS-12 specific fields
+              data = {
+                p: msgAny.p,
+                op: msgAny.op,
+                name: msgAny.name,
+                version: msgAny.version,
+                description: msgAny.description,
+                permissions: msgAny.permissions,
+                metadata: msgAny.metadata,
+                data: msgAny.data,
+                category: msgAny.category,
+                source: msgAny.source,
+                inputs: msgAny.inputs,
+                outputs: msgAny.outputs,
+                tags: msgAny.tags,
+                fields: msgAny.fields,
+                styles: msgAny.styles,
+                actions: msgAny.actions,
+                blocks: msgAny.blocks,
+                refs: msgAny.refs,
+                // Action-specific fields
+                t_id: msgAny.t_id,
+                hash: msgAny.hash,
+                wasm_hash: msgAny.wasm_hash,
+                info_t_id: msgAny.info_t_id,
+                validation_rules: msgAny.validation_rules,
+                // JavaScript wrapper fields
+                js_t_id: msgAny.js_t_id,
+                js_hash: msgAny.js_hash,
+                interface_version: msgAny.interface_version,
+                // Block-specific fields
+                title: msgAny.title,
+                template: msgAny.template,
+                // Assembly-specific fields
+                author: msgAny.author,
+                // Common fields
+                m: msgAny.m,
+                // Include any other HCS-12 specific fields that might be present
+              };
+
+              // Remove undefined fields
+              Object.keys(data).forEach(key => {
+                if (data[key] === undefined) {
+                  delete data[key];
+                }
+              });
+            } else {
+              continue;
+            }
           }
-          
+
           if (data.p !== 'hcs-12') {
             continue;
           }
-          
+
           const entry: RegistryEntry = {
-            id: `${this.topicId}_${msg.sequence_number}`,
+            id: msg.sequence_number.toString(),
+            sequenceNumber: msg.sequence_number,
             timestamp: msg.consensus_timestamp || new Date().toISOString(),
-            submitter: msg.payer || msg.payer_account_id || 'unknown',
+            submitter: msg.payer || 'unknown',
             data,
           };
           this.entries.set(entry.id, entry);
@@ -320,11 +431,7 @@ export abstract class BaseRegistry {
    * Validate common registration fields
    */
   protected validateBaseRegistration(
-    data:
-      | ActionRegistration
-      | BlockRegistration
-      | AssemblyRegistration
-      | HashLinksRegistration,
+    data: ActionRegistration | AssemblyRegistration | HashLinksRegistration,
   ): void {
     if (!data.p || data.p !== 'hcs-12') {
       throw new Error('Invalid protocol identifier');

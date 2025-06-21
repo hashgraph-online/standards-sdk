@@ -1,8 +1,8 @@
 /**
  * Assembly Registry Implementation for HCS-12
  *
- * Manages registration and retrieval of HashLink assemblies that combine
- * multiple actions and blocks into cohesive applications.
+ * Manages assembly topics where each topic represents one assembly.
+ * Processes operations sequentially to build assembly state.
  */
 
 import { Logger } from '../../utils/logger';
@@ -10,21 +10,26 @@ import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
   RegistryEntry,
+  AssemblyState,
   AssemblyRegistration,
-  AssemblyWorkflowStep,
+  AssemblyAddAction,
+  AssemblyAddBlock,
+  AssemblyUpdate,
+  AssemblyMessage,
+  AssemblyAction,
+  AssemblyBlock,
 } from '../types';
 import { BaseRegistry } from './base-registry';
 import type { HCS12Client } from '../sdk';
 import type { HCS12BrowserClient } from '../browser';
-import { validateAssemblyRegistration } from '../validation/schemas';
+import { validateAssemblyMessage } from '../validation/schemas';
 import { ZodError } from 'zod';
 
 /**
  * Registry for HashLink assemblies
  */
 export class AssemblyRegistry extends BaseRegistry {
-  private assembliesByName: Map<string, Map<string, AssemblyRegistration>> =
-    new Map();
+  private assemblyStates: Map<string, AssemblyState> = new Map();
 
   constructor(
     networkType: NetworkType,
@@ -36,295 +41,552 @@ export class AssemblyRegistry extends BaseRegistry {
   }
 
   /**
+   * Override getTopicMemo to indicate indexed registry
+   */
+  getTopicMemo(): string {
+    const indexed = 0; // Indexed to maintain full history
+    const ttl = 60;
+    const type = this.registryType;
+    return `hcs-12:${indexed}:${ttl}:${type}`;
+  }
+
+  /**
    * Register a new assembly
    */
   async register(registration: AssemblyRegistration): Promise<string> {
-    this.validateRegistration(registration);
+    return this.submitMessage(registration);
+  }
 
-    const sequenceNumber = Date.now();
-    const id = this.topicId
-      ? `${this.topicId}_${sequenceNumber}`
-      : `local_${sequenceNumber}_${Math.random().toString(36).substring(7)}`;
+  /**
+   * Create a new assembly topic
+   */
+  async createAssemblyTopic(): Promise<string> {
+    const topicId = await this.createRegistryTopic();
+    this.topicId = topicId;
+    return topicId;
+  }
 
-    const entry: RegistryEntry = {
-      id,
-      timestamp: new Date().toISOString(),
-      submitter: '0.0.123456',
-      data: registration,
-    };
+  /**
+   * Add an action to the assembly
+   */
+  async addAction(message: AssemblyAddAction): Promise<string> {
+    return this.submitMessage(message);
+  }
 
-    this.entries.set(id, entry);
+  /**
+   * Add a block to the assembly
+   */
+  async addBlock(message: AssemblyAddBlock): Promise<string> {
+    return this.submitMessage(message);
+  }
 
-    if (!this.assembliesByName.has(registration.name)) {
-      this.assembliesByName.set(registration.name, new Map());
+  /**
+   * Update assembly metadata
+   */
+  async update(message: AssemblyUpdate): Promise<string> {
+    return this.submitMessage(message);
+  }
+
+  /**
+   * Submit any assembly operation message
+   */
+  async submitMessage(message: AssemblyMessage): Promise<string> {
+    this.validateMessage(message);
+
+    if (!this.topicId) {
+      throw new Error('Assembly topic ID not found');
     }
-    this.assembliesByName
-      .get(registration.name)!
-      .set(registration.version, registration);
 
-    if (this.topicId && this.client) {
-      this.logger.info('Submitting assembly registration to HCS', {
-        topicId: this.topicId,
-        name: registration.name,
-        version: registration.version,
-      });
-      await this.client.submitMessage(
-        this.topicId,
-        JSON.stringify(registration),
-      );
+    if (!this.client) {
+      throw new Error('Client not found');
     }
 
-    this.logger.info('Assembly registered', {
-      name: registration.name,
-      version: registration.version,
-      actionCount: registration.actions?.length || 0,
-      blockCount: registration.blocks?.length || 0,
-      id,
+    this.logger.info('Submitting assembly message to HCS', {
+      topicId: this.topicId,
+      op: message.op,
     });
 
-    return id;
-  }
-
-  /**
-   * Retrieve assembly by name and version
-   */
-  async getAssembly(
-    name: string,
-    version: string,
-  ): Promise<AssemblyRegistration | null> {
-    const versions = this.assembliesByName.get(name);
-    if (versions) {
-      const assembly = versions.get(version);
-      if (assembly) return assembly;
-    }
-
-    if (this.topicId && this.client) {
-      await this.sync();
-      const syncedVersions = this.assembliesByName.get(name);
-      return syncedVersions?.get(version) || null;
-    }
-
-    return null;
-  }
-
-  /**
-   * Get latest version of an assembly
-   */
-  async getLatestAssembly(name: string): Promise<AssemblyRegistration | null> {
-    const versions = await this.getAssemblyVersions(name);
-    if (versions.length === 0) return null;
-
-    const sorted = versions.sort((a, b) =>
-      this.compareVersions(b.version, a.version),
+    const result = await this.client.submitMessage(
+      this.topicId,
+      JSON.stringify(message),
     );
 
-    return sorted[0];
-  }
-
-  /**
-   * Get all versions of an assembly
-   */
-  async getAssemblyVersions(name: string): Promise<AssemblyRegistration[]> {
-    if (this.topicId && this.client) {
-      await this.sync();
+    const sequenceNumber = result.sequenceNumber;
+    if (!sequenceNumber) {
+      throw new Error('No sequence number returned from submission');
     }
 
-    const versions = this.assembliesByName.get(name);
-    if (!versions) return [];
+    const entry: RegistryEntry = {
+      id: sequenceNumber.toString(),
+      sequenceNumber,
+      timestamp: new Date().toISOString(),
+      submitter:
+        'getHashConnect' in this.client
+          ? (await (this.client as HCS12BrowserClient).getAccountAndSigner())
+              .accountId
+          : this.client.getOperatorAccountId(),
+      data: message,
+    };
 
-    return Array.from(versions.values());
-  }
+    this.entries.set(entry.id, entry);
 
-  /**
-   * Check if assembly dependencies can be resolved
-   */
-  async checkDependencies(name: string, version: string): Promise<boolean> {
-    return true;
-  }
+    await this.processMessage(entry);
 
-  /**
-   * Search assemblies by criteria
-   */
-  async searchAssemblies(criteria: {
-    category?: string;
-    keyword?: string;
-    author?: string;
-    afterTimestamp?: string;
-    beforeTimestamp?: string;
-  }): Promise<AssemblyRegistration[]> {
-    const entries = await this.listEntries({
-      submitter: criteria.author,
-      afterTimestamp: criteria.afterTimestamp,
-      beforeTimestamp: criteria.beforeTimestamp,
+    this.logger.info('Assembly message processed', {
+      op: message.op,
+      sequenceNumber,
     });
 
-    return entries
-      .map(entry => entry.data as AssemblyRegistration)
-      .filter(assembly => {
-        if (criteria.keyword) {
-          const keyword = criteria.keyword.toLowerCase();
-          const inDescription = assembly.description
-            ?.toLowerCase()
-            .includes(keyword);
-          const inName = assembly.name.toLowerCase().includes(keyword);
-          const inTags = assembly.tags?.some(tag =>
-            tag.toLowerCase().includes(keyword),
-          );
+    return sequenceNumber.toString();
+  }
 
-          if (!inDescription && !inName && !inTags) {
-            return false;
-          }
+  /**
+   * Process a message to update assembly state
+   */
+  private async processMessage(entry: RegistryEntry): Promise<void> {
+    const message = entry.data as AssemblyMessage;
+
+    if (!this.topicId) return;
+
+    let state = this.assemblyStates.get(this.topicId);
+
+    switch (message.op) {
+      case 'register':
+        const reg = message as AssemblyRegistration;
+        state = {
+          topicId: this.topicId,
+          name: reg.name,
+          version: reg.version,
+          description: reg.description,
+          tags: reg.tags,
+          author: reg.author,
+          actions: [],
+          blocks: [],
+          created: entry.timestamp,
+          updated: entry.timestamp,
+        };
+        this.assemblyStates.set(this.topicId, state);
+        break;
+
+      case 'add-action':
+        if (!state) {
+          this.logger.warn('Cannot add action without assembly registration');
+          return;
         }
+        const addAction = message as AssemblyAddAction;
+        const action: AssemblyAction = {
+          t_id: addAction.t_id,
+          alias: addAction.alias,
+          config: addAction.config,
+          data: addAction.data,
+        };
+        state.actions.push(action);
+        state.updated = entry.timestamp;
+        break;
 
-        return true;
+      case 'add-block':
+        if (!state) {
+          this.logger.warn('Cannot add block without assembly registration');
+          return;
+        }
+        const addBlock = message as AssemblyAddBlock;
+        const block: AssemblyBlock = {
+          block_t_id: addBlock.block_t_id,
+          actions: addBlock.actions,
+          attributes: addBlock.attributes,
+          children: addBlock.children,
+          data: addBlock.data,
+        };
+        state.blocks.push(block);
+        state.updated = entry.timestamp;
+        break;
+
+      case 'update':
+        if (!state) {
+          this.logger.warn('Cannot update without assembly registration');
+          return;
+        }
+        const update = message as AssemblyUpdate;
+        if (update.description !== undefined) {
+          state.description = update.description;
+        }
+        if (update.tags !== undefined) {
+          state.tags = update.tags;
+        }
+        state.updated = entry.timestamp;
+        break;
+    }
+  }
+
+  /**
+   * Get the current state of an assembly
+   */
+  async getAssemblyState(topicId?: string): Promise<AssemblyState | null> {
+    const targetTopicId = topicId || this.topicId;
+    if (!targetTopicId || !this.client) return null;
+
+    // Check cache first
+    let state = this.assemblyStates.get(targetTopicId);
+    if (state) return state;
+    
+    // If this registry was created for a specific assembly topic,
+    // and we're asking for that same topic, sync from ourselves
+    if (targetTopicId === this.topicId && this.entries.size > 0) {
+      this.logger.debug('Building state from existing entries', {
+        topicId: targetTopicId,
+        entriesCount: this.entries.size,
       });
-  }
-
-  /**
-   * Find assemblies using a specific action
-   */
-  async searchAssembliesUsingAction(
-    actionHash: string,
-  ): Promise<AssemblyRegistration[]> {
-    const entries = await this.listEntries();
-
-    return entries
-      .map(entry => entry.data as AssemblyRegistration)
-      .filter(assembly =>
-        assembly.actions?.some(action => action.registryId === actionHash),
-      );
-  }
-
-  /**
-   * Find assemblies using a specific block
-   */
-  async searchAssembliesUsingBlock(
-    blockName: string,
-  ): Promise<AssemblyRegistration[]> {
-    const entries = await this.listEntries();
-
-    return entries
-      .map(entry => entry.data as AssemblyRegistration)
-      .filter(assembly =>
-        assembly.blocks?.some(block => block.id === blockName),
-      );
-  }
-
-  /**
-   * Validate assembly registration using Zod schema
-   */
-  private validateRegistration(registration: AssemblyRegistration): void {
-    try {
-      validateAssemblyRegistration(registration);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const firstError = error.errors[0];
-        throw new Error(
-          `Validation failed: ${firstError.path.join('.')} - ${firstError.message}`,
-        );
+      // Process our own entries to build state
+      this.assemblyStates.clear();
+      for (const entry of this.entries.values()) {
+        this.processAssemblyMessage(targetTopicId, entry);
       }
+      const builtState = this.assemblyStates.get(targetTopicId) || null;
+      this.logger.debug('Built state from entries', {
+        topicId: targetTopicId,
+        hasState: !!builtState,
+        name: builtState?.name,
+      });
+      return builtState;
+    }
+
+    // Sync assembly messages from the assembly topic itself
+    this.logger.info('Syncing assembly state from topic', {
+      topicId: targetTopicId,
+    });
+
+    try {
+      const messages = await this.client.mirrorNode.getTopicMessagesByFilter(
+        targetTopicId,
+        {
+          order: 'asc',
+          limit: 1000,
+        },
+      );
+
+      const messageArray = Array.isArray(messages) ? messages : [];
+      
+      this.logger.info('Processing assembly messages', {
+        topicId: targetTopicId,
+        messageCount: messageArray.length,
+      });
+
+      for (const msg of messageArray) {
+        try {
+          let data: any;
+
+          if ((msg as any).message) {
+            try {
+              // Decode base64 message content
+              let messageContent: string;
+              const isServerEnvironment = typeof window === 'undefined';
+
+              if (isServerEnvironment) {
+                messageContent = Buffer.from(
+                  (msg as any).message,
+                  'base64',
+                ).toString('utf-8');
+              } else {
+                messageContent = new TextDecoder().decode(
+                  Uint8Array.from(atob((msg as any).message), c =>
+                    c.charCodeAt(0),
+                  ),
+                );
+              }
+
+              data = JSON.parse(messageContent);
+              this.logger.debug('Successfully parsed message', {
+                sequenceNumber: msg.sequence_number,
+                op: data.op,
+                p: data.p,
+              });
+            } catch (error) {
+              this.logger.debug('Failed to decode/parse message', {
+                sequenceNumber: msg.sequence_number,
+                error,
+              });
+              continue;
+            }
+          } else {
+            continue;
+          }
+
+          if (data.p !== 'hcs-12') {
+            this.logger.debug('Skipping non-HCS-12 message', {
+              sequenceNumber: msg.sequence_number,
+              protocol: data.p,
+            });
+            continue;
+          }
+
+          const entry: RegistryEntry = {
+            id: msg.sequence_number.toString(),
+            sequenceNumber: msg.sequence_number,
+            timestamp: msg.consensus_timestamp || new Date().toISOString(),
+            submitter: (msg as any).payer_account_id || 'unknown',
+            data,
+          };
+
+          // Process message for this specific assembly topic
+          this.processAssemblyMessage(targetTopicId, entry);
+          
+          this.logger.debug('Processed message for assembly', {
+            topicId: targetTopicId,
+            sequenceNumber: entry.sequenceNumber,
+            op: entry.data.op,
+          });
+        } catch (error) {
+          this.logger.warn('Failed to parse assembly message', {
+            sequenceNumber: msg.sequence_number,
+            error,
+          });
+        }
+      }
+
+      const finalState = this.assemblyStates.get(targetTopicId) || null;
+      this.logger.info('Assembly state after sync', {
+        topicId: targetTopicId,
+        hasState: !!finalState,
+        name: finalState?.name,
+        version: finalState?.version,
+        actionsCount: finalState?.actions?.length || 0,
+        blocksCount: finalState?.blocks?.length || 0,
+      });
+      return finalState;
+    } catch (error) {
+      this.logger.error('Failed to sync assembly state', {
+        topicId: targetTopicId,
+        error,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Process a message for a specific assembly topic
+   */
+  private processAssemblyMessage(topicId: string, entry: RegistryEntry): void {
+    const message = entry.data as AssemblyMessage;
+    let state = this.assemblyStates.get(topicId);
+
+    this.logger.debug('Processing assembly message', {
+      topicId,
+      op: message.op,
+      hasState: !!state,
+    });
+
+    switch (message.op) {
+      case 'register':
+        const reg = message as AssemblyRegistration;
+        state = {
+          topicId: topicId,
+          name: reg.name,
+          version: reg.version,
+          description: reg.description,
+          tags: reg.tags,
+          author: reg.author,
+          actions: [],
+          blocks: [],
+          created: entry.timestamp,
+          updated: entry.timestamp,
+        };
+        this.assemblyStates.set(topicId, state);
+        this.logger.debug('Assembly registered', {
+          topicId,
+          name: reg.name,
+          version: reg.version,
+        });
+        break;
+
+      case 'add-action':
+        if (!state) {
+          this.logger.warn('Cannot add action without assembly registration');
+          return;
+        }
+        const addAction = message as AssemblyAddAction;
+        const action: AssemblyAction = {
+          t_id: addAction.t_id,
+          alias: addAction.alias,
+          config: addAction.config,
+          data: addAction.data,
+        };
+        state.actions.push(action);
+        state.updated = entry.timestamp;
+        break;
+
+      case 'add-block':
+        if (!state) {
+          this.logger.warn('Cannot add block without assembly registration');
+          return;
+        }
+        const addBlock = message as AssemblyAddBlock;
+        const block: AssemblyBlock = {
+          block_t_id: addBlock.block_t_id,
+          actions: addBlock.actions,
+          attributes: addBlock.attributes,
+          children: addBlock.children,
+          data: addBlock.data,
+        };
+        state.blocks.push(block);
+        state.updated = entry.timestamp;
+        break;
+
+      case 'update':
+        if (!state) {
+          this.logger.warn('Cannot update without assembly registration');
+          return;
+        }
+        const update = message as AssemblyUpdate;
+        if (update.description !== undefined) {
+          state.description = update.description;
+        }
+        if (update.tags !== undefined) {
+          state.tags = update.tags;
+        }
+        state.updated = entry.timestamp;
+        break;
+    }
+  }
+
+  /**
+   * Override sync to rebuild state from all messages
+   */
+  async sync(): Promise<void> {
+    if (!this.topicId || !this.client) {
+      this.logger.warn('Cannot sync without topic ID and client');
+      return;
+    }
+
+    this.entries.clear();
+    this.assemblyStates.delete(this.topicId);
+
+    this.logger.info('Syncing assembly messages', {
+      topicId: this.topicId,
+    });
+
+    try {
+      const messages = await this.client.mirrorNode.getTopicMessagesByFilter(
+        this.topicId,
+        {
+          order: 'asc',
+          limit: 1000,
+        },
+      );
+
+      const messageArray = Array.isArray(messages) ? messages : [];
+      
+      this.logger.info('Processing assembly messages', {
+        topicId: this.topicId,
+        messageCount: messageArray.length,
+      });
+
+      for (const msg of messageArray) {
+        try {
+          let data: any;
+
+          if ((msg as any).message) {
+            try {
+              // Decode base64 message content
+              let messageContent: string;
+              const isServerEnvironment = typeof window === 'undefined';
+
+              if (isServerEnvironment) {
+                messageContent = Buffer.from(
+                  (msg as any).message,
+                  'base64',
+                ).toString('utf-8');
+              } else {
+                messageContent = new TextDecoder().decode(
+                  Uint8Array.from(atob((msg as any).message), c =>
+                    c.charCodeAt(0),
+                  ),
+                );
+              }
+
+              data = JSON.parse(messageContent);
+            } catch (error) {
+              this.logger.debug('Failed to decode/parse message in sync', {
+                sequenceNumber: msg.sequence_number,
+                error,
+              });
+              continue;
+            }
+          } else if ((msg as any).raw_content) {
+            try {
+              data = JSON.parse((msg as any).raw_content);
+            } catch {
+              continue;
+            }
+          } else {
+            const msgAny = msg as any;
+            if (msgAny.p && msgAny.op) {
+              data = { ...msgAny };
+              delete data.consensus_timestamp;
+              delete data.sequence_number;
+              delete data.payer_account_id;
+              delete data.topic_id;
+              delete data.running_hash;
+              delete data.running_hash_version;
+              delete data.chunk_info;
+              delete data.created;
+              delete data.payer;
+            } else {
+              continue;
+            }
+          }
+
+          if (data.p !== 'hcs-12') {
+            continue;
+          }
+
+          const entry: RegistryEntry = {
+            id: msg.sequence_number.toString(),
+            sequenceNumber: msg.sequence_number,
+            timestamp: msg.consensus_timestamp || new Date().toISOString(),
+            submitter: (msg as any).payer_account_id || 'unknown',
+            data,
+          };
+
+          this.entries.set(entry.id, entry);
+
+          await this.processMessage(entry);
+          
+          this.logger.debug('Processed sync message', {
+            sequenceNumber: entry.sequenceNumber,
+            op: entry.data.op,
+          });
+        } catch (error) {
+          this.logger.warn('Failed to parse assembly message', {
+            sequenceNumber: msg.sequence_number,
+            error,
+          });
+        }
+      }
+
+      this.logger.info('Assembly sync completed', {
+        topicId: this.topicId,
+        messageCount: messageArray.length,
+      });
+    } catch (error) {
+      this.logger.error('Failed to sync assembly', { error });
       throw error;
     }
   }
 
   /**
-   * Validate workflow structure
+   * Validate an assembly message
    */
-  private validateWorkflow(workflow: AssemblyWorkflowStep[]): void {
-    const stepIds = new Set(workflow.map(step => step.id));
-
-    for (const step of workflow) {
-      if (!step.id || !step.type) {
-        throw new Error('Workflow step must have id and type');
+  private validateMessage(message: AssemblyMessage): void {
+    try {
+      validateAssemblyMessage(message);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const issues = error.errors.map(
+          e => `${e.path.join('.')}: ${e.message}`,
+        );
+        throw new Error(`Assembly validation failed: ${issues.join('; ')}`);
       }
-
-      if (!['action', 'block', 'condition'].includes(step.type)) {
-        throw new Error('Invalid workflow step type');
-      }
-
-      if (step.type === 'action' && !step.action) {
-        throw new Error('Action step must specify action');
-      }
-
-      if (step.type === 'block' && !step.block) {
-        throw new Error('Block step must specify block');
-      }
-
-      if (step.next) {
-        for (const nextId of step.next) {
-          if (!stepIds.has(nextId)) {
-            throw new Error(
-              `Invalid workflow: step references non-existent next step: ${nextId}`,
-            );
-          }
-        }
-      }
+      throw error;
     }
-  }
-
-  /**
-   * Compare semantic versions
-   */
-  private compareVersions(a: string, b: string): number {
-    const parseVersion = (v: string) => {
-      const parts = v.split('.').map(p => parseInt(p, 10));
-      return {
-        major: parts[0] || 0,
-        minor: parts[1] || 0,
-        patch: parts[2] || 0,
-      };
-    };
-
-    const va = parseVersion(a);
-    const vb = parseVersion(b);
-
-    if (va.major !== vb.major) return va.major - vb.major;
-    if (va.minor !== vb.minor) return va.minor - vb.minor;
-    return va.patch - vb.patch;
-  }
-
-  /**
-   * Check if version string is valid semver
-   */
-  private isValidSemver(version: string): boolean {
-    return /^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/.test(version);
-  }
-
-  /**
-   * Find assembly matching version constraint
-   */
-  private async findMatchingVersion(
-    name: string,
-    versionConstraint: string,
-  ): Promise<AssemblyRegistration | null> {
-    const versions = await this.getAssemblyVersions(name);
-
-    return versions.length > 0 ? versions[0] : null;
-  }
-
-  /**
-   * Override sync to handle assembly-specific processing
-   */
-  async sync(): Promise<void> {
-    await super.sync();
-
-    this.assembliesByName.clear();
-
-    for (const entry of this.entries.values()) {
-      const assembly = entry.data as AssemblyRegistration;
-
-      if (!this.assembliesByName.has(assembly.name)) {
-        this.assembliesByName.set(assembly.name, new Map());
-      }
-      this.assembliesByName.get(assembly.name)!.set(assembly.version, assembly);
-    }
-  }
-
-  /**
-   * Override clear cache to also clear assembly indices
-   */
-  clearCache(): void {
-    super.clearCache();
-    this.assembliesByName.clear();
   }
 }

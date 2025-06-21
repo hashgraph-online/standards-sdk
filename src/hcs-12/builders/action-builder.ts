@@ -75,6 +75,39 @@ export class ActionBuilder {
   }
 
   /**
+   * Set JavaScript wrapper topic ID
+   */
+  setJsTopicId(topicId: string): ActionBuilder {
+    if (!this.isValidTopicId(topicId)) {
+      throw new Error('Invalid topic ID format');
+    }
+    this.registration.js_t_id = topicId;
+    return this;
+  }
+
+  /**
+   * Set JavaScript wrapper hash
+   */
+  setJsHash(hash: string): ActionBuilder {
+    if (!this.isValidHash(hash)) {
+      throw new Error('Invalid hash format');
+    }
+    this.registration.js_hash = hash;
+    return this;
+  }
+
+  /**
+   * Set interface version (wasm-bindgen version)
+   */
+  setInterfaceVersion(version: string): ActionBuilder {
+    if (!this.isValidVersion(version)) {
+      throw new Error('Invalid version format');
+    }
+    this.registration.interface_version = version;
+    return this;
+  }
+
+  /**
    * Add validation rule for an action
    */
   addValidationRule(action: string, rule: ValidationRule): ActionBuilder {
@@ -144,6 +177,15 @@ export class ActionBuilder {
   }
 
   /**
+   * Calculate hash for any data
+   */
+  async calculateHash(data: Uint8Array | Buffer | string): Promise<string> {
+    const hash = createHash('sha256');
+    hash.update(data);
+    return hash.digest('hex');
+  }
+
+  /**
    * Create registration from WASM and INFO data
    */
   async createFromWasmAndInfo(
@@ -154,11 +196,19 @@ export class ActionBuilder {
     const wasmHash = await this.generateWasmHash(wasmData);
     const infoHash = await this.generateInfoHash(info);
 
-    return this.reset()
-      .setTopicId(topicId)
-      .setHash(infoHash)
-      .setWasmHash(wasmHash)
-      .build();
+    // Preserve existing fields before reset
+    const jsTopicId = this.registration.js_t_id;
+    const jsHash = this.registration.js_hash;
+    const interfaceVersion = this.registration.interface_version;
+
+    this.reset().setTopicId(topicId).setHash(infoHash).setWasmHash(wasmHash);
+
+    // Restore JS fields if they were set
+    if (jsTopicId) this.setJsTopicId(jsTopicId);
+    if (jsHash) this.setJsHash(jsHash);
+    if (interfaceVersion) this.setInterfaceVersion(interfaceVersion);
+
+    return this.build();
   }
 
   /**
@@ -201,5 +251,12 @@ export class ActionBuilder {
    */
   private isValidHash(hash: string): boolean {
     return /^[a-f0-9]{64}$/.test(hash);
+  }
+
+  /**
+   * Validate semantic version format
+   */
+  private isValidVersion(version: string): boolean {
+    return /^\d+\.\d+\.\d+$/.test(version);
   }
 }

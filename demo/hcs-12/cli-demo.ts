@@ -109,59 +109,37 @@ async function inscribeWasmModule(
   return { topicId, wasmHash };
 }
 
-function getModuleInfo(): { info: string; hash: string } {
-  const info = {
-    name: 'Counter Module',
-    version: '1.0.0',
-    hashlinks_version: '0.1.0',
-    creator: 'HashGraph Online',
-    purpose: 'Simple counter with increment, decrement, and reset',
-    actions: [
-      {
-        name: 'increment',
-        description: 'Increment the counter',
-        inputs: [
-          {
-            name: 'amount',
-            param_type: 'number',
-            description: 'Amount to increment by',
-            required: false,
-            validation: { min: 1, max: 100 },
-          },
-          {
-            name: 'current_count',
-            param_type: 'number',
-            description: 'Current counter value',
-            required: true,
-          },
-        ],
-        outputs: [
-          {
-            name: 'new_count',
-            param_type: 'number',
-            description: 'Updated counter value',
-            required: true,
-          },
-        ],
-        required_capabilities: [],
-      },
-    ],
-    capabilities: [
-      {
-        type: 'network',
-        value: {
-          networks: ['mainnet', 'testnet'],
-          operations: ['query'],
-        },
-      },
-    ],
-    plugins: [],
-  };
+/**
+ * Extract module INFO from the WASM module itself
+ *
+ * According to HCS-12 standard, the WASM module must export an INFO method
+ * that returns the module metadata. This ensures the hash in the action
+ * registration can be verified by loading and calling the WASM module.
+ */
+async function getModuleInfoFromWasm(wasmPath: string, logger: Logger): Promise<{ info: string; hash: string }> {
+  logger.info('Loading WASM module to extract INFO...');
 
-  const infoString = JSON.stringify(info);
-  const hash = createHash('sha256').update(infoString).digest('hex');
+  try {
+    const wasmModule = await import(path.join(WASM_DIR, 'pkg', 'hashlink_counter.js'));
 
-  return { info: infoString, hash };
+    await wasmModule.default();
+
+    const wasmInterface = new wasmModule.WasmInterface();
+
+    const infoString = wasmInterface.INFO();
+
+    const hash = createHash('sha256').update(infoString).digest('hex');
+
+    logger.info('Module INFO extracted from WASM', {
+      infoLength: infoString.length,
+      hash
+    });
+
+    return { info: infoString, hash };
+  } catch (error) {
+    logger.error('Failed to extract INFO from WASM module', { error });
+    throw new Error(`Failed to load WASM module: ${error}`);
+  }
 }
 
 async function registerAction(
@@ -320,7 +298,7 @@ async function createAndRegisterAssembly(
         targetMethod: 'increment',
         parameters: {
           amount: 1,
-          current_count: '{{count}}',
+          count: '{{count}}',
         },
       },
       {
@@ -330,7 +308,7 @@ async function createAndRegisterAssembly(
         targetMethod: 'decrement',
         parameters: {
           amount: 1,
-          current_count: '{{count}}',
+          count: '{{count}}',
         },
       },
       {
@@ -411,8 +389,8 @@ async function main() {
       operatorKey,
     );
 
-    const { info, hash: infoHash } = getModuleInfo();
-    logger.info('Module info generated', { infoHash });
+    const { info, hash: infoHash } = await getModuleInfoFromWasm(WASM_FILE, logger);
+    logger.info('Module info extracted from WASM', { infoHash });
 
     const actionHash = await registerAction(
       client,

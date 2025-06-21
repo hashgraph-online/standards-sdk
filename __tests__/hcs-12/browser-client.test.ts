@@ -91,6 +91,10 @@ describe('HCS12BrowserClient', () => {
     });
 
     jest.spyOn(client, 'createRegistryTopic').mockResolvedValue('0.0.999999');
+    jest.spyOn(client as any, '_submitMessage').mockResolvedValue({
+      transactionId: '0.0.123456@1234567890.123456789',
+      sequenceNumber: 123,
+    });
     jest.spyOn(client, 'submitMessage').mockResolvedValue({
       transactionId: '0.0.123456@1234567890.123456789',
       sequenceNumber: 123,
@@ -108,7 +112,7 @@ describe('HCS12BrowserClient', () => {
         client.initializeRegistries();
       }
       expect(client.actionRegistry).toBeDefined();
-      expect(client.blockRegistry).toBeDefined();
+      expect(client.blockLoader).toBeDefined();
       expect(client.assemblyRegistry).toBeDefined();
     });
   });
@@ -186,7 +190,10 @@ describe('HCS12BrowserClient', () => {
   describe('Registry Management', () => {
     beforeEach(() => {
       if (client && typeof client.initializeRegistries === 'function') {
-        client.initializeRegistries();
+        client.initializeRegistries({
+          action: '0.0.999998',
+          assembly: '0.0.999997',
+        });
       }
     });
 
@@ -209,7 +216,7 @@ describe('HCS12BrowserClient', () => {
       };
 
       const registrationId = await client.actionRegistry.register(actionReg);
-      expect(registrationId).toMatch(/^local_\d+/);
+      expect(registrationId).toBe('123');
 
       jest.spyOn(client.actionRegistry, 'sync').mockImplementation(async () => {
         await (global.fetch as jest.Mock)('test-url');
