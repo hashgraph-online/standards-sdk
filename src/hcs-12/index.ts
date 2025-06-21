@@ -19,4 +19,5 @@ export * from './builders';
 export * from './validation';
 export * from './assembly';
 export * from './rendering';
+export * from './wasm';
 export * from './constants';

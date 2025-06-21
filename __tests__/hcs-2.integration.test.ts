@@ -18,7 +18,7 @@ describe('HCS-2 Integration Tests', () => {
   let indexedRegistryTopicId: string;
   let nonIndexedRegistryTopicId: string;
   let targetTopicId: string;
-  
+
   // TTL values to use in tests
   const INDEXED_TTL = 86400; // 24 hours for indexed topics
   const NON_INDEXED_TTL = 3600; // 1 hour for non-indexed topics
@@ -56,10 +56,14 @@ describe('HCS-2 Integration Tests', () => {
 
       indexedRegistryTopicId = result.topicId!;
       console.log(`Created indexed registry topic: ${indexedRegistryTopicId}`);
-      
+
       // Verify the memo format is correct (hcs-2:0:86400)
-      const topicInfo = await (client as any).getTopicInfo(indexedRegistryTopicId);
-      expect(topicInfo.memo).toContain(`hcs-2:${HCS2RegistryType.INDEXED}:${INDEXED_TTL}`);
+      const topicInfo = await (client as any).getTopicInfo(
+        indexedRegistryTopicId,
+      );
+      expect(topicInfo.memo).toContain(
+        `hcs-2:${HCS2RegistryType.INDEXED}:${INDEXED_TTL}`,
+      );
     }, 30000);
 
     it('should create a non-indexed registry topic with correct memo format', async () => {
@@ -74,11 +78,17 @@ describe('HCS-2 Integration Tests', () => {
       expect(result.transactionId).toBeDefined();
 
       nonIndexedRegistryTopicId = result.topicId!;
-      console.log(`Created non-indexed registry topic: ${nonIndexedRegistryTopicId}`);
-      
+      console.log(
+        `Created non-indexed registry topic: ${nonIndexedRegistryTopicId}`,
+      );
+
       // Verify the memo format is correct (hcs-2:1:3600)
-      const topicInfo = await (client as any).getTopicInfo(nonIndexedRegistryTopicId);
-      expect(topicInfo.memo).toContain(`hcs-2:${HCS2RegistryType.NON_INDEXED}:${NON_INDEXED_TTL}`);
+      const topicInfo = await (client as any).getTopicInfo(
+        nonIndexedRegistryTopicId,
+      );
+      expect(topicInfo.memo).toContain(
+        `hcs-2:${HCS2RegistryType.NON_INDEXED}:${NON_INDEXED_TTL}`,
+      );
     }, 30000);
 
     it('should create a registry with a custom admin and submit key', async () => {
@@ -91,7 +101,6 @@ describe('HCS-2 Integration Tests', () => {
         memo: 'Integration test custom key registry',
         adminKey: customKey,
         submitKey: customKey,
-        
       });
 
       expect(result.success).toBe(true);
@@ -102,7 +111,7 @@ describe('HCS-2 Integration Tests', () => {
       // 3. Wait for propagation and verify the keys on the topic
       await new Promise(resolve => setTimeout(resolve, 8000)); // Wait for propagation
       const topicInfo = await client.getTopicInfo(customTopicId);
-      
+
       console.log('Topic info:', topicInfo);
       expect(topicInfo.admin_key).toBeDefined();
       expect(topicInfo.submit_key).toBeDefined();
@@ -139,7 +148,7 @@ describe('HCS-2 Integration Tests', () => {
 
       const metadata = `hcs://${HCS2RegistryType.NON_INDEXED}/${targetTopicId}`;
       const memo = 'First test entry';
-      
+
       const result = await client.registerEntry(indexedRegistryTopicId, {
         targetTopicId,
         metadata,
@@ -151,27 +160,31 @@ describe('HCS-2 Integration Tests', () => {
 
       entryUid = result.sequenceNumber!;
       console.log(`Registered entry with UID: ${entryUid}`);
-      
+
       // Wait longer for network propagation before querying
       await new Promise(resolve => setTimeout(resolve, 8000));
-      
+
       // Verify the message structure in the registry
       const registry = await client.getRegistry(indexedRegistryTopicId);
-      console.log('Registry after register:', JSON.stringify(registry, null, 2));
-      
+      console.log(
+        'Registry after register:',
+        JSON.stringify(registry, null, 2),
+      );
+
       // First try finding by sequence number
       let entry = registry.entries.find(e => e.sequence === entryUid);
-      
+
       // If not found, try finding by message content as a fallback
       if (!entry) {
         console.log('Entry not found by sequence, trying by content...');
-        entry = registry.entries.find(e => 
-          e.message.op === HCS2Operation.REGISTER && 
-          e.message.t_id === targetTopicId && 
-          e.message.metadata === metadata
+        entry = registry.entries.find(
+          e =>
+            e.message.op === HCS2Operation.REGISTER &&
+            e.message.t_id === targetTopicId &&
+            e.message.metadata === metadata,
         );
       }
-      
+
       expect(entry).toBeDefined();
       if (entry) {
         expect(entry.message.p).toBe('hcs-2');
@@ -191,7 +204,7 @@ describe('HCS-2 Integration Tests', () => {
 
       const metadata = `hcs://${HCS2RegistryType.NON_INDEXED}/${updatedMetadataTopicId}`;
       const memo = 'Updated test entry';
-      
+
       const result = await client.updateEntry(indexedRegistryTopicId, {
         uid: entryUid.toString(),
         targetTopicId,
@@ -201,30 +214,34 @@ describe('HCS-2 Integration Tests', () => {
 
       expect(result.success).toBe(true);
       console.log(`Updated entry with UID: ${entryUid}`);
-      
+
       // Wait longer for network propagation before querying
       await new Promise(resolve => setTimeout(resolve, 8000));
-      
+
       // Verify the message structure in the registry
       const registry = await client.getRegistry(indexedRegistryTopicId);
       console.log('Registry after update:', JSON.stringify(registry, null, 2));
-      
+
       // Get the update message, first by sequence if possible, then by content
-      let entry = registry.entries.find(e => 
-        e.message.op === HCS2Operation.UPDATE && 
-        e.message.uid === entryUid.toString()
+      let entry = registry.entries.find(
+        e =>
+          e.message.op === HCS2Operation.UPDATE &&
+          e.message.uid === entryUid.toString(),
       );
-      
+
       // If not found, log for debugging
       if (!entry) {
-        console.log('Update entry not found, checking all entries for content match...');
-        entry = registry.entries.find(e => 
-          e.message.op === HCS2Operation.UPDATE && 
-          e.message.t_id === targetTopicId && 
-          e.message.metadata === metadata
+        console.log(
+          'Update entry not found, checking all entries for content match...',
+        );
+        entry = registry.entries.find(
+          e =>
+            e.message.op === HCS2Operation.UPDATE &&
+            e.message.t_id === targetTopicId &&
+            e.message.metadata === metadata,
         );
       }
-      
+
       expect(entry).toBeDefined();
       if (entry) {
         expect(entry.message.p).toBe('hcs-2');
@@ -248,12 +265,13 @@ describe('HCS-2 Integration Tests', () => {
 
       // Find our updated entry
       const updateEntry = registry.entries.find(
-        e => e.message.op === HCS2Operation.UPDATE && 
-        e.message.uid === entryUid.toString()
+        e =>
+          e.message.op === HCS2Operation.UPDATE &&
+          e.message.uid === entryUid.toString(),
       );
       expect(updateEntry).toBeDefined();
       expect(updateEntry!.message.metadata).toBe(
-        `hcs://${HCS2RegistryType.NON_INDEXED}/${updatedMetadataTopicId}`
+        `hcs://${HCS2RegistryType.NON_INDEXED}/${updatedMetadataTopicId}`,
       );
       expect(updateEntry!.message.m).toBe('Updated test entry');
     }, 30000);
@@ -262,7 +280,7 @@ describe('HCS-2 Integration Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for network propagation
 
       const memo = 'Deleting test entry';
-      
+
       const result = await client.deleteEntry(indexedRegistryTopicId, {
         uid: entryUid.toString(),
         memo,
@@ -270,17 +288,18 @@ describe('HCS-2 Integration Tests', () => {
 
       expect(result.success).toBe(true);
       console.log(`Deleted entry with UID: ${entryUid}`);
-      
+
       // Wait for network propagation
       await new Promise(resolve => setTimeout(resolve, 5000));
-      
+
       // Verify the message structure in the registry
       const registry = await client.getRegistry(indexedRegistryTopicId);
       const deleteEntry = registry.entries.find(
-        e => e.message.op === HCS2Operation.DELETE && 
-        e.message.uid === entryUid.toString()
+        e =>
+          e.message.op === HCS2Operation.DELETE &&
+          e.message.uid === entryUid.toString(),
       );
-      
+
       expect(deleteEntry).toBeDefined();
       expect(deleteEntry!.message.p).toBe('hcs-2');
       expect(deleteEntry!.message.op).toBe(HCS2Operation.DELETE);
@@ -325,7 +344,7 @@ describe('HCS-2 Integration Tests', () => {
 
       const metadata = `hcs://${HCS2RegistryType.NON_INDEXED}/${updatedMetadataTopicId}`;
       const memo = 'Latest non-indexed entry';
-      
+
       const result = await client.registerEntry(nonIndexedRegistryTopicId, {
         targetTopicId,
         metadata,
@@ -339,7 +358,7 @@ describe('HCS-2 Integration Tests', () => {
 
       // Query the registry - should only show the latest entry for non-indexed registry
       const registry = await client.getRegistry(nonIndexedRegistryTopicId);
-      
+
       expect(registry.registryType).toBe(HCS2RegistryType.NON_INDEXED);
       expect(registry.ttl).toBe(NON_INDEXED_TTL);
       expect(registry.entries.length).toBe(1); // Only latest message is returned
@@ -356,7 +375,7 @@ describe('HCS-2 Integration Tests', () => {
           uid: '1', // Any UID
           targetTopicId,
           metadata: `hcs://${HCS2RegistryType.NON_INDEXED}/${targetTopicId}`,
-        })
+        }),
       ).rejects.toThrow(/only valid for indexed registries/);
     }, 30000);
 
@@ -367,7 +386,7 @@ describe('HCS-2 Integration Tests', () => {
       await expect(
         client.deleteEntry(nonIndexedRegistryTopicId, {
           uid: '1', // Any UID
-        })
+        }),
       ).rejects.toThrow(/only valid for indexed registries/);
     }, 30000);
   });
@@ -394,7 +413,7 @@ describe('HCS-2 Integration Tests', () => {
 
       const metadata = `hcs://${HCS2RegistryType.NON_INDEXED}/${targetTopicId}`;
       const memo = 'Migrating to new topic';
-      
+
       const result = await client.migrateRegistry(indexedRegistryTopicId, {
         targetTopicId: newTopicId,
         metadata,
@@ -403,16 +422,18 @@ describe('HCS-2 Integration Tests', () => {
 
       expect(result.success).toBe(true);
       console.log(`Migrated registry to new topic: ${newTopicId}`);
-      
+
       // Wait for network propagation
       await new Promise(resolve => setTimeout(resolve, 5000));
-      
+
       // Verify the message structure in the registry
       const registry = await client.getRegistry(indexedRegistryTopicId);
       const migrateOp = registry.entries.find(
-        e => e.message.op === HCS2Operation.MIGRATE && e.message.t_id === newTopicId
+        e =>
+          e.message.op === HCS2Operation.MIGRATE &&
+          e.message.t_id === newTopicId,
       );
-      
+
       expect(migrateOp).toBeDefined();
       expect(migrateOp!.message.p).toBe('hcs-2');
       expect(migrateOp!.message.op).toBe(HCS2Operation.MIGRATE);
@@ -434,9 +455,11 @@ describe('HCS-2 Integration Tests', () => {
         metadata: `hcs://1/0.0.12345`,
         m: 'Test memo',
       };
-      const validRegisterResult = (client as any).validateMessage(registerMessage);
+      const validRegisterResult = (client as any).validateMessage(
+        registerMessage,
+      );
       expect(validRegisterResult.valid).toBe(true);
-      
+
       // Valid update message
       const updateMessage = {
         p: 'hcs-2',
@@ -447,7 +470,7 @@ describe('HCS-2 Integration Tests', () => {
       };
       const validUpdateResult = (client as any).validateMessage(updateMessage);
       expect(validUpdateResult.valid).toBe(true);
-      
+
       // Valid delete message
       const deleteMessage = {
         p: 'hcs-2',
@@ -456,14 +479,16 @@ describe('HCS-2 Integration Tests', () => {
       };
       const validDeleteResult = (client as any).validateMessage(deleteMessage);
       expect(validDeleteResult.valid).toBe(true);
-      
+
       // Valid migrate message
       const migrateMessage = {
         p: 'hcs-2',
         op: HCS2Operation.MIGRATE,
         t_id: '0.0.12345',
       };
-      const validMigrateResult = (client as any).validateMessage(migrateMessage);
+      const validMigrateResult = (client as any).validateMessage(
+        migrateMessage,
+      );
       expect(validMigrateResult.valid).toBe(true);
     });
 
@@ -474,19 +499,25 @@ describe('HCS-2 Integration Tests', () => {
         op: HCS2Operation.REGISTER,
         t_id: '0.0.12345',
       };
-      const wrongProtocolResult = (client as any).validateMessage(wrongProtocol);
+      const wrongProtocolResult = (client as any).validateMessage(
+        wrongProtocol,
+      );
       expect(wrongProtocolResult.valid).toBe(false);
-      expect(wrongProtocolResult.errors).toContain('p: Invalid literal value, expected "hcs-2"');
-      
+      expect(wrongProtocolResult.errors).toContain(
+        'p: Invalid literal value, expected "hcs-2"',
+      );
+
       // Missing t_id in register
       const missingTargetId = {
         p: 'hcs-2',
         op: HCS2Operation.REGISTER,
       };
-      const missingTargetIdResult = (client as any).validateMessage(missingTargetId);
+      const missingTargetIdResult = (client as any).validateMessage(
+        missingTargetId,
+      );
       expect(missingTargetIdResult.valid).toBe(false);
       expect(missingTargetIdResult.errors).toContain(`t_id: Required`);
-      
+
       // Missing uid in update
       const missingUid = {
         p: 'hcs-2',
@@ -496,7 +527,7 @@ describe('HCS-2 Integration Tests', () => {
       const missingUidResult = (client as any).validateMessage(missingUid);
       expect(missingUidResult.valid).toBe(false);
       expect(missingUidResult.errors).toContain('uid: Required');
-      
+
       // Memo too long (over 500 chars)
       const longMemo = {
         p: 'hcs-2',
@@ -506,7 +537,9 @@ describe('HCS-2 Integration Tests', () => {
       };
       const longMemoResult = (client as any).validateMessage(longMemo);
       expect(longMemoResult.valid).toBe(false);
-      expect(longMemoResult.errors).toContain('m: Memo must not exceed 500 characters');
+      expect(longMemoResult.errors).toContain(
+        'm: Memo must not exceed 500 characters',
+      );
     });
 
     it('should handle attempts to get registry info from non-HCS-2 topics', async () => {
@@ -525,7 +558,7 @@ describe('HCS-2 Integration Tests', () => {
 
       // Try to treat it as an HCS-2 registry - should fail
       await expect(client.getRegistry(regularTopicId)).rejects.toThrow(
-        /not an HCS-2 registry/
+        /not an HCS-2 registry/,
       );
     }, 30000);
   });
@@ -607,7 +640,11 @@ describe('HCS-2 Integration Tests', () => {
     it('should detect ED25519 key type and retain the correct operator key', () => {
       const privateKey = PrivateKey.generateED25519();
       const keyString = privateKey.toString();
-      const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet' });
+      const client = new HCS2Client({
+        operatorId,
+        operatorKey: keyString,
+        network: 'testnet',
+      });
       expect(client.getKeyType()).toBe('ed25519');
       expect(client.getOperatorKey().toString()).toBe(keyString);
     });
@@ -616,7 +653,12 @@ describe('HCS-2 Integration Tests', () => {
       const privateKey = PrivateKey.generateECDSA();
       const raw = privateKey.toStringRaw();
       // Using raw hex for ECDSA
-      const client = new HCS2Client({ operatorId, operatorKey: raw, network: 'testnet', keyType: 'ecdsa' });
+      const client = new HCS2Client({
+        operatorId,
+        operatorKey: raw,
+        network: 'testnet',
+        keyType: 'ecdsa',
+      });
       expect(client.getKeyType()).toBe('ecdsa');
       expect(client.getOperatorKey().toStringRaw()).toBe(raw);
     });
@@ -625,13 +667,17 @@ describe('HCS-2 Integration Tests', () => {
       const privateKey = PrivateKey.generateECDSA();
       const raw = privateKey.toStringRaw();
       const keyString = '0x' + raw;
-      const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet' });
+      const client = new HCS2Client({
+        operatorId,
+        operatorKey: keyString,
+        network: 'testnet',
+      });
       expect(client.getKeyType()).toBe('ecdsa');
       expect(client.getOperatorKey().toStringRaw()).toBe(raw);
     });
   });
 
   afterAll(async () => {
-     client.close();
+    client.close();
   });
-}); 
+});

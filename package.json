@@ -57,6 +57,7 @@
     "demo:connection-manager": "tsx demo/hcs-10/connection-manager.ts",
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
     "demo:mcp-chat": "tsx demo/hcs-10/create-mcp-server.ts",
+    "demo:hcs12": "tsx demo/hcs-12/hcs12-demo.ts",
     "demo:hcs-20:deploy-and-mint": "tsx demo/hcs-20/deploy-and-mint.ts",
     "demo:hcs-20:deploy-points": "tsx demo/hcs-20/deploy-points.ts",
     "demo:hcs-20:mint-transfer-burn": "tsx demo/hcs-20/mint-transfer-burn.ts",

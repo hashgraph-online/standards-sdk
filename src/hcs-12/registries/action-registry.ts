@@ -82,7 +82,7 @@ export class ActionRegistry extends BaseRegistry {
       m: `${moduleInfo.name} v${moduleInfo.version}`,
     };
 
-    await this.register(registration);
+    const id = await this.register(registration);
     return registration;
   }
 
@@ -92,40 +92,61 @@ export class ActionRegistry extends BaseRegistry {
   async register(registration: ActionRegistration): Promise<string> {
     this.validateRegistration(registration);
 
-    const sequenceNumber = Date.now();
-    const id = this.topicId
-      ? `${this.topicId}_${sequenceNumber}`
-      : `local_${sequenceNumber}`;
-
-    const entry: RegistryEntry = {
-      id,
-      timestamp: new Date().toISOString(),
-      submitter: '0.0.123456',
-      data: registration,
-    };
-
-    this.entries.set(id, entry);
-    this.actionsByHash.set(registration.hash, registration);
-
     if (this.topicId && this.client) {
       this.logger.info('Submitting action registration to HCS', {
         topicId: this.topicId,
         hash: registration.hash,
         wasmHash: registration.wasm_hash,
       });
-      await this.client.submitMessage(
+
+      const result = await this.client.submitMessage(
         this.topicId,
         JSON.stringify(registration),
       );
+
+      const sequenceNumber = result.sequenceNumber;
+      if (!sequenceNumber) {
+        throw new Error('No sequence number returned from submission');
+      }
+
+      const entry: RegistryEntry = {
+        id: sequenceNumber.toString(),
+        sequenceNumber,
+        timestamp: new Date().toISOString(),
+        submitter:
+          'getHashConnect' in this.client
+            ? (await (this.client as HCS12BrowserClient).getAccountAndSigner())
+                .accountId
+            : this.client.getOperatorAccountId(),
+        data: registration,
+      };
+
+      this.entries.set(entry.id, entry);
+      this.actionsByHash.set(registration.hash, registration);
+
+      this.logger.info('Action registered', {
+        hash: registration.hash,
+        sequenceNumber,
+        hasSourceVerification: !!registration.source_verification,
+      });
+
+      return sequenceNumber.toString();
+    } else {
+      // Local testing mode
+      const sequenceNumber = this.entries.size + 1;
+      const entry: RegistryEntry = {
+        id: sequenceNumber.toString(),
+        sequenceNumber,
+        timestamp: new Date().toISOString(),
+        submitter: 'local',
+        data: registration,
+      };
+
+      this.entries.set(entry.id, entry);
+      this.actionsByHash.set(registration.hash, registration);
+
+      return sequenceNumber.toString();
     }
-
-    this.logger.info('Action registered', {
-      hash: registration.hash,
-      id,
-      hasSourceVerification: !!registration.source_verification,
-    });
-
-    return id;
   }
 
   /**
@@ -140,6 +161,51 @@ export class ActionRegistry extends BaseRegistry {
       return this.actionsByHash.get(hash) || null;
     }
 
+    return null;
+  }
+
+  /**
+   * Retrieve action by topic ID
+   */
+  async getActionByTopicId(topicId: string): Promise<ActionRegistration | null> {
+    this.logger.debug('getActionByTopicId called', { topicId });
+    console.log('DEBUG: getActionByTopicId called', { 
+      topicId,
+      cacheSize: this.actionsByHash.size,
+      cachedTopicIds: Array.from(this.actionsByHash.values()).map(a => a.t_id)
+    });
+    
+    // First check if we have it in cache
+    for (const action of this.actionsByHash.values()) {
+      if (action.t_id === topicId) {
+        this.logger.debug('Action found in cache', { topicId, action });
+        console.log('DEBUG: Action found in cache', { topicId, action });
+        return action;
+      }
+    }
+
+    // If not in cache, sync and try again
+    if (this.topicId && this.client) {
+      this.logger.debug('Action not in cache, syncing...', { topicId });
+      console.log('DEBUG: Action not in cache, syncing...');
+      await this.sync();
+      
+      console.log('DEBUG: After sync', {
+        cacheSize: this.actionsByHash.size,
+        cachedTopicIds: Array.from(this.actionsByHash.values()).map(a => a.t_id)
+      });
+      
+      for (const action of this.actionsByHash.values()) {
+        if (action.t_id === topicId) {
+          this.logger.debug('Action found after sync', { topicId, action });
+          console.log('DEBUG: Action found after sync', { topicId, action });
+          return action;
+        }
+      }
+    }
+
+    this.logger.warn('Action not found', { topicId });
+    console.log('DEBUG: Action not found', { topicId });
     return null;
   }
 

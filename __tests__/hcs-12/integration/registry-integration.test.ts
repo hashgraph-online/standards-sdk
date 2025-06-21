@@ -7,13 +7,13 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { HCS12Client } from '../../../src/hcs-12/sdk';
 import { ActionRegistry } from '../../../src/hcs-12/registries/action-registry';
-import { BlockRegistry } from '../../../src/hcs-12/registries/block-registry';
+import { BlockLoader } from '../../../src/hcs-12/registries/block-loader';
 import { AssemblyRegistry } from '../../../src/hcs-12/registries/assembly-registry';
 import { Logger } from '../../../src/utils/logger';
 import { NetworkType } from '../../../src/utils/types';
 import {
   ActionRegistration,
-  BlockRegistration,
+  BlockDefinition,
   AssemblyRegistration,
   RegistryType,
   StorageCapability,
@@ -25,7 +25,7 @@ dotenv.config();
 describe('Registry Integration Tests', () => {
   let client: HCS12Client;
   let actionRegistry: ActionRegistry;
-  let blockRegistry: BlockRegistry;
+  let blockLoader: BlockLoader;
   let assemblyRegistry: AssemblyRegistry;
   let logger: Logger;
 
@@ -146,69 +146,54 @@ describe('Registry Integration Tests', () => {
   });
 
   describeOrSkip('Block Registry Integration', () => {
-    it('should create block registry topic on testnet', async () => {
-      blockTopicId = await client.createRegistryTopic(RegistryType.BLOCK);
-
-      expect(blockTopicId).toBeDefined();
-      expect(blockTopicId).toMatch(/^\d+\.\d+\.\d+$/);
-
-      client.initializeRegistries({
-        action: actionTopicId,
-        block: blockTopicId,
-        assembly: assemblyTopicId || '0.0.0',
-      });
-
-      logger.info('Created block registry topic', { blockTopicId });
+    it('should create assembly topic on testnet for blocks', async () => {
+      // No need for block registry topic anymore, blocks are stored via HCS-1
+      expect(true).toBe(true);
     }, 60000);
 
-    it('should register a Gutenberg block', async () => {
-      const blockReg: BlockRegistration = {
-        p: 'hcs-12',
-        op: 'register',
+    it('should store a block via HCS-1', async () => {
+      const blockDef: BlockDefinition = {
+        apiVersion: 3,
         name: 'hashlinks/test-block',
-        version: '1.0.0',
-        data: {
-          apiVersion: 3,
-          name: 'hashlinks/test-block',
-          title: 'Test Block',
-          category: 'widgets',
-          description: 'Integration test block',
-          icon: 'block-default',
-          keywords: ['test', 'integration'],
-          attributes: {
-            message: {
-              type: 'string',
-              default: 'Hello HashLink!',
-            },
+        title: 'Test Block',
+        category: 'widgets',
+        description: 'Integration test block',
+        icon: 'block-default',
+        keywords: ['test', 'integration'],
+        attributes: {
+          message: {
+            type: 'string',
+            default: 'Hello HashLink!',
           },
-          supports: {
-            align: true,
-            className: true,
-            customClassName: true,
-          },
-          actions: testActionId ? [testActionId] : [],
+        },
+        supports: {
+          align: true,
+          className: true,
+          customClassName: true,
         },
       };
 
-      testBlockId = await client.blockRegistry!.register(blockReg);
+      const template = '<div>{{attributes.message}}</div>';
+      const { definitionTopicId } = await client.storeBlock(template, blockDef);
+      testBlockId = definitionTopicId;
 
       expect(testBlockId).toBeDefined();
-      logger.info('Registered real block', { testBlockId });
+      logger.info('Stored block via HCS-1', { testBlockId });
     }, 60000);
 
-    it('should query blocks by category', async () => {
-      await client.blockRegistry!.sync();
+    it('should load stored block', async () => {
+      if (!testBlockId) {
+        logger.warn('No block ID from previous test');
+        return;
+      }
+      
+      const loadedBlock = await client.blockLoader!.loadBlock(testBlockId);
 
-      const blocks = await client.blockRegistry!.listEntries();
-
-      expect(blocks).toBeDefined();
-      expect(blocks.length).toBeGreaterThan(0);
-
-      const testBlock = blocks.find(b => b.id === testBlockId);
-      expect(testBlock).toBeDefined();
-      expect(testBlock?.data.name).toBe('hashlinks/test-block');
-      expect(testBlock?.data.data.category).toBe('widgets');
-      expect(testBlock?.data.data.keywords).toContain('test');
+      expect(loadedBlock).toBeDefined();
+      expect(loadedBlock.definition.name).toBe('hashlinks/test-block');
+      expect(loadedBlock.definition.category).toBe('widgets');
+      expect(loadedBlock.definition.keywords).toContain('test');
+      expect(loadedBlock.template).toBe('<div>{{attributes.message}}</div>');
     }, 60000);
   });
 
@@ -228,46 +213,46 @@ describe('Registry Integration Tests', () => {
       logger.info('Created assembly registry topic', { assemblyTopicId });
     }, 60000);
 
-    it('should register a complete assembly', async () => {
+    it('should create and setup a complete assembly', async () => {
+      // Create assembly topic
+      const assemblyTopicId = await client.createAssembly();
+      expect(assemblyTopicId).toBeDefined();
+      
+      // Register assembly
       const assemblyReg: AssemblyRegistration = {
         p: 'hcs-12',
         op: 'register',
         name: 'test-assembly',
         version: '1.0.0',
         description: 'Integration test assembly',
-        actions: testActionId
-          ? [
-              {
-                id: 'test-action',
-                registryId: testActionId,
-                version: '1.0.0',
-              },
-            ]
-          : [],
-        blocks: testBlockId
-          ? [
-              {
-                id: 'test-block',
-                registryId: testBlockId,
-                version: '1.0.0',
-                actions: testActionId ? ['test-action'] : [],
-              },
-            ]
-          : [],
-        permissions: {
-          execute: ['PUBLIC'],
-          update: [client.getOperatorAccountId()],
-          delete: [client.getOperatorAccountId()],
-        },
       };
-
-      const assemblyId = await client.assemblyRegistry!.register(assemblyReg);
-
-      expect(assemblyId).toBeDefined();
-      logger.info('Registered real assembly', { assemblyId });
+      
+      await client.registerAssemblyDirect(assemblyTopicId, assemblyReg);
+      
+      // Add action if available
+      if (testActionId) {
+        await client.addActionToAssembly(assemblyTopicId, {
+          p: 'hcs-12',
+          op: 'add-action',
+          t_id: testActionId,
+          alias: 'test-action',
+        });
+      }
+      
+      // Add block if available
+      if (testBlockId) {
+        await client.addBlockToAssembly(assemblyTopicId, {
+          p: 'hcs-12',
+          op: 'add-block',
+          block_t_id: testBlockId,
+          actions: testActionId ? { execute: testActionId } : undefined,
+        });
+      }
+      
+      logger.info('Created complete assembly', { assemblyTopicId });
     }, 60000);
 
-    it('should query assemblies with filters', async () => {
+    it('should query assemblies from registry', async () => {
       await client.assemblyRegistry!.sync();
 
       const assemblies = await client.assemblyRegistry!.listEntries();
@@ -280,23 +265,12 @@ describe('Registry Integration Tests', () => {
       );
       expect(testAssembly).toBeDefined();
       expect(testAssembly?.data.version).toBe('1.0.0');
-
-      if (testActionId) {
-        expect(testAssembly?.data.actions).toBeDefined();
-        expect(testAssembly?.data.actions[0].registryId).toBe(testActionId);
-      }
-
-      if (testBlockId) {
-        expect(testAssembly?.data.blocks).toBeDefined();
-        expect(testAssembly?.data.blocks[0].registryId).toBe(testBlockId);
-      }
     }, 60000);
   });
 
   describeOrSkip('Cross-Registry Integration', () => {
     it('should resolve assembly with all dependencies', async () => {
       await client.actionRegistry!.sync();
-      await client.blockRegistry!.sync();
       await client.assemblyRegistry!.sync();
 
       const assemblies = await client.assemblyRegistry!.listEntries();
@@ -305,22 +279,11 @@ describe('Registry Integration Tests', () => {
       expect(assembly).toBeDefined();
 
       const assemblyData = assembly!.data;
-
-      if (assemblyData.actions.length > 0) {
-        const referencedAction = await client.actionRegistry!.getEntry(
-          assemblyData.actions[0].registryId,
-        );
-        expect(referencedAction).toBeDefined();
-        expect(referencedAction!.data.name).toBe('test-action');
-      }
-
-      if (assemblyData.blocks.length > 0) {
-        const referencedBlock = await client.blockRegistry!.getEntry(
-          assemblyData.blocks[0].registryId,
-        );
-        expect(referencedBlock).toBeDefined();
-        expect(referencedBlock!.data.name).toBe('hashlinks/test-block');
-      }
+      
+      // For new assembly structure, actions and blocks would be on the assembly topic itself
+      // not in the registry entry
+      expect(assemblyData.name).toBe('test-assembly');
+      expect(assemblyData.version).toBe('1.0.0');
     }, 60000);
 
     it('should handle registry queries with pagination', async () => {

@@ -15,8 +15,21 @@ import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import { HCS12BaseClient, HCS12Config } from './base-client';
 import { Logger } from '../utils/logger';
-import { ActionRegistry, BlockRegistry, AssemblyRegistry, HashLinksRegistry } from './registries';
-import { RegistryType } from './types';
+import {
+  ActionRegistry,
+  BlockLoader,
+  AssemblyRegistry,
+  HashLinksRegistry,
+} from './registries';
+import {
+  RegistryType,
+  ActionRegistration,
+  AssemblyRegistration,
+  AssemblyAddBlock,
+  AssemblyAddAction,
+  AssemblyUpdate,
+  BlockDefinition,
+} from './types';
 
 /**
  * Configuration for HCS-12 browser client
@@ -102,7 +115,6 @@ export class HCS12BrowserClient extends HCS12BaseClient {
    */
   initializeRegistries(topicIds?: {
     action?: string;
-    block?: string;
     assembly?: string;
     hashlinks?: string;
   }): void {
@@ -115,12 +127,7 @@ export class HCS12BrowserClient extends HCS12BaseClient {
       this,
     );
 
-    this._blockRegistry = new BlockRegistry(
-      this.network,
-      this.logger,
-      this._blockRegistryTopicId,
-      this,
-    );
+    this._blockLoader = new BlockLoader(this.network, this.logger, this);
 
     this._assemblyRegistry = new AssemblyRegistry(
       this.network,
@@ -138,7 +145,6 @@ export class HCS12BrowserClient extends HCS12BaseClient {
 
     this.logger.info('Registries initialized with signer', {
       actionTopicId: this.actionRegistryTopicId,
-      blockTopicId: this._blockRegistryTopicId,
       assemblyTopicId: this._assemblyRegistryTopicId,
       hashLinksTopicId: this._hashLinksRegistryTopicId,
     });
@@ -156,7 +162,6 @@ export class HCS12BrowserClient extends HCS12BaseClient {
 
     const memos: Record<RegistryType, string> = {
       [RegistryType.ACTION]: 'hcs-12:1:60:0',
-      [RegistryType.BLOCK]: 'hcs-12:1:60:1',
       [RegistryType.ASSEMBLY]: 'hcs-12:1:60:2',
       [RegistryType.HASHLINKS]: 'hcs-12:1:60:3',
     };
@@ -213,9 +218,6 @@ export class HCS12BrowserClient extends HCS12BaseClient {
       case RegistryType.ACTION:
         this.actionRegistryTopicId = topicId;
         break;
-      case RegistryType.BLOCK:
-        this._blockRegistryTopicId = topicId;
-        break;
       case RegistryType.ASSEMBLY:
         this._assemblyRegistryTopicId = topicId;
         break;
@@ -227,9 +229,109 @@ export class HCS12BrowserClient extends HCS12BaseClient {
   }
 
   /**
+   * Create a new assembly topic
+   */
+  async createAssembly(): Promise<string> {
+    this.logger.info('Creating new assembly topic');
+    const topicId = await this.createRegistryTopic(RegistryType.ASSEMBLY);
+    return topicId;
+  }
+
+  /**
+   * Register an assembly on its own topic
+   */
+  async registerAssemblyDirect(
+    assemblyTopicId: string,
+    registration: AssemblyRegistration,
+  ): Promise<{ transactionId: string; sequenceNumber?: number }> {
+    this.logger.info('Registering assembly', {
+      topicId: assemblyTopicId,
+      name: registration.name,
+      version: registration.version,
+    });
+
+    return this._submitMessage(assemblyTopicId, JSON.stringify(registration));
+  }
+
+  /**
+   * Add a block to an assembly
+   */
+  async addBlockToAssembly(
+    assemblyTopicId: string,
+    block: AssemblyAddBlock,
+  ): Promise<{ transactionId: string; sequenceNumber?: number }> {
+    this.logger.info('Adding block to assembly', {
+      assemblyTopicId,
+      blockTopicId: block.block_t_id,
+    });
+
+    return this._submitMessage(assemblyTopicId, JSON.stringify(block));
+  }
+
+  /**
+   * Add an action to an assembly
+   */
+  async addActionToAssembly(
+    assemblyTopicId: string,
+    action: AssemblyAddAction,
+  ): Promise<{ transactionId: string; sequenceNumber?: number }> {
+    this.logger.info('Adding action to assembly', {
+      assemblyTopicId,
+      actionTopicId: action.t_id,
+      alias: action.alias,
+    });
+
+    return this._submitMessage(assemblyTopicId, JSON.stringify(action));
+  }
+
+  /**
+   * Update assembly metadata
+   */
+  async updateAssembly(
+    assemblyTopicId: string,
+    update: AssemblyUpdate,
+  ): Promise<{ transactionId: string; sequenceNumber?: number }> {
+    this.logger.info('Updating assembly', {
+      assemblyTopicId,
+      update,
+    });
+
+    return this._submitMessage(assemblyTopicId, JSON.stringify(update));
+  }
+
+  /**
+   * Store a block (definition and template) via HCS-1
+   */
+  async storeBlock(
+    template: string,
+    definition: BlockDefinition,
+  ): Promise<{ definitionTopicId: string; templateTopicId: string }> {
+    if (!this.blockLoader) {
+      throw new Error('Block loader not initialized');
+    }
+
+    return this.blockLoader.storeBlock(template, definition);
+  }
+
+  /**
    * Submit a message to an HCS topic
+   * @deprecated Use operation-specific methods instead
    */
   async submitMessage(
+    topicId: string,
+    message: string,
+    submitKey?: PrivateKey,
+  ): Promise<{ transactionId: string; sequenceNumber?: number }> {
+    this.logger.warn(
+      'submitMessage is deprecated. Use operation-specific methods instead.',
+    );
+    return this._submitMessage(topicId, message, submitKey);
+  }
+
+  /**
+   * Internal method to submit a message to an HCS topic
+   */
+  private async _submitMessage(
     topicId: string,
     message: string,
     submitKey?: PrivateKey,

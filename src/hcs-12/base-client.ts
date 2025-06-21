@@ -4,17 +4,19 @@ import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import {
   ActionRegistry,
-  BlockRegistry,
+  BlockLoader,
   AssemblyRegistry,
   HashLinksRegistry,
 } from './registries';
 import {
   ActionRegistration,
-  BlockRegistration,
+  BlockDefinition,
   AssemblyRegistration,
   HashLinksRegistration,
   RegistryType,
+  AssemblyState,
 } from './types';
+import { AssemblyEngine, Assembly } from './assembly';
 
 /**
  * Configuration for HCS-12 client
@@ -45,12 +47,12 @@ export abstract class HCS12BaseClient {
   public mirrorNode: HederaMirrorNode;
 
   protected _actionRegistry?: ActionRegistry;
-  protected _blockRegistry?: BlockRegistry;
+  protected _blockLoader?: BlockLoader;
   protected _assemblyRegistry?: AssemblyRegistry;
   protected _hashLinksRegistry?: HashLinksRegistry;
+  protected _assemblyEngine?: AssemblyEngine;
 
   protected actionRegistryTopicId?: string;
-  protected _blockRegistryTopicId?: string;
   protected _assemblyRegistryTopicId?: string;
   protected _hashLinksRegistryTopicId?: string;
 
@@ -78,12 +80,10 @@ export abstract class HCS12BaseClient {
    */
   protected initializeRegistries(topicIds?: {
     action?: string;
-    block?: string;
     assembly?: string;
     hashlinks?: string;
   }): void {
     this.actionRegistryTopicId = topicIds?.action;
-    this._blockRegistryTopicId = topicIds?.block;
     this._assemblyRegistryTopicId = topicIds?.assembly;
     this._hashLinksRegistryTopicId = topicIds?.hashlinks;
   }
@@ -121,20 +121,6 @@ export abstract class HCS12BaseClient {
   }
 
   /**
-   * Register a new block in the block registry
-   */
-  async registerBlock(
-    registration: BlockRegistration,
-  ): Promise<{ id: string; transactionId?: string }> {
-    if (!this._blockRegistry) {
-      throw new Error('Block registry not initialized');
-    }
-
-    const id = await this._blockRegistry.register(registration);
-    return { id };
-  }
-
-  /**
    * Register a new assembly in the assembly registry
    */
   async registerAssembly(
@@ -160,14 +146,21 @@ export abstract class HCS12BaseClient {
   }
 
   /**
-   * Get block by ID
+   * Load block from HCS-1
    */
-  async getBlock(id: string): Promise<BlockRegistration | null> {
-    if (!this._blockRegistry) {
-      throw new Error('Block registry not initialized');
+  async loadBlock(blockTopicId: string): Promise<{
+    definition: BlockDefinition;
+    template: string;
+  }> {
+    if (!this._blockLoader) {
+      this._blockLoader = new BlockLoader(
+        this.network,
+        this.logger,
+        this as any,
+      );
     }
 
-    return this._blockRegistry.getBlock(id);
+    return this._blockLoader.loadBlock(blockTopicId);
   }
 
   /**
@@ -176,12 +169,84 @@ export abstract class HCS12BaseClient {
   async getAssembly(
     name: string,
     version: string,
-  ): Promise<AssemblyRegistration | null> {
+  ): Promise<AssemblyState | null> {
     if (!this._assemblyRegistry) {
       throw new Error('Assembly registry not initialized');
     }
 
-    return this._assemblyRegistry.getAssembly(name, version);
+    const entries = await this._assemblyRegistry.listEntries();
+    for (const entry of entries) {
+      const state = await this._assemblyRegistry.getAssemblyState(entry.id);
+      if (state && state.name === name && state.version === version) {
+        return state;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Load and resolve a complete assembly by topic ID
+   */
+  async loadAssembly(topicId: string): Promise<Assembly> {
+    // Ensure action registry is synced first
+    if (this._actionRegistry) {
+      this.logger.info('Syncing action registry before loading assembly');
+      await this._actionRegistry.sync();
+    }
+    
+    // Create a new assembly registry for this specific assembly topic
+    const assemblyRegistry = new AssemblyRegistry(
+      this.network,
+      this.logger,
+      topicId,
+      this as any
+    );
+    
+    // Sync to get all messages from the assembly topic
+    await assemblyRegistry.sync();
+    
+    // Create assembly engine with the correct registry
+    const assemblyEngine = new AssemblyEngine(
+      this.logger,
+      assemblyRegistry,
+      this._actionRegistry!,
+      this._blockLoader!
+    );
+    
+    return assemblyEngine.loadAndResolveAssembly(topicId);
+  }
+
+  /**
+   * Get assembly state by topic ID (without resolving references)
+   */
+  async getAssemblyState(topicId: string): Promise<AssemblyState | null> {
+    if (!this._assemblyRegistry) {
+      throw new Error('Assembly registry not initialized');
+    }
+    return this._assemblyRegistry.getAssemblyState(topicId);
+  }
+
+  /**
+   * Ensure assembly engine is initialized
+   */
+  protected ensureAssemblyEngine(): void {
+    if (!this._assemblyEngine) {
+      if (
+        !this._actionRegistry ||
+        !this._blockLoader ||
+        !this._assemblyRegistry
+      ) {
+        throw new Error(
+          'Registries must be initialized before assembly engine',
+        );
+      }
+      this._assemblyEngine = new AssemblyEngine(
+        this.logger,
+        this._assemblyRegistry,
+        this._actionRegistry,
+        this._blockLoader,
+      );
+    }
   }
 
   /**
@@ -257,9 +322,7 @@ export abstract class HCS12BaseClient {
     if (this._actionRegistry) {
       promises.push(this._actionRegistry.sync());
     }
-    if (this._blockRegistry) {
-      promises.push(this._blockRegistry.sync());
-    }
+    // Block loader doesn't need syncing as it loads from HCS-1
     if (this._assemblyRegistry) {
       promises.push(this._assemblyRegistry.sync());
     }
@@ -275,13 +338,11 @@ export abstract class HCS12BaseClient {
    */
   getRegistryTopicIds(): {
     action?: string;
-    block?: string;
     assembly?: string;
     hashlinks?: string;
   } {
     return {
       action: this.actionRegistryTopicId,
-      block: this._blockRegistryTopicId,
       assembly: this._assemblyRegistryTopicId,
       hashlinks: this._hashLinksRegistryTopicId,
     };
@@ -292,7 +353,7 @@ export abstract class HCS12BaseClient {
    */
   clearCaches(): void {
     this._actionRegistry?.clearCache();
-    this._blockRegistry?.clearCache();
+    this._blockLoader?.clearCache();
     this._assemblyRegistry?.clearCache();
     this._hashLinksRegistry?.clearCache();
   }
@@ -305,10 +366,10 @@ export abstract class HCS12BaseClient {
   }
 
   /**
-   * Get the block registry instance
+   * Get the block loader instance
    */
-  get blockRegistry(): BlockRegistry | undefined {
-    return this._blockRegistry;
+  get blockLoader(): BlockLoader | undefined {
+    return this._blockLoader;
   }
 
   /**

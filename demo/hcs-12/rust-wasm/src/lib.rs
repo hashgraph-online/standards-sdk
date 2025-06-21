@@ -104,7 +104,7 @@ impl WasmInterface {
                             }),
                         },
                         ParameterDefinition {
-                            name: "current_count".to_string(),
+                            name: "count".to_string(),
                             param_type: "number".to_string(),
                             description: "Current counter value".to_string(),
                             required: true,
@@ -113,7 +113,7 @@ impl WasmInterface {
                     ],
                     outputs: vec![
                         ParameterDefinition {
-                            name: "new_count".to_string(),
+                            name: "count".to_string(),
                             param_type: "number".to_string(),
                             description: "Updated counter value".to_string(),
                             required: true,
@@ -137,7 +137,7 @@ impl WasmInterface {
                             }),
                         },
                         ParameterDefinition {
-                            name: "current_count".to_string(),
+                            name: "count".to_string(),
                             param_type: "number".to_string(),
                             description: "Current counter value".to_string(),
                             required: true,
@@ -146,7 +146,7 @@ impl WasmInterface {
                     ],
                     outputs: vec![
                         ParameterDefinition {
-                            name: "new_count".to_string(),
+                            name: "count".to_string(),
                             param_type: "number".to_string(),
                             description: "Updated counter value".to_string(),
                             required: true,
@@ -161,7 +161,7 @@ impl WasmInterface {
                     inputs: vec![],
                     outputs: vec![
                         ParameterDefinition {
-                            name: "new_count".to_string(),
+                            name: "count".to_string(),
                             param_type: "number".to_string(),
                             description: "Reset counter value (0)".to_string(),
                             required: true,
@@ -203,16 +203,16 @@ impl WasmInterface {
                     .and_then(|v| v.as_f64())
                     .unwrap_or(1.0) as i32;
 
-                let current_count = params_json.get("current_count")
+                let count = params_json.get("count")
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| JsValue::from_str("Missing required parameter: current_count"))? as i32;
+                    .ok_or_else(|| JsValue::from_str("Missing required parameter: count"))? as i32;
 
-                let new_count = current_count + amount;
+                let new_count = count + amount;
 
                 Ok(json!({
                     "success": true,
                     "data": {
-                        "new_count": new_count
+                        "count": new_count
                     },
                     "message": format!("Counter incremented by {} to {}", amount, new_count)
                 }).to_string())
@@ -222,16 +222,16 @@ impl WasmInterface {
                     .and_then(|v| v.as_f64())
                     .unwrap_or(1.0) as i32;
 
-                let current_count = params_json.get("current_count")
+                let count = params_json.get("count")
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| JsValue::from_str("Missing required parameter: current_count"))? as i32;
+                    .ok_or_else(|| JsValue::from_str("Missing required parameter: count"))? as i32;
 
-                let new_count = current_count - amount;
+                let new_count = count - amount;
 
                 Ok(json!({
                     "success": true,
                     "data": {
-                        "new_count": new_count
+                        "count": new_count
                     },
                     "message": format!("Counter decremented by {} to {}", amount, new_count)
                 }).to_string())
@@ -240,7 +240,7 @@ impl WasmInterface {
                 Ok(json!({
                     "success": true,
                     "data": {
-                        "new_count": 0
+                        "count": 0
                     },
                     "message": "Counter reset to 0"
                 }).to_string())

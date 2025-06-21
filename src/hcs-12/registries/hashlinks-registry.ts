@@ -12,6 +12,7 @@ import { hashLinksRegistrationSchema } from '../validation/schemas';
 import { validateWithSchema } from '../validation';
 import type { NetworkType } from '../../utils/types';
 import type { HCS12Client } from '../sdk';
+import type { HCS12BrowserClient } from '../browser';
 
 /**
  * Registry for managing HashLinks directory entries
@@ -21,7 +22,7 @@ export class HashLinksRegistry extends BaseRegistry {
     networkType: NetworkType,
     logger: Logger,
     topicId?: string,
-    client?: HCS12Client,
+    client?: HCS12Client | HCS12BrowserClient,
   ) {
     super(networkType, logger, RegistryType.HASHLINKS, topicId, client);
   }
@@ -35,8 +36,12 @@ export class HashLinksRegistry extends BaseRegistry {
     const id = `${this.topicId || 'local'}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const entry: RegistryEntry = {
       id,
+      sequenceNumber: 0,
       timestamp: new Date().toISOString(),
-      submitter: this.client?.getOperatorAccountId() || 'local',
+      submitter:
+        this.client && 'getHashConnect' in this.client
+          ? 'browser'
+          : this.client?.getOperatorAccountId() || 'local',
       data,
     };
 
@@ -46,10 +51,21 @@ export class HashLinksRegistry extends BaseRegistry {
       try {
         const message = JSON.stringify(data);
         const result = await this.client.submitMessage(this.topicId, message);
+
+        if (result.sequenceNumber) {
+          entry.sequenceNumber = result.sequenceNumber;
+          entry.id = result.sequenceNumber.toString();
+          this.entries.delete(id);
+          this.entries.set(entry.id, entry);
+        }
+
         this.logger.info('HashLink submitted to HCS', {
           transactionId: result.transactionId,
+          sequenceNumber: result.sequenceNumber,
           topicId: this.topicId,
         });
+
+        return entry.id;
       } catch (error) {
         this.logger.error('Failed to submit HashLink to HCS', { error });
 

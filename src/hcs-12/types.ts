@@ -179,23 +179,6 @@ export interface ExternalApiCapability {
 }
 
 /**
- * Block definition for UI components
- */
-export interface BlockDefinition {
-  p: 'hcs-12';
-  op: 'register' | 'template' | 'pattern';
-  id: string;
-  registryId: string;
-  version: string;
-  blockJson?: GutenbergBlockType;
-  t_id?: string;
-  title?: string;
-  description?: string;
-  categories?: string[];
-  content?: any;
-}
-
-/**
  * WordPress Gutenberg block type definition
  */
 export interface GutenbergBlockType {
@@ -284,26 +267,21 @@ export interface HCS12ValidationError {
  * Assembly action reference
  */
 export interface AssemblyAction {
-  id: string;
-  registryId: string;
-  version?: string;
-  defaultParams?: Record<string, any>;
-  hash?: string;
-  alias?: string;
+  t_id: string; // Action topic ID (non-indexed)
+  alias: string; // Local name for this action
+  config?: any; // Optional action configuration
+  data?: string; // HCS-1 topic for large configs
 }
 
 /**
  * Assembly block reference
  */
 export interface AssemblyBlock {
-  id: string;
-  registryId: string;
-  version?: string;
-  actions?: string[];
-  attributes?: Record<string, any>;
-  children?: string[];
-  name?: string;
-  config?: Record<string, any>;
+  block_t_id: string; // Block definition topic ID (HCS-1)
+  actions?: Record<string, string>; // Map of action names to topic IDs
+  attributes?: Record<string, any>; // Override default attributes
+  children?: string[]; // Child block aliases
+  data?: string; // HCS-1 topic for large configs
 }
 
 /**
@@ -315,9 +293,6 @@ export interface AssemblyDependency {
   registry?: string;
 }
 
-/**
- * Assembly definition for composing actions and blocks
- */
 /**
  * HashLinks directory registration
  */
@@ -336,48 +311,82 @@ export interface HashLinksRegistration {
 }
 
 /**
- * Assembly definition for composing actions and blocks
+ * Assembly operations
  */
-export interface AssemblyDefinition {
+export type AssemblyOperation =
+  | 'register'
+  | 'add-action'
+  | 'add-block'
+  | 'update';
+
+/**
+ * Base assembly message
+ */
+export interface AssemblyMessage {
   p: 'hcs-12';
+  op: AssemblyOperation;
+}
+
+/**
+ * Assembly registration message
+ */
+export interface AssemblyRegistration extends AssemblyMessage {
   op: 'register';
   name: string;
   version: string;
   description?: string;
   tags?: string[];
+  author?: string;
+}
 
-  actions?: Array<{
-    id: string;
-    registryId: string;
-    version?: string;
-    defaultParams?: Record<string, any>;
-  }>;
+/**
+ * Add action to assembly
+ */
+export interface AssemblyAddAction extends AssemblyMessage {
+  op: 'add-action';
+  t_id: string; // Action topic ID
+  alias: string; // Local name
+  config?: any; // Optional configuration
+  data?: string; // HCS-1 topic for large config
+}
 
-  blocks?: Array<{
-    id: string;
-    registryId: string;
-    version?: string;
-    actions?: string[];
-    attributes?: Record<string, any>;
-    children?: string[];
-    bindings?: Array<{
-      action: string;
-      parameters: Record<string, any>;
-    }>;
-  }>;
+/**
+ * Add block to assembly
+ */
+export interface AssemblyAddBlock extends AssemblyMessage {
+  op: 'add-block';
+  block_t_id: string; // Block definition topic ID (HCS-1)
+  actions?: Record<string, string>; // Map of action names to topic IDs
+  attributes?: Record<string, any>; // Override defaults
+  children?: string[]; // Child blocks by alias
+  data?: string; // HCS-1 topic for large config
+}
 
-  layout?: {
-    type: 'vertical' | 'horizontal' | 'grid';
-    responsive?: boolean;
-    containerClass?: string;
-  };
+/**
+ * Update assembly metadata
+ */
+export interface AssemblyUpdate extends AssemblyMessage {
+  op: 'update';
+  description?: string;
+  tags?: string[];
+}
 
-  source_verification?: {
-    source_t_id: string;
-    source_hash: string;
-    description?: string;
-  };
-  t_id?: string;
+/**
+ * Complete assembly state (built from operations)
+ */
+export interface AssemblyState {
+  topicId: string; // The assembly topic ID
+  name: string;
+  version: string;
+  description?: string;
+  tags?: string[];
+  author?: string;
+
+  actions: AssemblyAction[];
+  blocks: AssemblyBlock[];
+
+  created: string;
+  updated: string;
 }
 
 /**
@@ -389,6 +398,9 @@ export interface ActionRegistration {
   t_id: string;
   hash: string;
   wasm_hash: string;
+  js_t_id?: string;
+  js_hash?: string;
+  interface_version?: string;
   info_t_id?: string;
   source_verification?: SourceVerification;
   previous_version?: string;
@@ -397,27 +409,21 @@ export interface ActionRegistration {
   m?: string;
 }
 
-export interface BlockRegistration {
-  p: 'hcs-12';
-  op: 'register' | 'template';
+export interface BlockDefinition {
+  apiVersion: number;
   name: string;
-  version: string;
-  data?: GutenbergBlockType | string;
-  t_id?: string;
-  id?: string;
-  title?: string;
-  category?: string;
+  title: string;
+  category: string;
+  template_t_id: string;
+  icon?: string | BlockIcon;
   description?: string;
-  icon?: string;
   keywords?: string[];
+  textdomain?: string;
+  attributes: Record<string, AttributeDefinition>;
+  provides?: Record<string, any>;
+  usesContext?: string[];
+  supports: BlockSupports;
   parent?: string | string[];
-  styles?: string[];
-  attributes?: Record<string, AttributeDefinition>;
-  supports?: BlockSupports;
-  blockJson?: GutenbergBlockType;
-  definition?: {
-    attributes?: Record<string, any>;
-  };
 }
 
 export interface AssemblyRegistration {
@@ -437,21 +443,9 @@ export interface AssemblyRegistration {
   dependencies?: AssemblyDependency[];
   workflow?: AssemblyWorkflowStep[];
 
-  actions?: Array<{
-    id: string;
-    registryId: string;
-    version?: string;
-    defaultParams?: Record<string, any>;
-  }>;
+  actions?: AssemblyAction[];
 
-  blocks?: Array<{
-    id: string;
-    registryId: string;
-    version?: string;
-    actions?: string[];
-    attributes?: Record<string, any>;
-    children?: string[];
-  }>;
+  blocks?: AssemblyBlock[];
 
   layout?: {
     type: 'vertical' | 'horizontal' | 'grid';
@@ -519,7 +513,6 @@ export interface HashLinkReference {
  */
 export enum RegistryType {
   ACTION = 0,
-  BLOCK = 1,
   ASSEMBLY = 2,
   HASHLINKS = 3,
 }
@@ -528,7 +521,8 @@ export enum RegistryType {
  * Common registry entry interface
  */
 export interface RegistryEntry {
-  id: string;
+  id: string; // Sequence number from the topic
+  sequenceNumber: number; // Numeric sequence number for clarity
   timestamp: string;
   submitter: string;
   data: any;
@@ -619,7 +613,7 @@ export interface RegisterPayload {
  * Template payload for blocks
  */
 export interface TemplatePayload {
-  block: BlockRegistration;
+  block: BlockDefinition;
   template: string;
 }
 
@@ -636,7 +630,7 @@ export interface PatternPayload {
  * Compose payload for assemblies
  */
 export interface ComposePayload {
-  assembly: AssemblyDefinition;
+  assembly: AssemblyState;
   composition: CompositionDefinition;
 }
 

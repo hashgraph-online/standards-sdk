@@ -7,7 +7,7 @@
 
 import { Logger } from '../../utils/logger';
 import {
-  BlockRegistration,
+  BlockDefinition,
   GutenbergBlockType,
   BlockAttribute,
   BlockSupports,
@@ -44,30 +44,27 @@ export class GutenbergBridge {
   }
 
   /**
-   * Convert HashLinks BlockRegistration to Gutenberg block format
+   * Convert HashLinks BlockDefinition to Gutenberg block format
    */
-  convertToGutenberg(blockRegistration: BlockRegistration): GutenbergBlockType {
-    this.logger.debug('Converting BlockRegistration to Gutenberg format', {
-      name: blockRegistration.name,
-      version: blockRegistration.version,
+  convertToGutenberg(blockDefinition: BlockDefinition): GutenbergBlockType {
+    this.logger.debug('Converting BlockDefinition to Gutenberg format', {
+      name: blockDefinition.name,
     });
 
-    if (!blockRegistration || !blockRegistration.data) {
-      throw new Error('Invalid block registration: missing data');
-    }
-
-    if (typeof blockRegistration.data === 'string') {
-      throw new Error(
-        'Cannot convert HCS-1 reference to Gutenberg format without fetching data',
-      );
-    }
-
-    if (!blockRegistration.name || !blockRegistration.data.name) {
-      throw new Error('Invalid block registration: missing block name');
+    if (!blockDefinition || !blockDefinition.name) {
+      throw new Error('Invalid block definition: missing name');
     }
 
     const gutenbergBlock: GutenbergBlockType = {
-      ...blockRegistration.data,
+      apiVersion: blockDefinition.apiVersion,
+      name: blockDefinition.name,
+      title: blockDefinition.title,
+      category: blockDefinition.category,
+      icon: blockDefinition.icon,
+      description: blockDefinition.description,
+      keywords: blockDefinition.keywords,
+      attributes: blockDefinition.attributes,
+      supports: blockDefinition.supports,
     };
 
     if (!gutenbergBlock.attributes) {
@@ -87,10 +84,10 @@ export class GutenbergBridge {
   }
 
   /**
-   * Parse Gutenberg block to HashLinks BlockRegistration format
+   * Parse Gutenberg block to HashLinks BlockDefinition format
    */
-  parseFromGutenberg(gutenbergBlock: GutenbergBlockType): BlockRegistration {
-    this.logger.debug('Parsing Gutenberg block to BlockRegistration', {
+  parseFromGutenberg(gutenbergBlock: GutenbergBlockType): BlockDefinition {
+    this.logger.debug('Parsing Gutenberg block to BlockDefinition', {
       name: gutenbergBlock.name,
     });
 
@@ -102,26 +99,31 @@ export class GutenbergBridge {
       throw new Error('Invalid Gutenberg block: missing title');
     }
 
-    const blockRegistration: BlockRegistration = {
-      p: 'hcs-12',
-      op: 'register',
+    const blockDefinition: BlockDefinition = {
+      apiVersion: gutenbergBlock.apiVersion || 3,
       name: gutenbergBlock.name,
-      version: '1.0.0',
-      data: gutenbergBlock,
+      title: gutenbergBlock.title,
+      category: gutenbergBlock.category || 'common',
+      template_t_id: '', // This would need to be provided separately
+      icon: gutenbergBlock.icon,
+      description: gutenbergBlock.description,
+      keywords: gutenbergBlock.keywords,
+      attributes: gutenbergBlock.attributes || {},
+      supports: gutenbergBlock.supports || {},
     };
 
     this.logger.debug('Parsed from Gutenberg format', {
-      name: blockRegistration.name,
+      name: blockDefinition.name,
     });
 
-    return blockRegistration;
+    return blockDefinition;
   }
 
   /**
    * Validate block structure for Gutenberg compatibility
    */
   validateBlockStructure(
-    blockRegistration: BlockRegistration,
+    blockRegistration: BlockDefinition,
   ): GutenbergValidationResult {
     this.logger.debug('Validating block structure', {
       name: blockRegistration.name,
@@ -162,7 +164,7 @@ export class GutenbergBridge {
    * Validate basic block structure
    */
   private validateBasicStructure(
-    blockRegistration: BlockRegistration,
+    blockRegistration: BlockDefinition,
     result: GutenbergValidationResult,
   ): void {
     if (!blockRegistration.name || blockRegistration.name.trim() === '') {
@@ -174,8 +176,8 @@ export class GutenbergBridge {
       });
     }
 
-    if (blockRegistration.data && typeof blockRegistration.data === 'object') {
-      if (!blockRegistration.data.title) {
+    if (blockRegistration) {
+      if (!blockRegistration.title) {
         result.errors.push({
           code: 'MISSING_TITLE',
           message: 'Block title is required',
@@ -184,7 +186,7 @@ export class GutenbergBridge {
         });
       }
 
-      if (!blockRegistration.data.description) {
+      if (!blockRegistration.description) {
         result.warnings.push({
           code: 'MISSING_DESCRIPTION',
           message: 'Block description improves usability',
@@ -194,7 +196,7 @@ export class GutenbergBridge {
       }
     }
 
-    if (!blockRegistration.data) {
+    if (!blockRegistration) {
       result.errors.push({
         code: 'MISSING_BLOCK_JSON',
         message: 'data is required for Gutenberg compatibility',
@@ -208,7 +210,7 @@ export class GutenbergBridge {
    * Validate block name format
    */
   private validateBlockName(
-    blockRegistration: BlockRegistration,
+    blockRegistration: BlockDefinition,
     result: GutenbergValidationResult,
   ): void {
     if (!blockRegistration.name) return;
@@ -224,11 +226,7 @@ export class GutenbergBridge {
       });
     }
 
-    if (
-      blockRegistration.data &&
-      typeof blockRegistration.data === 'object' &&
-      blockRegistration.data.name !== blockRegistration.name
-    ) {
+    if (blockRegistration && blockRegistration.name) {
       result.warnings.push({
         code: 'NAME_MISMATCH',
         message: 'Block name should match data.name',
@@ -242,14 +240,12 @@ export class GutenbergBridge {
    * Validate block attributes
    */
   private validateAttributes(
-    blockRegistration: BlockRegistration,
+    blockRegistration: BlockDefinition,
     result: GutenbergValidationResult,
   ): void {
-    if (!blockRegistration.data || typeof blockRegistration.data === 'string')
-      return;
-    if (!blockRegistration.data.attributes) return;
+    if (!blockRegistration || !blockRegistration.attributes) return;
 
-    const attributes = blockRegistration.data.attributes;
+    const attributes = blockRegistration.attributes;
     const validTypes = ['string', 'number', 'boolean', 'array', 'object'];
 
     for (const [attrName, attrDef] of Object.entries(attributes)) {
@@ -291,14 +287,12 @@ export class GutenbergBridge {
    * Validate block supports
    */
   private validateSupports(
-    blockRegistration: BlockRegistration,
+    blockRegistration: BlockDefinition,
     result: GutenbergValidationResult,
   ): void {
-    if (!blockRegistration.data || typeof blockRegistration.data === 'string')
-      return;
-    if (!blockRegistration.data.supports) return;
+    if (!blockRegistration || !blockRegistration.supports) return;
 
-    const supports = blockRegistration.data.supports;
+    const supports = blockRegistration.supports;
 
     if (supports.align !== undefined) {
       if (typeof supports.align === 'boolean') {
@@ -323,13 +317,12 @@ export class GutenbergBridge {
    * Validate parent/child relationships
    */
   private validateParentChild(
-    blockRegistration: BlockRegistration,
+    blockRegistration: BlockDefinition,
     result: GutenbergValidationResult,
   ): void {
-    if (!blockRegistration.data || typeof blockRegistration.data === 'string')
-      return;
+    if (!blockRegistration) return;
 
-    if (blockRegistration.data.parent) {
+    if (blockRegistration.parent) {
       result.warnings.push({
         code: 'REQUIRES_PARENT',
         message: 'Block requires a specific parent block',
@@ -339,8 +332,8 @@ export class GutenbergBridge {
     }
 
     if (
-      blockRegistration.data.provides &&
-      Object.keys(blockRegistration.data.provides).length > 0
+      blockRegistration.provides &&
+      Object.keys(blockRegistration.provides).length > 0
     ) {
       result.warnings.push({
         code: 'PROVIDES_CONTEXT',
@@ -351,8 +344,8 @@ export class GutenbergBridge {
     }
 
     if (
-      blockRegistration.data.usesContext &&
-      blockRegistration.data.usesContext.length > 0
+      blockRegistration.usesContext &&
+      blockRegistration.usesContext.length > 0
     ) {
       result.warnings.push({
         code: 'USES_CONTEXT',

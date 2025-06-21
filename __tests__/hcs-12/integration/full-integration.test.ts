@@ -15,7 +15,7 @@ import { HashVerifier } from '../../../src/hcs-12/security/hash-verifier';
 import type { NetworkType } from '../../../src/utils/types';
 import {
   ActionRegistration,
-  BlockRegistration,
+  BlockDefinition,
   AssemblyRegistration,
   RegistryType,
 } from '../../../src/hcs-12/types';
@@ -75,55 +75,75 @@ describe('HCS-12 Full Integration Tests', () => {
       };
 
       const registrationId = await client.actionRegistry!.register(actionDef);
-      expect(registrationId).toMatch(
-        /^(0\.0\.\d+_[a-z0-9]+|local_\d+(_[a-z0-9]+)?)$/,
-      );
+      expect(registrationId).toMatch(/^\d+$/);
 
       const retrieved = await client.actionRegistry!.getEntry(registrationId);
       expect(retrieved).toBeDefined();
       expect((retrieved?.data as ActionRegistration).hash).toBe(actionDef.hash);
     });
 
-    it('should create and retrieve block registrations', async () => {
-      const blockDef: BlockRegistration = {
+    it('should create and retrieve action registrations with JavaScript wrapper', async () => {
+      const actionDef: ActionRegistration = {
         p: 'hcs-12',
         op: 'register',
-        name: 'test/hello-world-block',
-        version: '1.0.0',
-        data: {
-          apiVersion: 3,
-          name: 'test/hello-world-block',
-          title: 'Hello World Block',
-          category: 'common',
-          description: 'A test block for integration',
-          icon: 'block-default',
-          keywords: ['test', 'hello'],
-          attributes: {
-            content: {
-              type: 'string',
-              default: 'Hello, World!',
-            },
-          },
-          supports: {
-            align: true,
-            customClassName: true,
-          },
-        },
-        t_id: '0.0.456789',
+        t_id: '0.0.123456',
+        js_t_id: '0.0.123457',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        js_hash:
+          'd4d4d4d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        interface_version: '0.2.95',
+        m: 'Test action with JavaScript wrapper',
       };
 
-      const registrationId = await client.blockRegistry!.register(blockDef);
-      expect(registrationId).toMatch(
-        /^(0\.0\.\d+_[a-z0-9]+|local_\d+(_[a-z0-9]+)?)$/,
-      );
+      const registrationId = await client.actionRegistry!.register(actionDef);
+      expect(registrationId).toMatch(/^\d+$/);
 
-      const retrieved = await client.blockRegistry!.getEntry(registrationId);
+      const retrieved = await client.actionRegistry!.getEntry(registrationId);
       expect(retrieved).toBeDefined();
-      expect((retrieved?.data as BlockRegistration).name).toBe(
-        'test/hello-world-block',
-      );
-      expect((retrieved?.data as BlockRegistration).version).toBe('1.0.0');
+      const data = retrieved?.data as ActionRegistration;
+      expect(data.hash).toBe(actionDef.hash);
+      expect(data.js_t_id).toBe(actionDef.js_t_id);
+      expect(data.js_hash).toBe(actionDef.js_hash);
+      expect(data.interface_version).toBe(actionDef.interface_version);
     });
+
+    it('should store and retrieve blocks via HCS-1', async () => {
+      const blockDef: BlockDefinition = {
+        apiVersion: 3,
+        name: 'test/hello-world-block',
+        title: 'Hello World Block',
+        category: 'common',
+        description: 'A test block for integration',
+        icon: 'block-default',
+        keywords: ['test', 'hello'],
+        attributes: {
+          content: {
+            type: 'string',
+            default: 'Hello, World!',
+          },
+        },
+        supports: {
+          align: true,
+          customClassName: true,
+        },
+      };
+
+      const template = '<div>{{attributes.content}}</div>';
+      const { definitionTopicId, templateTopicId } = await client.storeBlock(
+        template,
+        blockDef
+      );
+      
+      expect(definitionTopicId).toBeDefined();
+      expect(templateTopicId).toBeDefined();
+
+      const loadedBlock = await client.blockLoader!.loadBlock(definitionTopicId);
+      expect(loadedBlock).toBeDefined();
+      expect(loadedBlock.definition.name).toBe('test/hello-world-block');
+      expect(loadedBlock.template).toBe(template);
+    }, 30000);
   });
 
   describeOrSkip('Action Builder Integration', () => {
@@ -153,6 +173,35 @@ describe('HCS-12 Full Integration Tests', () => {
       expect(registration.wasm_hash).toMatch(/^[a-f0-9]{64}$/);
     });
 
+    it('should build action registrations with JavaScript wrapper', async () => {
+      const mockWasmData = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 1, 0, 0, 0]);
+      const mockJsData = new TextEncoder().encode('export function init() {}');
+      const mockInfo = {
+        name: 'test/test-action',
+        version: '1.0.0',
+        hashlinks_version: '0.1.0',
+        creator: '0.0.123456',
+        purpose: 'Test action',
+        actions: [],
+        capabilities: [],
+        plugins: [],
+      };
+
+      const registration = await actionBuilder
+        .setTopicId('0.0.123456')
+        .setJsTopicId('0.0.123457')
+        .setInterfaceVersion('0.2.95')
+        .createFromWasmAndInfo('0.0.123456', mockWasmData, mockInfo);
+
+      expect(registration.js_t_id).toBe('0.0.123457');
+      expect(registration.interface_version).toBe('0.2.95');
+
+      const jsHash = await actionBuilder.calculateHash(mockJsData);
+      actionBuilder.setJsHash(jsHash);
+      const finalReg = actionBuilder.build();
+      expect(finalReg.js_hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
     it('should validate action builder fields', () => {
       expect(() => actionBuilder.setTopicId('invalid')).toThrow(
         'Invalid topic ID format',
@@ -179,6 +228,26 @@ describe('HCS-12 Full Integration Tests', () => {
 
       const registration = result.build();
       expect(registration.t_id).toBe('0.0.123456');
+    });
+
+    it('should validate JavaScript wrapper fields', () => {
+      expect(() => actionBuilder.setJsTopicId('invalid')).toThrow(
+        'Invalid topic ID format',
+      );
+      expect(() => actionBuilder.setJsHash('invalid')).toThrow(
+        'Invalid hash format',
+      );
+      expect(() => actionBuilder.setInterfaceVersion('invalid')).toThrow(
+        'Invalid version format',
+      );
+
+      expect(() => actionBuilder.setJsTopicId('0.0.123457')).not.toThrow();
+      expect(() =>
+        actionBuilder.setJsHash(
+          'd4d4d4d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        ),
+      ).not.toThrow();
+      expect(() => actionBuilder.setInterfaceVersion('0.2.95')).not.toThrow();
     });
   });
 
@@ -277,7 +346,7 @@ describe('HCS-12 Full Integration Tests', () => {
 
       const assemblyConfig = client.assemblyRegistry!.getConfig();
       expect(assemblyConfig.type).toBe(RegistryType.ASSEMBLY);
-      expect(assemblyConfig.memo).toBe('hcs-12:1:60:2');
+      expect(assemblyConfig.memo).toBe('hcs-12:0:60:2');
     });
 
     it('should handle registry statistics', () => {
@@ -309,10 +378,26 @@ describe('HCS-12 Full Integration Tests', () => {
         m: 'Test action',
       };
 
+      const actionWithJsReg: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.223456',
+        js_t_id: '0.0.223457',
+        hash: 'f3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        js_hash:
+          'c4c4c4c4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+        interface_version: '0.2.95',
+        m: 'Test action with JS wrapper',
+      };
+
       const actionId = await client.actionRegistry!.register(actionReg);
-      expect(actionId).toMatch(
-        /^(0\.0\.\d+_[a-z0-9]+|local_\d+(_[a-z0-9]+)?)$/,
-      );
+      expect(actionId).toMatch(/^\d+$/);
+
+      const actionWithJsId =
+        await client.actionRegistry!.register(actionWithJsReg);
+      expect(actionWithJsId).toMatch(/^\d+$/);
 
       const blockReg: BlockRegistration = {
         p: 'hcs-12',
@@ -334,7 +419,7 @@ describe('HCS-12 Full Integration Tests', () => {
       };
 
       const blockId = await client.blockRegistry!.register(blockReg);
-      expect(blockId).toMatch(/^(0\.0\.\d+_[a-z0-9]+|local_\d+(_[a-z0-9]+)?)$/);
+      expect(blockId).toMatch(/^\d+$/);
 
       const assemblyReg: AssemblyRegistration = {
         p: 'hcs-12',
@@ -360,9 +445,7 @@ describe('HCS-12 Full Integration Tests', () => {
       };
 
       const assemblyId = await client.assemblyRegistry!.register(assemblyReg);
-      expect(assemblyId).toMatch(
-        /^(0\.0\.\d+_[a-z0-9]+|local_\d+(_[a-z0-9]+)?)$/,
-      );
+      expect(assemblyId).toMatch(/^\d+$/);
 
       const actionEntry = await client.actionRegistry!.getEntry(actionId);
       const blockEntry = await client.blockRegistry!.getEntry(blockId);

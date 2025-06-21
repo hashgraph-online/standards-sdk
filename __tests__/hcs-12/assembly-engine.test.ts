@@ -1,37 +1,37 @@
 /**
  * Tests for Assembly Engine
- *
- * Tests assembly loading, reference resolution, and composition validation for HashLinks
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { AssemblyEngine } from '../../src/hcs-12/assembly/assembly-engine';
 import { Logger } from '../../src/utils/logger';
-
-const mockRetrieveInscription = jest.fn();
-jest.mock('../../src/inscribe/inscriber', () => ({
-  retrieveInscription: mockRetrieveInscription,
-}));
+import {
+  AssemblyState,
+  ActionRegistration,
+  BlockDefinition,
+} from '../../src/hcs-12/types';
 
 const mockAssemblyRegistry = {
-  getEntry: jest.fn(),
-  listEntries: jest.fn(),
+  getAssemblyState: jest.fn(),
   register: jest.fn(),
+  addAction: jest.fn(),
+  addBlock: jest.fn(),
+  update: jest.fn(),
   sync: jest.fn(),
 };
 
 const mockActionRegistry = {
-  getEntry: jest.fn(),
-  listEntries: jest.fn(),
+  getLatestEntry: jest.fn(),
   register: jest.fn(),
   sync: jest.fn(),
 };
 
-const mockBlockRegistry = {
-  getEntry: jest.fn(),
-  listEntries: jest.fn(),
-  register: jest.fn(),
-  sync: jest.fn(),
+const mockBlockLoader = {
+  loadBlock: jest.fn(),
+  loadBlockDefinition: jest.fn(),
+  loadBlockTemplate: jest.fn(),
+  storeBlock: jest.fn(),
+  clearCache: jest.fn(),
 };
 
 describe('AssemblyEngine', () => {
@@ -40,587 +40,398 @@ describe('AssemblyEngine', () => {
 
   beforeEach(() => {
     logger = new Logger({ module: 'AssemblyEngineTest' });
+    jest.spyOn(logger, 'debug').mockImplementation();
+    jest.spyOn(logger, 'warn').mockImplementation();
+    jest.spyOn(logger, 'error').mockImplementation();
+
     assemblyEngine = new AssemblyEngine(
-      'testnet' as any,
       logger,
       mockAssemblyRegistry as any,
       mockActionRegistry as any,
-      mockBlockRegistry as any,
+      mockBlockLoader as any,
     );
 
-    mockAssemblyRegistry.getEntry.mockClear();
-    mockActionRegistry.getEntry.mockClear();
-    mockBlockRegistry.getEntry.mockClear();
-
+    jest.clearAllMocks();
     assemblyEngine.clearCache();
-
-    mockRetrieveInscription.mockReset();
   });
 
   describe('Assembly Loading', () => {
-    it('should load assembly from registry', async () => {
-      const assemblyId = '0.0.123456';
-      const mockAssembly = {
-        p: 'hcs-12',
-        op: 'register',
+    it('should load assembly state from topic', async () => {
+      const topicId = '0.0.12345';
+      const mockAssemblyState: AssemblyState = {
+        topicId,
         name: 'Test Assembly',
         version: '1.0.0',
+        description: 'Test assembly for unit tests',
         actions: [
           {
-            id: 'test-action',
-            registryId: '0.0.action1',
+            t_id: '0.0.11111',
+            alias: 'transfer',
+            config: { maxAmount: 1000 },
           },
         ],
         blocks: [
           {
-            id: 'test-block',
-            registryId: '0.0.block1',
+            block_t_id: '0.0.22222',
+            actions: {
+              transfer: '0.0.11111',
+            },
           },
         ],
+        created: '2023-01-01T00:00:00.000Z',
+        updated: '2023-01-01T00:00:00.000Z',
       };
 
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce({
-        id: assemblyId,
-        data: mockAssembly,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      });
+      mockAssemblyRegistry.getAssemblyState.mockResolvedValueOnce(
+        mockAssemblyState,
+      );
 
-      const result = await assemblyEngine.loadAssembly(assemblyId);
+      const result = await assemblyEngine.loadAssembly(topicId);
 
       expect(result).toBeDefined();
-      expect(result.definition.name).toBe('Test Assembly');
-      expect(result.definition.actions).toHaveLength(1);
-      expect(result.definition.blocks).toHaveLength(1);
-      expect(result.id).toBe(assemblyId);
-      expect(mockAssemblyRegistry.getEntry).toHaveBeenCalledWith(assemblyId);
+      expect(result.topicId).toBe(topicId);
+      expect(result.state.name).toBe('Test Assembly');
+      expect(result.state.actions).toHaveLength(1);
+      expect(result.state.blocks).toHaveLength(1);
+      expect(result.actions).toEqual([]);
+      expect(result.blocks).toEqual([]);
+      expect(mockAssemblyRegistry.getAssemblyState).toHaveBeenCalledWith(
+        topicId,
+      );
     });
 
-    it('should load large assembly from HCS-1 storage', async () => {
-      const assemblyId = '0.0.123456';
-
-      const mockLargeAssembly = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Large Assembly',
+    it('should cache loaded assemblies', async () => {
+      const topicId = '0.0.12345';
+      const mockAssemblyState: AssemblyState = {
+        topicId,
+        name: 'Cached Assembly',
         version: '1.0.0',
-        actions: Array.from({ length: 100 }, (_, i) => ({
-          id: `action-${i}`,
-          registryId: `0.0.action${i}`,
-        })),
-        blocks: Array.from({ length: 50 }, (_, i) => ({
-          id: `block-${i}`,
-          registryId: `0.0.block${i}`,
-          actions: [`action-${i}`],
-        })),
+        actions: [],
+        blocks: [],
+        created: '2023-01-01T00:00:00.000Z',
+        updated: '2023-01-01T00:00:00.000Z',
       };
 
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce({
-        id: assemblyId,
-        data: mockLargeAssembly,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      });
+      mockAssemblyRegistry.getAssemblyState.mockResolvedValueOnce(
+        mockAssemblyState,
+      );
 
-      const result = await assemblyEngine.loadAssembly(assemblyId);
+      const firstLoad = await assemblyEngine.loadAssembly(topicId);
+      const secondLoad = await assemblyEngine.loadAssembly(topicId);
 
-      expect(result).toBeDefined();
-      expect(result.definition.name).toBe('Large Assembly');
-      expect(result.definition.actions).toHaveLength(100);
-      expect(result.definition.blocks).toHaveLength(50);
-    });
-
-    it('should handle inline assembly definition', async () => {
-      const assemblyId = '0.0.123456';
-      const mockInlineAssembly = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Inline Assembly',
-        version: '1.0.0',
-        actions: [
-          {
-            id: 'inline-action',
-            registryId: '0.0.action1',
-          },
-        ],
-        blocks: [
-          {
-            id: 'inline-block',
-            registryId: '0.0.block1',
-          },
-        ],
-      };
-
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce({
-        id: assemblyId,
-        data: mockInlineAssembly,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      });
-
-      const result = await assemblyEngine.loadAssembly(assemblyId);
-
-      expect(result.definition).toEqual(mockInlineAssembly);
+      expect(firstLoad).toBe(secondLoad);
+      expect(mockAssemblyRegistry.getAssemblyState).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error for non-existent assembly', async () => {
-      const assemblyId = '0.0.invalid';
+      const topicId = '0.0.99999';
+      mockAssemblyRegistry.getAssemblyState.mockResolvedValueOnce(null);
 
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce(null);
-
-      mockRetrieveInscription.mockRejectedValue(
-        new Error(
-          'Either API key or account ID and private key are required for retrieving inscriptions',
-        ),
-      );
-
-      await expect(assemblyEngine.loadAssembly(assemblyId)).rejects.toThrow(
-        'Failed to load assembly',
-      );
-    });
-
-    it('should validate assembly format', async () => {
-      const assemblyId = '0.0.123456';
-      const invalidAssembly = {
-        name: 'Invalid',
-        version: '1.0.0',
-      };
-
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce({
-        id: assemblyId,
-        data: invalidAssembly,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      });
-
-      mockRetrieveInscription.mockRejectedValue(
-        new Error(
-          'Either API key or account ID and private key are required for retrieving inscriptions',
-        ),
-      );
-
-      await expect(assemblyEngine.loadAssembly(assemblyId)).rejects.toThrow(
-        'Invalid assembly format',
+      await expect(assemblyEngine.loadAssembly(topicId)).rejects.toThrow(
+        'Assembly not found: 0.0.99999',
       );
     });
   });
 
   describe('Reference Resolution', () => {
     it('should resolve action references', async () => {
-      const assemblyDefinition = {
-        p: 'hcs-12',
-        op: 'register',
+      const mockAssemblyState: AssemblyState = {
+        topicId: '0.0.12345',
         name: 'Test Assembly',
         version: '1.0.0',
         actions: [
           {
-            id: 'test-action',
-            registryId: '0.0.action1',
+            t_id: '0.0.11111',
+            alias: 'transfer',
           },
         ],
         blocks: [],
+        created: '2023-01-01T00:00:00.000Z',
+        updated: '2023-01-01T00:00:00.000Z',
       };
 
-      const mockActionEntry = {
-        id: '0.0.action1',
-        data: {
-          p: 'hcs-12',
-          op: 'register',
-          name: 'Test Action',
-          hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-        },
-        submitter: '0.0.123',
-        timestamp: '1234567890',
+      const mockActionRegistration: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.88888',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        m: 'Transfer Action v1.0.0',
       };
 
-      mockActionRegistry.getEntry.mockResolvedValueOnce(mockActionEntry);
+      mockActionRegistry.getLatestEntry.mockResolvedValueOnce({
+        id: '1',
+        sequenceNumber: 1,
+        timestamp: '2023-01-01T00:00:00.000Z',
+        submitter: '0.0.12345',
+        data: mockActionRegistration,
+      });
 
-      const resolved = await assemblyEngine.resolveReferences(
-        assemblyDefinition as any,
-      );
+      const resolved =
+        await assemblyEngine.resolveReferences(mockAssemblyState);
 
       expect(resolved.actions).toHaveLength(1);
-      expect(resolved.actions[0].definition).toEqual(mockActionEntry.data);
+      expect(resolved.actions[0].alias).toBe('transfer');
+      expect(resolved.actions[0].t_id).toBe('0.0.11111');
+      expect(resolved.actions[0].definition).toEqual(mockActionRegistration);
     });
 
     it('should resolve block references', async () => {
-      const assemblyDefinition = {
-        p: 'hcs-12',
-        op: 'register',
+      const mockAssemblyState: AssemblyState = {
+        topicId: '0.0.12345',
         name: 'Test Assembly',
         version: '1.0.0',
         actions: [],
         blocks: [
           {
-            id: 'test-block',
-            registryId: '0.0.22345',
+            block_t_id: '0.0.22222',
+            actions: {
+              submit: '0.0.11111',
+            },
           },
         ],
+        created: '2023-01-01T00:00:00.000Z',
+        updated: '2023-01-01T00:00:00.000Z',
       };
 
-      const mockBlockEntry = {
-        id: '0.0.22345',
-        data: {
-          p: 'hcs-12',
-          op: 'register',
-          name: 'hashlinks/test-block',
-          version: '1.0.0',
-        },
-        submitter: '0.0.123',
-        timestamp: '1234567890',
+      const mockBlockDefinition: BlockDefinition = {
+        apiVersion: 3,
+        name: 'hashlinks/payment-form',
+        title: 'Payment Form',
+        category: 'forms',
+        template_t_id: '0.0.33333',
+        attributes: {},
+        supports: {},
       };
 
-      mockBlockRegistry.getEntry.mockResolvedValueOnce(mockBlockEntry);
+      const mockTemplate = '<div>Payment Form Template</div>';
 
-      const resolved = await assemblyEngine.resolveReferences(
-        assemblyDefinition as any,
-      );
+      mockBlockLoader.loadBlock.mockResolvedValueOnce({
+        definition: mockBlockDefinition,
+        template: mockTemplate,
+      });
+
+      const resolved =
+        await assemblyEngine.resolveReferences(mockAssemblyState);
 
       expect(resolved.blocks).toHaveLength(1);
-      expect(resolved.blocks[0].registryId).toBe('0.0.22345');
-      expect(resolved.blocks[0].definition).toEqual(mockBlockEntry.data);
+      expect(resolved.blocks[0].block_t_id).toBe('0.0.22222');
+      expect(resolved.blocks[0].definition).toEqual(mockBlockDefinition);
+      expect(resolved.blocks[0].template).toBe(mockTemplate);
     });
 
-    it('should handle version resolution', async () => {
-      const assemblyDefinition = {
-        p: 'hcs-12',
-        op: 'register',
+    it('should handle resolution errors gracefully', async () => {
+      const mockAssemblyState: AssemblyState = {
+        topicId: '0.0.12345',
         name: 'Test Assembly',
         version: '1.0.0',
         actions: [
           {
-            id: 'versioned-action',
-            registryId: '0.0.action1',
-            version: '2.0.0',
+            t_id: '0.0.99999',
+            alias: 'missing-action',
           },
         ],
         blocks: [],
+        created: '2023-01-01T00:00:00.000Z',
+        updated: '2023-01-01T00:00:00.000Z',
       };
 
-      const mockActionEntry = {
-        id: '0.0.action1',
-        data: {
-          p: 'hcs-12',
-          op: 'register',
-          name: 'Test Action',
-          version: '2.0.0',
-          hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-        },
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      };
+      mockActionRegistry.getLatestEntry.mockResolvedValueOnce(null);
 
-      mockActionRegistry.getEntry.mockResolvedValueOnce(mockActionEntry);
-
-      const resolved = await assemblyEngine.resolveReferences(
-        assemblyDefinition as any,
-      );
-
-      expect(resolved.actions[0].definition.version).toBe('2.0.0');
-    });
-
-    it('should handle missing references gracefully', async () => {
-      const assemblyDefinition = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Test Assembly',
-        version: '1.0.0',
-        actions: [
-          {
-            id: 'missing-action',
-            registryId: '0.0.missing',
-          },
-        ],
-        blocks: [],
-      };
-
-      mockActionRegistry.getEntry.mockResolvedValueOnce(null);
-
-      const resolved = await assemblyEngine.resolveReferences(
-        assemblyDefinition as any,
-      );
+      const resolved =
+        await assemblyEngine.resolveReferences(mockAssemblyState);
 
       expect(resolved.actions).toHaveLength(1);
-      expect(resolved.actions[0].error).toBe('Action not found: 0.0.missing');
       expect(resolved.actions[0].definition).toBeNull();
-    });
-
-    it('should handle empty assembly definition', async () => {
-      const assemblyDefinition = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Empty Assembly',
-        version: '1.0.0',
-        actions: [],
-        blocks: [],
-      };
-
-      const resolved = await assemblyEngine.resolveReferences(
-        assemblyDefinition as any,
+      expect(resolved.actions[0].error).toBe(
+        'Action not found at topic: 0.0.99999',
       );
-
-      expect(resolved.actions).toHaveLength(0);
-      expect(resolved.blocks).toHaveLength(0);
     });
   });
 
   describe('Composition Validation', () => {
-    it('should validate assembly structure', async () => {
+    it('should validate assembly with all references resolved', () => {
       const assembly = {
-        id: '0.0.123456',
-        definition: {
-          p: 'hcs-12',
-          op: 'register',
+        topicId: '0.0.12345',
+        state: {
+          topicId: '0.0.12345',
           name: 'Valid Assembly',
           version: '1.0.0',
+          actions: [
+            {
+              t_id: '0.0.11111',
+              alias: 'action1',
+            },
+          ],
+          blocks: [
+            {
+              block_t_id: '0.0.22222',
+              actions: {
+                submit: '0.0.11111',
+              },
+            },
+          ],
+          created: '2023-01-01T00:00:00.000Z',
+          updated: '2023-01-01T00:00:00.000Z',
         },
         actions: [
           {
-            id: 'action1',
-            registryId: '0.0.action1',
-            definition: {
-              name: 'Test Action',
-              parameters: [],
-            },
+            alias: 'action1',
+            t_id: '0.0.11111',
+            definition: {} as ActionRegistration,
           },
         ],
         blocks: [
           {
-            id: 'block1',
-            registryId: '0.0.block1',
-            definition: {
-              name: 'Test Block',
-              actions: ['action1'],
+            block_t_id: '0.0.22222',
+            definition: {} as BlockDefinition,
+            template: '<div>Template</div>',
+            actions: {
+              submit: '0.0.11111',
             },
           },
         ],
       };
 
-      const result = await assemblyEngine.validateComposition(assembly as any);
+      const validation = assemblyEngine.validateComposition(assembly as any);
 
-      expect(result.isValid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      expect(validation.valid).toBe(true);
+      expect(validation.errors).toEqual([]);
     });
 
-    it('should detect missing action references', async () => {
+    it('should detect missing action references in blocks', () => {
       const assembly = {
-        id: '0.0.123456',
-        definition: {
-          p: 'hcs-12',
-          op: 'register',
+        topicId: '0.0.12345',
+        state: {
+          topicId: '0.0.12345',
           name: 'Invalid Assembly',
           version: '1.0.0',
-        },
-        actions: [],
-        blocks: [
-          {
-            id: 'block1',
-            registryId: '0.0.block1',
-            definition: {
-              name: 'Test Block',
-              actions: ['missing-action'],
-            },
-          },
-        ],
-      };
-
-      const result = await assemblyEngine.validateComposition(assembly as any);
-
-      expect(result.isValid).toBe(true);
-    });
-
-    it('should validate action-block bindings', async () => {
-      const assembly = {
-        id: '0.0.123456',
-        definition: {
-          p: 'hcs-12',
-          op: 'register',
-          name: 'Test Assembly',
-          version: '1.0.0',
-          layout: [
+          actions: [],
+          blocks: [
             {
-              block: 'block1',
-              actions: [
-                {
-                  action: 'action1',
-                  parameters: {
-                    input: '{{form.value}}',
-                  },
-                },
-              ],
+              block_t_id: '0.0.22222',
+              actions: {
+                submit: '0.0.99999',
+              },
             },
           ],
+          created: '2023-01-01T00:00:00.000Z',
+          updated: '2023-01-01T00:00:00.000Z',
         },
-        actions: [
-          {
-            id: 'action1',
-            registryId: '0.0.action1',
-            definition: {
-              name: 'Test Action',
-              parameters: [{ name: 'input', type: 'string', required: true }],
-            },
-          },
-        ],
-        blocks: [
-          {
-            id: 'block1',
-            registryId: '0.0.block1',
-            definition: {
-              name: 'Test Block',
-              outputs: ['form.value'],
-            },
-          },
-        ],
-      };
-
-      const result = await assemblyEngine.validateComposition(assembly as any);
-
-      expect(result.isValid).toBe(true);
-    });
-
-    it('should detect parameter binding mismatches', async () => {
-      const assembly = {
-        id: '0.0.123456',
-        definition: {
-          p: 'hcs-12',
-          op: 'register',
-          name: 'Test Assembly',
-          version: '1.0.0',
-          layout: [
-            {
-              block: 'block1',
-              actions: [
-                {
-                  action: 'action1',
-                  parameters: {
-                    missingParam: '{{form.value}}',
-                  },
-                },
-              ],
-            },
-          ],
-        },
-        actions: [
-          {
-            id: 'action1',
-            registryId: '0.0.action1',
-            definition: {
-              name: 'Test Action',
-              parameters: [
-                { name: 'requiredParam', type: 'string', required: true },
-              ],
-            },
-          },
-        ],
-        blocks: [
-          {
-            id: 'block1',
-            registryId: '0.0.block1',
-            definition: {
-              name: 'Test Block',
-            },
-          },
-        ],
-      };
-
-      const result = await assemblyEngine.validateComposition(assembly as any);
-
-      expect(result.isValid).toBe(true);
-    });
-  });
-
-  describe('Caching', () => {
-    it('should cache loaded assemblies', async () => {
-      const assemblyId = '0.0.123456';
-      const mockAssembly = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Cached Assembly',
-        version: '1.0.0',
         actions: [],
         blocks: [],
       };
 
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce({
-        id: assemblyId,
-        data: mockAssembly,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      });
+      const validation = assemblyEngine.validateComposition(assembly as any);
 
-      const result1 = await assemblyEngine.loadAssembly(assemblyId);
-      expect(mockAssemblyRegistry.getEntry).toHaveBeenCalledTimes(1);
-
-      const result2 = await assemblyEngine.loadAssembly(assemblyId);
-      expect(mockAssemblyRegistry.getEntry).toHaveBeenCalledTimes(1);
-
-      expect(result1).toEqual(result2);
+      expect(validation.valid).toBe(false);
+      expect(validation.errors[0]).toMatch(
+        /Block 0\.0\.22222 references non-existent action: 0\.0\.99999/,
+      );
     });
 
-    it('should invalidate cache when requested', async () => {
-      const assemblyId = '0.0.123456';
-      const mockAssembly = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Cached Assembly',
-        version: '1.0.0',
+    it('should detect missing child block references', () => {
+      const assembly = {
+        topicId: '0.0.12345',
+        state: {
+          topicId: '0.0.12345',
+          name: 'Invalid Assembly',
+          version: '1.0.0',
+          actions: [],
+          blocks: [
+            {
+              block_t_id: '0.0.22222',
+              children: ['missing-child'],
+            },
+          ],
+          created: '2023-01-01T00:00:00.000Z',
+          updated: '2023-01-01T00:00:00.000Z',
+        },
         actions: [],
         blocks: [],
       };
 
-      mockAssemblyRegistry.getEntry.mockResolvedValue({
-        id: assemblyId,
-        data: mockAssembly,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
-      });
+      const validation = assemblyEngine.validateComposition(assembly as any);
 
-      await assemblyEngine.loadAssembly(assemblyId);
-      expect(mockAssemblyRegistry.getEntry).toHaveBeenCalledTimes(1);
-
-      assemblyEngine.clearCache();
-
-      await assemblyEngine.loadAssembly(assemblyId);
-      expect(mockAssemblyRegistry.getEntry).toHaveBeenCalledTimes(2);
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toContain(
+        'Block 0.0.22222 references non-existent child block: missing-child',
+      );
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle network errors gracefully', async () => {
-      const assemblyId = '0.0.123456';
-
-      mockAssemblyRegistry.getEntry.mockRejectedValueOnce(
-        new Error('Network error'),
-      );
-
-      await expect(assemblyEngine.loadAssembly(assemblyId)).rejects.toThrow(
-        'Failed to load assembly',
-      );
-    });
-
-    it('should handle malformed JSON in HCS-1 storage', async () => {
-      const assemblyId = '0.0.123456';
-      const mockRegistryMessage = {
-        p: 'hcs-12',
-        op: 'register',
-        name: 'Assembly with bad storage',
-        t_id: '0.0.storage789',
+  describe('Load and Resolve', () => {
+    it('should load and resolve complete assembly', async () => {
+      const topicId = '0.0.12345';
+      const mockAssemblyState: AssemblyState = {
+        topicId,
+        name: 'Complete Assembly',
+        version: '1.0.0',
+        actions: [
+          {
+            t_id: '0.0.11111',
+            alias: 'transfer',
+          },
+        ],
+        blocks: [
+          {
+            block_t_id: '0.0.22222',
+            actions: {
+              transfer: '0.0.11111',
+            },
+          },
+        ],
+        created: '2023-01-01T00:00:00.000Z',
+        updated: '2023-01-01T00:00:00.000Z',
       };
 
-      mockAssemblyRegistry.getEntry.mockResolvedValueOnce({
-        id: assemblyId,
-        data: mockRegistryMessage,
-        submitter: '0.0.123',
-        timestamp: '1234567890',
+      const mockActionRegistration: ActionRegistration = {
+        p: 'hcs-12',
+        op: 'register',
+        t_id: '0.0.88888',
+        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        wasm_hash:
+          'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      };
+
+      const mockBlockDefinition2: BlockDefinition = {
+        apiVersion: 3,
+        name: 'hashlinks/payment-form',
+        title: 'Payment Form',
+        category: 'forms',
+        template_t_id: '0.0.55555',
+        attributes: {
+          defaultAmount: { type: 'number', default: 100 },
+        },
+        supports: { align: true },
+      };
+
+      const mockTemplate = '<div>{{attributes.defaultAmount}}</div>';
+
+      mockAssemblyRegistry.getAssemblyState.mockResolvedValueOnce(
+        mockAssemblyState,
+      );
+      mockActionRegistry.getLatestEntry.mockResolvedValueOnce({
+        id: '1',
+        sequenceNumber: 1,
+        timestamp: '2023-01-01T00:00:00.000Z',
+        submitter: '0.0.12345',
+        data: mockActionRegistration,
+      });
+      mockBlockLoader.loadBlock.mockResolvedValueOnce({
+        definition: mockBlockDefinition2,
+        template: mockTemplate,
       });
 
-      mockRetrieveInscription.mockResolvedValueOnce({
-        data: 'invalid json{',
-      } as any);
+      const result = await assemblyEngine.loadAndResolveAssembly(topicId);
 
-      await expect(assemblyEngine.loadAssembly(assemblyId)).rejects.toThrow(
-        'Failed to parse assembly',
-      );
+      expect(result.topicId).toBe(topicId);
+      expect(result.state.name).toBe('Complete Assembly');
+      expect(result.actions).toHaveLength(1);
+      expect(result.blocks).toHaveLength(1);
+      expect(result.actions[0].definition).toEqual(mockActionRegistration);
+      expect(result.blocks[0].definition).toEqual(mockBlockDefinition2);
     });
   });
 });
