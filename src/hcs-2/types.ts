@@ -133,11 +133,10 @@ export interface TopicRegistry {
  * Options for creating a new registry
  */
 export interface CreateRegistryOptions {
-  memo?: string;
-  ttl?: number;
-  adminKey?: boolean | string | PrivateKey;
-  submitKey?: boolean | string | PrivateKey;
   registryType?: HCS2RegistryType;
+  ttl?: number;
+  adminKey?: string | boolean | PrivateKey;
+  submitKey?: string | boolean | PrivateKey;
 }
 
 /**
