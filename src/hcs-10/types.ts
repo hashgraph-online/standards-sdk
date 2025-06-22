@@ -91,11 +91,49 @@ export interface Message {
   message: string;
   sequence_number?: number;
 }
+
 export interface ApiResponse {
   messages?: any[];
   links?: {
     next?: string;
   };
+}
+
+export interface RegistryMetadata {
+  version: string;
+  name: string;
+  description: string;
+  operator: {
+    account: string;
+    name?: string;
+    contact?: string;
+  };
+  categories?: string[];
+  tags?: string[];
+  links?: {
+    documentation?: string;
+    website?: string;
+    community?: string;
+  };
+}
+
+export interface CreateRegistryTopicOptions {
+  ttl?: number;
+  metadata?: RegistryMetadata;
+  adminKey?: boolean;
+  submitKey?: boolean;
+  waitForConfirmation?: boolean;
+  waitMaxAttempts?: number;
+  waitIntervalMs?: number;
+  progressCallback?: RegistrationProgressCallback;
+}
+
+export interface CreateRegistryTopicResponse {
+  success: boolean;
+  topicId?: string;
+  transactionId?: string;
+  metadataTopicId?: string;
+  error?: string;
 }
 
 export interface RegistrationResponse {

@@ -76,7 +76,6 @@ export class BrowserHCS20Client extends HCS20BaseClient {
     return accountInfo.accountId;
   }
 
-
   /**
    * Deploy new points
    */
@@ -221,11 +220,7 @@ export class BrowserHCS20Client extends HCS20BaseClient {
       };
 
       const topicId = (options as any).topicId || this.publicTopicId;
-      const mintResult = await this.submitPayload(
-        topicId,
-        mintMessage,
-        false,
-      );
+      const mintResult = await this.submitPayload(topicId, mintMessage, false);
 
       const mintTxId = (mintResult as any).transactionHash?.toString() || '';
 
@@ -279,7 +274,6 @@ export class BrowserHCS20Client extends HCS20BaseClient {
         stage: 'validating-balance',
         percentage: 20,
       });
-
 
       progressCallback?.({
         stage: 'submitting',
@@ -356,7 +350,6 @@ export class BrowserHCS20Client extends HCS20BaseClient {
         percentage: 20,
       });
 
-
       progressCallback?.({
         stage: 'submitting',
         percentage: 50,
@@ -372,11 +365,7 @@ export class BrowserHCS20Client extends HCS20BaseClient {
       };
 
       const topicId = (options as any).topicId || this.publicTopicId;
-      const burnResult = await this.submitPayload(
-        topicId,
-        burnMessage,
-        false,
-      );
+      const burnResult = await this.submitPayload(topicId, burnMessage, false);
 
       const burnTxId = (burnResult as any).transactionHash?.toString() || '';
 
@@ -537,5 +526,4 @@ export class BrowserHCS20Client extends HCS20BaseClient {
     this.logger.debug('Payload submitted successfully via HWC');
     return transactionResponse.result;
   }
-
 }
