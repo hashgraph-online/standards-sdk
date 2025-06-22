@@ -1,9 +1,9 @@
 import { Logger } from '../utils/logger';
 import { HederaMirrorNode } from '../services/mirror-node';
-import { 
-  HCS2ClientConfig, 
-  HCS2Message, 
-  HCS2Operation, 
+import {
+  HCS2ClientConfig,
+  HCS2Message,
+  HCS2Operation,
   HCS2RegisterMessage,
   HCS2UpdateMessage,
   HCS2DeleteMessage,
@@ -19,7 +19,7 @@ import {
   DeleteEntryOptions,
   MigrateTopicOptions,
   QueryRegistryOptions,
-  hcs2MessageSchema
+  hcs2MessageSchema,
 } from './types';
 import { TransactionReceipt } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
@@ -40,17 +40,19 @@ export abstract class HCS2BaseClient {
    */
   constructor(config: HCS2ClientConfig) {
     this.network = config.network;
-    
-    this.logger = Logger.getInstance({
-      level: config.logLevel || 'info',
-      module: 'HCS2Client',
-      silent: config.silent,
-    });
-    
+
+    this.logger =
+      config.logger ||
+      Logger.getInstance({
+        level: config.logLevel || 'info',
+        module: 'HCS2Client',
+        silent: config.silent,
+      });
+
     this.mirrorNode = new HederaMirrorNode(
       this.network,
       this.logger,
-      config.mirrorNodeUrl ? { customUrl: config.mirrorNodeUrl } : undefined
+      config.mirrorNodeUrl ? { customUrl: config.mirrorNodeUrl } : undefined,
     );
   }
 
@@ -59,7 +61,9 @@ export abstract class HCS2BaseClient {
    * @param options Registry creation options
    * @returns Promise resolving to the transaction result
    */
-  abstract createRegistry(options: CreateRegistryOptions): Promise<TopicRegistrationResponse>;
+  abstract createRegistry(
+    options: CreateRegistryOptions,
+  ): Promise<TopicRegistrationResponse>;
 
   /**
    * Register a new entry in the registry
@@ -67,7 +71,10 @@ export abstract class HCS2BaseClient {
    * @param options Registration options
    * @returns Promise resolving to the operation result
    */
-  abstract registerEntry(registryTopicId: string, options: RegisterEntryOptions): Promise<RegistryOperationResponse>;
+  abstract registerEntry(
+    registryTopicId: string,
+    options: RegisterEntryOptions,
+  ): Promise<RegistryOperationResponse>;
 
   /**
    * Update an existing entry in the registry (indexed registries only)
@@ -75,7 +82,10 @@ export abstract class HCS2BaseClient {
    * @param options Update options
    * @returns Promise resolving to the operation result
    */
-  abstract updateEntry(registryTopicId: string, options: UpdateEntryOptions): Promise<RegistryOperationResponse>;
+  abstract updateEntry(
+    registryTopicId: string,
+    options: UpdateEntryOptions,
+  ): Promise<RegistryOperationResponse>;
 
   /**
    * Delete an entry from the registry (indexed registries only)
@@ -83,7 +93,10 @@ export abstract class HCS2BaseClient {
    * @param options Delete options
    * @returns Promise resolving to the operation result
    */
-  abstract deleteEntry(registryTopicId: string, options: DeleteEntryOptions): Promise<RegistryOperationResponse>;
+  abstract deleteEntry(
+    registryTopicId: string,
+    options: DeleteEntryOptions,
+  ): Promise<RegistryOperationResponse>;
 
   /**
    * Migrate a registry to a new topic
@@ -91,7 +104,10 @@ export abstract class HCS2BaseClient {
    * @param options Migration options
    * @returns Promise resolving to the operation result
    */
-  abstract migrateRegistry(registryTopicId: string, options: MigrateTopicOptions): Promise<RegistryOperationResponse>;
+  abstract migrateRegistry(
+    registryTopicId: string,
+    options: MigrateTopicOptions,
+  ): Promise<RegistryOperationResponse>;
 
   /**
    * Get all entries from a registry
@@ -99,35 +115,43 @@ export abstract class HCS2BaseClient {
    * @param options Query options
    * @returns Promise resolving to the registry information
    */
-  abstract getRegistry(topicId: string, options?: QueryRegistryOptions): Promise<TopicRegistry>;
-  
+  abstract getRegistry(
+    topicId: string,
+    options?: QueryRegistryOptions,
+  ): Promise<TopicRegistry>;
+
   /**
    * Submit a message to a topic
    * @param topicId The topic ID to submit to
    * @param payload The message payload
    * @returns Promise resolving to the transaction receipt
    */
-  abstract submitMessage(topicId: string, payload: HCS2Message): Promise<TransactionReceipt>;
+  abstract submitMessage(
+    topicId: string,
+    payload: HCS2Message,
+  ): Promise<TransactionReceipt>;
 
   /**
    * Determine the registry type from a topic memo
    * @param memo The topic memo
    * @returns The registry type or undefined if not found
    */
-  protected parseRegistryTypeFromMemo(memo: string): { registryType: HCS2RegistryType; ttl: number } | undefined {
+  protected parseRegistryTypeFromMemo(
+    memo: string,
+  ): { registryType: HCS2RegistryType; ttl: number } | undefined {
     try {
       const regex = /hcs-2:(\d):(\d+)/;
       const match = memo.match(regex);
-      
+
       if (match && match.length === 3) {
         const registryType = parseInt(match[1]) as HCS2RegistryType;
         const ttl = parseInt(match[2]);
-        
+
         if (registryType !== undefined && !isNaN(ttl)) {
           return { registryType, ttl };
         }
       }
-      
+
       return undefined;
     } catch (error) {
       this.logger.error(`Error parsing registry type from memo: ${error}`);
@@ -141,7 +165,10 @@ export abstract class HCS2BaseClient {
    * @param ttl The time-to-live in seconds
    * @returns The memo string
    */
-  protected generateRegistryMemo(registryType: HCS2RegistryType, ttl: number): string {
+  protected generateRegistryMemo(
+    registryType: HCS2RegistryType,
+    ttl: number,
+  ): string {
     return `hcs-2:${registryType}:${ttl}`;
   }
 
@@ -150,14 +177,17 @@ export abstract class HCS2BaseClient {
    * @param message The message to validate
    * @returns Validation result
    */
-  protected validateMessage(message: any): { valid: boolean; errors: string[] } {
+  protected validateMessage(message: any): {
+    valid: boolean;
+    errors: string[];
+  } {
     try {
       // Use Zod schema for validation
       hcs2MessageSchema.parse(message);
       return { valid: true, errors: [] };
     } catch (error) {
       const errors: string[] = [];
-      
+
       if (error instanceof ZodError) {
         // Format Zod errors for better readability
         error.errors.forEach(err => {
@@ -168,7 +198,7 @@ export abstract class HCS2BaseClient {
         // Handle non-Zod errors
         errors.push(`Unexpected error: ${error}`);
       }
-      
+
       this.logger.debug(`Message validation failed: ${errors.join(', ')}`);
       return { valid: false, errors };
     }
@@ -181,13 +211,17 @@ export abstract class HCS2BaseClient {
    * @param memo Optional memo
    * @returns The register message
    */
-  protected createRegisterMessage(targetTopicId: string, metadata?: string, memo?: string): HCS2RegisterMessage {
+  protected createRegisterMessage(
+    targetTopicId: string,
+    metadata?: string,
+    memo?: string,
+  ): HCS2RegisterMessage {
     return {
       p: 'hcs-2',
       op: HCS2Operation.REGISTER,
       t_id: targetTopicId,
       metadata,
-      m: memo
+      m: memo,
     };
   }
 
@@ -199,14 +233,19 @@ export abstract class HCS2BaseClient {
    * @param memo Optional memo
    * @returns The update message
    */
-  protected createUpdateMessage(targetTopicId: string, uid: string, metadata?: string, memo?: string): HCS2UpdateMessage {
+  protected createUpdateMessage(
+    targetTopicId: string,
+    uid: string,
+    metadata?: string,
+    memo?: string,
+  ): HCS2UpdateMessage {
     return {
       p: 'hcs-2',
       op: HCS2Operation.UPDATE,
       t_id: targetTopicId,
       uid,
       metadata,
-      m: memo
+      m: memo,
     };
   }
 
@@ -221,7 +260,7 @@ export abstract class HCS2BaseClient {
       p: 'hcs-2',
       op: HCS2Operation.DELETE,
       uid,
-      m: memo
+      m: memo,
     };
   }
 
@@ -232,13 +271,17 @@ export abstract class HCS2BaseClient {
    * @param memo Optional memo
    * @returns The migrate message
    */
-  protected createMigrateMessage(targetTopicId: string, metadata?: string, memo?: string): HCS2MigrateMessage {
+  protected createMigrateMessage(
+    targetTopicId: string,
+    metadata?: string,
+    memo?: string,
+  ): HCS2MigrateMessage {
     return {
       p: 'hcs-2',
       op: HCS2Operation.MIGRATE,
       t_id: targetTopicId,
       metadata,
-      m: memo
+      m: memo,
     };
   }
 
@@ -254,32 +297,40 @@ export abstract class HCS2BaseClient {
     topicId: string,
     messages: any[],
     registryType: HCS2RegistryType,
-    ttl: number
+    ttl: number,
   ): TopicRegistry {
     const entries: RegistryEntry[] = [];
     let latestEntry: RegistryEntry | undefined;
 
-    this.logger.debug(`Parsing ${messages.length} messages for topic ${topicId}`);
-    
+    this.logger.debug(
+      `Parsing ${messages.length} messages for topic ${topicId}`,
+    );
+
     for (const msg of messages) {
       try {
         if (!msg.message) {
-          this.logger.debug(`Message is missing 'message' property: ${JSON.stringify(msg)}`);
+          this.logger.debug(
+            `Message is missing 'message' property: ${JSON.stringify(msg)}`,
+          );
           continue;
         }
-        
-        const decodedMessage = Buffer.from(msg.message, 'base64').toString('utf-8');
+
+        const decodedMessage = Buffer.from(msg.message, 'base64').toString(
+          'utf-8',
+        );
         const message = JSON.parse(decodedMessage);
-        
-        this.logger.debug(`Successfully parsed message: ${JSON.stringify(message)}`);
-        
+
+        this.logger.debug(
+          `Successfully parsed message: ${JSON.stringify(message)}`,
+        );
+
         // Validate message
         const { valid, errors } = this.validateMessage(message);
         if (!valid) {
           this.logger.warn(`Invalid HCS-2 message: ${errors.join(', ')}`);
           continue;
         }
-        
+
         const entry: RegistryEntry = {
           topicId,
           sequence: msg.sequence_number,
@@ -287,13 +338,17 @@ export abstract class HCS2BaseClient {
           payer: msg.payer_account_id,
           message,
           consensus_timestamp: msg.consensus_timestamp,
-          registry_type: registryType
+          registry_type: registryType,
         };
-        
+
         entries.push(entry);
-        
+
         // For non-indexed registries, we only care about the latest message
-        if (registryType === HCS2RegistryType.NON_INDEXED || !latestEntry || entry.timestamp > latestEntry.timestamp) {
+        if (
+          registryType === HCS2RegistryType.NON_INDEXED ||
+          !latestEntry ||
+          entry.timestamp > latestEntry.timestamp
+        ) {
           latestEntry = entry;
         }
       } catch (error) {
@@ -301,14 +356,21 @@ export abstract class HCS2BaseClient {
       }
     }
 
-    this.logger.debug(`Parsed ${entries.length} valid entries for topic ${topicId}`);
-    
+    this.logger.debug(
+      `Parsed ${entries.length} valid entries for topic ${topicId}`,
+    );
+
     return {
       topicId,
       registryType,
       ttl,
-      entries: registryType === HCS2RegistryType.INDEXED ? entries : (latestEntry ? [latestEntry] : []),
-      latestEntry
+      entries:
+        registryType === HCS2RegistryType.INDEXED
+          ? entries
+          : latestEntry
+            ? [latestEntry]
+            : [],
+      latestEntry,
     };
   }
-} 
+}

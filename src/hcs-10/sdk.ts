@@ -44,6 +44,9 @@ import {
   RegistrationProgressCallback,
   InscribePfpResponse,
   MCPServerCreationState,
+  CreateRegistryTopicOptions,
+  CreateRegistryTopicResponse,
+  RegistryMetadata,
 } from './types';
 import { MirrorNodeConfig } from '../services';
 import {
@@ -2442,6 +2445,171 @@ export class HCS10Client extends HCS10BaseClient {
             completedPercentage: 0,
             error: error.message,
           } as MCPServerCreationState),
+      };
+    }
+  }
+
+  /**
+   * Creates a new HCS-10 registry topic with optional metadata stored via HCS-1.
+   *
+   * Registry topics serve as directories for AI agent discovery and follow the
+   * HCS-10 memo format: hcs-10:0:{ttl}:3:[metadataTopicId]
+   *
+   * @param options Configuration options for registry creation
+   * @returns Promise resolving to registry creation result
+   */
+  async createRegistryTopic(
+    options: CreateRegistryTopicOptions = {},
+  ): Promise<CreateRegistryTopicResponse> {
+    const {
+      ttl = 86400,
+      metadata,
+      adminKey = false,
+      submitKey = false,
+      waitForConfirmation = true,
+      waitMaxAttempts = 30,
+      waitIntervalMs = 4000,
+      progressCallback,
+    } = options;
+
+    try {
+      if (!this.keyType) {
+        await this.initializeOperator();
+      }
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'preparing',
+          message: 'Preparing registry topic creation',
+          progressPercent: 10,
+          details: { metadata: !!metadata },
+        });
+      }
+
+      let metadataTopicId: string | undefined;
+
+      if (metadata) {
+        this.logger.info('Creating metadata inscription for registry');
+
+        if (progressCallback) {
+          progressCallback({
+            stage: 'submitting',
+            message: 'Creating registry metadata inscription',
+            progressPercent: 30,
+            details: { metadataName: metadata.name },
+          });
+        }
+
+        const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2));
+
+        const inscriptionOptions = {
+          mode: 'file' as const,
+          waitForConfirmation,
+          waitMaxAttempts,
+          waitIntervalMs,
+          logging: {
+            level: this.logger.getLevel ? this.logger.getLevel() : 'info',
+          },
+        };
+
+        const inscription = await inscribe(
+          {
+            type: 'buffer',
+            buffer: metadataBuffer,
+            fileName: `registry-metadata-${Date.now()}.json`,
+            mimeType: 'application/json',
+          },
+          {
+            accountId: this.client.operatorAccountId.toString(),
+            privateKey: this.operatorPrivateKey.toString(),
+            network: this.network as 'testnet' | 'mainnet',
+          },
+          inscriptionOptions,
+        );
+
+        if (!inscription.confirmed || !inscription.inscription) {
+          throw new Error('Metadata inscription was not confirmed');
+        }
+
+        metadataTopicId = inscription.inscription.topic_id;
+        this.logger.info(`Metadata inscribed to topic: ${metadataTopicId}`);
+      }
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'submitting',
+          message: 'Creating registry topic',
+          progressPercent: 60,
+          details: { metadataTopicId },
+        });
+      }
+
+      const memo = `hcs-10:0:${ttl}:3${metadataTopicId ? `:${metadataTopicId}` : ''}`;
+
+      const operatorKey =
+        this.keyType === 'ecdsa'
+          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
+          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+
+      let topicCreateTx = new TopicCreateTransaction().setTopicMemo(memo);
+
+      if (adminKey) {
+        topicCreateTx = topicCreateTx.setAdminKey(operatorKey.publicKey);
+      }
+
+      if (submitKey) {
+        topicCreateTx = topicCreateTx.setSubmitKey(operatorKey.publicKey);
+      }
+
+      const txResponse = await topicCreateTx.execute(this.client);
+      const receipt = await txResponse.getReceipt(this.client);
+      const topicId = receipt.topicId?.toString();
+
+      if (!topicId) {
+        throw new Error('Failed to create registry topic');
+      }
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'completed',
+          message: 'Registry topic created successfully',
+          progressPercent: 100,
+          details: {
+            topicId,
+            metadataTopicId,
+            transactionId: txResponse.transactionId.toString(),
+          },
+        });
+      }
+
+      this.logger.info(`Registry topic created successfully: ${topicId}`);
+
+      return {
+        success: true,
+        topicId,
+        transactionId: txResponse.transactionId.toString(),
+        metadataTopicId,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      if (progressCallback) {
+        progressCallback({
+          stage: 'failed',
+          message: `Registry creation failed: ${errorMessage}`,
+          progressPercent: 0,
+          details: { error: errorMessage },
+        });
+      }
+
+      this.logger.error('Failed to create registry topic', {
+        error: errorMessage,
+      });
+
+      return {
+        success: false,
+        error: errorMessage,
       };
     }
   }

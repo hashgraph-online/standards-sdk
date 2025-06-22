@@ -7,7 +7,12 @@
 
 import { webcrypto } from 'crypto';
 import { HCS11Client } from '../src/hcs-11/client';
-import { ProfileType, PersonalProfile, AIAgentType, AIAgentCapability } from '../src/hcs-11/types';
+import {
+  ProfileType,
+  PersonalProfile,
+  AIAgentType,
+  AIAgentCapability,
+} from '../src/hcs-11/types';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -72,7 +77,9 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
         expect(response.success).toBe(true);
         expect(response.profileTopicId).toBeDefined();
         expect(response.transactionId).toBeDefined();
-        console.log(`✅ Profile inscribed successfully: ${response.profileTopicId}`);
+        console.log(
+          `✅ Profile inscribed successfully: ${response.profileTopicId}`,
+        );
       } else {
         console.log(`❌ Profile inscription failed: ${response.error}`);
         expect(response.success).toBe(false);
@@ -106,7 +113,7 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
 
       expect(response.success).toBe(false);
       expect(response.error).toContain('No authentication method available');
-      
+
       clientWithoutAuth.getClient().close();
     });
   });
@@ -157,20 +164,26 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
 
       const response = await client.inscribeProfile(agentProfile);
 
-      console.log('AI Agent inscription response:', JSON.stringify(response, null, 2));
+      console.log(
+        'AI Agent inscription response:',
+        JSON.stringify(response, null, 2),
+      );
 
       if (response.success) {
         expect(response.success).toBe(true);
         expect(response.profileTopicId).toBeDefined();
-        console.log(`✅ AI Agent profile inscribed: ${response.profileTopicId}`);
+        console.log(
+          `✅ AI Agent profile inscribed: ${response.profileTopicId}`,
+        );
       } else {
-        console.log(`❌ AI Agent profile inscription failed: ${response.error}`);
+        console.log(
+          `❌ AI Agent profile inscription failed: ${response.error}`,
+        );
         expect(response.success).toBe(false);
         expect(response.error).toBeDefined();
       }
     }, 60000);
   });
-
 
   describe('Profile Retrieval', () => {
     let profileTopicId: string;
@@ -197,12 +210,14 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
 
       const inscribeResult = await client.inscribeProfile(testProfile);
       if (!inscribeResult.success) {
-        throw new Error(`Profile inscription failed during test setup: ${inscribeResult.error}`);
+        throw new Error(
+          `Profile inscription failed during test setup: ${inscribeResult.error}`,
+        );
       }
       profileTopicId = inscribeResult.profileTopicId;
 
       await client.updateAccountMemoWithProfile(operatorId, profileTopicId);
-      
+
       await new Promise(resolve => setTimeout(resolve, 10000));
     }, 60000);
 
@@ -218,9 +233,8 @@ describe('HCS11Client - inscribeProfile Integration Tests', () => {
       expect(fetchResult.success).toBe(true);
       expect(fetchResult.profile).toBeDefined();
       expect(fetchResult.topicInfo?.profileTopicId).toBe(profileTopicId);
-      
+
       console.log(`✅ Profile fetched successfully for account: ${operatorId}`);
     }, 30000);
   });
-
 });
