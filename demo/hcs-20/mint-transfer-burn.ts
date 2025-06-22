@@ -1,6 +1,6 @@
 /**
  * Example: Mint, Transfer, and Burn HCS-20 Points
- * 
+ *
  * Note: This example assumes you have already deployed points
  * and know the topic ID where they are deployed.
  */
@@ -56,7 +56,7 @@ async function mintTransferBurnExample() {
       amount: '5000',
       to: recipientAccount,
       memo: 'Initial mint for demo',
-      progressCallback: (progress) => {
+      progressCallback: progress => {
         console.log(`[MINT ${progress.stage}] ${progress.percentage}%`);
         if (progress.mintTxId) {
           console.log(`Mint Transaction: ${progress.mintTxId}`);
@@ -70,7 +70,9 @@ async function mintTransferBurnExample() {
 
     // Step 2: Transfer points
     console.log('\n\nStep 2: Transferring points...\n');
-    console.log('Note: For public topics, only the account owner can transfer their points.');
+    console.log(
+      'Note: For public topics, only the account owner can transfer their points.',
+    );
 
     const transferTx = await client.transferPoints({
       tick,
@@ -78,7 +80,7 @@ async function mintTransferBurnExample() {
       from: operatorId, // Must be the operator for SDK client
       to: recipientAccount,
       memo: 'Transfer demo',
-      progressCallback: (progress) => {
+      progressCallback: progress => {
         console.log(`[TRANSFER ${progress.stage}] ${progress.percentage}%`);
         if (progress.transferTxId) {
           console.log(`Transfer Transaction: ${progress.transferTxId}`);
@@ -97,7 +99,7 @@ async function mintTransferBurnExample() {
       amount: '500',
       from: operatorId, // Must be the operator for SDK client
       memo: 'Burn demo',
-      progressCallback: (progress) => {
+      progressCallback: progress => {
         console.log(`[BURN ${progress.stage}] ${progress.percentage}%`);
         if (progress.burnTxId) {
           console.log(`Burn Transaction: ${progress.burnTxId}`);
@@ -111,9 +113,11 @@ async function mintTransferBurnExample() {
     console.log('\n\nDemo completed!');
     console.log('Summary:');
     console.log(`- Minted 5000 ${tick} to ${recipientAccount}`);
-    console.log(`- Transferred 1500 ${tick} from operator to ${recipientAccount}`); 
+    console.log(
+      `- Transferred 1500 ${tick} from operator to ${recipientAccount}`,
+    );
     console.log(`- Burned 500 ${tick} from operator`);
-    
+
     console.log('\n📊 Starting indexer to verify final state...');
     const indexer = new HCS20PointsIndexer('testnet');
 
@@ -135,11 +139,11 @@ async function mintTransferBurnExample() {
     console.log(`- Operator balance: ${operatorBalance} ${tick}`);
     console.log(`- Recipient balance: ${recipientBalance} ${tick}`);
     console.log(`- Total supply: ${totalSupply} ${tick}`);
-    
+
     console.log('\n✅ Verification:');
     console.log('Expected state after operations:');
     console.log('- Minted 5000 to recipient');
-    console.log('- Transferred 1500 from operator to recipient'); 
+    console.log('- Transferred 1500 from operator to recipient');
     console.log('- Burned 500 from operator');
     console.log('- Total minted: 5000, Total burned: 500');
     console.log(`- Expected total supply: 4500 (actual: ${totalSupply})`);

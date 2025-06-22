@@ -42,22 +42,26 @@ async function main() {
 
   if (!publicTopicId || !registryTopicId) {
     console.log('\n📝 Setting up HCS-20 testnet topics...');
-    
+
     if (!publicTopicId) {
       console.log('Creating public topic...');
-      publicTopicId = await client.createPublicTopic('HCS-20 Public Topic (Testnet)');
+      publicTopicId = await client.createPublicTopic(
+        'HCS-20 Public Topic (Testnet)',
+      );
       console.log(`✅ Public topic created: ${publicTopicId}`);
     }
 
     if (!registryTopicId) {
       console.log('Creating registry topic...');
-      registryTopicId = await client.createRegistryTopic('HCS-20 Registry (Testnet)');
+      registryTopicId = await client.createRegistryTopic(
+        'HCS-20 Registry (Testnet)',
+      );
       console.log(`✅ Registry topic created: ${registryTopicId}`);
     }
 
     const envContent = fs.readFileSync(envPath, 'utf8');
     const lines = envContent.split('\n');
-    
+
     const updateEnvVar = (name: string, value: string) => {
       const index = lines.findIndex(line => line.startsWith(`${name}=`));
       if (index !== -1) {
