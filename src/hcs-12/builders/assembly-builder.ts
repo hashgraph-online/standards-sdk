@@ -15,6 +15,8 @@ import {
   AssemblyBlock,
   AssemblyState,
 } from '../types';
+import { ActionBuilder } from './action-builder';
+import { BlockBuilder } from './block-builder';
 
 /**
  * Builder for creating HashLink assemblies using incremental operations
@@ -109,15 +111,10 @@ export class AssemblyBuilder {
   /**
    * Add an action to the assembly
    */
-  addAction(
-    t_id: string,
-    alias: string,
-    config?: any,
-    data?: string,
-  ): AssemblyBuilder {
-    if (!this.isValidTopicId(t_id)) {
-      throw new Error('Invalid topic ID format');
-    }
+  addAction(builder: ActionBuilder): AssemblyBuilder {
+    const topicId = builder.getTopicId();
+    const alias = builder.getAlias();
+
     if (!this.isValidAlias(alias)) {
       throw new Error('Invalid alias format');
     }
@@ -125,10 +122,8 @@ export class AssemblyBuilder {
     const operation: AssemblyAddAction = {
       p: 'hcs-12',
       op: 'add-action',
-      t_id,
+      t_id: topicId,
       alias,
-      config,
-      data,
     };
 
     this.operations.push(operation);
@@ -137,19 +132,24 @@ export class AssemblyBuilder {
 
   /**
    * Add a block to the assembly
+   * The block must already be registered and have a topic ID
    */
-  addBlock(
-    block_t_id: string,
-    actions?: Record<string, string>,
-    attributes?: Record<string, any>,
-    children?: string[],
-    data?: string,
-  ): AssemblyBuilder {
-    if (!this.isValidTopicId(block_t_id)) {
-      throw new Error('Invalid block topic ID format');
+  addBlock(builder: BlockBuilder): AssemblyBuilder {
+    const blockTopicId = builder.getTopicId();
+    
+    // Validate block topic ID
+    if (!this.isValidTopicId(blockTopicId)) {
+      throw new Error(`Invalid block topic ID: ${blockTopicId}`);
     }
+    
+    const definition = builder.build();
+    const actions = builder.getActions();
 
-    if (actions) {
+    // Extract default attributes from builder
+    const attributes = this.extractDefaultAttributes(definition.attributes);
+
+    // Validate action topic IDs if provided
+    if (actions && Object.keys(actions).length > 0) {
       for (const [name, topicId] of Object.entries(actions)) {
         if (!this.isValidTopicId(topicId)) {
           throw new Error(`Invalid action topic ID for "${name}": ${topicId}`);
@@ -160,11 +160,9 @@ export class AssemblyBuilder {
     const operation: AssemblyAddBlock = {
       p: 'hcs-12',
       op: 'add-block',
-      block_t_id,
-      actions,
+      block_t_id: blockTopicId,
+      ...(Object.keys(actions).length > 0 && { actions }),
       attributes,
-      children,
-      data,
     };
 
     this.operations.push(operation);
@@ -291,7 +289,7 @@ export class AssemblyBuilder {
     }
 
     return {
-      topicId: '', // Will be set when deployed
+      topicId: '',
       name: this.registration.name,
       version: this.registration.version,
       description: this.registration.description,
@@ -375,43 +373,6 @@ export class AssemblyBuilder {
   }
 
   /**
-   * Create example assemblies for testing
-   */
-  static createDataVisualizationExample(): AssemblyBuilder {
-    const builder = new AssemblyBuilder();
-    return builder
-      .setName('data-visualization-dashboard')
-      .setVersion('1.0.0')
-      .setDescription('Interactive dashboard for data visualization')
-      .setTags(['dashboard', 'charts', 'data'])
-      .setAuthor('HashLinks Team')
-      .addAction('0.0.123456', 'fetchData', { endpoint: '/api/data' })
-      .addAction('0.0.123457', 'processData', { format: 'json' })
-      .addBlock('0.0.234567', {}, { title: 'Dashboard' })
-      .addBlock('0.0.234568', { render: '0.0.123456', fetchData: '0.0.123457' })
-      .addBlock('0.0.234569', { display: '0.0.123458' });
-  }
-
-  static createFormExample(): AssemblyBuilder {
-    const builder = new AssemblyBuilder();
-    return builder
-      .setName('contact-form')
-      .setVersion('1.0.0')
-      .setDescription('Simple contact form with validation')
-      .setTags(['form', 'contact', 'validation'])
-      .setAuthor('HashLinks Team')
-      .addAction('0.0.345678', 'validateForm', { required: ['name', 'email'] })
-      .addAction('0.0.345679', 'submitForm', { endpoint: '/api/contact' })
-      .addBlock('0.0.456789', {})
-      .addBlock(
-        '0.0.456790',
-        { validate: '0.0.345678' },
-        { type: 'text', name: 'name' },
-      )
-      .addBlock('0.0.456791', { submit: '0.0.345679' });
-  }
-
-  /**
    * Helper validation methods
    */
   private isValidSemver(version: string): boolean {
@@ -432,5 +393,22 @@ export class AssemblyBuilder {
 
   private isValidName(name: string): boolean {
     return /^[a-z0-9-]+$/.test(name) && name.length >= 2 && name.length <= 100;
+  }
+
+  /**
+   * Extract default values from block attributes
+   */
+  private extractDefaultAttributes(
+    attributes?: Record<string, any>,
+  ): Record<string, any> {
+    if (!attributes) return {};
+
+    const defaults: Record<string, any> = {};
+    for (const [key, attr] of Object.entries(attributes)) {
+      if (attr && typeof attr === 'object' && 'default' in attr) {
+        defaults[key] = attr.default;
+      }
+    }
+    return defaults;
   }
 }

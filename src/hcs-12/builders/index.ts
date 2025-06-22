@@ -4,3 +4,4 @@
 
 export * from './action-builder';
 export * from './assembly-builder';
+export * from './block-builder';

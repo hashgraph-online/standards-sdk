@@ -1,20 +1,16 @@
-/// <reference types="jest" />
 import { HRLResolver } from '../src/index';
 import axios from 'axios';
 import { HederaMirrorNode } from '../src/services/mirror-node';
 import type { Mock } from 'jest-mock';
 
-// Mock axios
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-// Mock HederaMirrorNode
 jest.mock('../src/services/mirror-node');
 const MockedHederaMirrorNode = HederaMirrorNode as jest.MockedClass<
   typeof HederaMirrorNode
 >;
 
-// Mock Logger
 jest.mock('../src/utils/logger', () => {
   const originalModule = jest.requireActual('../src/utils/logger');
 
@@ -40,7 +36,6 @@ describe('HRLResolver.resolve', () => {
     resolver = new HRLResolver('info');
     jest.clearAllMocks();
 
-    // Setup mirror node mock
     mockGetTopicInfo = jest.fn();
     MockedHederaMirrorNode.prototype.getTopicInfo = mockGetTopicInfo;
   });
@@ -191,8 +186,8 @@ describe('HRLResolver.resolve', () => {
       { memo: 'hcs-1', expectedStandard: '1' },
       { memo: 'hcs-20:points', expectedStandard: '20' },
       { memo: 'hcs-12:blocks:extra', expectedStandard: '12' },
-      { memo: 'HCS-20', expectedStandard: '1' }, // Case sensitive
-      { memo: 'prefix-hcs-20', expectedStandard: '1' }, // Must start with hcs-
+      { memo: 'HCS-20', expectedStandard: '1' },
+      { memo: 'prefix-hcs-20', expectedStandard: '1' },
     ];
 
     memoTestCases.forEach(({ memo, expectedStandard }) => {
@@ -214,12 +209,10 @@ describe('HRLResolver.resolve', () => {
           network: 'testnet',
         });
 
-        // Verify the correct HRL was constructed
         expect(mockedAxios.head).toHaveBeenCalledWith(
           expect.stringContaining('0.0.123456'),
         );
 
-        // The URL should contain the extracted standard
         const callUrl = mockedAxios.head.mock.calls[0][0];
         expect(callUrl).toContain('0.0.123456');
       });

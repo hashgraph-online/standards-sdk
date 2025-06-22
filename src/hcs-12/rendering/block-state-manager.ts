@@ -100,7 +100,7 @@ export class BlockStateManager {
    */
   getBlockState(blockId: string): BlockState | null {
     if (!this.blockStates.has(blockId)) {
-      throw new Error(`Block state not found: ${blockId}`);
+      return null;
     }
     return { ...this.blockStates.get(blockId) };
   }

@@ -46,7 +46,6 @@ describe('AssemblyRegistry', () => {
 
   describe('Assembly Operations', () => {
     beforeEach(() => {
-      // Mock sync to return empty array by default
       mockClient.mirrorNode.getTopicMessagesByFilter.mockResolvedValue([]);
     });
 
@@ -74,7 +73,6 @@ describe('AssemblyRegistry', () => {
         JSON.stringify(assemblyReg),
       );
 
-      // Check assembly state was initialized
       const state = await assemblyRegistry.getAssemblyState();
       expect(state).toBeDefined();
       expect(state?.name).toBe('test-assembly');

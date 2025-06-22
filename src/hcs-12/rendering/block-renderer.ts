@@ -13,6 +13,10 @@ import { WasmExecutor } from '../wasm/wasm-executor';
 import { NetworkType } from '../../utils/types';
 import type { ActionRegistry } from '../registries/action-registry';
 import type { Assembly } from '../assembly/assembly-engine';
+import { HashLinkScanner } from './hashlink-scanner';
+import { HashLinkResolver, RenderContext } from './hashlink-resolver';
+import { BlockLoader } from '../registries/block-loader';
+import { HRLResolver } from '../../utils/hrl-resolver';
 
 export interface BlockDefinitionWithUI {
   id: string;
@@ -40,6 +44,11 @@ export interface RenderOptions {
   assembly?: Assembly;
   actionRegistry?: ActionRegistry;
   network?: NetworkType;
+  depth?: number;
+  maxDepth?: number;
+  parentContext?: RenderContext;
+  blockLoader?: BlockLoader;
+  hrlResolver?: HRLResolver;
 }
 
 export interface RenderResult {
@@ -61,6 +70,11 @@ export class BlockRenderer {
   private currentOptions?: RenderOptions;
   private assembly?: Assembly;
   private actionRegistry?: ActionRegistry;
+  private hashLinkScanner: HashLinkScanner;
+  private hashLinkResolver?: HashLinkResolver;
+  private blockLoader?: BlockLoader;
+  private hrlResolver?: HRLResolver;
+  private readonly MAX_DEPTH = 10;
 
   constructor(
     logger: Logger,
@@ -72,6 +86,7 @@ export class BlockRenderer {
     this.gutenbergBridge = gutenbergBridge;
     this.templateEngine = templateEngine;
     this.stateManager = stateManager;
+    this.hashLinkScanner = new HashLinkScanner(logger);
   }
 
   /**
@@ -82,11 +97,9 @@ export class BlockRenderer {
     options: RenderOptions = {},
   ): Promise<RenderResult> {
     try {
-      // Store current block and options for re-rendering
       this.currentBlock = block;
       this.currentOptions = options;
 
-      // Store assembly and action registry if provided
       if (options.assembly) {
         this.assembly = options.assembly;
       }
@@ -94,7 +107,6 @@ export class BlockRenderer {
         this.actionRegistry = options.actionRegistry;
       }
 
-      // Initialize WASM executor if we have network info
       if (options.network && !this.wasmExecutor) {
         this.wasmExecutor = new WasmExecutor(this.logger, options.network);
       }
@@ -107,29 +119,25 @@ export class BlockRenderer {
         attributes: {},
         actionResults: {},
       };
-      
-      // Ensure state has the correct structure
+
       if (!state.attributes || typeof state.attributes !== 'object') {
         this.logger.warn('Invalid state structure, fixing...', { state });
         state = {
-          attributes: state as any || {},
-          actionResults: {}
+          attributes: (state as any) || {},
+          actionResults: {},
         };
       }
 
-      // Get action mappings from assembly if available
       let actions = {};
       let attributes = block.attributes || {};
 
       if (this.assembly) {
-        // Find the block in the assembly to get its action mappings
         const assemblyBlock = this.assembly.state?.blocks?.find(
           b => b.block_t_id === block.id || b.block_t_id === block.t_id,
         );
 
         if (assemblyBlock) {
           actions = assemblyBlock.actions || {};
-          // Merge assembly attributes with block attributes
           attributes = {
             ...assemblyBlock.attributes,
             ...attributes,
@@ -137,20 +145,23 @@ export class BlockRenderer {
         }
       }
 
-      // Extract default values from block definition attributes
       const defaultAttributes: Record<string, any> = {};
       if (block.attributes) {
-        Object.entries(block.attributes).forEach(([key, attrDef]: [string, any]) => {
-          if (attrDef && typeof attrDef === 'object' && 'default' in attrDef) {
-            defaultAttributes[key] = attrDef.default;
-          }
-        });
+        Object.entries(block.attributes).forEach(
+          ([key, attrDef]: [string, any]) => {
+            if (
+              attrDef &&
+              typeof attrDef === 'object' &&
+              'default' in attrDef
+            ) {
+              defaultAttributes[key] = attrDef.default;
+            }
+          },
+        );
       }
-      
-      // Merge attributes, ensuring we only get primitive values
+
       const mergedAttributes: Record<string, any> = { ...defaultAttributes };
-      
-      // Add block attributes
+
       if (attributes && typeof attributes === 'object') {
         Object.entries(attributes).forEach(([key, value]) => {
           if (typeof value !== 'object' || value === null) {
@@ -158,8 +169,7 @@ export class BlockRenderer {
           }
         });
       }
-      
-      // Add state attributes (these take precedence)
+
       if (state.attributes && typeof state.attributes === 'object') {
         Object.entries(state.attributes).forEach(([key, value]) => {
           if (typeof value !== 'object' || value === null) {
@@ -168,37 +178,33 @@ export class BlockRenderer {
         });
       }
 
-      // Update state with merged attributes to ensure defaults are persistent
       state.attributes = { ...mergedAttributes };
       this.stateManager.setBlockState(block.id, state);
-      
+
       const templateContext = {
         attributes: mergedAttributes,
         actions,
         blockId: block.id,
-        // Don't spread the entire state to avoid conflicts
-        actionResults: state.actionResults || {}
+        actionResults: state.actionResults || {},
       };
-      
+
       this.logger.debug('Template context', {
         blockId: block.id,
         attributes: templateContext.attributes,
         hasActions: !!actions,
         actionKeys: Object.keys(actions),
         rawState: state,
-        mergedAttributes: mergedAttributes
-      });
-      
-      console.log('DEBUG: Template context for render', {
-        blockId: block.id,
-        attributes: templateContext.attributes,
-        actionResults: templateContext.actionResults,
-        hasInitialState: !!options.initialState,
-        initialStateAttributes: options.initialState?.attributes,
-        stateFromManager: state
+        mergedAttributes: mergedAttributes,
       });
 
-      const html = await this.templateEngine.render(block.template || '', templateContext);
+      let html = await this.templateEngine.render(
+        block.template || '',
+        templateContext,
+      );
+
+      if (this.shouldProcessHashLinks(options)) {
+        html = await this.processHashLinks(html, block, options);
+      }
 
       if (options.container && typeof window !== 'undefined') {
         const container =
@@ -264,17 +270,11 @@ export class BlockRenderer {
         e.preventDefault();
         const actionTopicId = (element as HTMLElement).dataset.action;
         const paramsStr = (element as HTMLElement).dataset.params;
-        
+
         this.logger.debug('Action button clicked', {
           actionTopicId,
           paramsStr,
-          hasAction: !!actionTopicId
-        });
-        
-        console.log('DEBUG: Button clicked', {
-          actionTopicId,
-          paramsStr,
-          blockId
+          hasAction: !!actionTopicId,
         });
 
         if (actionTopicId) {
@@ -287,64 +287,51 @@ export class BlockRenderer {
   /**
    * Update the block display by re-rendering with new state
    */
-  private async updateBlockDisplay(blockId: string, newState: BlockState): Promise<void> {
+  private async updateBlockDisplay(
+    blockId: string,
+    newState: BlockState,
+  ): Promise<void> {
     try {
       this.logger.debug('updateBlockDisplay called', { blockId, newState });
-      console.log('DEBUG: updateBlockDisplay called', { blockId, newState });
-      
-      // Find the block container
-      const blockElement = document.querySelector(`[data-block-id="${blockId}"]`);
-      console.log('DEBUG: Found block element?', !!blockElement, blockElement);
-      
+
+      const blockElement = document.querySelector(
+        `[data-block-id="${blockId}"]`,
+      );
+
       if (!blockElement || !blockElement.parentElement) {
         this.logger.warn('Block element not found for re-render', { blockId });
-        console.log('DEBUG: Block element not found!', {
-          blockId,
-          hasElement: !!blockElement,
-          hasParent: !!blockElement?.parentElement,
-          allBlockElements: document.querySelectorAll('[data-block-id]').length
-        });
         return;
       }
 
       const container = blockElement.parentElement;
 
-      // Re-render the block with the updated state
-      console.log('DEBUG: Re-render check', {
-        hasCurrentBlock: !!this.currentBlock,
-        currentBlockId: this.currentBlock?.id,
-        matchesBlockId: this.currentBlock?.id === blockId,
-        hasOptions: !!this.currentOptions
-      });
-      
-      if (this.currentBlock && this.currentBlock.id === blockId && this.currentOptions) {
+      if (
+        this.currentBlock &&
+        this.currentBlock.id === blockId &&
+        this.currentOptions
+      ) {
         const updatedOptions = {
           ...this.currentOptions,
           container,
-          initialState: newState
+          initialState: newState,
         };
 
-        console.log('DEBUG: About to re-render with new state', {
-          currentState: newState,
-          attributes: newState.attributes,
-          actionResults: newState.actionResults
-        });
-        
-        const renderResult = await this.render(this.currentBlock, updatedOptions);
-        
-        console.log('DEBUG: Render completed', {
-          hasElement: !!renderResult.element,
-          hasHtml: !!renderResult.html
-        });
+        const renderResult = await this.render(
+          this.currentBlock,
+          updatedOptions,
+        );
 
-        this.logger.debug('Block re-rendered with updated state', { blockId, newState });
-        console.log('DEBUG: Block re-rendered successfully');
+        this.logger.debug('Block re-rendered with updated state', {
+          blockId,
+          newState,
+        });
       } else {
-        console.log('DEBUG: Skipping re-render - conditions not met');
       }
     } catch (error) {
-      this.logger.error('Failed to re-render block', { blockId, error: error.message });
-      console.error('DEBUG: Re-render failed', error);
+      this.logger.error('Failed to re-render block', {
+        blockId,
+        error: error.message,
+      });
     }
   }
 
@@ -359,7 +346,6 @@ export class BlockRenderer {
     try {
       this.logger.debug('Executing action', { blockId, actionTopicId });
 
-      // Parse params
       let params = {};
       if (paramsStr) {
         try {
@@ -369,76 +355,49 @@ export class BlockRenderer {
         }
       }
 
-      // Get current state
       const currentState = this.stateManager.getBlockState(blockId) || {
         attributes: {},
         actionResults: {},
       };
-      
-      console.log('DEBUG: Current state before WASM execution', {
-        blockId,
-        currentState,
-        params,
-        stateAttributes: currentState.attributes
-      });
 
-      // If we have WASM executor and action registry, execute the action
       if (this.wasmExecutor && this.actionRegistry) {
-        // Look up the action by topic ID
         this.logger.debug('Looking up action in registry', { actionTopicId });
-        console.log('DEBUG: Looking up action in registry', { actionTopicId });
-        
+
         const action =
           await this.actionRegistry.getActionByTopicId(actionTopicId);
-        
-        this.logger.debug('Action lookup result', { 
+
+        this.logger.debug('Action lookup result', {
           found: !!action,
           actionTopicId,
-          actionData: action
+          actionData: action,
         });
-        console.log('DEBUG: Action lookup result', { 
-          found: !!action,
-          actionTopicId,
-          actionData: action
-        });
-        
+
         if (!action) {
           throw new Error(`Action not found: ${actionTopicId}`);
         }
 
-        // Execute the WASM - pass all button params and current state
         this.logger.debug('Executing WASM', {
           actionData: action,
           params,
-          state: currentState.attributes
+          state: currentState.attributes,
         });
-        console.log('DEBUG: About to execute WASM', {
-          actionData: action,
-          params,
-          state: currentState.attributes
-        });
-        
+
         const result = await this.wasmExecutor.execute(action, {
           method: 'POST',
           params,
           state: currentState.attributes,
         });
-        
+
         this.logger.debug('WASM execution result', { result });
-        console.log('DEBUG: WASM execution result', { result });
 
         if (result.success && result.data) {
           const operation = (params as any).operation || 'default';
-          
-          // The WASM returns a nested structure, extract the actual data
+
           let wasmData = result.data;
           if (wasmData.success && wasmData.data) {
-            // WASM returned {success: true, data: {count: X}, message: "..."}
             wasmData = wasmData.data;
           }
-          
-          console.log('DEBUG: Extracted WASM data', { wasmData });
-          
+
           const newState = {
             ...currentState,
             attributes: {
@@ -452,14 +411,12 @@ export class BlockRenderer {
           };
 
           this.stateManager.updateBlockState(blockId, newState);
-          
-          // Re-render the block with updated state
+
           await this.updateBlockDisplay(blockId, newState);
         } else {
           this.logger.error('Action execution failed', { result });
         }
       } else {
-        // Fallback: just send the message for external handling
         this.stateManager.sendMessage(blockId, 'action', {
           action: actionTopicId,
           params,
@@ -472,7 +429,6 @@ export class BlockRenderer {
         error: error.message,
       });
 
-      // Still send the message so external handlers can process it
       this.stateManager.sendMessage(blockId, 'action-error', {
         action: actionTopicId,
         error: error.message,
@@ -504,5 +460,208 @@ export class BlockRenderer {
     }
 
     this.stateManager.removeBlockState(blockId);
+  }
+
+  /**
+   * Check if HashLink processing should be enabled
+   */
+  private shouldProcessHashLinks(options: RenderOptions): boolean {
+    const depth = options.depth || 0;
+    const maxDepth = options.maxDepth || this.MAX_DEPTH;
+
+    if (depth >= maxDepth) {
+      this.logger.warn(
+        'Max render depth reached, skipping HashLink processing',
+        {
+          depth,
+          maxDepth,
+        },
+      );
+      return false;
+    }
+
+    return !!(options.network && (options.blockLoader || this.blockLoader));
+  }
+
+  /**
+   * Initialize HashLink resolver if needed
+   */
+  private ensureHashLinkResolver(options: RenderOptions): void {
+    if (!this.hashLinkResolver && options.network) {
+      this.blockLoader = options.blockLoader || this.blockLoader;
+      this.hrlResolver = options.hrlResolver || this.hrlResolver;
+
+      if (this.blockLoader && this.hrlResolver) {
+        this.hashLinkResolver = new HashLinkResolver(
+          this.logger,
+          this.blockLoader,
+          this.hrlResolver,
+          options.network,
+        );
+      }
+    }
+  }
+
+  /**
+   * Process HashLinks in rendered HTML
+   */
+  private async processHashLinks(
+    html: string,
+    parentBlock: BlockDefinitionWithUI,
+    options: RenderOptions,
+  ): Promise<string> {
+    this.ensureHashLinkResolver(options);
+
+    if (!this.hashLinkResolver) {
+      this.logger.warn('HashLink resolver not available, skipping processing');
+      return html;
+    }
+
+    this.hashLinkResolver.pushRenderStack(parentBlock.id);
+
+    try {
+      const references = await this.hashLinkScanner.scanTemplate(html);
+
+      if (references.length === 0) {
+        return html;
+      }
+
+      this.logger.debug('Processing HashLinks', {
+        parentBlockId: parentBlock.id,
+        referenceCount: references.length,
+      });
+
+      const parentContext: RenderContext = {
+        blockId: parentBlock.id,
+        depth: (options.depth || 0) + 1,
+        parentContext: options.parentContext,
+        attributes: options.initialState?.attributes || {},
+        actions: {},
+        assembly: this.assembly,
+        maxDepth: options.maxDepth || this.MAX_DEPTH,
+      };
+
+      if (this.assembly) {
+        const assemblyBlock = this.assembly.state?.blocks?.find(
+          b =>
+            b.block_t_id === parentBlock.id ||
+            b.block_t_id === parentBlock.t_id,
+        );
+        if (assemblyBlock?.actions) {
+          parentContext.actions = assemblyBlock.actions;
+        }
+      }
+
+      let processedHtml = html;
+
+      for (let i = 0; i < references.length; i++) {
+        const ref = references[i];
+
+        try {
+          const resolved = await this.hashLinkResolver.resolveReference(
+            ref,
+            parentContext,
+          );
+
+          if (resolved.error) {
+            this.logger.error('Failed to resolve HashLink', {
+              uri: ref.uri,
+              error: resolved.error,
+            });
+
+            const errorHtml = `<!-- HashLink Error: ${resolved.error} -->`;
+            processedHtml = processedHtml.replace(ref.placeholder, errorHtml);
+            continue;
+          }
+
+          let childHtml: string;
+
+          if (resolved.definition) {
+            const childBlock: BlockDefinitionWithUI = {
+              id: resolved.blockId,
+              template: resolved.template || '',
+              attributes: resolved.definition.attributes,
+              p: 'hcs-12',
+              op: 'register',
+              name: resolved.definition.name,
+              version: '1.0.0',
+              title: resolved.definition.title,
+              description: resolved.definition.description,
+            };
+
+            const childState = {
+              attributes: resolved.attributes,
+              actionResults: {},
+            };
+
+            const childTemplateContext = {
+              attributes: resolved.attributes,
+              actions: resolved.actions,
+              blockId: resolved.blockId,
+              actionResults: {},
+            };
+
+            if (resolved.template) {
+              childHtml = await this.templateEngine.render(
+                resolved.template,
+                childTemplateContext,
+              );
+
+              const childOptions: RenderOptions = {
+                ...options,
+                depth: parentContext.depth,
+                parentContext,
+                initialState: childState,
+              };
+
+              if (this.shouldProcessHashLinks(childOptions)) {
+                childHtml = await this.processHashLinks(
+                  childHtml,
+                  childBlock,
+                  childOptions,
+                );
+              }
+            } else {
+              childHtml = '<!-- Block has no template -->';
+            }
+          } else if (resolved.template) {
+            childHtml = resolved.template;
+          } else {
+            childHtml = '<!-- Empty block -->';
+          }
+
+          if (ref.loading === 'lazy') {
+            childHtml = this.wrapLazyLoad(childHtml, ref);
+          }
+
+          processedHtml = processedHtml.replace(ref.placeholder, childHtml);
+        } catch (error) {
+          this.logger.error('Error processing HashLink', {
+            uri: ref.uri,
+            error: error.message,
+          });
+
+          const errorHtml = `<!-- HashLink Error: ${error.message} -->`;
+          processedHtml = processedHtml.replace(ref.placeholder, errorHtml);
+        }
+      }
+
+      return processedHtml;
+    } finally {
+      this.hashLinkResolver.popRenderStack(parentBlock.id);
+    }
+  }
+
+  /**
+   * Wrap content for lazy loading
+   */
+  private wrapLazyLoad(html: string, ref: any): string {
+    const wrapperId = `lazy-${ref.uri.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    return `
+      <div id="${wrapperId}" class="hashlink-lazy-container" data-hashlink-lazy="${ref.uri}">
+        <div class="hashlink-lazy-placeholder">Loading...</div>
+        <template class="hashlink-lazy-content">${html}</template>
+      </div>
+    `;
   }
 }

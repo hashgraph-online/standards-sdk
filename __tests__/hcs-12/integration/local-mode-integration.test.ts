@@ -19,6 +19,7 @@ import {
   BlockStateManager,
 } from '../../../src/hcs-12/rendering';
 import { HCS12Client } from '../../../src/hcs-12/sdk';
+import { BlockBuilder } from '../../../src/hcs-12/builders';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -61,7 +62,7 @@ describe('HCS-12 Working Integration Tests', () => {
 
       const registrationId = await actionRegistry.register(actionDef);
       expect(registrationId).toBeDefined();
-      expect(registrationId).toBe('1'); // Local mode returns sequence numbers
+      expect(registrationId).toBe('1');
     });
 
     it('should successfully register blocks', async () => {
@@ -79,26 +80,20 @@ describe('HCS-12 Working Integration Tests', () => {
       client.initializeRegistries();
       const blockLoader = client.blockLoader!;
 
-      const blockDefinition = {
-        apiVersion: 3,
-        name: 'test/hello-world',
-        title: 'Test Block',
-        category: 'common',
-        description: 'A test block',
-        attributes: {},
-        supports: {},
-      };
-
       const template = '<div>Hello World</div>';
 
-      // In local mode, storeBlock returns mock topic IDs
-      const { definitionTopicId, templateTopicId } = await client.storeBlock(
-        template,
-        blockDefinition
-      );
-      
-      expect(definitionTopicId).toBeDefined();
-      expect(templateTopicId).toBeDefined();
+      const blockBuilder = BlockBuilder.createDisplayBlock(
+        'test/hello-world',
+        'Test Block'
+      )
+        .setDescription('A test block')
+        .setTemplate(Buffer.from(template));
+
+      const registeredBlock = await client.registerBlock(blockBuilder);
+      const blockTopicId = registeredBlock.getTopicId();
+
+      expect(blockTopicId).toBeDefined();
+      expect(blockTopicId).toMatch(/^\d+\.\d+\.\d+$/);
     }, 30000);
   });
 
@@ -171,7 +166,7 @@ describe('HCS-12 Working Integration Tests', () => {
     it('should handle state change subscriptions', () => {
       const blockId = 'test-block';
       let changeCount = 0;
-      let lastState: any = null;
+      let lastState: { counter: number; extra?: string } | null = null;
 
       stateManager.createBlockState(blockId, { counter: 0 });
 
@@ -193,7 +188,7 @@ describe('HCS-12 Working Integration Tests', () => {
     it('should support block messaging', () => {
       const sender = 'sender-block';
       const receiver = 'receiver-block';
-      let receivedMessages: any[] = [];
+      let receivedMessages: Array<{ type: string; payload: { value: number }; fromBlock: string; toBlock: string }> = [];
 
       stateManager.createBlockState(sender, {});
       stateManager.createBlockState(receiver, {});
@@ -237,24 +232,18 @@ describe('HCS-12 Working Integration Tests', () => {
         wasm_hash: 'd'.repeat(64),
       });
 
-      const blockDefinition = {
-        apiVersion: 3,
-        name: 'test/interactive',
-        title: 'Interactive Block',
-        category: 'interactive',
-        description: 'Interactive test block',
-        attributes: {
-          count: { type: 'number', default: 0 },
-        },
-        supports: {},
-      };
-
       const template = '<div><h2>Count: {{count}}</h2></div>';
-      const { definitionTopicId } = await client.storeBlock(
-        template,
-        blockDefinition
-      );
-      const blockId = definitionTopicId;
+      
+      const blockBuilder = BlockBuilder.createInteractiveBlock(
+        'test/interactive',
+        'Interactive Block'
+      )
+        .setDescription('Interactive test block')
+        .addAttribute('count', 'number', 0)
+        .setTemplate(Buffer.from(template));
+
+      const registeredBlock = await client.registerBlock(blockBuilder);
+      const blockId = registeredBlock.getTopicId();
 
       const stateManager = new BlockStateManager(logger);
       const templateEngine = new TemplateEngine(logger);

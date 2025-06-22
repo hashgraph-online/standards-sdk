@@ -21,6 +21,7 @@ export interface BuildOptions {
 export class ActionBuilder {
   private logger: Logger;
   private registration: Partial<ActionRegistration>;
+  private alias?: string;
 
   constructor(logger: Logger) {
     this.logger = logger;
@@ -38,6 +39,14 @@ export class ActionBuilder {
       throw new Error('Invalid topic ID format');
     }
     this.registration.t_id = topicId;
+    return this;
+  }
+
+  /**
+   * Set alias for this action in the assembly
+   */
+  setAlias(alias: string): ActionBuilder {
+    this.alias = alias;
     return this;
   }
 
@@ -154,7 +163,28 @@ export class ActionBuilder {
       p: 'hcs-12',
       op: 'register',
     };
+    this.alias = undefined;
     return this;
+  }
+
+  /**
+   * Get the alias
+   */
+  getAlias(): string {
+    if (!this.alias) {
+      throw new Error('Action alias not set');
+    }
+    return this.alias;
+  }
+
+  /**
+   * Get the topic ID
+   */
+  getTopicId(): string {
+    if (!this.registration.t_id) {
+      throw new Error('Action topic ID not set');
+    }
+    return this.registration.t_id;
   }
 
   /**
@@ -196,14 +226,12 @@ export class ActionBuilder {
     const wasmHash = await this.generateWasmHash(wasmData);
     const infoHash = await this.generateInfoHash(info);
 
-    // Preserve existing fields before reset
     const jsTopicId = this.registration.js_t_id;
     const jsHash = this.registration.js_hash;
     const interfaceVersion = this.registration.interface_version;
 
     this.reset().setTopicId(topicId).setHash(infoHash).setWasmHash(wasmHash);
 
-    // Restore JS fields if they were set
     if (jsTopicId) this.setJsTopicId(jsTopicId);
     if (jsHash) this.setJsHash(jsHash);
     if (interfaceVersion) this.setInterfaceVersion(interfaceVersion);

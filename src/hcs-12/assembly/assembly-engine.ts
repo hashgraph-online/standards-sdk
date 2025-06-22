@@ -306,8 +306,6 @@ export class AssemblyEngine {
   private async resolveActionReference(
     actionRef: AssemblyAction,
   ): Promise<ActionRegistration> {
-    // The t_id in the assembly is the WASM topic ID
-    // We need to find the action registration that points to this WASM
     const action = await this.actionRegistry.getActionByTopicId(actionRef.t_id);
     if (!action) {
       throw new Error(`Action not found at topic: ${actionRef.t_id}`);

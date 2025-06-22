@@ -123,24 +123,20 @@ export class HRLResolver {
     hrlOrTopicId: string,
     options: HRLResolutionOptions,
   ): Promise<HRLResolutionResult> {
-    // First check if it's already a valid HRL
     if (this.isValidHRL(hrlOrTopicId)) {
       return this.resolveHRL(hrlOrTopicId, options);
     }
 
-    // Check if it's a valid topic ID format
     if (!this.isValidTopicId(hrlOrTopicId)) {
       throw new Error(`Invalid HRL or topic ID format: ${hrlOrTopicId}`);
     }
 
-    // It's a valid topic ID, so query the topic memo to determine the standard
     try {
       const mirrorNode = new HederaMirrorNode(options.network, this.logger);
       const topicInfo = await mirrorNode.getTopicInfo(hrlOrTopicId);
       const memo = topicInfo?.memo || '';
 
-      // Extract standard from memo (e.g., "hcs-20:metadata" -> "20")
-      let standard = '1'; // Default to HCS-1
+      let standard = '1';
       if (memo) {
         const hcsMatch = memo.match(/^hcs-(\d+)/);
         if (hcsMatch && hcsMatch[1]) {
@@ -148,14 +144,12 @@ export class HRLResolver {
         }
       }
 
-      // Construct HRL and resolve it
       const hrl = `hcs://${standard}/${hrlOrTopicId}`;
       return this.resolveHRL(hrl, options);
     } catch (error: any) {
       this.logger.error(
         `Failed to get topic info for ${hrlOrTopicId}: ${error.message}`,
       );
-      // If we can't get topic info, fall back to HCS-1
       const hrl = `hcs://1/${hrlOrTopicId}`;
       return this.resolveHRL(hrl, options);
     }

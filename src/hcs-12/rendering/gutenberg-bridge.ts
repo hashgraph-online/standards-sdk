@@ -104,7 +104,7 @@ export class GutenbergBridge {
       name: gutenbergBlock.name,
       title: gutenbergBlock.title,
       category: gutenbergBlock.category || 'common',
-      template_t_id: '', // This would need to be provided separately
+      template_t_id: '',
       icon: gutenbergBlock.icon,
       description: gutenbergBlock.description,
       keywords: gutenbergBlock.keywords,

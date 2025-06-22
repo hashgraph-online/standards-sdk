@@ -28,6 +28,7 @@ import {
   AssemblyUpdate,
   BlockDefinition,
 } from './types';
+import { ActionBuilder, AssemblyBuilder, BlockBuilder } from './builders';
 import { inscribe } from '../inscribe/inscriber';
 import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 import type { RetrievedInscriptionResult } from '../inscribe/types';
@@ -208,15 +209,6 @@ export class HCS12Client extends HCS12BaseClient {
   }
 
   /**
-   * Create a new assembly topic
-   */
-  async createAssembly(): Promise<string> {
-    this.logger.info('Creating new assembly topic');
-    const topicId = await this.createRegistryTopic(RegistryType.ASSEMBLY);
-    return topicId;
-  }
-
-  /**
    * Register an assembly on its own topic
    */
   async registerAssemblyDirect(
@@ -278,19 +270,6 @@ export class HCS12Client extends HCS12BaseClient {
     return this._submitMessage(assemblyTopicId, JSON.stringify(update));
   }
 
-  /**
-   * Store a block (definition and template) via HCS-1
-   */
-  async storeBlock(
-    template: string,
-    definition: BlockDefinition,
-  ): Promise<{ definitionTopicId: string; templateTopicId: string }> {
-    if (!this.blockLoader) {
-      throw new Error('Block loader not initialized');
-    }
-
-    return this.blockLoader.storeBlock(template, definition);
-  }
 
   /**
    * Submit a message to an HCS topic
@@ -435,5 +414,112 @@ export class HCS12Client extends HCS12BaseClient {
       throw new Error('Assembly registry not initialized');
     }
     return this._assemblyRegistry.createAssemblyTopic();
+  }
+
+  /**
+   * Register an action
+   */
+  async registerAction(
+    builder: ActionBuilder,
+  ): Promise<ActionBuilder> {
+    const registration = builder.build();
+
+    if (!this._actionRegistry) {
+      throw new Error('Action registry not initialized');
+    }
+
+    // Submit the registration message directly
+    const result = await this._submitMessage(
+      this.actionRegistryTopicId,
+      JSON.stringify(registration),
+    );
+
+    this.logger.info('Action registered', {
+      topicId: registration.t_id,
+      transactionId: result.transactionId,
+    });
+
+    // The builder already has the topic ID set
+    return builder;
+  }
+
+  /**
+   * Register a block
+   */
+  async registerBlock(builder: BlockBuilder): Promise<BlockBuilder> {
+    const templateBuffer = builder.getTemplate();
+
+    // If template buffer is provided, store it via HCS-1 first
+    if (templateBuffer) {
+      const templateResult = await this.inscribeFile(
+        templateBuffer,
+        `${builder.getName() || 'block'}-template.html`,
+      );
+      // Set the template topic ID on the builder before building
+      builder.setTemplateTopicId(templateResult.topic_id);
+    }
+
+    // Now build the definition with the template_t_id set
+    const definition = builder.build();
+
+    if (!definition.template_t_id) {
+      throw new Error(
+        'Block must have either a template buffer (via setTemplate) or template_t_id',
+      );
+    }
+
+    // Store block definition via HCS-1
+    const definitionResult = await this.inscribeFile(
+      Buffer.from(JSON.stringify(definition, null, 2)),
+      `${definition.name}-definition.json`,
+    );
+
+    this.logger.info('Block registered', {
+      name: definition.name,
+      definitionTopicId: definitionResult.topic_id,
+      templateTopicId: definition.template_t_id,
+    });
+
+    // Set the topic ID on the builder
+    builder.setTopicId(definitionResult.topic_id);
+    return builder;
+  }
+
+  /**
+   * Create an assembly using AssemblyBuilder
+   */
+  async createAssembly(builder: AssemblyBuilder): Promise<string> {
+    const registration = builder.build();
+
+    // Create assembly topic
+    const assemblyTopicId = await this.createAssemblyTopic();
+
+    // Register assembly on its topic
+    await this.registerAssemblyDirect(assemblyTopicId, registration);
+
+    // Process all operations
+    const operations = builder.getOperations();
+    for (const operation of operations) {
+      switch (operation.op) {
+        case 'add-block':
+          await this.addBlockToAssembly(assemblyTopicId, operation);
+          break;
+        case 'add-action':
+          await this.addActionToAssembly(assemblyTopicId, operation);
+          break;
+        case 'update':
+          await this.updateAssembly(assemblyTopicId, operation);
+          break;
+      }
+    }
+
+    this.logger.info('Assembly created', {
+      topicId: assemblyTopicId,
+      name: registration.name,
+      version: registration.version,
+      operations: operations.length,
+    });
+
+    return assemblyTopicId;
   }
 }

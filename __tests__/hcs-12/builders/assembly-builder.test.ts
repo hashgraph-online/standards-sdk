@@ -4,6 +4,8 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { AssemblyBuilder } from '../../../src/hcs-12/builders/assembly-builder';
+import { ActionBuilder } from '../../../src/hcs-12/builders/action-builder';
+import { BlockBuilder } from '../../../src/hcs-12/builders/block-builder';
 import { Logger } from '../../../src/utils/logger';
 
 describe('AssemblyBuilder', () => {
@@ -52,9 +54,17 @@ describe('AssemblyBuilder', () => {
     });
 
     it('should create add-action operations', () => {
+      const actionBuilder1 = new ActionBuilder(logger)
+        .setTopicId('0.0.12345')
+        .setAlias('transfer');
+      
+      const actionBuilder2 = new ActionBuilder(logger)
+        .setTopicId('0.0.12346')
+        .setAlias('approve');
+
       const operations = builder
-        .addAction('0.0.12345', 'transfer', { maxAmount: 1000 })
-        .addAction('0.0.12346', 'approve')
+        .addAction(actionBuilder1)
+        .addAction(actionBuilder2)
         .buildOperations();
 
       expect(operations).toHaveLength(2);
@@ -63,7 +73,6 @@ describe('AssemblyBuilder', () => {
         op: 'add-action',
         t_id: '0.0.12345',
         alias: 'transfer',
-        config: { maxAmount: 1000 },
       });
       expect(operations[1]).toMatchObject({
         p: 'hcs-12',
@@ -74,13 +83,26 @@ describe('AssemblyBuilder', () => {
     });
 
     it('should create add-block operations', () => {
+      const blockBuilder1 = new BlockBuilder()
+        .setName('test/block1')
+        .setTitle('Test Block 1')
+        .setCategory('test')
+        .setTemplateTopicId('0.0.33333')
+        .addAttribute('defaultAmount', 'number', 100)
+        .setTopicId('0.0.22345')
+        .setActions({ transfer: '0.0.12345' });
+
+      const blockBuilder2 = new BlockBuilder()
+        .setName('test/block2')
+        .setTitle('Test Block 2')
+        .setCategory('test')
+        .setTemplateTopicId('0.0.33334')
+        .addAttribute('pageSize', 'number', 10)
+        .setTopicId('0.0.22346');
+
       const operations = builder
-        .addBlock('0.0.22345', { transfer: '0.0.12345' }, {
-          defaultAmount: 100,
-        })
-        .addBlock('0.0.22346', undefined, {
-          pageSize: 10,
-        })
+        .addBlock(blockBuilder1)
+        .addBlock(blockBuilder2)
         .buildOperations();
 
       expect(operations).toHaveLength(2);
@@ -102,13 +124,24 @@ describe('AssemblyBuilder', () => {
 
   describe('Fluent API', () => {
     it('should support method chaining', () => {
+      const actionBuilder = new ActionBuilder(logger)
+        .setTopicId('0.0.12345')
+        .setAlias('test-action');
+      
+      const blockBuilder = new BlockBuilder()
+        .setName('test/block')
+        .setTitle('Test Block')
+        .setCategory('test')
+        .setTemplateTopicId('0.0.33333')
+        .setTopicId('0.0.22345');
+
       const result = builder
         .setName('test-app')
         .setVersion('1.0.0')
         .setDescription('Testing')
         .addTag('test')
-        .addAction('0.0.12345', 'test-action')
-        .addBlock('0.0.22345');
+        .addAction(actionBuilder)
+        .addBlock(blockBuilder);
       expect(result).toBe(builder);
     });
 
@@ -163,19 +196,40 @@ describe('AssemblyBuilder', () => {
     });
 
     it('should validate action topic IDs', () => {
-      expect(() => builder.addAction('invalid-topic', 'test')).toThrow(
+      const invalidActionBuilder = new ActionBuilder(logger)
+        .setAlias('test');
+      
+      expect(() => invalidActionBuilder.setTopicId('invalid-topic')).toThrow(
         'Invalid topic ID format',
       );
 
-      expect(() => builder.addAction('0.0.12345', 'test')).not.toThrow();
+      const validActionBuilder = new ActionBuilder(logger)
+        .setTopicId('0.0.12345')
+        .setAlias('test');
+      
+      expect(() => builder.addAction(validActionBuilder)).not.toThrow();
     });
 
     it('should validate block topic IDs', () => {
-      expect(() => builder.addBlock('invalid-topic')).toThrow(
-        'Invalid block topic ID format',
+      const invalidBlockBuilder = new BlockBuilder()
+        .setName('test/block')
+        .setTitle('Test Block')
+        .setCategory('test')
+        .setTemplateTopicId('0.0.33333')
+        .setTopicId('invalid-topic');
+      
+      expect(() => builder.addBlock(invalidBlockBuilder)).toThrow(
+        'Invalid block topic ID: invalid-topic',
       );
 
-      expect(() => builder.addBlock('0.0.12345')).not.toThrow();
+      const validBlockBuilder = new BlockBuilder()
+        .setName('test/block')
+        .setTitle('Test Block')
+        .setCategory('test')
+        .setTemplateTopicId('0.0.33333')
+        .setTopicId('0.0.12345');
+      
+      expect(() => builder.addBlock(validBlockBuilder)).not.toThrow();
     });
   });
 
@@ -213,13 +267,29 @@ describe('AssemblyBuilder', () => {
 
   describe('Advanced Features', () => {
     it('should build complete operation sequence', () => {
+      const transferAction = new ActionBuilder(logger)
+        .setTopicId('0.0.12345')
+        .setAlias('transfer');
+      
+      const approveAction = new ActionBuilder(logger)
+        .setTopicId('0.0.12346')
+        .setAlias('approve');
+
+      const blockBuilder = new BlockBuilder()
+        .setName('test/block')
+        .setTitle('Test Block')
+        .setCategory('test')
+        .setTemplateTopicId('0.0.33333')
+        .setTopicId('0.0.22345')
+        .setActions({ transfer: '0.0.12345', approve: '0.0.12346' });
+
       const operations = builder
         .setName('complete-app')
         .setVersion('1.0.0')
         .setDescription('Complete application')
-        .addAction('0.0.12345', 'transfer')
-        .addAction('0.0.12346', 'approve')
-        .addBlock('0.0.22345', { transfer: '0.0.12345', approve: '0.0.12346' })
+        .addAction(transferAction)
+        .addAction(approveAction)
+        .addBlock(blockBuilder)
         .buildOperations();
 
       expect(operations[0].op).toBe('add-action');
@@ -228,15 +298,12 @@ describe('AssemblyBuilder', () => {
     });
 
     it('should handle data field for large configs', () => {
+      const actionBuilder = new ActionBuilder(logger)
+        .setTopicId('0.0.12345')
+        .setAlias('complex-action');
+
       const operation = builder
-        .addAction(
-          '0.0.12345',
-          'complex-action',
-          {
-            /* large config */
-          },
-          '0.0.99999',
-        )
+        .addAction(actionBuilder)
         .buildOperations()[0];
 
       expect(operation).toMatchObject({
@@ -244,7 +311,6 @@ describe('AssemblyBuilder', () => {
         op: 'add-action',
         t_id: '0.0.12345',
         alias: 'complex-action',
-        data: '0.0.99999',
       });
     });
   });

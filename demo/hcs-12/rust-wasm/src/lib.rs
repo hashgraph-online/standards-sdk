@@ -83,11 +83,11 @@ impl WasmInterface {
     #[wasm_bindgen(js_name = INFO)]
     pub fn info(&self) -> Result<String, JsValue> {
         let info = ModuleInfo {
-            name: "Counter Module".to_string(),
+            name: "Demo Actions Module".to_string(),
             version: "1.0.0".to_string(),
             hashlinks_version: "0.1.0".to_string(),
             creator: "HashGraph Online".to_string(),
-            purpose: "Simple counter with increment, decrement, and reset".to_string(),
+            purpose: "Demo actions for counter and container blocks".to_string(),
             actions: vec![
                 ActionDefinition {
                     name: "increment".to_string(),
@@ -170,6 +170,52 @@ impl WasmInterface {
                     ],
                     required_capabilities: vec![],
                 },
+                ActionDefinition {
+                    name: "toggleCounter".to_string(),
+                    description: "Toggle visibility of counter block".to_string(),
+                    inputs: vec![
+                        ParameterDefinition {
+                            name: "showCounter".to_string(),
+                            param_type: "boolean".to_string(),
+                            description: "Current visibility state of counter".to_string(),
+                            required: true,
+                            validation: None,
+                        },
+                    ],
+                    outputs: vec![
+                        ParameterDefinition {
+                            name: "showCounter".to_string(),
+                            param_type: "boolean".to_string(),
+                            description: "Updated visibility state".to_string(),
+                            required: true,
+                            validation: None,
+                        },
+                    ],
+                    required_capabilities: vec![],
+                },
+                ActionDefinition {
+                    name: "toggleStats".to_string(),
+                    description: "Toggle visibility of stats block".to_string(),
+                    inputs: vec![
+                        ParameterDefinition {
+                            name: "showStats".to_string(),
+                            param_type: "boolean".to_string(),
+                            description: "Current visibility state of stats".to_string(),
+                            required: true,
+                            validation: None,
+                        },
+                    ],
+                    outputs: vec![
+                        ParameterDefinition {
+                            name: "showStats".to_string(),
+                            param_type: "boolean".to_string(),
+                            description: "Updated visibility state".to_string(),
+                            required: true,
+                            validation: None,
+                        },
+                    ],
+                    required_capabilities: vec![],
+                },
             ],
             capabilities: vec![
                 Capability::Network {
@@ -245,6 +291,36 @@ impl WasmInterface {
                     "message": "Counter reset to 0"
                 }).to_string())
             }
+            "toggleCounter" => {
+                let show_counter = params_json.get("showCounter")
+                    .and_then(|v| v.as_bool())
+                    .ok_or_else(|| JsValue::from_str("Missing required parameter: showCounter"))?;
+
+                let new_state = !show_counter;
+
+                Ok(json!({
+                    "success": true,
+                    "data": {
+                        "showCounter": new_state
+                    },
+                    "message": format!("Counter visibility toggled to {}", new_state)
+                }).to_string())
+            }
+            "toggleStats" => {
+                let show_stats = params_json.get("showStats")
+                    .and_then(|v| v.as_bool())
+                    .ok_or_else(|| JsValue::from_str("Missing required parameter: showStats"))?;
+
+                let new_state = !show_stats;
+
+                Ok(json!({
+                    "success": true,
+                    "data": {
+                        "showStats": new_state
+                    },
+                    "message": format!("Stats visibility toggled to {}", new_state)
+                }).to_string())
+            }
             _ => Ok(json!({
                 "success": false,
                 "error": format!("Unknown action: {}", action)
@@ -301,6 +377,22 @@ impl WasmInterface {
                     "title": "Reset Counter",
                     "description": "Reset the counter to zero",
                     "label": "Reset",
+                    "parameters": []
+                }).to_string())
+            }
+            "toggleCounter" => {
+                Ok(json!({
+                    "title": "Toggle Counter",
+                    "description": "Toggle visibility of the counter block",
+                    "label": "Toggle Counter",
+                    "parameters": []
+                }).to_string())
+            }
+            "toggleStats" => {
+                Ok(json!({
+                    "title": "Toggle Stats",
+                    "description": "Toggle visibility of the stats block",
+                    "label": "Toggle Stats",
                     "parameters": []
                 }).to_string())
             }

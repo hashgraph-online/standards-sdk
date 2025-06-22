@@ -267,21 +267,21 @@ export interface HCS12ValidationError {
  * Assembly action reference
  */
 export interface AssemblyAction {
-  t_id: string; // Action topic ID (non-indexed)
-  alias: string; // Local name for this action
-  config?: any; // Optional action configuration
-  data?: string; // HCS-1 topic for large configs
+  t_id: string;
+  alias: string;
+  config?: any;
+  data?: string;
 }
 
 /**
  * Assembly block reference
  */
 export interface AssemblyBlock {
-  block_t_id: string; // Block definition topic ID (HCS-1)
-  actions?: Record<string, string>; // Map of action names to topic IDs
-  attributes?: Record<string, any>; // Override default attributes
-  children?: string[]; // Child block aliases
-  data?: string; // HCS-1 topic for large configs
+  block_t_id: string;
+  actions?: Record<string, string>;
+  attributes?: Record<string, any>;
+  children?: string[];
+  data?: string;
 }
 
 /**
@@ -344,10 +344,10 @@ export interface AssemblyRegistration extends AssemblyMessage {
  */
 export interface AssemblyAddAction extends AssemblyMessage {
   op: 'add-action';
-  t_id: string; // Action topic ID
-  alias: string; // Local name
-  config?: any; // Optional configuration
-  data?: string; // HCS-1 topic for large config
+  t_id: string;
+  alias: string;
+  config?: any;
+  data?: string;
 }
 
 /**
@@ -355,11 +355,11 @@ export interface AssemblyAddAction extends AssemblyMessage {
  */
 export interface AssemblyAddBlock extends AssemblyMessage {
   op: 'add-block';
-  block_t_id: string; // Block definition topic ID (HCS-1)
-  actions?: Record<string, string>; // Map of action names to topic IDs
-  attributes?: Record<string, any>; // Override defaults
-  children?: string[]; // Child blocks by alias
-  data?: string; // HCS-1 topic for large config
+  block_t_id: string;
+  actions?: Record<string, string>;
+  attributes?: Record<string, any>;
+  children?: string[];
+  data?: string;
 }
 
 /**
@@ -375,7 +375,7 @@ export interface AssemblyUpdate extends AssemblyMessage {
  * Complete assembly state (built from operations)
  */
 export interface AssemblyState {
-  topicId: string; // The assembly topic ID
+  topicId: string;
   name: string;
   version: string;
   description?: string;
@@ -521,8 +521,8 @@ export enum RegistryType {
  * Common registry entry interface
  */
 export interface RegistryEntry {
-  id: string; // Sequence number from the topic
-  sequenceNumber: number; // Numeric sequence number for clarity
+  id: string;
+  sequenceNumber: number;
   timestamp: string;
   submitter: string;
   data: any;

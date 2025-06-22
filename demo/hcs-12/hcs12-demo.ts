@@ -16,13 +16,12 @@ import { Logger } from '../../src/utils/logger';
 import type { NetworkType } from '../../src/utils/types';
 import { inscribe } from '../../src/inscribe';
 import { HCS12Client } from '../../src/hcs-12/sdk';
+import { RegistryType } from '../../src/hcs-12/types';
 import {
-  ActionRegistration,
-  AssemblyRegistration,
-  AssemblyAddBlock,
-  AssemblyAddAction,
-  RegistryType,
-} from '../../src/hcs-12/types';
+  ActionBuilder,
+  BlockBuilder,
+  AssemblyBuilder,
+} from '../../src/hcs-12/builders';
 import { createHash } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -266,7 +265,7 @@ async function main() {
       ]);
 
     /**
-     * Step 3: Extract INFO from WASM and register action
+     * Step 3: Extract INFO from WASM and register action using ActionBuilder
      */
     const { info, hash: infoHash } = await getModuleInfoFromWasm(
       WASM_FILE,
@@ -274,153 +273,225 @@ async function main() {
       logger,
     );
 
-    const actionRegistration: ActionRegistration = {
-      p: 'hcs-12',
-      op: 'register',
-      t_id: wasmTopicId,
-      hash: infoHash,
-      wasm_hash: wasmHash,
-      js_t_id: jsTopicId,
-      js_hash: jsHash,
-      interface_version: '0.2.0',
-      m: 'Counter Module v1.0.0',
-    };
+    const actionBuilder = new ActionBuilder(logger)
+      .setTopicId(wasmTopicId)
+      .setHash(infoHash)
+      .setWasmHash(wasmHash)
+      .setJsTopicId(jsTopicId)
+      .setJsHash(jsHash)
+      .setInterfaceVersion('0.2.0')
+      .setAlias('counter-module');
 
-    const actionResult = await client.registerAction(actionRegistration);
-    logger.info('Action registered', {
-      sequenceNumber: actionResult.sequenceNumber,
-      transactionId: actionResult.transactionId,
-      wasmTopicId,
+    await client.registerAction(actionBuilder);
+    logger.info('Action registered using builder', {
+      actionTopicId: wasmTopicId,
       infoHash,
     });
 
     /**
-     * Step 4: Store block template and definition via HCS-1
+     * Step 4: Create blocks using BlockBuilder
      */
-    const templatePath = path.join(__dirname, 'counter-block-template.html');
-    const templateContent = await fs.readFile(templatePath, 'utf-8');
+    logger.info('Creating blocks using BlockBuilder...');
 
-    logger.info('Storing block via HCS-1...');
-
-    const blockDefinition = {
-      apiVersion: 3,
-      name: 'hashlink/counter-display',
-      title: 'Counter Display',
-      category: 'hashlink/widgets',
-      description: 'Displays counter with increment/decrement controls',
-      icon: 'calculator',
-      keywords: ['counter', 'increment', 'decrement'],
-      attributes: {
-        count: {
-          type: 'number',
-          default: 0,
-        },
-        step: {
-          type: 'number',
-          default: 1,
-        },
-      },
-      supports: {
-        align: true,
-        anchor: true,
-      },
-    };
-
-    const { definitionTopicId: blockDefinitionTopicId, templateTopicId } =
-      await client.storeBlock(templateContent, blockDefinition);
-
-    logger.info('Block stored successfully', {
-      blockDefinitionTopicId,
-      templateTopicId,
-    });
-
-    /**
-     * Step 5: Create assembly using incremental approach
-     */
-    logger.info('Creating assembly using incremental approach...');
-
-    // Create a new assembly topic
-    const newAssemblyTopicId = await client.createAssembly();
-    logger.info('Created assembly topic', { newAssemblyTopicId });
-
-    // Register the assembly
-    const assemblyRegistration: AssemblyRegistration = {
-      p: 'hcs-12',
-      op: 'register',
-      name: 'counter-app',
-      version: '1.0.0',
-      description: 'Complete counter application',
-      author: operatorId,
-      tags: ['demo', 'counter', 'hashlinks'],
-    };
-
-    await client.registerAssemblyDirect(
-      newAssemblyTopicId,
-      assemblyRegistration,
+    // Load templates
+    const counterTemplatePath = path.join(
+      __dirname,
+      'counter-block-template.html',
     );
-    logger.info('Assembly registered');
+    const counterTemplateContent = await fs.readFile(
+      counterTemplatePath,
+      'utf-8',
+    );
 
-    // Add the action to the assembly
-    const addAction: AssemblyAddAction = {
-      p: 'hcs-12',
-      op: 'add-action',
-      t_id: wasmTopicId,
-      alias: 'counter-module',
-      config: {},
-      data: {},
-    };
+    // Create Counter Block using builder
+    const counterBlockBuilder = BlockBuilder.createInteractiveBlock(
+      'hashlink/counter-display',
+      'Counter Display',
+    )
+      .setDescription('Displays counter with increment/decrement controls')
+      .setIcon('calculator')
+      .setKeywords(['counter', 'increment', 'decrement'])
+      .addAttribute('count', 'number', 0)
+      .addAttribute('step', 'number', 1);
 
-    await client.addActionToAssembly(newAssemblyTopicId, addAction);
-    logger.info('Added counter action to assembly');
+    counterBlockBuilder
+      .setTemplate(Buffer.from(counterTemplateContent))
+      .addAction('increment', wasmTopicId)
+      .addAction('decrement', wasmTopicId)
+      .addAction('reset', wasmTopicId);
 
-    const addBlock: AssemblyAddBlock = {
-      p: 'hcs-12',
-      op: 'add-block',
-      block_t_id: blockDefinitionTopicId,
-      actions: {
-        increment: wasmTopicId,
-        decrement: wasmTopicId,
-        reset: wasmTopicId,
-      },
-      attributes: {
-        count: 0,
-        step: 1,
-      },
-    };
+    await client.registerBlock(counterBlockBuilder);
 
-    await client.addBlockToAssembly(newAssemblyTopicId, addBlock);
-    logger.info('Added counter display block to assembly');
+    logger.info('Counter block created', {
+      blockTopicId: counterBlockBuilder.getTopicId(),
+    });
 
-    // Note: The assembly registry topic created earlier is for a future global
-    // HashLinks directory. For now, assemblies are self-contained on their own topics.
-    logger.info('Assembly created successfully', {
-      assemblyTopicId: newAssemblyTopicId,
-      note: 'Assembly is self-contained on its own topic',
+    // Create Stats Block using builder
+    const statsTemplatePath = path.join(__dirname, 'stats-block-template.html');
+    const statsTemplateContent = await fs.readFile(statsTemplatePath, 'utf-8');
+
+    const statsBlockBuilder = BlockBuilder.createDisplayBlock(
+      'hashlink/stats-display',
+      'Statistics Display',
+    )
+      .setDescription('Displays statistics in a grid layout')
+      .setIcon('chart-bar')
+      .setKeywords(['stats', 'statistics', 'metrics'])
+      .addAttribute('title', 'string', 'Statistics')
+      .addAttribute('values', 'array', []);
+
+    statsBlockBuilder.setTemplate(Buffer.from(statsTemplateContent));
+
+    await client.registerBlock(statsBlockBuilder);
+
+    logger.info('Stats block created', {
+      blockTopicId: statsBlockBuilder.getTopicId(),
+    });
+
+    // Create Container Block using builder
+    const containerTemplatePath = path.join(
+      __dirname,
+      'container-block-template.html',
+    );
+    const containerTemplateContent = await fs.readFile(
+      containerTemplatePath,
+      'utf-8',
+    );
+
+    const containerBlockBuilder = BlockBuilder.createContainerBlock(
+      'hashlink/container-block',
+      'Container Block',
+    )
+      .setDescription(
+        'Container that can include other blocks using data-hashlink',
+      )
+      .setIcon('layout')
+      .setKeywords(['container', 'layout', 'nested', 'composite'])
+      .addAttribute('title', 'string', 'Container Block')
+      .addAttribute('description', 'string', '')
+      .addAttribute('showCounter', 'boolean', true)
+      .addAttribute('showStats', 'boolean', true)
+      .addAttribute('counterBlockId', 'string', '')
+      .addAttribute('statsBlockId', 'string', '')
+      .addAttribute('counterActionId', 'string', '')
+      .addAttribute('initialCount', 'number', 10)
+      .addAttribute('counterStep', 'number', 5)
+      .addAttribute(
+        'statsValues',
+        'string',
+        '[{"label": "Total Clicks", "value": 0}, {"label": "Active Blocks", "value": 2}]',
+      );
+
+    containerBlockBuilder
+      .addAttribute(
+        'counterBlockId',
+        'string',
+        counterBlockBuilder.getTopicId(),
+      )
+      .addAttribute('statsBlockId', 'string', statsBlockBuilder.getTopicId())
+      .setTemplate(Buffer.from(containerTemplateContent))
+      .addAction('toggleCounter', wasmTopicId)
+      .addAction('toggleStats', wasmTopicId);
+
+    await client.registerBlock(containerBlockBuilder);
+
+    logger.info('Container block created', {
+      blockTopicId: containerBlockBuilder.getTopicId(),
     });
 
     /**
-     * Step 6: Load and validate the assembly
+     * Step 5: Create assemblies using AssemblyBuilder
+     */
+    logger.info('Creating assemblies...');
+
+    // Create Simple Assembly (just counter)
+    logger.info('Creating simple counter assembly...');
+    const simpleAssemblyBuilder = new AssemblyBuilder(logger)
+      .setName('simple-counter-app')
+      .setVersion('1.0.0')
+      .setDescription('Simple counter demo with a single block')
+      .setAuthor(operatorId)
+      .setTags(['demo', 'counter', 'simple'])
+      .addAction(actionBuilder)
+      .addBlock(counterBlockBuilder);
+
+    // Validate before creating
+    let validation = simpleAssemblyBuilder.validate();
+    if (!validation.valid) {
+      throw new Error(
+        `Simple assembly validation failed: ${validation.errors.join(', ')}`,
+      );
+    }
+
+    const simpleAssemblyTopicId = await client.createAssembly(simpleAssemblyBuilder);
+    logger.info('Simple assembly created', { simpleAssemblyTopicId });
+
+    // Create Nested Blocks Assembly
+    logger.info('Creating nested blocks assembly...');
+    const nestedAssemblyBuilder = new AssemblyBuilder(logger)
+      .setName('nested-blocks-app')
+      .setVersion('1.0.0')
+      .setDescription('Nested blocks demo showing container with child blocks')
+      .setAuthor(operatorId)
+      .setTags(['demo', 'nested', 'container', 'hashlinks'])
+      .addAction(actionBuilder)
+      .addBlock(counterBlockBuilder)
+      .addBlock(statsBlockBuilder)
+      .addBlock(containerBlockBuilder);
+
+    // Validate before creating
+    validation = nestedAssemblyBuilder.validate();
+    if (!validation.valid) {
+      throw new Error(
+        `Nested assembly validation failed: ${validation.errors.join(', ')}`,
+      );
+    }
+
+    const nestedAssemblyTopicId = await client.createAssembly(nestedAssemblyBuilder);
+    logger.info('Nested blocks assembly created', { nestedAssemblyTopicId });
+
+    /**
+     * Step 6: Load and validate both assemblies
      */
     logger.info('Waiting 5 seconds for mirror node to sync...');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    const assembly = await client.loadAssembly(newAssemblyTopicId);
+    // Load simple assembly
+    const simpleAssembly = await client.loadAssembly(simpleAssemblyTopicId);
 
-    logger.info('Assembly object:', {
-      hasAssembly: !!assembly,
-      hasState: !!(assembly && assembly.state),
-      assemblyKeys: assembly ? Object.keys(assembly) : [],
+    logger.info('Simple assembly object:', {
+      hasAssembly: !!simpleAssembly,
+      hasState: !!(simpleAssembly && simpleAssembly.state),
+      assemblyKeys: simpleAssembly ? Object.keys(simpleAssembly) : [],
     });
 
-    if (!assembly || !assembly.state) {
-      throw new Error('Failed to load assembly or assembly state is missing');
+    if (!simpleAssembly || !simpleAssembly.state) {
+      throw new Error('Failed to load simple assembly or assembly state is missing');
     }
 
-    logger.info('Loaded assembly', {
-      topicId: assembly.topicId,
-      name: assembly.state.name,
-      // actions: assembly.state.actions.length, // actions are no longer stored in assembly state
-      blocks: assembly.state.blocks.length,
+    logger.info('Loaded simple assembly', {
+      topicId: simpleAssembly.topicId,
+      name: simpleAssembly.state.name,
+      blocks: simpleAssembly.state.blocks.length,
+    });
+
+    // Load nested assembly
+    const nestedAssembly = await client.loadAssembly(nestedAssemblyTopicId);
+
+    logger.info('Nested assembly object:', {
+      hasAssembly: !!nestedAssembly,
+      hasState: !!(nestedAssembly && nestedAssembly.state),
+      assemblyKeys: nestedAssembly ? Object.keys(nestedAssembly) : [],
+    });
+
+    if (!nestedAssembly || !nestedAssembly.state) {
+      throw new Error('Failed to load nested assembly or assembly state is missing');
+    }
+
+    logger.info('Loaded nested assembly', {
+      topicId: nestedAssembly.topicId,
+      name: nestedAssembly.state.name,
+      blocks: nestedAssembly.state.blocks.length,
     });
 
     logger.info('Demo completed successfully!');
@@ -428,10 +499,17 @@ async function main() {
     // Log topic IDs clearly for HTML demo
     console.log('\n=== TOPIC IDS FOR HTML DEMO ===');
     console.log(`Action Registry: ${actionTopicId}`);
-    console.log(`Block Definition: ${blockDefinitionTopicId}`);
-    console.log(`Block Template: ${templateTopicId}`);
     console.log(`Assembly Registry: ${assemblyTopicId}`);
-    console.log(`Counter App Assembly: ${newAssemblyTopicId}`);
+    console.log('\n--- Assembly Topic IDs ---');
+    console.log(`Simple Counter Assembly: ${simpleAssemblyTopicId}`);
+    console.log(`Nested Blocks Assembly: ${nestedAssemblyTopicId}`);
+    console.log('\n--- Block Topic IDs ---');
+    console.log(`Counter Block: ${counterBlockBuilder.getTopicId()}`);
+    console.log(`Stats Block: ${statsBlockBuilder.getTopicId()}`);
+    console.log(`Container Block: ${containerBlockBuilder.getTopicId()}`);
+    console.log('\n--- Action Topic IDs ---');
+    console.log(`WASM Module: ${wasmTopicId}`);
+    console.log(`JS Wrapper: ${jsTopicId}`);
     console.log('===============================\n');
 
     logger.info('Summary:', {
@@ -439,14 +517,18 @@ async function main() {
       wasmHash,
       infoHash,
       actionRegistryTopic: actionTopicId,
-      blockDefinitionTopic: blockDefinitionTopicId,
-      blockTemplateTopic: templateTopicId,
-      assemblyTopic: newAssemblyTopicId,
+      counterBlockTopic: counterBlockBuilder.getTopicId(),
+      statsBlockTopic: statsBlockBuilder.getTopicId(),
+      containerBlockTopic: containerBlockBuilder.getTopicId(),
+      simpleAssemblyTopic: simpleAssemblyTopicId,
+      nestedAssemblyTopic: nestedAssemblyTopicId,
       network: NETWORK,
     });
 
     logger.info('Next steps:');
-    logger.info('1. Use the assembly topic ID to load in a browser');
+    logger.info('1. Use either assembly topic ID to load in the browser demo');
+    logger.info('   - Simple assembly for basic counter functionality');
+    logger.info('   - Nested assembly for container with multiple blocks');
     logger.info('2. Execute actions through the WASM interface');
     logger.info('3. Deploy to mainnet when ready');
   } catch (error) {

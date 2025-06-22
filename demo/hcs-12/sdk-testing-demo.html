@@ -130,56 +130,116 @@
         margin: 10px 0;
         font-family: monospace;
       }
+      .demo-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+      .demo-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .demo-btn {
+        transition: all 0.2s ease;
+      }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>HCS-12 SDK Testing Tool</h1>
-      <p style="text-align: center; color: #666">
-        Developer tool for testing HCS-12 SDK functionality
+      <h1>HCS-12 HashLinks Demo</h1>
+      <p style="text-align: center; color: #666; margin-bottom: 10px;">
+        Experience decentralized, composable blockchain applications
+      </p>
+      <p style="text-align: center; font-size: 14px; color: #999;">
+        Connect your wallet, then click a demo to see HashLinks in action!
       </p>
 
-      <div class="section">
-        <h2>Wallet Connection</h2>
-        <div id="wallet-status" class="status info">
+      <div class="section" style="text-align: center;">
+        <h2>🔐 Step 1: Connect Wallet</h2>
+        <div id="wallet-status" class="status info" style="margin: 10px auto; max-width: 400px;">
           Loading wallet connect...
         </div>
-        <div id="wallet-info" class="wallet-info" style="display: none">
-          Account: <span id="wallet-account"></span>
+        <div id="wallet-info" class="wallet-info" style="display: none; margin: 10px auto; max-width: 400px;">
+          ✅ Connected: <span id="wallet-account"></span>
         </div>
-        <button id="connect-wallet-btn" disabled>Connect Wallet</button>
-        <button id="disconnect-wallet-btn" style="display: none">
+        <button id="connect-wallet-btn" disabled style="padding: 12px 30px; font-size: 16px;">Connect Wallet</button>
+        <button id="disconnect-wallet-btn" style="display: none; padding: 12px 30px; font-size: 16px;">
           Disconnect
         </button>
       </div>
 
-      <div class="section">
-        <h2>Client Status</h2>
-        <div id="client-status" class="status info">
-          Client not initialized. Connect wallet first.
-        </div>
-        <button id="init-client-btn" disabled>Initialize Client</button>
-        <button id="init-registries-btn" disabled>Initialize Registries</button>
-      </div>
+      <!-- Client status is now integrated into the demo flow -->
+      <div id="client-status" style="display: none;"></div>
 
+      <div class="section" style="background: #e8f5e9; border: 2px solid #4caf50; text-align: center;">
+        <h2>🚀 Step 2: Choose a Demo</h2>
+        <p style="margin-bottom: 20px;">Click any demo to automatically load and render the blocks!</p>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; justify-content: center;">
+          <button id="demo-simple-counter" class="demo-btn" style="padding: 15px 25px; background: #2196f3; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;" disabled>
+            <strong>Simple Counter</strong><br>
+            <small>Basic counter with increment/decrement</small>
+          </button>
+          
+          <button id="demo-nested-blocks" class="demo-btn" style="padding: 15px 25px; background: #9c27b0; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;" disabled>
+            <strong>Nested Blocks</strong><br>
+            <small>Container with counter & stats blocks</small>
+          </button>
+          
+          <button id="demo-full-assembly" class="demo-btn" style="padding: 15px 25px; background: #ff9800; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;" disabled>
+            <strong>Full Assembly</strong><br>
+            <small>Complete app with all blocks</small>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Demo Output Section - Always visible -->
+      <div class="section" id="render-section" style="display: none;">
+        <h2>Demo Output</h2>
+        <div id="render-output" style="padding: 20px; background: #f8f8f8; border: 2px dashed #ccc; border-radius: 4px; min-height: 100px;">
+          <p style="color: #666; text-align: center;">Rendered blocks will appear here</p>
+        </div>
+      </div>
+      
+      <details>
+        <summary style="cursor: pointer; padding: 10px; background: #f5f5f5; border-radius: 4px; margin-bottom: 10px;">
+          <strong>Advanced Options</strong> (Topic IDs, Registry Operations, etc.)
+        </summary>
+        
       <div class="section">
         <h2>Registry Operations</h2>
         
         <div class="info-box" style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
           <strong>Note: Block Registry is deprecated in HCS-12</strong>
           <p style="margin: 10px 0;">Blocks are now stored as HCS-1 inscriptions, not in a registry.</p>
-          <strong>Test Topic IDs (Testnet) - Updated 2025-06-21:</strong>
+          <strong>Test Topic IDs (Testnet) - Updated 2025-06-22 with Two Assemblies:</strong>
           <ul style="margin: 10px 0 0 20px; padding: 0; list-style: none;">
-            <li>✅ Action Registry: <code>0.0.6212094</code></li>
-            <li>✅ Assembly Registry: <code>0.0.6212095</code> (global directory)</li>
-            <li>✅ Counter Assembly: <code>0.0.6212100</code> (Complete counter app with add-action operations)</li>
-            <li>📄 Block Definition: <code>0.0.6212099</code></li>
-            <li>📄 Block Template: <code>0.0.6212098</code></li>
+            <li>✅ Action Registry: <code>0.0.6213054</code></li>
+            <li>✅ Assembly Registry: <code>0.0.6213055</code> (global directory)</li>
+            <li style="font-weight: bold; margin-top: 10px;">Assemblies:</li>
+            <li>🚀 Simple Counter Assembly: <code>0.0.6213079</code> (Basic counter only)</li>
+            <li>🚀 Nested Blocks Assembly: <code>0.0.6213080</code> (Container with nested blocks)</li>
+            <li style="font-weight: bold; margin-top: 10px;">Block Definitions:</li>
+            <li>📄 Counter Block: <code>0.0.6213059</code></li>
+            <li>📄 Stats Block: <code>0.0.6213071</code></li>
+            <li>📄 Container Block: <code>0.0.6213078</code> (demonstrates nesting)</li>
+            <li style="font-weight: bold; margin-top: 10px;">Action Topic IDs:</li>
+            <li>⚙️ WASM Module: <code>0.0.6213057</code></li>
+            <li>⚙️ JS Wrapper: <code>0.0.6213056</code></li>
           </ul>
           <p style="background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 13px;">
-            <strong>✅ Fixed (2025-06-21):</strong> Final working version!
-            Template doesn't hardcode state, WasmExecutor merges state generically.
-            WASM expects "count" input and returns "count" output.
+            <strong>✅ Updated (2025-06-22):</strong> Nested blocks working!
+            Blocks can now include other blocks using <code>data-hashlink</code> attributes.
+            Container block demonstrates template-based composition.
+          </p>
+          <p style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 13px;">
+            <strong>⚠️ Note:</strong> If you see "Action not found" errors, click "Sync Action Registry" first.
+            The counter action WASM is at topic <code>0.0.6213057</code>.
+          </p>
+          <p style="background: #e7f3ff; color: #004085; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 13px;">
+            <strong>💡 Tip:</strong> We now have two assemblies:
+            <br/>• Simple Counter (<code>0.0.6213079</code>) - just the counter block
+            <br/>• Nested Blocks (<code>0.0.6213080</code>) - container with nested blocks
+            <br/>To render individual blocks, select a block definition topic and click "Render Block".
           </p>
           <small style="display: block; margin-top: 10px;">Latest topics created with rebuilt SDK and fixed WasmExecutor.</small>
         </div>
@@ -190,17 +250,19 @@
             type="text"
             id="topic-id"
             placeholder="0.0.123456"
-            value="0.0.6212100"
+            value="0.0.6213079"
           />
           <small style="display: block; margin-top: 5px; color: #666;">
             Enter a topic ID to sync registries or load assemblies/blocks. Use quick select buttons below.
           </small>
           <div style="margin-top: 5px;">
             <small>Quick select:</small>
-            <button onclick="document.getElementById('topic-id').value='0.0.6212094'; document.getElementById('mirror-topic-id').value='0.0.6212094'" style="padding: 2px 8px; font-size: 12px;">Action Registry</button>
-            <button onclick="document.getElementById('topic-id').value='0.0.6212095'; document.getElementById('mirror-topic-id').value='0.0.6212095'" style="padding: 2px 8px; font-size: 12px;">Assembly Registry</button>
-            <button onclick="document.getElementById('topic-id').value='0.0.6212100'; document.getElementById('mirror-topic-id').value='0.0.6212100'" style="padding: 2px 8px; font-size: 12px;">Counter Assembly</button>
-            <button onclick="document.getElementById('topic-id').value='0.0.6212099'; document.getElementById('mirror-topic-id').value='0.0.6212099'" style="padding: 2px 8px; font-size: 12px;">Block Definition</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6213054'; document.getElementById('mirror-topic-id').value='0.0.6213054'" style="padding: 2px 8px; font-size: 12px;">Action Registry</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6213055'; document.getElementById('mirror-topic-id').value='0.0.6213055'" style="padding: 2px 8px; font-size: 12px;">Assembly Registry</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6213079'; document.getElementById('mirror-topic-id').value='0.0.6213079'" style="padding: 2px 8px; font-size: 12px;">Simple Assembly</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6213080'; document.getElementById('mirror-topic-id').value='0.0.6213080'" style="padding: 2px 8px; font-size: 12px;">Nested Assembly</button>
+            <button onclick="document.getElementById('topic-id').value='0.0.6213078'; document.getElementById('mirror-topic-id').value='0.0.6213078'" style="padding: 2px 8px; font-size: 12px; background: #6f42c1; color: white;">Container Block (Def)</button>
+            <button onclick="showNestedBlocksDemo()" style="padding: 2px 8px; font-size: 12px; background: #28a745; color: white;">🆕 Nested Blocks Demo</button>
           </div>
         </div>
 
@@ -210,6 +272,7 @@
         <button id="list-assemblies-btn" disabled>List Assemblies</button>
         <button id="list-blocks-btn" disabled>List Blocks</button>
         <button id="load-assembly-btn" disabled>Load Assembly Details</button>
+        <button id="render-block-btn" disabled style="background: #28a745; color: white;">Render Block</button>
       </div>
 
       <div class="section">
@@ -243,14 +306,31 @@
       </div>
 
       <div class="section">
-        <h2>Output</h2>
+        <h2>Log Output</h2>
         <div id="output" class="output">Ready for operations...</div>
       </div>
       
-      <div class="section" id="render-section" style="display: none;">
-        <h2>Block Renderer</h2>
-        <div id="render-output" style="padding: 20px; background: #f8f8f8; border: 2px dashed #ccc; border-radius: 4px; min-height: 100px;">
-          <p style="color: #666; text-align: center;">Rendered blocks will appear here</p>
+      </details>
+      
+      <div class="section" id="nested-demo-section" style="display: none; background: #f0f8ff; border: 2px solid #007cba;">
+        <h2>🆕 Nested Blocks Demo</h2>
+        <p style="color: #666;">This demonstrates template-based composition where blocks include other blocks using <code>data-hashlink</code> attributes.</p>
+        <div id="nested-demo-instructions" style="background: white; padding: 15px; border-radius: 5px; margin: 10px 0;">
+          <h3>To test nested blocks:</h3>
+          <ol>
+            <li>Click the "Container Block (Def)" quick select button above (or enter <code>0.0.6213078</code>)</li>
+            <li>Click the green "Render Block" button to render the container block</li>
+            <li>You'll see a container that includes both a counter and stats display block</li>
+            <li>The counter will have custom attributes (count: 10, step: 5) passed from the container</li>
+          </ol>
+          <p style="margin-top: 10px;"><strong>Note:</strong> Use "Load Assembly Details" for assemblies (like <code>0.0.6213079</code> or <code>0.0.6213080</code>) and "Render Block" for individual block definitions.</p>
+          <p style="margin-top: 10px;"><strong>How it works:</strong></p>
+          <ul>
+            <li>The Container Block template includes <code>data-hashlink="hcs://12/[blockId]"</code> elements</li>
+            <li>The BlockRenderer scans for these HashLinks and resolves them</li>
+            <li>Child blocks are loaded and rendered recursively</li>
+            <li>Actions and state are properly isolated between parent and child blocks</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -296,16 +376,20 @@
         let currentAccountId = null;
         let logger = null;
         
-        // Known registry topic IDs from demo - Updated 2025-06-21
+        // Known registry topic IDs from demo - Updated 2025-06-22
         const REGISTRY_TOPICS = {
-          action: '0.0.6212094',    // Action registry (type 0)
-          assembly: '0.0.6212095',  // Assembly registry (type 2)  
-          counterAssembly: '0.0.6212100'  // Counter App Assembly (with add-action operations)
+          actionRegistry: '0.0.6213054',
+          assemblyRegistry: '0.0.6213055',
+          simpleAssembly: '0.0.6213079',
+          nestedAssembly: '0.0.6213080',
+          counterBlockDef: '0.0.6213059',
+          statsBlockDef: '0.0.6213071',
+          containerBlockDef: '0.0.6213078',
+          // The action topic IDs
+          wasmModule: '0.0.6213057',
+          jsWrapper: '0.0.6213056'
         };
-        
-        // Other relevant topic IDs from latest demo:
-        // Block Definition: 0.0.6212099
-        // Block Template: 0.0.6212098
+        // Use the updated topics from above
         // WASM and JS topics are stored in the action registry
 
         // Utility functions
@@ -341,6 +425,82 @@
               btn.disabled = !enabled;
             });
         }
+        
+        // One-click demo handlers
+        async function runDemo(demoType) {
+          try {
+            log(`Running ${demoType} demo...`);
+            updateStatus('client-status', `Setting up ${demoType} demo...`, 'info');
+            
+            // Ensure client is initialized
+            if (!client) {
+              throw new Error('Client not initialized. Please connect wallet first.');
+            }
+            
+            // Sync action registry first
+            log('Syncing action registry...');
+            await client.actionRegistry.sync();
+            
+            switch (demoType) {
+              case 'simple-counter':
+                // Load and render the simple assembly (contains action mappings)
+                log('Loading simple counter assembly...');
+                await window.renderAssembly(REGISTRY_TOPICS.simpleAssembly);
+                updateStatus('client-status', 'Simple counter demo ready!', 'success');
+                break;
+                
+              case 'nested-blocks':
+                // Load and render the nested assembly (contains all blocks and action mappings)
+                log('Loading nested blocks assembly...');
+                await window.renderNestedAssembly(REGISTRY_TOPICS.nestedAssembly);
+                updateStatus('client-status', 'Nested blocks demo ready!', 'success');
+                break;
+                
+              case 'full-assembly':
+                // Load and display the nested assembly (has all blocks)
+                log('Loading full nested assembly...');
+                const assembly = await client.loadAssembly(REGISTRY_TOPICS.nestedAssembly);
+                
+                if (assembly && assembly.state && assembly.state.blocks) {
+                  log(`Assembly loaded with ${assembly.state.blocks.length} blocks`);
+                  
+                  // Display assembly info
+                  const renderOutput = document.getElementById('render-output');
+                  let html = '<div style="padding: 20px;">';
+                  html += `<h3>Assembly: ${assembly.state.name || 'Unnamed'} v${assembly.state.version || '1.0.0'}</h3>`;
+                  html += `<p>${assembly.state.description || 'No description'}</p>`;
+                  html += '<h4>Blocks in this assembly:</h4>';
+                  
+                  assembly.state.blocks.forEach((block, index) => {
+                    html += `<div style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px;">`;
+                    html += `<strong>Block ${index + 1}:</strong> ${block.block_t_id}<br/>`;
+                    if (block.definition?.title) {
+                      html += `Title: ${block.definition.title}<br/>`;
+                    }
+                    if (block.actions) {
+                      html += `Actions: ${Object.entries(block.actions).map(([key, topicId]) => key).join(', ')}<br/>`;
+                    }
+                    html += `</div>`;
+                  });
+                  
+                  html += '<p style="margin-top: 20px;"><em>To render individual blocks, use the block topic IDs above.</em></p>';
+                  html += '</div>';
+                  
+                  renderOutput.innerHTML = html;
+                  document.getElementById('render-section').style.display = 'block';
+                  renderOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  
+                  updateStatus('client-status', 'Full assembly loaded!', 'success');
+                } else {
+                  throw new Error('Failed to load assembly');
+                }
+                break;
+            }
+          } catch (error) {
+            log(`Demo error: ${error.message}`);
+            updateStatus('client-status', `Demo failed: ${error.message}`, 'error');
+          }
+        }
 
         // Update wallet status display
         async function updateUI(accountId, balance) {
@@ -354,8 +514,9 @@
               'none';
             document.getElementById('disconnect-wallet-btn').style.display =
               'inline-block';
-            document.getElementById('init-client-btn').disabled = false;
+            // Auto-initialize client when wallet connects
             log(`Wallet connected: ${accountId} (Balance: ${balance} HBAR)`);
+            initializeClient();
           } else {
             updateStatus('wallet-status', 'No wallet connected', 'info');
             document.getElementById('wallet-info').style.display = 'none';
@@ -363,7 +524,7 @@
               'inline-block';
             document.getElementById('disconnect-wallet-btn').style.display =
               'none';
-            document.getElementById('init-client-btn').disabled = true;
+            // Client will be initialized when wallet connects
             enableButtons(false);
             currentAccountId = null;
             client = null;
@@ -436,39 +597,37 @@
             }
           });
 
-        // Initialize client
-        document
-          .getElementById('init-client-btn')
-          .addEventListener('click', async () => {
-            try {
-              // Access Logger and HCS12BrowserClient from StandardsSDK global
-              const { Logger, HCS12BrowserClient } = StandardsSDK;
-              
-              logger = new Logger({ module: 'HCS12-SDK-Test' });
 
-              client = new HCS12BrowserClient({
-                network: 'testnet',
-                logger: logger,
-                hwc: wcSDK,
-              });
+        // Create the actual initializeClient function that we're calling
+        async function initializeClient() {
+          try {
+            // Access Logger and HCS12BrowserClient from StandardsSDK global
+            const { Logger, HCS12BrowserClient } = StandardsSDK;
+            
+            logger = new Logger({ module: 'HCS12-SDK-Test' });
 
-              updateStatus(
-                'client-status',
-                'HCS-12 Browser Client initialized successfully',
-                'success',
-              );
-              document.getElementById('init-registries-btn').disabled = false;
-              log('Client initialized with testnet configuration');
-            } catch (error) {
-              handleError(error, 'client initialization');
-              updateStatus('client-status', `Error: ${error.message}`, 'error');
-            }
-          });
+            client = new HCS12BrowserClient({
+              network: 'testnet',
+              logger: logger,
+              hwc: wcSDK,
+            });
 
-        // Initialize registries
-        document
-          .getElementById('init-registries-btn')
-          .addEventListener('click', async () => {
+            updateStatus(
+              'client-status',
+              'HCS-12 Browser Client initialized successfully',
+              'success',
+            );
+            // Auto-initialize registries after client is ready
+            initializeRegistries();
+            log('Client initialized with testnet configuration');
+          } catch (error) {
+            handleError(error, 'client initialization');
+            updateStatus('client-status', `Error: ${error.message}`, 'error');
+          }
+        }
+
+        // Auto-initialize registries
+        async function initializeRegistries() {
             try {
               if (!client) {
                 throw new Error(
@@ -478,8 +637,8 @@
 
               // Initialize with known topic IDs (no block registry in new approach)
               client.initializeRegistries({
-                action: REGISTRY_TOPICS.action,
-                assembly: REGISTRY_TOPICS.assembly
+                action: REGISTRY_TOPICS.actionRegistry,
+                assembly: REGISTRY_TOPICS.assemblyRegistry
               });
               
               updateStatus(
@@ -502,6 +661,14 @@
                   'success',
                 );
                 enableButtons(true);
+                
+                // Enable demo buttons specifically
+                document.querySelectorAll('.demo-btn').forEach(btn => {
+                  btn.disabled = false;
+                });
+                
+                // Update wallet status to show ready
+                updateStatus('wallet-status', '✅ Ready! Choose a demo above.', 'success');
               } catch (syncError) {
                 updateStatus(
                   'client-status',
@@ -514,7 +681,7 @@
             } catch (error) {
               handleError(error, 'registry initialization');
             }
-          });
+        }
 
         // Sync registry
         async function syncRegistry(type) {
@@ -902,6 +1069,371 @@
           }
         }
         
+        // Render an assembly's first block with action mappings
+        window.renderAssembly = async function(assemblyId) {
+          try {
+            log(`Loading assembly: ${assemblyId}`);
+            
+            // Load the assembly
+            const assembly = await client.loadAssembly(assemblyId);
+            if (!assembly || !assembly.state || !assembly.state.blocks || assembly.state.blocks.length === 0) {
+              throw new Error('Assembly not found or has no blocks');
+            }
+            
+            log(`Assembly loaded: ${assembly.state.name} with ${assembly.state.blocks.length} blocks`);
+            
+            // Get the first block (should be the counter block for simple assembly)
+            const assemblyBlock = assembly.state.blocks[0];
+            const blockId = assemblyBlock.block_t_id;
+            
+            log(`Rendering first block: ${blockId} with actions:`, assemblyBlock.actions);
+            
+            // Load the block definition and template
+            const blockData = await client.loadBlock(blockId);
+            if (!blockData || !blockData.definition) {
+              throw new Error('Block not found');
+            }
+            
+            const { definition, template } = blockData;
+            
+            // Create rendering components
+            const { BlockRenderer, GutenbergBridge, TemplateEngine, BlockStateManager, ResourceManager } = StandardsSDK;
+            
+            const gutenbergBridge = new GutenbergBridge(logger);
+            const resourceManager = new ResourceManager(logger, client.mirrorNode);
+            const templateEngine = new TemplateEngine(logger, resourceManager);
+            const stateManager = new BlockStateManager(logger);
+            const blockRenderer = new BlockRenderer(logger, gutenbergBridge, templateEngine, stateManager);
+            
+            // Set up action handler
+            stateManager.onBlockMessage(blockId, async (message) => {
+              if (message.type === 'action' && message.payload) {
+                const actionTopicId = message.payload.action;
+                log(`Action clicked: ${actionTopicId}`);
+                
+                try {
+                  const currentState = stateManager.getBlockState(blockId) || {
+                    attributes: { count: 0, step: 1 }
+                  };
+                  
+                  // Extract params from the button
+                  const button = renderOutput.querySelector(`[data-action="${actionTopicId}"]`);
+                  let params = {};
+                  if (button && button.dataset.params) {
+                    try {
+                      params = JSON.parse(button.dataset.params);
+                    } catch (e) {
+                      log('Failed to parse params:', e);
+                    }
+                  }
+                  
+                  log('Action params:', params);
+                  
+                  // Simulate action execution based on operation
+                  let newCount = currentState.attributes.count || 0;
+                  const step = currentState.attributes.step || 1;
+                  
+                  if (params.operation === 'increment') {
+                    newCount += step;
+                  } else if (params.operation === 'decrement') {
+                    newCount -= step;
+                  } else if (params.operation === 'reset') {
+                    newCount = 0;
+                  }
+                  
+                  // Update state
+                  const newState = {
+                    ...currentState,
+                    attributes: {
+                      ...currentState.attributes,
+                      count: newCount
+                    },
+                    actionResults: {
+                      [params.operation]: { value: newCount }
+                    }
+                  };
+                  
+                  stateManager.updateBlockState(blockId, newState);
+                  log('State updated:', newState);
+                  
+                } catch (error) {
+                  log('Action execution failed:', error);
+                }
+              }
+            });
+            
+            // Show render section
+            document.getElementById('render-section').style.display = 'block';
+            const renderOutput = document.getElementById('render-output');
+            
+            // Create block definition for renderer
+            const blockDef = {
+              id: blockId,
+              template: template,
+              attributes: definition.attributes || {},
+              styles: '',
+              p: 'hcs-12',
+              op: 'register',
+              name: definition.name,
+              version: definition.version || '1.0.0',
+              title: definition.title,
+              description: definition.description
+            };
+            
+            // Process template to remove placeholder stylesheet and extract inline styles
+            let processedTemplate = template;
+            processedTemplate = processedTemplate.replace(
+              /<link[^>]*data-src="hcs:\/\/1\/0\.0\.STYLES_TOPIC"[^>]*>/gi,
+              ''
+            );
+            
+            // Extract styles from template if present
+            const styleMatch = processedTemplate.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+            if (styleMatch) {
+              blockDef.styles = styleMatch[1];
+              processedTemplate = processedTemplate.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+            }
+            
+            blockDef.template = processedTemplate;
+            
+            try {
+              // Render the block with assembly context (includes action mappings)
+              const renderResult = await blockRenderer.render(blockDef, {
+                container: renderOutput,
+                initialState: {
+                  attributes: {
+                    count: assemblyBlock.attributes?.count || 0,
+                    step: assemblyBlock.attributes?.step || 1
+                  },
+                  actionResults: {}
+                },
+                assembly: assembly,  // Pass the assembly context!
+                actionRegistry: client.actionRegistry,
+                network: 'testnet',
+                blockLoader: client.blockLoader || client,
+                hrlResolver: client.hrlResolver || null,
+                maxDepth: 5
+              });
+              
+              log('Block rendered successfully', { blockId, hasElement: !!renderResult.element });
+              
+              // Add info header
+              const header = document.createElement('div');
+              header.style.cssText = 'border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;';
+              header.innerHTML = `
+                <h3 style="margin: 0;">${definition.title || definition.name || 'Untitled Block'}</h3>
+                <small style="color: #666;">From Assembly: ${assembly.state.name}</small>
+                <small style="color: #999;"> | Actions: ${Object.keys(assemblyBlock.actions || {}).join(', ')}</small>
+              `;
+              renderOutput.insertBefore(header, renderOutput.firstChild);
+              
+            } catch (renderError) {
+              log('Block rendering failed:', renderError);
+              renderOutput.innerHTML = `
+                <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px;">
+                  <strong>Rendering Error:</strong> ${renderError.message}
+                </div>
+                <div style="margin-top: 10px;">
+                  <h4>Template Source:</h4>
+                  <pre style="background: #f5f5f5; padding: 10px; overflow: auto;">${template.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                </div>
+              `;
+            }
+            
+            // Add footer with assembly info
+            const footer = document.createElement('div');
+            footer.style.cssText = 'border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666;';
+            footer.innerHTML = `
+              <strong>Assembly Topic:</strong> ${assemblyId}<br/>
+              <strong>Block Definition Topic:</strong> ${blockId}<br/>
+              <strong>Template Topic:</strong> ${definition.template_t_id}
+            `;
+            renderOutput.appendChild(footer);
+            
+            updateStatus('client-status', 'Assembly block rendered successfully', 'success');
+            renderOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+          } catch (error) {
+            handleError(error, 'assembly rendering');
+          }
+        }
+        
+        // Render nested assembly (render the container block with nested blocks)
+        window.renderNestedAssembly = async function(assemblyId) {
+          try {
+            log(`Loading nested assembly: ${assemblyId}`);
+            
+            // Load the assembly
+            const assembly = await client.loadAssembly(assemblyId);
+            if (!assembly || !assembly.state || !assembly.state.blocks || assembly.state.blocks.length === 0) {
+              throw new Error('Assembly not found or has no blocks');
+            }
+            
+            log(`Assembly loaded: ${assembly.state.name} with ${assembly.state.blocks.length} blocks`);
+            
+            // Find the container block (should be the last one added)
+            const containerBlock = assembly.state.blocks.find(block => 
+              block.definition?.name?.includes('container') ||
+              block.definition?.title?.includes('Container')
+            ) || assembly.state.blocks[assembly.state.blocks.length - 1];
+            
+            const blockId = containerBlock.block_t_id;
+            
+            log(`Rendering container block: ${blockId} with actions:`, containerBlock.actions);
+            
+            // Load the block definition and template
+            const blockData = await client.loadBlock(blockId);
+            if (!blockData || !blockData.definition) {
+              throw new Error('Container block not found');
+            }
+            
+            const { definition, template } = blockData;
+            
+            // Create rendering components
+            const { BlockRenderer, GutenbergBridge, TemplateEngine, BlockStateManager, ResourceManager } = StandardsSDK;
+            
+            const gutenbergBridge = new GutenbergBridge(logger);
+            const resourceManager = new ResourceManager(logger, client.mirrorNode);
+            const templateEngine = new TemplateEngine(logger, resourceManager);
+            const stateManager = new BlockStateManager(logger);
+            const blockRenderer = new BlockRenderer(logger, gutenbergBridge, templateEngine, stateManager);
+            
+            // Set up action handler for container block
+            stateManager.onBlockMessage(blockId, async (message) => {
+              if (message.type === 'action' && message.payload) {
+                const actionTopicId = message.payload.action;
+                log(`Container action clicked: ${actionTopicId}`);
+                
+                try {
+                  const currentState = stateManager.getBlockState(blockId) || {
+                    attributes: containerBlock.attributes || {}
+                  };
+                  
+                  // Extract params from the button
+                  const button = renderOutput.querySelector(`[data-action="${actionTopicId}"]`);
+                  let params = {};
+                  if (button && button.dataset.params) {
+                    try {
+                      params = JSON.parse(button.dataset.params);
+                    } catch (e) {
+                      log('Failed to parse params:', e);
+                    }
+                  }
+                  
+                  log('Container action params:', params);
+                  
+                  // Handle container block actions (toggle functionality)
+                  const newState = { ...currentState };
+                  
+                  if (params.operation === 'toggleCounter') {
+                    newState.attributes.showCounter = !newState.attributes.showCounter;
+                  } else if (params.operation === 'toggleStats') {
+                    newState.attributes.showStats = !newState.attributes.showStats;
+                  }
+                  
+                  stateManager.updateBlockState(blockId, newState);
+                  log('Container state updated:', newState);
+                  
+                } catch (error) {
+                  log('Container action execution failed:', error);
+                }
+              }
+            });
+            
+            // Show render section
+            document.getElementById('render-section').style.display = 'block';
+            const renderOutput = document.getElementById('render-output');
+            
+            // Create block definition for renderer
+            const blockDef = {
+              id: blockId,
+              template: template,
+              attributes: definition.attributes || {},
+              styles: '',
+              p: 'hcs-12',
+              op: 'register',
+              name: definition.name,
+              version: definition.version || '1.0.0',
+              title: definition.title,
+              description: definition.description
+            };
+            
+            // Process template to remove placeholder stylesheet and extract inline styles
+            let processedTemplate = template;
+            processedTemplate = processedTemplate.replace(
+              /<link[^>]*data-src="hcs:\/\/1\/0\.0\.STYLES_TOPIC"[^>]*>/gi,
+              ''
+            );
+            
+            // Extract styles from template if present
+            const styleMatch = processedTemplate.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+            if (styleMatch) {
+              blockDef.styles = styleMatch[1];
+              processedTemplate = processedTemplate.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+            }
+            
+            blockDef.template = processedTemplate;
+            
+            try {
+              // Render the container block with assembly context (includes action mappings and nested blocks)
+              const renderResult = await blockRenderer.render(blockDef, {
+                container: renderOutput,
+                initialState: {
+                  attributes: containerBlock.attributes || {},
+                  actionResults: {}
+                },
+                assembly: assembly,  // Pass the assembly context for nested blocks!
+                actionRegistry: client.actionRegistry,
+                network: 'testnet',
+                blockLoader: client.blockLoader || client,
+                hrlResolver: client.hrlResolver || null,
+                maxDepth: 5
+              });
+              
+              log('Container block rendered successfully', { blockId, hasElement: !!renderResult.element });
+              
+              // Add info header
+              const header = document.createElement('div');
+              header.style.cssText = 'border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;';
+              header.innerHTML = `
+                <h3 style="margin: 0;">${definition.title || definition.name || 'Untitled Block'}</h3>
+                <small style="color: #666;">From Assembly: ${assembly.state.name}</small>
+                <small style="color: #999;"> | Nested Blocks Demo</small>
+              `;
+              renderOutput.insertBefore(header, renderOutput.firstChild);
+              
+            } catch (renderError) {
+              log('Container block rendering failed:', renderError);
+              renderOutput.innerHTML = `
+                <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px;">
+                  <strong>Rendering Error:</strong> ${renderError.message}
+                </div>
+                <div style="margin-top: 10px;">
+                  <h4>Template Source:</h4>
+                  <pre style="background: #f5f5f5; padding: 10px; overflow: auto;">${template.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                </div>
+              `;
+            }
+            
+            // Add footer with assembly info
+            const footer = document.createElement('div');
+            footer.style.cssText = 'border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666;';
+            footer.innerHTML = `
+              <strong>Assembly Topic:</strong> ${assemblyId}<br/>
+              <strong>Container Block Topic:</strong> ${blockId}<br/>
+              <strong>Template Topic:</strong> ${definition.template_t_id}<br/>
+              <strong>Total Blocks in Assembly:</strong> ${assembly.state.blocks.length}
+            `;
+            renderOutput.appendChild(footer);
+            
+            updateStatus('client-status', 'Nested assembly rendered successfully', 'success');
+            renderOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+          } catch (error) {
+            handleError(error, 'nested assembly rendering');
+          }
+        }
+        
         // Render a block
         window.renderBlock = async function(blockId) {
           try {
@@ -1030,14 +1562,26 @@
             blockDef.template = processedTemplate;
             
             try {
-              // Load the assembly to get action mappings
+              // Load the assembly to get action mappings (optional)
               let assembly = null;
               try {
-                // Get the assembly that contains this block
-                // For the demo, we'll try to load the counter assembly
-                assembly = await client.loadAssembly(REGISTRY_TOPICS.counterAssembly);
+                // First sync registries to ensure we have the latest data
+                if (client.actionRegistry) {
+                  log('Syncing action registry...');
+                  await client.actionRegistry.sync();
+                }
+                
+                if (client.assemblyRegistry) {
+                  log('Syncing assembly registry...');
+                  await client.assemblyRegistry.sync();
+                }
+                
+                // Optionally load an assembly, but blocks can render without it
+                // Skip this for individual block rendering
+                log('Rendering block without assembly context (actions will still work via registry)');
               } catch (e) {
-                log('Could not load assembly:', e.message);
+                log('Registry sync warning:', e.message);
+                // Continue - blocks can still render
               }
               
               // Render the block using BlockRenderer with WASM support
@@ -1052,7 +1596,10 @@
                 },
                 assembly: assembly,
                 actionRegistry: client.actionRegistry,
-                network: 'testnet'
+                network: 'testnet',
+                blockLoader: client.blockLoader || client,
+                hrlResolver: client.hrlResolver || null,
+                maxDepth: 5
               });
               
               log('Block rendered successfully', { blockId, hasElement: !!renderResult.element });
@@ -1244,6 +1791,24 @@
             }
           });
 
+        // Render individual block
+        document
+          .getElementById('render-block-btn')
+          .addEventListener('click', async () => {
+            try {
+              const blockId = document.getElementById('topic-id').value;
+              if (!blockId) {
+                throw new Error('Please enter a block definition topic ID');
+              }
+              
+              log(`Rendering block: ${blockId}`);
+              await window.renderBlock(blockId);
+              
+            } catch (error) {
+              handleError(error, 'render block');
+            }
+          });
+
         // Create topics
         document
           .getElementById('create-action-topic-btn')
@@ -1270,6 +1835,19 @@
               handleError(error, 'create assembly topic');
             }
           });
+          
+        // Show nested blocks demo instructions
+        window.showNestedBlocksDemo = function() {
+          document.getElementById('nested-demo-section').style.display = 'block';
+          document.getElementById('nested-demo-section').scrollIntoView({ behavior: 'smooth' });
+        };
+        
+        // Demo button event listeners
+        if (document.getElementById('demo-simple-counter')) {
+          document.getElementById('demo-simple-counter').addEventListener('click', () => runDemo('simple-counter'));
+          document.getElementById('demo-nested-blocks').addEventListener('click', () => runDemo('nested-blocks'));
+          document.getElementById('demo-full-assembly').addEventListener('click', () => runDemo('full-assembly'));
+        }
       };
     </script>
 
