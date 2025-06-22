@@ -120,18 +120,17 @@ async function createRegistryTopic() {
         },
         ...(categories.length > 0 && { categories }),
         ...(tags.length > 0 && { tags }),
-        ...(websiteUrl.trim() ||
-          documentationUrl.trim() ||
-          (communityUrl.trim() && {
-            links: {
-              ...(websiteUrl.trim() && { website: websiteUrl.trim() }),
-              ...(documentationUrl.trim() && {
-                documentation: documentationUrl.trim(),
-              }),
-              ...(communityUrl.trim() && { community: communityUrl.trim() }),
-            },
-          })),
       };
+
+      if (websiteUrl.trim() || documentationUrl.trim() || communityUrl.trim()) {
+        metadata.links = {
+          ...(websiteUrl.trim() && { website: websiteUrl.trim() }),
+          ...(documentationUrl.trim() && {
+            documentation: documentationUrl.trim(),
+          }),
+          ...(communityUrl.trim() && { community: communityUrl.trim() }),
+        };
+      }
     }
 
     rl.close();
