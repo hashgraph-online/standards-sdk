@@ -2,3 +2,6 @@ dist
 node_modules
 .env
 .DS_Store
+target
+scripts
+*.log

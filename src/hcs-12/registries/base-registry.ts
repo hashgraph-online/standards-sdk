@@ -76,7 +76,6 @@ export abstract class BaseRegistry {
     }
 
     try {
-      // For non-indexed topics, we need to get the latest message
       const messages = await this.client.mirrorNode.getTopicMessagesByFilter(
         topicId,
         {
@@ -92,15 +91,11 @@ export abstract class BaseRegistry {
       const latestMessage = messages[0];
       let data: any;
 
-      // HCSMessage might have the parsed content already, or it might be in raw_content
       if ((latestMessage as any).raw_content) {
         data = JSON.parse((latestMessage as any).raw_content);
       } else {
-        // The message is already parsed with HCS content spread into it
-        // We need to extract just the HCS-12 fields
         const msgAny = latestMessage as any;
         if (msgAny.p === 'hcs-12' && msgAny.op) {
-          // Extract only HCS-12 specific fields
           data = {
             p: msgAny.p,
             op: msgAny.op,
@@ -120,17 +115,14 @@ export abstract class BaseRegistry {
             actions: msgAny.actions,
             blocks: msgAny.blocks,
             refs: msgAny.refs,
-            // Include any other HCS-12 specific fields that might be present
           };
 
-          // Remove undefined fields
           Object.keys(data).forEach(key => {
             if (data[key] === undefined) {
               delete data[key];
             }
           });
         } else {
-          // If we can't extract HCS-12 data, return null
           return null;
         }
       }
@@ -208,15 +200,11 @@ export abstract class BaseRegistry {
         try {
           let data: any;
 
-          // HCSMessage might have the parsed content already, or it might be in raw_content
           if ((msg as any).raw_content) {
             data = JSON.parse((msg as any).raw_content);
           } else {
-            // The message is already parsed with HCS content spread into it
-            // We need to extract just the HCS-12 fields
             const msgAny = msg as any;
             if (msgAny.p === 'hcs-12' && msgAny.op) {
-              // Extract only HCS-12 specific fields
               data = {
                 p: msgAny.p,
                 op: msgAny.op,
@@ -236,27 +224,20 @@ export abstract class BaseRegistry {
                 actions: msgAny.actions,
                 blocks: msgAny.blocks,
                 refs: msgAny.refs,
-                // Action-specific fields
                 t_id: msgAny.t_id,
                 hash: msgAny.hash,
                 wasm_hash: msgAny.wasm_hash,
                 info_t_id: msgAny.info_t_id,
                 validation_rules: msgAny.validation_rules,
-                // JavaScript wrapper fields
                 js_t_id: msgAny.js_t_id,
                 js_hash: msgAny.js_hash,
                 interface_version: msgAny.interface_version,
-                // Block-specific fields
                 title: msgAny.title,
                 template: msgAny.template,
-                // Assembly-specific fields
                 author: msgAny.author,
-                // Common fields
                 m: msgAny.m,
-                // Include any other HCS-12 specific fields that might be present
               };
 
-              // Remove undefined fields
               Object.keys(data).forEach(key => {
                 if (data[key] === undefined) {
                   delete data[key];

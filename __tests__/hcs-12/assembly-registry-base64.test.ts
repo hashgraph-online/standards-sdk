@@ -6,7 +6,6 @@ describe('AssemblyRegistry Base64 Decoding', () => {
   it('should correctly decode base64 messages from mirror node', async () => {
     const logger = new Logger({ level: 'debug', module: 'test' });
 
-    // Mock client with mirrorNode
     const mockClient = {
       mirrorNode: {
         getTopicMessagesByFilter: jest.fn().mockResolvedValue([
@@ -14,7 +13,6 @@ describe('AssemblyRegistry Base64 Decoding', () => {
             sequence_number: 1,
             consensus_timestamp: '1750456452.416332000',
             payer_account_id: '0.0.5200939',
-            // Base64 encoded message from actual mirror node
             message:
               'eyJwIjoiaGNzLTEyIiwib3AiOiJyZWdpc3RlciIsIm5hbWUiOiJjb3VudGVyLWFwcCIsInZlcnNpb24iOiIxLjAuMCIsImRlc2NyaXB0aW9uIjoiQ29tcGxldGUgY291bnRlciBhcHBsaWNhdGlvbiIsImF1dGhvciI6IjAuMC41MjAwOTM5IiwidGFncyI6WyJkZW1vIiwiY291bnRlciIsImhhc2hsaW5rcyJdfQ==',
           },
@@ -22,7 +20,6 @@ describe('AssemblyRegistry Base64 Decoding', () => {
             sequence_number: 2,
             consensus_timestamp: '1750456454.332786186',
             payer_account_id: '0.0.5200939',
-            // Base64 encoded message from actual mirror node
             message:
               'eyJwIjoiaGNzLTEyIiwib3AiOiJhZGQtYmxvY2siLCJibG9ja190X2lkIjoiMC4wLjYyMDU4MTYiLCJhY3Rpb25zIjp7ImluY3JlbWVudCI6IjAuMC42MjA1NzcxIiwiZGVjcmVtZW50IjoiMC4wLjYyMDU3NzEiLCJyZXNldCI6IjAuMC42MjA1NzcxIn0sImF0dHJpYnV0ZXMiOnsiY291bnQiOjAsInN0ZXAiOjF9fQ==',
           },
@@ -32,7 +29,6 @@ describe('AssemblyRegistry Base64 Decoding', () => {
 
     const assemblyTopicId = '0.0.6205821';
 
-    // Create assembly registry with mock client
     const registry = new AssemblyRegistry(
       'testnet' as NetworkType,
       logger,
@@ -40,10 +36,8 @@ describe('AssemblyRegistry Base64 Decoding', () => {
       mockClient as any,
     );
 
-    // Get assembly state
     const state = await registry.getAssemblyState();
 
-    // Verify state was built correctly
     expect(state).toBeDefined();
     expect(state?.name).toBe('counter-app');
     expect(state?.version).toBe('1.0.0');
@@ -51,7 +45,6 @@ describe('AssemblyRegistry Base64 Decoding', () => {
     expect(state?.author).toBe('0.0.5200939');
     expect(state?.tags).toEqual(['demo', 'counter', 'hashlinks']);
 
-    // Verify block was added
     expect(state?.blocks).toHaveLength(1);
     expect(state?.blocks[0].block_t_id).toBe('0.0.6205816');
     expect(state?.blocks[0].actions).toEqual({
@@ -64,7 +57,6 @@ describe('AssemblyRegistry Base64 Decoding', () => {
       step: 1,
     });
 
-    // Verify mock was called
     expect(mockClient.mirrorNode.getTopicMessagesByFilter).toHaveBeenCalledWith(
       assemblyTopicId,
       {

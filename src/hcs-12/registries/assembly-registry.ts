@@ -44,7 +44,7 @@ export class AssemblyRegistry extends BaseRegistry {
    * Override getTopicMemo to indicate indexed registry
    */
   getTopicMemo(): string {
-    const indexed = 0; // Indexed to maintain full history
+    const indexed = 0;
     const ttl = 60;
     const type = this.registryType;
     return `hcs-12:${indexed}:${ttl}:${type}`;
@@ -225,18 +225,14 @@ export class AssemblyRegistry extends BaseRegistry {
     const targetTopicId = topicId || this.topicId;
     if (!targetTopicId || !this.client) return null;
 
-    // Check cache first
     let state = this.assemblyStates.get(targetTopicId);
     if (state) return state;
-    
-    // If this registry was created for a specific assembly topic,
-    // and we're asking for that same topic, sync from ourselves
+
     if (targetTopicId === this.topicId && this.entries.size > 0) {
       this.logger.debug('Building state from existing entries', {
         topicId: targetTopicId,
         entriesCount: this.entries.size,
       });
-      // Process our own entries to build state
       this.assemblyStates.clear();
       for (const entry of this.entries.values()) {
         this.processAssemblyMessage(targetTopicId, entry);
@@ -250,7 +246,6 @@ export class AssemblyRegistry extends BaseRegistry {
       return builtState;
     }
 
-    // Sync assembly messages from the assembly topic itself
     this.logger.info('Syncing assembly state from topic', {
       topicId: targetTopicId,
     });
@@ -265,7 +260,7 @@ export class AssemblyRegistry extends BaseRegistry {
       );
 
       const messageArray = Array.isArray(messages) ? messages : [];
-      
+
       this.logger.info('Processing assembly messages', {
         topicId: targetTopicId,
         messageCount: messageArray.length,
@@ -277,7 +272,6 @@ export class AssemblyRegistry extends BaseRegistry {
 
           if ((msg as any).message) {
             try {
-              // Decode base64 message content
               let messageContent: string;
               const isServerEnvironment = typeof window === 'undefined';
 
@@ -327,9 +321,8 @@ export class AssemblyRegistry extends BaseRegistry {
             data,
           };
 
-          // Process message for this specific assembly topic
           this.processAssemblyMessage(targetTopicId, entry);
-          
+
           this.logger.debug('Processed message for assembly', {
             topicId: targetTopicId,
             sequenceNumber: entry.sequenceNumber,
@@ -474,7 +467,7 @@ export class AssemblyRegistry extends BaseRegistry {
       );
 
       const messageArray = Array.isArray(messages) ? messages : [];
-      
+
       this.logger.info('Processing assembly messages', {
         topicId: this.topicId,
         messageCount: messageArray.length,
@@ -486,7 +479,6 @@ export class AssemblyRegistry extends BaseRegistry {
 
           if ((msg as any).message) {
             try {
-              // Decode base64 message content
               let messageContent: string;
               const isServerEnvironment = typeof window === 'undefined';
 
@@ -550,7 +542,7 @@ export class AssemblyRegistry extends BaseRegistry {
           this.entries.set(entry.id, entry);
 
           await this.processMessage(entry);
-          
+
           this.logger.debug('Processed sync message', {
             sequenceNumber: entry.sequenceNumber,
             op: entry.data.op,

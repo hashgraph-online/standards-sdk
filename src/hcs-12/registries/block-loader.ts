@@ -51,7 +51,6 @@ export class BlockLoader {
 
       let blockDefinition: BlockDefinition;
 
-      // Handle case where content is already parsed JSON
       if (
         typeof result.content === 'object' &&
         result.content !== null &&
@@ -59,7 +58,6 @@ export class BlockLoader {
       ) {
         blockDefinition = result.content as BlockDefinition;
       } else {
-        // Handle case where content is a string
         blockDefinition = JSON.parse(
           typeof result.content === 'string'
             ? result.content
@@ -97,14 +95,12 @@ export class BlockLoader {
 
       let template: string;
 
-      // Handle case where content might be an object or string
       if (typeof result.content === 'string') {
         template = result.content;
       } else if (
         typeof result.content === 'object' &&
         result.content !== null
       ) {
-        // If it's an object, it might have a text property or need to be stringified
         template =
           (result.content as any).text || JSON.stringify(result.content);
       } else {

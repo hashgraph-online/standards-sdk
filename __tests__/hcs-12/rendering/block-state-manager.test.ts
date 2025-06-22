@@ -79,10 +79,9 @@ describe('BlockStateManager', () => {
       expect(state.ui.isVisible).toBe(true);
     });
 
-    it('should throw error when accessing non-existent block state', () => {
-      expect(() => {
-        stateManager.getBlockState('non-existent');
-      }).toThrow('Block state not found: non-existent');
+    it('should return null when accessing non-existent block state', () => {
+      const result = stateManager.getBlockState('non-existent');
+      expect(result).toBeNull();
     });
 
     it('should remove block state when destroyed', () => {

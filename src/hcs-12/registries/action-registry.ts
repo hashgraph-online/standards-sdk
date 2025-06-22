@@ -132,7 +132,6 @@ export class ActionRegistry extends BaseRegistry {
 
       return sequenceNumber.toString();
     } else {
-      // Local testing mode
       const sequenceNumber = this.entries.size + 1;
       const entry: RegistryEntry = {
         id: sequenceNumber.toString(),
@@ -167,15 +166,16 @@ export class ActionRegistry extends BaseRegistry {
   /**
    * Retrieve action by topic ID
    */
-  async getActionByTopicId(topicId: string): Promise<ActionRegistration | null> {
+  async getActionByTopicId(
+    topicId: string,
+  ): Promise<ActionRegistration | null> {
     this.logger.debug('getActionByTopicId called', { topicId });
-    console.log('DEBUG: getActionByTopicId called', { 
+    console.log('DEBUG: getActionByTopicId called', {
       topicId,
       cacheSize: this.actionsByHash.size,
-      cachedTopicIds: Array.from(this.actionsByHash.values()).map(a => a.t_id)
+      cachedTopicIds: Array.from(this.actionsByHash.values()).map(a => a.t_id),
     });
-    
-    // First check if we have it in cache
+
     for (const action of this.actionsByHash.values()) {
       if (action.t_id === topicId) {
         this.logger.debug('Action found in cache', { topicId, action });
@@ -184,17 +184,18 @@ export class ActionRegistry extends BaseRegistry {
       }
     }
 
-    // If not in cache, sync and try again
     if (this.topicId && this.client) {
       this.logger.debug('Action not in cache, syncing...', { topicId });
       console.log('DEBUG: Action not in cache, syncing...');
       await this.sync();
-      
+
       console.log('DEBUG: After sync', {
         cacheSize: this.actionsByHash.size,
-        cachedTopicIds: Array.from(this.actionsByHash.values()).map(a => a.t_id)
+        cachedTopicIds: Array.from(this.actionsByHash.values()).map(
+          a => a.t_id,
+        ),
       });
-      
+
       for (const action of this.actionsByHash.values()) {
         if (action.t_id === topicId) {
           this.logger.debug('Action found after sync', { topicId, action });

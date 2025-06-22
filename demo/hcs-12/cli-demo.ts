@@ -116,11 +116,16 @@ async function inscribeWasmModule(
  * that returns the module metadata. This ensures the hash in the action
  * registration can be verified by loading and calling the WASM module.
  */
-async function getModuleInfoFromWasm(wasmPath: string, logger: Logger): Promise<{ info: string; hash: string }> {
+async function getModuleInfoFromWasm(
+  wasmPath: string,
+  logger: Logger,
+): Promise<{ info: string; hash: string }> {
   logger.info('Loading WASM module to extract INFO...');
 
   try {
-    const wasmModule = await import(path.join(WASM_DIR, 'pkg', 'hashlink_counter.js'));
+    const wasmModule = await import(
+      path.join(WASM_DIR, 'pkg', 'hashlink_counter.js')
+    );
 
     await wasmModule.default();
 
@@ -132,7 +137,7 @@ async function getModuleInfoFromWasm(wasmPath: string, logger: Logger): Promise<
 
     logger.info('Module INFO extracted from WASM', {
       infoLength: infoString.length,
-      hash
+      hash,
     });
 
     return { info: infoString, hash };
@@ -389,7 +394,10 @@ async function main() {
       operatorKey,
     );
 
-    const { info, hash: infoHash } = await getModuleInfoFromWasm(WASM_FILE, logger);
+    const { info, hash: infoHash } = await getModuleInfoFromWasm(
+      WASM_FILE,
+      logger,
+    );
     logger.info('Module info extracted from WASM', { infoHash });
 
     const actionHash = await registerAction(

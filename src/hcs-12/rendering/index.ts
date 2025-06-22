@@ -10,3 +10,5 @@ export * from './template-engine';
 export * from './resource-manager';
 export * from './block-state-manager';
 export * from './block-renderer';
+export * from './hashlink-scanner';
+export * from './hashlink-resolver';

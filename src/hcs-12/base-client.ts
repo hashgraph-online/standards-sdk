@@ -106,19 +106,6 @@ export abstract class HCS12BaseClient {
     submitKey?: PrivateKey,
   ): Promise<{ transactionId: string; sequenceNumber?: number }>;
 
-  /**
-   * Register a new action in the action registry
-   */
-  async registerAction(
-    registration: ActionRegistration,
-  ): Promise<{ id: string; transactionId?: string }> {
-    if (!this._actionRegistry) {
-      throw new Error('Action registry not initialized');
-    }
-
-    const id = await this._actionRegistry.register(registration);
-    return { id };
-  }
 
   /**
    * Register a new assembly in the assembly registry
@@ -188,31 +175,27 @@ export abstract class HCS12BaseClient {
    * Load and resolve a complete assembly by topic ID
    */
   async loadAssembly(topicId: string): Promise<Assembly> {
-    // Ensure action registry is synced first
     if (this._actionRegistry) {
       this.logger.info('Syncing action registry before loading assembly');
       await this._actionRegistry.sync();
     }
-    
-    // Create a new assembly registry for this specific assembly topic
+
     const assemblyRegistry = new AssemblyRegistry(
       this.network,
       this.logger,
       topicId,
-      this as any
+      this as any,
     );
-    
-    // Sync to get all messages from the assembly topic
+
     await assemblyRegistry.sync();
-    
-    // Create assembly engine with the correct registry
+
     const assemblyEngine = new AssemblyEngine(
       this.logger,
       assemblyRegistry,
       this._actionRegistry!,
-      this._blockLoader!
+      this._blockLoader!,
     );
-    
+
     return assemblyEngine.loadAndResolveAssembly(topicId);
   }
 
@@ -322,7 +305,6 @@ export abstract class HCS12BaseClient {
     if (this._actionRegistry) {
       promises.push(this._actionRegistry.sync());
     }
-    // Block loader doesn't need syncing as it loads from HCS-1
     if (this._assemblyRegistry) {
       promises.push(this._assemblyRegistry.sync());
     }

@@ -9,10 +9,12 @@ import { Logger } from '../../utils/logger';
 
 export interface TemplateContext {
   attributes?: Record<string, string | number | boolean>;
-  actions?: Array<{
-    name: string;
-    result?: unknown;
-  }> | Record<string, string>;
+  actions?:
+    | Array<{
+        name: string;
+        result?: unknown;
+      }>
+    | Record<string, string>;
   [key: string]: unknown;
 }
 
@@ -50,7 +52,9 @@ export class TemplateEngine {
     this.logger.debug('Rendering template', {
       templateLength: template.length,
       context: JSON.stringify(context, null, 2),
-      attributesType: context.attributes ? typeof context.attributes : 'undefined',
+      attributesType: context.attributes
+        ? typeof context.attributes
+        : 'undefined',
       contextKeys: Object.keys(context),
     });
 

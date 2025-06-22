@@ -22,6 +22,7 @@ const mockAssemblyRegistry = {
 
 const mockActionRegistry = {
   getLatestEntry: jest.fn(),
+  getActionByTopicId: jest.fn(),
   register: jest.fn(),
   sync: jest.fn(),
 };
@@ -30,7 +31,6 @@ const mockBlockLoader = {
   loadBlock: jest.fn(),
   loadBlockDefinition: jest.fn(),
   loadBlockTemplate: jest.fn(),
-  storeBlock: jest.fn(),
   clearCache: jest.fn(),
 };
 
@@ -160,13 +160,7 @@ describe('AssemblyEngine', () => {
         m: 'Transfer Action v1.0.0',
       };
 
-      mockActionRegistry.getLatestEntry.mockResolvedValueOnce({
-        id: '1',
-        sequenceNumber: 1,
-        timestamp: '2023-01-01T00:00:00.000Z',
-        submitter: '0.0.12345',
-        data: mockActionRegistration,
-      });
+      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(mockActionRegistration);
 
       const resolved =
         await assemblyEngine.resolveReferences(mockAssemblyState);
@@ -237,7 +231,7 @@ describe('AssemblyEngine', () => {
         updated: '2023-01-01T00:00:00.000Z',
       };
 
-      mockActionRegistry.getLatestEntry.mockResolvedValueOnce(null);
+      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(null);
 
       const resolved =
         await assemblyEngine.resolveReferences(mockAssemblyState);
@@ -412,13 +406,7 @@ describe('AssemblyEngine', () => {
       mockAssemblyRegistry.getAssemblyState.mockResolvedValueOnce(
         mockAssemblyState,
       );
-      mockActionRegistry.getLatestEntry.mockResolvedValueOnce({
-        id: '1',
-        sequenceNumber: 1,
-        timestamp: '2023-01-01T00:00:00.000Z',
-        submitter: '0.0.12345',
-        data: mockActionRegistration,
-      });
+      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(mockActionRegistration);
       mockBlockLoader.loadBlock.mockResolvedValueOnce({
         definition: mockBlockDefinition2,
         template: mockTemplate,
