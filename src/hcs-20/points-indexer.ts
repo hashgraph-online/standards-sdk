@@ -204,7 +204,6 @@ export class HCS20PointsIndexer {
             topics.push(msgData.t_id);
           }
         } catch (error) {
-
           continue;
         }
       }
@@ -220,28 +219,33 @@ export class HCS20PointsIndexer {
   private async indexTopic(topicId: string, isPrivate: boolean): Promise<void> {
     try {
       const lastSequence = this.lastIndexedSequence.get(topicId);
-      this.logger.debug(`Indexing topic ${topicId}, starting from sequence ${lastSequence || 0}`);
-      
+      this.logger.debug(
+        `Indexing topic ${topicId}, starting from sequence ${lastSequence || 0}`,
+      );
+
       const messages = await this.mirrorNode.getTopicMessages(topicId, {
         sequenceNumber: lastSequence ? lastSequence + 1 : undefined,
         limit: 1000,
         order: 'asc',
       });
 
-      this.logger.debug(`Fetched ${messages.length} messages from topic ${topicId}`);
+      this.logger.debug(
+        `Fetched ${messages.length} messages from topic ${topicId}`,
+      );
 
       let maxSequence = lastSequence || 0;
 
       for (const msg of messages) {
         try {
-
           const messageData = msg as any;
           if (!messageData.p || messageData.p !== 'hcs-20') continue;
 
           const parsedMsg = messageData as HCS20Message;
           const sequenceNumber = messageData.sequence_number || 0;
-          
-          this.logger.debug(`Found HCS-20 message: op=${parsedMsg.op}, sequence=${sequenceNumber}`);
+
+          this.logger.debug(
+            `Found HCS-20 message: op=${parsedMsg.op}, sequence=${sequenceNumber}`,
+          );
 
           if (sequenceNumber > maxSequence) {
             maxSequence = sequenceNumber;
@@ -255,9 +259,9 @@ export class HCS20PointsIndexer {
           this.processMessage(parsedMsg, topicMessage, topicId, isPrivate);
 
           this.state.lastProcessedSequence++;
-          this.state.lastProcessedTimestamp = messageData.consensus_timestamp || '';
+          this.state.lastProcessedTimestamp =
+            messageData.consensus_timestamp || '';
         } catch (error) {
-
           this.logger.debug(`Failed to process message: ${error}`);
           continue;
         }

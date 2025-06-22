@@ -960,7 +960,9 @@ export abstract class HCS10BaseClient extends Registration {
    * @param topicId The topic ID to check
    * @returns The HCS-10 memo type or null if not an HCS-10 topic
    */
-  public async getTopicMemoType(topicId: string): Promise<Hcs10MemoType | null> {
+  public async getTopicMemoType(
+    topicId: string,
+  ): Promise<Hcs10MemoType | null> {
     try {
       const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
 
@@ -978,7 +980,9 @@ export abstract class HCS10BaseClient extends Registration {
 
       const parts = memo.split(':');
       if (parts.length < 4) {
-        this.logger.warn(`Invalid HCS-10 memo format for topic ${topicId}: ${memo}`);
+        this.logger.warn(
+          `Invalid HCS-10 memo format for topic ${topicId}: ${memo}`,
+        );
         return null;
       }
 
@@ -994,7 +998,9 @@ export abstract class HCS10BaseClient extends Registration {
         case '3':
           return Hcs10MemoType.REGISTRY;
         default:
-          this.logger.warn(`Unknown HCS-10 type enum: ${typeEnum} for topic ${topicId}`);
+          this.logger.warn(
+            `Unknown HCS-10 type enum: ${typeEnum} for topic ${topicId}`,
+          );
           return null;
       }
     } catch (error) {

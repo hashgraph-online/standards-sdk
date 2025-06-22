@@ -22,7 +22,7 @@ import {
   DeleteEntryOptions,
   MigrateTopicOptions,
   QueryRegistryOptions,
-  RegistryEntry
+  RegistryEntry,
 } from './types';
 import { NetworkType } from '../utils/types';
 import { detectKeyTypeFromString } from '../utils/key-type-detector';
@@ -56,21 +56,22 @@ export class HCS2Client extends HCS2BaseClient {
       logLevel: config.logLevel,
       silent: config.silent,
       mirrorNodeUrl: config.mirrorNodeUrl,
+      logger: config.logger,
     });
 
-    // Store operator information
-    this.operatorId = typeof config.operatorId === 'string' 
-      ? AccountId.fromString(config.operatorId) 
-      : config.operatorId;
+    this.operatorId =
+      typeof config.operatorId === 'string'
+        ? AccountId.fromString(config.operatorId)
+        : config.operatorId;
 
-    // Handle key type detection
     if (config.keyType) {
       this.keyType = config.keyType;
-      this.operatorKey = typeof config.operatorKey === 'string'
-        ? this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(config.operatorKey)
-          : PrivateKey.fromStringED25519(config.operatorKey)
-        : config.operatorKey;
+      this.operatorKey =
+        typeof config.operatorKey === 'string'
+          ? this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(config.operatorKey)
+            : PrivateKey.fromStringED25519(config.operatorKey)
+          : config.operatorKey;
     } else if (typeof config.operatorKey === 'string') {
       try {
         const keyDetection = detectKeyTypeFromString(config.operatorKey);
@@ -88,10 +89,8 @@ export class HCS2Client extends HCS2BaseClient {
       this.keyType = 'ed25519'; // Default if we can't detect
     }
 
-    // Create Hedera client
     this.client = this.createClient(config.network);
-    
-    // Initialize the client
+
     this.initializeClient();
   }
 
@@ -102,7 +101,9 @@ export class HCS2Client extends HCS2BaseClient {
     try {
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
-      this.logger.info(`HCS-2 client initialized successfully with key type: ${this.keyType}`);
+      this.logger.info(
+        `HCS-2 client initialized successfully with key type: ${this.keyType}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to initialize HCS-2 client: ${error}`);
       throw error;
@@ -127,16 +128,17 @@ export class HCS2Client extends HCS2BaseClient {
    * @param options Registry creation options
    * @returns Promise resolving to the transaction result
    */
-  async createRegistry(options: CreateRegistryOptions = {}): Promise<TopicRegistrationResponse> {
+  async createRegistry(
+    options: CreateRegistryOptions = {},
+  ): Promise<TopicRegistrationResponse> {
     try {
       const registryType = options.registryType ?? HCS2RegistryType.INDEXED;
       const ttl = options.ttl ?? 86400; // Default TTL: 24 hours
-      
+
       const memo = this.generateRegistryMemo(registryType, ttl);
-      
-      let transaction = new TopicCreateTransaction()
-        .setTopicMemo(memo);
-      
+
+      let transaction = new TopicCreateTransaction().setTopicMemo(memo);
+
       // Add admin key if requested
       let adminKeyPrivate: PrivateKey | undefined;
       if (options.adminKey) {
@@ -152,7 +154,7 @@ export class HCS2Client extends HCS2BaseClient {
         }
         transaction = transaction.setAdminKey(adminPublicKey);
       }
-      
+
       // Add submit key if requested
       let submitKeyPrivate: PrivateKey | undefined;
       if (options.submitKey) {
@@ -167,10 +169,8 @@ export class HCS2Client extends HCS2BaseClient {
         }
         transaction = transaction.setSubmitKey(submitPublicKey);
       }
-      
 
       const frozenTx = await transaction.freezeWith(this.client);
-
 
       if (adminKeyPrivate) {
         await frozenTx.sign(adminKeyPrivate);
@@ -181,28 +181,30 @@ export class HCS2Client extends HCS2BaseClient {
       }
 
       const txResponse = await frozenTx.execute(this.client);
-      
+
       const receipt = await txResponse.getReceipt(this.client);
       const topicId = receipt.topicId;
-      
+
       if (!topicId) {
         throw new Error('Failed to create registry: No topic ID in receipt');
       }
-      
+
       const topicIdStr = topicId.toString();
-      
-      this.logger.info(`Created registry topic: ${topicIdStr} (${registryType === HCS2RegistryType.INDEXED ? 'Indexed' : 'Non-indexed'}, TTL: ${ttl}s)`);
-      
+
+      this.logger.info(
+        `Created registry topic: ${topicIdStr} (${registryType === HCS2RegistryType.INDEXED ? 'Indexed' : 'Non-indexed'}, TTL: ${ttl}s)`,
+      );
+
       return {
         success: true,
         topicId: topicIdStr,
-        transactionId: txResponse.transactionId.toString()
+        transactionId: txResponse.transactionId.toString(),
       };
     } catch (error) {
       this.logger.error(`Failed to create registry: ${error}`);
       return {
         success: false,
-        error: `Failed to create registry: ${error}`
+        error: `Failed to create registry: ${error}`,
       };
     }
   }
@@ -213,30 +215,34 @@ export class HCS2Client extends HCS2BaseClient {
    * @param options Registration options
    * @returns Promise resolving to the operation result
    */
-  async registerEntry(registryTopicId: string, options: RegisterEntryOptions): Promise<RegistryOperationResponse> {
+  async registerEntry(
+    registryTopicId: string,
+    options: RegisterEntryOptions,
+  ): Promise<RegistryOperationResponse> {
     try {
       // Create register message
       const message = this.createRegisterMessage(
         options.targetTopicId,
         options.metadata,
-        options.memo
+        options.memo,
       );
 
-      
       const receipt = await this.submitMessage(registryTopicId, message);
-      
-      this.logger.info(`Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId}`);
-      
+
+      this.logger.info(
+        `Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId}`,
+      );
+
       return {
         success: true,
         receipt,
-        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined
+        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined,
       };
     } catch (error) {
       this.logger.error(`Failed to register entry: ${error}`);
       return {
         success: false,
-        error: `Failed to register entry: ${error}`
+        error: `Failed to register entry: ${error}`,
       };
     }
   }
@@ -247,31 +253,38 @@ export class HCS2Client extends HCS2BaseClient {
    * @param options Update options
    * @returns Promise resolving to the operation result
    */
-  async updateEntry(registryTopicId: string, options: UpdateEntryOptions): Promise<RegistryOperationResponse> {
+  async updateEntry(
+    registryTopicId: string,
+    options: UpdateEntryOptions,
+  ): Promise<RegistryOperationResponse> {
     try {
       // Verify registry type (only indexed registries support updates)
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
-      
+
       if (!memoInfo || memoInfo.registryType !== HCS2RegistryType.INDEXED) {
-        throw new Error('Update operation is only valid for indexed registries');
+        throw new Error(
+          'Update operation is only valid for indexed registries',
+        );
       }
-      
+
       const message = this.createUpdateMessage(
         options.targetTopicId,
         options.uid,
         options.metadata,
-        options.memo
+        options.memo,
       );
-      
+
       const receipt = await this.submitMessage(registryTopicId, message);
-      
-      this.logger.info(`Updated entry with UID ${options.uid} in registry ${registryTopicId}`);
-      
+
+      this.logger.info(
+        `Updated entry with UID ${options.uid} in registry ${registryTopicId}`,
+      );
+
       return {
         success: true,
         receipt,
-        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined
+        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined,
       };
     } catch (error) {
       this.logger.error(`Failed to update entry: ${error}`);
@@ -285,29 +298,33 @@ export class HCS2Client extends HCS2BaseClient {
    * @param options Delete options
    * @returns Promise resolving to the operation result
    */
-  async deleteEntry(registryTopicId: string, options: DeleteEntryOptions): Promise<RegistryOperationResponse> {
+  async deleteEntry(
+    registryTopicId: string,
+    options: DeleteEntryOptions,
+  ): Promise<RegistryOperationResponse> {
     try {
       // Verify registry type (only indexed registries support deletions)
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
-      
+
       if (!memoInfo || memoInfo.registryType !== HCS2RegistryType.INDEXED) {
-        throw new Error('Delete operation is only valid for indexed registries');
+        throw new Error(
+          'Delete operation is only valid for indexed registries',
+        );
       }
-      
-      const message = this.createDeleteMessage(
-        options.uid,
-        options.memo
-      );
-      
+
+      const message = this.createDeleteMessage(options.uid, options.memo);
+
       const receipt = await this.submitMessage(registryTopicId, message);
-      
-      this.logger.info(`Deleted entry with UID ${options.uid} from registry ${registryTopicId}`);
-      
+
+      this.logger.info(
+        `Deleted entry with UID ${options.uid} from registry ${registryTopicId}`,
+      );
+
       return {
         success: true,
         receipt,
-        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined
+        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined,
       };
     } catch (error) {
       this.logger.error(`Failed to delete entry: ${error}`);
@@ -321,22 +338,27 @@ export class HCS2Client extends HCS2BaseClient {
    * @param options Migration options
    * @returns Promise resolving to the operation result
    */
-  async migrateRegistry(registryTopicId: string, options: MigrateTopicOptions): Promise<RegistryOperationResponse> {
+  async migrateRegistry(
+    registryTopicId: string,
+    options: MigrateTopicOptions,
+  ): Promise<RegistryOperationResponse> {
     try {
       const message = this.createMigrateMessage(
         options.targetTopicId,
         options.metadata,
-        options.memo
+        options.memo,
       );
-      
+
       const receipt = await this.submitMessage(registryTopicId, message);
-      
-      this.logger.info(`Migrated registry ${registryTopicId} to ${options.targetTopicId}`);
-      
+
+      this.logger.info(
+        `Migrated registry ${registryTopicId} to ${options.targetTopicId}`,
+      );
+
       return {
         success: true,
         receipt,
-        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined
+        sequenceNumber: receipt.topicSequenceNumber?.low ?? undefined,
       };
     } catch (error) {
       this.logger.error(`Failed to migrate registry: ${error}`);
@@ -350,35 +372,49 @@ export class HCS2Client extends HCS2BaseClient {
    * @param options Query options
    * @returns Promise resolving to the registry information
    */
-  async getRegistry(topicId: string, options: QueryRegistryOptions = {}): Promise<TopicRegistry> {
+  async getRegistry(
+    topicId: string,
+    options: QueryRegistryOptions = {},
+  ): Promise<TopicRegistry> {
     try {
       const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
-      this.logger.debug(`Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`);
-      
+      this.logger.debug(
+        `Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`,
+      );
+
       const memoInfo = this.parseRegistryTypeFromMemo(topicInfo.memo);
-      
+
       if (!memoInfo) {
-        throw new Error(`Topic ${topicId} is not an HCS-2 registry (invalid memo format)`);
+        throw new Error(
+          `Topic ${topicId} is not an HCS-2 registry (invalid memo format)`,
+        );
       }
-      
-      this.logger.debug(`Retrieving messages for topic ${topicId} with limit ${options.limit ?? 100}`);
-      const rawMessagesResult = await this.mirrorNode.getTopicMessages(
+
+      this.logger.debug(
+        `Retrieving messages for topic ${topicId} with limit ${options.limit ?? 100}`,
+      );
+      const rawMessagesResult = (await this.mirrorNode.getTopicMessages(
         topicId,
         {
-          sequenceNumber: options.skip && options.skip > 0 ? `gt:${options.skip}` : undefined,
+          sequenceNumber:
+            options.skip && options.skip > 0 ? `gt:${options.skip}` : undefined,
           limit: options.limit ?? 100,
-          order: options.order ?? 'asc'
-        }
-      ) as any[];
-      
-      const rawMessages = options.limit ? rawMessagesResult.slice(0, options.limit) : rawMessagesResult;
-      
-      this.logger.debug(`Retrieved ${rawMessagesResult.length} messages, using ${rawMessages.length} after applying limit.`);
-      
+          order: options.order ?? 'asc',
+        },
+      )) as any[];
+
+      const rawMessages = options.limit
+        ? rawMessagesResult.slice(0, options.limit)
+        : rawMessagesResult;
+
+      this.logger.debug(
+        `Retrieved ${rawMessagesResult.length} messages, using ${rawMessages.length} after applying limit.`,
+      );
+
       // Convert messages to the format expected by parseRegistryEntries
       const entries: RegistryEntry[] = [];
       let latestEntry: RegistryEntry | undefined;
-      
+
       for (const msg of rawMessages) {
         try {
           // The mirror node service already parsed the JSON, so we can use it directly
@@ -388,16 +424,16 @@ export class HCS2Client extends HCS2BaseClient {
             t_id: msg.t_id,
             uid: msg.uid,
             metadata: msg.metadata,
-            m: msg.m
+            m: msg.m,
           } as HCS2Message;
-          
+
           // Validate message
           const { valid, errors } = this.validateMessage(message);
           if (!valid) {
             this.logger.warn(`Invalid HCS-2 message: ${errors.join(', ')}`);
             continue;
           }
-          
+
           const entry: RegistryEntry = {
             topicId,
             sequence: msg.sequence_number,
@@ -405,30 +441,41 @@ export class HCS2Client extends HCS2BaseClient {
             payer: msg.payer_account_id || msg.payer || '',
             message,
             consensus_timestamp: msg.consensus_timestamp,
-            registry_type: memoInfo.registryType
+            registry_type: memoInfo.registryType,
           };
-          
+
           entries.push(entry);
-          
+
           // For non-indexed registries, we only care about the latest message
-          if (memoInfo.registryType === HCS2RegistryType.NON_INDEXED || !latestEntry || entry.timestamp > latestEntry.timestamp) {
+          if (
+            memoInfo.registryType === HCS2RegistryType.NON_INDEXED ||
+            !latestEntry ||
+            entry.timestamp > latestEntry.timestamp
+          ) {
             latestEntry = entry;
           }
         } catch (error) {
           this.logger.warn(`Error processing message: ${error}`);
         }
       }
-      
-      this.logger.debug(`Processed ${entries.length} valid entries for registry ${topicId}`);
-      
+
+      this.logger.debug(
+        `Processed ${entries.length} valid entries for registry ${topicId}`,
+      );
+
       const registry: TopicRegistry = {
         topicId,
         registryType: memoInfo.registryType,
         ttl: memoInfo.ttl,
-        entries: memoInfo.registryType === HCS2RegistryType.INDEXED ? entries : (latestEntry ? [latestEntry] : []),
-        latestEntry
+        entries:
+          memoInfo.registryType === HCS2RegistryType.INDEXED
+            ? entries
+            : latestEntry
+              ? [latestEntry]
+              : [],
+        latestEntry,
       };
-      
+
       return registry;
     } catch (error) {
       this.logger.error(`Failed to get registry: ${error}`);
@@ -442,22 +489,25 @@ export class HCS2Client extends HCS2BaseClient {
    * @param payload The message payload
    * @returns Promise resolving to the transaction receipt
    */
-  async submitMessage(topicId: string, payload: HCS2Message): Promise<TransactionReceipt> {
+  async submitMessage(
+    topicId: string,
+    payload: HCS2Message,
+  ): Promise<TransactionReceipt> {
     try {
       // Validate message
       const { valid, errors } = this.validateMessage(payload);
       if (!valid) {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
       }
-      
+
       const transaction = new TopicMessageSubmitTransaction()
         .setTopicId(TopicId.fromString(topicId))
         .setMessage(JSON.stringify(payload));
-      
+
       const txResponse = await transaction.execute(this.client);
-      
+
       const receipt = await txResponse.getReceipt(this.client);
-      
+
       return receipt;
     } catch (error) {
       this.logger.error(`Failed to submit message: ${error}`);
@@ -477,7 +527,6 @@ export class HCS2Client extends HCS2BaseClient {
    * Close the client and release resources
    */
   public close(): void {
-    this.client.close();
     this.logger.info('HCS-2 client closed.');
   }
 
@@ -494,4 +543,4 @@ export class HCS2Client extends HCS2BaseClient {
   public getOperatorKey(): PrivateKey {
     return this.operatorKey;
   }
-} 
+}

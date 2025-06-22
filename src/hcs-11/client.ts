@@ -665,7 +665,7 @@ export class HCS11Client {
       progressReporter.submitting('Submitting profile to Hedera network', 30);
 
       let inscriptionResponse;
-      
+
       if (this.auth.privateKey) {
         inscriptionResponse = await inscribe(
           input,
@@ -683,7 +683,9 @@ export class HCS11Client {
           inscriptionOptions,
         );
       } else {
-        throw new Error('No authentication method available - neither private key nor signer');
+        throw new Error(
+          'No authentication method available - neither private key nor signer',
+        );
       }
 
       if (
