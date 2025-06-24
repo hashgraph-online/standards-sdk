@@ -625,3 +625,53 @@ export interface StakingPeriod {
   from: string;
   to: string;
 }
+
+type HCSProtocol =
+  | 'hcs-1'
+  | 'hcs-2'
+  | 'hcs-3'
+  | 'hcs-5'
+  | 'hcs-6'
+  | 'hcs-7'
+  | 'hcs-8'
+  | 'hcs-9'
+  | 'hcs-10'
+  | 'hcs-11'
+  | 'hcs-12'
+  | 'hcs-13';
+
+export interface HCSMessageWithCommonFields {
+  p: HCSProtocol;
+  op: string;
+  data?: string;
+  created?: Date;
+  chunk_info?: {
+    initial_transaction_id: {
+      account_id: string;
+      nonce: number;
+      scheduled: boolean;
+      transaction_valid_start: string;
+    } | null;
+  };
+  running_hash?: string;
+  running_hash_version?: number;
+  topic_id?: string;
+  consensus_timestamp?: string;
+  m?: string;
+  payer: string;
+  outbound_topic_id?: string;
+  connection_request_id?: number;
+  confirmed_request_id?: number;
+  connection_topic_id?: string;
+  connected_account_id?: string;
+  requesting_account_id?: string;
+  connection_id?: number;
+  sequence_number: number;
+  operator_id?: string;
+  reason?: string;
+  close_method?: string;
+  schedule_id?: string;
+  account_id?: string;
+  uid?: string;
+  t_id?: string;
+}

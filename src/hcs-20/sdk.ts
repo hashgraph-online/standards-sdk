@@ -37,6 +37,7 @@ import {
 } from './errors';
 import { sleep } from '../utils/sleep';
 import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { HCS2Client } from '../hcs-2/client';
 
 /**
  * SDK-specific HCS-20 client for server-side operations
@@ -189,21 +190,27 @@ export class HCS20Client extends HCS20BaseClient {
   /**
    * Create a registry topic for HCS-20
    */
-  async createRegistryTopic(memo?: string): Promise<string> {
+  async createRegistryTopic(): Promise<string> {
     await this.ensureInitialized();
 
     this.logger.info('Creating HCS-20 registry topic...');
 
-    const topicCreateTx = await new TopicCreateTransaction()
-      .setTopicMemo(memo || 'HCS-20 Registry')
-      .execute(this.client);
+    const hcs2Client = new HCS2Client({
+      operatorId: this.operatorId,
+      operatorKey: this.operatorKey,
+      network: this.network,
+    });
 
-    const receipt = await topicCreateTx.getReceipt(this.client);
-    if (receipt.status !== Status.Success || !receipt.topicId) {
+    const topicCreateResponse = await hcs2Client.createRegistry({
+      submitKey: this.operatorKey,
+      adminKey: this.operatorKey,
+    });
+
+    if (!topicCreateResponse.success) {
       throw new Error('Failed to create registry topic');
     }
 
-    const topicId = receipt.topicId.toString();
+    const topicId = topicCreateResponse.topicId;
     this.logger.info(`Created registry topic: ${topicId}`);
 
     this.registryTopicId = topicId;
@@ -226,22 +233,26 @@ export class HCS20Client extends HCS20BaseClient {
 
       let topicId: string;
 
-      if (options.usePrivateTopic) {
-        const topicCreateTx = await new TopicCreateTransaction()
-          .setTopicMemo(options.topicMemo || `HCS-20: ${options.name}`)
-          .setSubmitKey(this.operatorKey.publicKey)
-          .setAdminKey(this.operatorKey.publicKey)
-          .execute(this.client);
+      const hcs2Client = new HCS2Client({
+        operatorId: this.operatorId,
+        operatorKey: this.operatorKey,
+        network: this.network,
+      });
 
-        const receipt = await topicCreateTx.getReceipt(this.client);
-        if (receipt.status !== Status.Success || !receipt.topicId) {
+      if (options.usePrivateTopic) {
+        const topicCreateResponse = await hcs2Client.createRegistry({
+          submitKey: this.operatorKey,
+          adminKey: this.operatorKey,
+        });
+
+        if (!topicCreateResponse.success) {
           throw new PointsDeploymentError(
             'Failed to create topic',
             options.tick,
           );
         }
 
-        topicId = receipt.topicId.toString();
+        topicId = topicCreateResponse.topicId;
         this.logger.info(`Created private topic: ${topicId}`);
       } else {
         topicId = this.publicTopicId;
