@@ -47,6 +47,7 @@ export class BrowserHCS2Client extends HCS2BaseClient {
       logLevel: config.logLevel,
       silent: config.silent,
       mirrorNodeUrl: config.mirrorNodeUrl,
+      logger: config.logger,
     });
 
     this.hwc = config.hwc;
@@ -84,9 +85,7 @@ export class BrowserHCS2Client extends HCS2BaseClient {
       const registryType = options.registryType ?? HCS2RegistryType.INDEXED;
       const ttl = options.ttl ?? 86400; // Default TTL: 24 hours
 
-      const memo = options.memo
-        ? `${this.generateRegistryMemo(registryType, ttl)} ${options.memo}`.trim()
-        : this.generateRegistryMemo(registryType, ttl);
+      const memo = this.generateRegistryMemo(registryType, ttl);
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 

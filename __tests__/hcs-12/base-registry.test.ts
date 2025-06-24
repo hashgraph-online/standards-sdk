@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Logger } from '../../src/utils/logger';
 import {
   RegistryType,
-  RegistryEntry,
+  AssemblyRegistryEntry,
   ActionRegistration,
 } from '../../src/hcs-12/types';
 import { BaseRegistry } from '../../src/hcs-12/registries/base-registry';
@@ -24,7 +24,7 @@ class TestRegistry extends BaseRegistry {
     this.validateBaseRegistration(data);
 
     const id = `0.0.${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const entry: RegistryEntry = {
+    const entry: AssemblyRegistryEntry = {
       id,
       timestamp: new Date().toISOString(),
       submitter: '0.0.123456',

@@ -8,7 +8,7 @@ import { Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
-  RegistryEntry,
+  AssemblyRegistryEntry,
   ActionRegistration,
   ModuleInfo,
   SourceVerification,
@@ -109,7 +109,7 @@ export class ActionRegistry extends BaseRegistry {
         throw new Error('No sequence number returned from submission');
       }
 
-      const entry: RegistryEntry = {
+      const entry: AssemblyRegistryEntry = {
         id: sequenceNumber.toString(),
         sequenceNumber,
         timestamp: new Date().toISOString(),
@@ -133,7 +133,7 @@ export class ActionRegistry extends BaseRegistry {
       return sequenceNumber.toString();
     } else {
       const sequenceNumber = this.entries.size + 1;
-      const entry: RegistryEntry = {
+      const entry: AssemblyRegistryEntry = {
         id: sequenceNumber.toString(),
         sequenceNumber,
         timestamp: new Date().toISOString(),

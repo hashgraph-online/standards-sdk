@@ -9,7 +9,7 @@ import { Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
-  RegistryEntry,
+  AssemblyRegistryEntry,
   RegistryConfig,
   ActionRegistration,
   AssemblyRegistration,
@@ -27,7 +27,7 @@ export abstract class BaseRegistry {
   protected networkType: NetworkType;
   protected topicId?: string;
   protected registryType: RegistryType;
-  protected entries: Map<string, RegistryEntry> = new Map();
+  protected entries: Map<string, AssemblyRegistryEntry> = new Map();
   protected client?: HCS12Client | HCS12BrowserClient;
   protected lastSyncTimestamp?: string;
 
@@ -55,7 +55,7 @@ export abstract class BaseRegistry {
   /**
    * Retrieve an entry by ID
    */
-  async getEntry(id: string): Promise<RegistryEntry | null> {
+  async getEntry(id: string): Promise<AssemblyRegistryEntry | null> {
     const cached = this.entries.get(id);
     if (cached) return cached;
 
@@ -70,7 +70,7 @@ export abstract class BaseRegistry {
   /**
    * Get the latest entry from a specific topic ID (for non-indexed topics)
    */
-  async getLatestEntry(topicId: string): Promise<RegistryEntry | null> {
+  async getLatestEntry(topicId: string): Promise<AssemblyRegistryEntry | null> {
     if (!this.client) {
       return null;
     }
@@ -148,7 +148,7 @@ export abstract class BaseRegistry {
     submitter?: string;
     afterTimestamp?: string;
     beforeTimestamp?: string;
-  }): Promise<RegistryEntry[]> {
+  }): Promise<AssemblyRegistryEntry[]> {
     if (this.topicId && this.client) {
       await this.sync();
     }
@@ -252,7 +252,7 @@ export abstract class BaseRegistry {
             continue;
           }
 
-          const entry: RegistryEntry = {
+          const entry: AssemblyRegistryEntry = {
             id: msg.sequence_number.toString(),
             sequenceNumber: msg.sequence_number,
             timestamp: msg.consensus_timestamp || new Date().toISOString(),

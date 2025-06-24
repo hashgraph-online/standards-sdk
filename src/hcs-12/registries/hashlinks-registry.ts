@@ -7,7 +7,7 @@
 
 import { Logger } from '../../utils/logger';
 import { BaseRegistry } from './base-registry';
-import { RegistryType, HashLinksRegistration, RegistryEntry } from '../types';
+import { RegistryType, HashLinksRegistration, AssemblyRegistryEntry } from '../types';
 import { hashLinksRegistrationSchema } from '../validation/schemas';
 import { validateWithSchema } from '../validation';
 import type { NetworkType } from '../../utils/types';
@@ -34,7 +34,7 @@ export class HashLinksRegistry extends BaseRegistry {
     this.validateRegistration(data);
 
     const id = `${this.topicId || 'local'}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const entry: RegistryEntry = {
+    const entry: AssemblyRegistryEntry = {
       id,
       sequenceNumber: 0,
       timestamp: new Date().toISOString(),

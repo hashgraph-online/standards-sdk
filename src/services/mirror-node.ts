@@ -1,7 +1,6 @@
 import { PublicKey, Timestamp, AccountId } from '@hashgraph/sdk';
 import axios, { AxiosRequestConfig } from 'axios';
 import { Logger } from '../utils/logger';
-import { HCSMessage } from '../hcs-10/types';
 import { proto } from '@hashgraph/proto';
 import {
   AccountResponse,
@@ -38,6 +37,7 @@ import {
   NetworkSupply,
   NetworkStake,
   OpcodesResponse,
+  HCSMessageWithCommonFields,
 } from './types';
 import { NetworkType } from '../utils/types';
 
@@ -346,7 +346,7 @@ export class HederaMirrorNode {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<HCSMessage[]> {
+  ): Promise<HCSMessageWithCommonFields[]> {
     this.logger.trace(
       `Querying messages for topic ${topicId}${options ? ' with filters' : ''}`,
     );
@@ -382,7 +382,7 @@ export class HederaMirrorNode {
       endpoint += `?${queryString}`;
     }
 
-    const messages: HCSMessage[] = [];
+    const messages: HCSMessageWithCommonFields[] = [];
     let nextEndpoint = endpoint;
 
     while (nextEndpoint) {
@@ -889,7 +889,7 @@ export class HederaMirrorNode {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<HCSMessage[] | null> {
+  ): Promise<HCSMessageWithCommonFields[] | null> {
     this.logger.trace(
       `Querying messages for topic ${topicId} with filters: ${JSON.stringify(
         options,
@@ -920,7 +920,7 @@ export class HederaMirrorNode {
       nextUrl += `?${queryString}`;
     }
 
-    const messages: HCSMessage[] = [];
+    const messages: HCSMessageWithCommonFields[] = [];
     let pagesFetched = 0;
     const maxPages = 10;
 
@@ -959,7 +959,7 @@ export class HederaMirrorNode {
 
               const parsedContent = messageJson as any;
 
-              const hcsMsg: HCSMessage = {
+              const hcsMsg: HCSMessageWithCommonFields = {
                 ...parsedContent,
                 consensus_timestamp: message.consensus_timestamp,
                 sequence_number: message.sequence_number,

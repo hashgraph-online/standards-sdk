@@ -41,11 +41,13 @@ export abstract class HCS2BaseClient {
   constructor(config: HCS2ClientConfig) {
     this.network = config.network;
 
-    this.logger = Logger.getInstance({
-      level: config.logLevel || 'info',
-      module: 'HCS2Client',
-      silent: config.silent,
-    });
+    this.logger =
+      config.logger ||
+      Logger.getInstance({
+        level: config.logLevel || 'info',
+        module: 'HCS2Client',
+        silent: config.silent,
+      });
 
     this.mirrorNode = new HederaMirrorNode(
       this.network,
