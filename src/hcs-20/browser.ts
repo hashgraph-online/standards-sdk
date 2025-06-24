@@ -31,6 +31,7 @@ import {
   TopicRegistrationError,
   PointsValidationError,
 } from './errors';
+import { BrowserHCS2Client } from '../hcs-2/browser';
 
 /**
  * Browser-specific HCS-20 client configuration
@@ -76,6 +77,21 @@ export class BrowserHCS20Client extends HCS20BaseClient {
     return accountInfo.accountId;
   }
 
+  async createRegistryTopic(): Promise<string> {
+    const hcs2Client = new BrowserHCS2Client({
+      hwc: this.hwc,
+      network: this.network,
+    });
+
+    const topicCreateResponse = await hcs2Client.createRegistry();
+
+    if (!topicCreateResponse.success) {
+      throw new Error('Failed to create topic');
+    }
+
+    return topicCreateResponse.topicId;
+  }
+
   /**
    * Deploy new points
    */
@@ -94,27 +110,21 @@ export class BrowserHCS20Client extends HCS20BaseClient {
       if (options.usePrivateTopic) {
         const publicKey = await this.mirrorNode.getPublicKey(operatorId);
 
-        const topicCreateTx = new TopicCreateTransaction()
-          .setTopicMemo(options.topicMemo || `HCS-20: ${options.name}`)
-          .setSubmitKey(publicKey)
-          .setAdminKey(publicKey)
-          .setAutoRenewAccountId(AccountId.fromString(operatorId));
+        const hcs2Client = new BrowserHCS2Client({
+          hwc: this.hwc,
+          network: this.network,
+        });
 
-        const txResponse = await this.hwc.executeTransactionWithErrorHandling(
-          topicCreateTx as any,
-          false,
-        );
+        const topicCreateResponse = await hcs2Client.createRegistry({
+          submitKey: publicKey.toString(),
+          adminKey: publicKey.toString(),
+        });
 
-        if (txResponse?.error) {
-          throw new Error(txResponse.error);
+        if (!topicCreateResponse.success) {
+          throw new Error('Failed to create topic');
         }
 
-        const receipt = txResponse?.result;
-        if (!receipt?.topicId) {
-          throw new Error('Failed to create topic: topicId is null');
-        }
-
-        topicId = receipt.topicId.toString();
+        topicId = topicCreateResponse.topicId;
         this.logger.info(`Created private topic: ${topicId}`);
       } else {
         topicId = this.publicTopicId;
@@ -196,7 +206,6 @@ export class BrowserHCS20Client extends HCS20BaseClient {
    * Mint points
    */
   async mintPoints(options: MintPointsOptions): Promise<PointsTransaction> {
-    const operatorId = this.getOperatorId();
     const { progressCallback } = options;
 
     try {
@@ -266,7 +275,6 @@ export class BrowserHCS20Client extends HCS20BaseClient {
   async transferPoints(
     options: TransferPointsOptions,
   ): Promise<PointsTransaction> {
-    const operatorId = this.getOperatorId();
     const { progressCallback } = options;
 
     try {
@@ -341,7 +349,6 @@ export class BrowserHCS20Client extends HCS20BaseClient {
    * Burn points
    */
   async burnPoints(options: BurnPointsOptions): Promise<PointsTransaction> {
-    const operatorId = this.getOperatorId();
     const { progressCallback } = options;
 
     try {
