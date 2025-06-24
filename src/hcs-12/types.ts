@@ -520,12 +520,12 @@ export enum RegistryType {
 /**
  * Common registry entry interface
  */
-export interface RegistryEntry {
+export interface AssemblyRegistryEntry {
   id: string;
   sequenceNumber: number;
   timestamp: string;
   submitter: string;
-  data: any;
+  data: Record<string, any>;
 }
 
 /**

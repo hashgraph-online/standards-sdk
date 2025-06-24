@@ -56,15 +56,14 @@ export class HCS2Client extends HCS2BaseClient {
       logLevel: config.logLevel,
       silent: config.silent,
       mirrorNodeUrl: config.mirrorNodeUrl,
+      logger: config.logger,
     });
 
-    // Store operator information
     this.operatorId =
       typeof config.operatorId === 'string'
         ? AccountId.fromString(config.operatorId)
         : config.operatorId;
 
-    // Handle key type detection
     if (config.keyType) {
       this.keyType = config.keyType;
       this.operatorKey =
@@ -90,10 +89,8 @@ export class HCS2Client extends HCS2BaseClient {
       this.keyType = 'ed25519'; // Default if we can't detect
     }
 
-    // Create Hedera client
     this.client = this.createClient(config.network);
 
-    // Initialize the client
     this.initializeClient();
   }
 
@@ -138,9 +135,7 @@ export class HCS2Client extends HCS2BaseClient {
       const registryType = options.registryType ?? HCS2RegistryType.INDEXED;
       const ttl = options.ttl ?? 86400; // Default TTL: 24 hours
 
-      const memo = options.memo
-        ? `${this.generateRegistryMemo(registryType, ttl)} ${options.memo}`.trim()
-        : this.generateRegistryMemo(registryType, ttl);
+      const memo = this.generateRegistryMemo(registryType, ttl);
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
@@ -532,7 +527,6 @@ export class HCS2Client extends HCS2BaseClient {
    * Close the client and release resources
    */
   public close(): void {
-    this.client.close();
     this.logger.info('HCS-2 client closed.');
   }
 

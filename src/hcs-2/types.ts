@@ -1,4 +1,4 @@
-import { LogLevel } from '../utils/logger';
+import { Logger, LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode } from '../services/mirror-node';
 import { TransactionReceipt, PrivateKey } from '@hashgraph/sdk';
@@ -82,6 +82,7 @@ export interface HCS2ClientConfig {
   logLevel?: LogLevel;
   silent?: boolean;
   mirrorNodeUrl?: string;
+  logger?: Logger;
 }
 
 /**
@@ -133,11 +134,10 @@ export interface TopicRegistry {
  * Options for creating a new registry
  */
 export interface CreateRegistryOptions {
-  memo?: string;
-  ttl?: number;
-  adminKey?: boolean | string | PrivateKey;
-  submitKey?: boolean | string | PrivateKey;
   registryType?: HCS2RegistryType;
+  ttl?: number;
+  adminKey?: string | boolean | PrivateKey;
+  submitKey?: string | boolean | PrivateKey;
 }
 
 /**

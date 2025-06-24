@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.138",
+  "version": "0.0.143",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -58,6 +58,8 @@
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
     "demo:mcp-chat": "tsx demo/hcs-10/create-mcp-server.ts",
     "demo:hcs12": "tsx demo/hcs-12/hcs12-demo.ts",
+    "demo:hcs-2:create": "tsx demo/hcs-2/create-registry.ts",
+    "demo:hcs-10:create-registry": "tsx demo/hcs-10/create-registry.ts",
     "demo:hcs-20:deploy-and-mint": "tsx demo/hcs-20/deploy-and-mint.ts",
     "demo:hcs-20:deploy-points": "tsx demo/hcs-20/deploy-points.ts",
     "demo:hcs-20:mint-transfer-burn": "tsx demo/hcs-20/mint-transfer-burn.ts",
@@ -96,7 +98,7 @@
     "@hashgraph/sdk": "2.66.0",
     "@hashgraphonline/hashinal-wc": "^1.0.100",
     "@hashgraphonline/hedera-agent-kit": "0.0.40",
-    "@kiloscribe/inscription-sdk": "^1.0.37",
+    "@kiloscribe/inscription-sdk": "^1.0.38",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
     "file-type": "^20.4.1",

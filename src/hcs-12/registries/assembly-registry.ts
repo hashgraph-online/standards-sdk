@@ -9,7 +9,7 @@ import { Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
-  RegistryEntry,
+  AssemblyRegistryEntry,
   AssemblyState,
   AssemblyRegistration,
   AssemblyAddAction,
@@ -116,7 +116,7 @@ export class AssemblyRegistry extends BaseRegistry {
       throw new Error('No sequence number returned from submission');
     }
 
-    const entry: RegistryEntry = {
+    const entry: AssemblyRegistryEntry = {
       id: sequenceNumber.toString(),
       sequenceNumber,
       timestamp: new Date().toISOString(),
@@ -143,7 +143,7 @@ export class AssemblyRegistry extends BaseRegistry {
   /**
    * Process a message to update assembly state
    */
-  private async processMessage(entry: RegistryEntry): Promise<void> {
+  private async processMessage(entry: AssemblyRegistryEntry): Promise<void> {
     const message = entry.data as AssemblyMessage;
 
     if (!this.topicId) return;
@@ -313,7 +313,7 @@ export class AssemblyRegistry extends BaseRegistry {
             continue;
           }
 
-          const entry: RegistryEntry = {
+          const entry: AssemblyRegistryEntry = {
             id: msg.sequence_number.toString(),
             sequenceNumber: msg.sequence_number,
             timestamp: msg.consensus_timestamp || new Date().toISOString(),
@@ -358,7 +358,7 @@ export class AssemblyRegistry extends BaseRegistry {
   /**
    * Process a message for a specific assembly topic
    */
-  private processAssemblyMessage(topicId: string, entry: RegistryEntry): void {
+  private processAssemblyMessage(topicId: string, entry: AssemblyRegistryEntry): void {
     const message = entry.data as AssemblyMessage;
     let state = this.assemblyStates.get(topicId);
 
@@ -531,7 +531,7 @@ export class AssemblyRegistry extends BaseRegistry {
             continue;
           }
 
-          const entry: RegistryEntry = {
+          const entry: AssemblyRegistryEntry = {
             id: msg.sequence_number.toString(),
             sequenceNumber: msg.sequence_number,
             timestamp: msg.consensus_timestamp || new Date().toISOString(),
