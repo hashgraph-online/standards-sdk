@@ -850,7 +850,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
   }
 
   async createAndRegisterAgent(
-    builder: AgentBuilder,
+    builder: AgentBuilder | PersonBuilder,
     options?: {
       progressCallback?: RegistrationProgressCallback;
       maxAttempts?: number;
@@ -876,7 +876,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
           createdResources: [],
         } as AgentCreationState);
 
-      state.agentMetadata = agentConfig.metadata;
+      state.agentMetadata =
+        'metadata' in agentConfig ? agentConfig.metadata : undefined;
 
       progressReporter.preparing('Starting agent creation process', 0, {
         state,
@@ -915,7 +916,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
         }
 
         state = createResult.state;
-        state.agentMetadata = agentConfig.metadata;
+        state.agentMetadata =
+          'metadata' in agentConfig ? agentConfig.metadata : undefined;
       }
 
       progressReporter.preparing(
@@ -938,7 +940,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
         const registrationResult = await this.registerAgentWithGuardedRegistry(
           accountId,
-          agentConfig.network,
+          this.network as string,
           {
             progressCallback: progress => {
               const adjustedPercent =

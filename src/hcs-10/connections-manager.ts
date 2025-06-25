@@ -2,6 +2,7 @@ import { Logger, LoggerOptions } from '../utils/logger';
 import { HCS10BaseClient } from './base-client';
 import { AIAgentProfile } from '../hcs-11';
 import { TransactMessage, HCSMessage } from './types';
+import { HCSMessageWithCommonFields } from '../services';
 
 /**
  * Represents a connection request between agents
@@ -700,7 +701,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * @returns Array of connections after processing
    */
   processOutboundMessages(
-    messages: HCSMessage[],
+    messages: HCSMessageWithCommonFields[],
     accountId: string,
   ): Connection[] {
     if (!Boolean(messages?.length)) {
@@ -894,7 +895,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * @param messages - The messages to process
    * @returns Array of connections after processing
    */
-  processInboundMessages(messages: HCSMessage[]): Connection[] {
+  processInboundMessages(messages: HCSMessageWithCommonFields[]): Connection[] {
     if (!Boolean(messages?.length)) {
       return Array.from(this.connections.values());
     }
@@ -1021,7 +1022,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   processConnectionMessages(
     connectionTopicId: string,
-    messages: HCSMessage[],
+    messages: HCSMessageWithCommonFields[],
   ): Connection | undefined {
     if (
       !messages ||
