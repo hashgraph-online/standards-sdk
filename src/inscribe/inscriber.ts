@@ -141,8 +141,17 @@ export async function inscribe(
       transactionId: result.jobId,
     });
 
+    if (result.completed && options.waitForConfirmation) {
+      return {
+        confirmed: true,
+        result,
+        inscription: result as unknown as RetrievedInscriptionResult,
+        sdk,
+      };
+    }
+
     if (options.waitForConfirmation) {
-      logger.debug('Waiting for inscription confirmation', {
+      console.log('Waiting for inscription confirmation', {
         transactionId: result.jobId,
         maxAttempts: options.waitMaxAttempts,
         intervalMs: options.waitIntervalMs,

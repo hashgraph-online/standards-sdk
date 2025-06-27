@@ -1,7 +1,11 @@
 import { Logger, LogLevel } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
-import { AccountResponse, TopicResponse } from '../services/types';
+import {
+  AccountResponse,
+  HCSMessageWithCommonFields,
+  TopicResponse,
+} from '../services/types';
 import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
@@ -9,7 +13,6 @@ import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import {
   WaitForConnectionConfirmationResponse,
   TransactMessage,
-  HCSMessage,
 } from './types';
 import { HRLResolver } from '../utils/hrl-resolver';
 
@@ -156,7 +159,7 @@ export abstract class HCS10BaseClient extends Registration {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<{ messages: HCSMessage[] }> {
+  ): Promise<{ messages: HCSMessageWithCommonFields[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
       const validOps = ['message', 'close_connection', 'transaction'];
@@ -315,7 +318,7 @@ export abstract class HCS10BaseClient extends Registration {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<{ messages: HCSMessage[] }> {
+  ): Promise<{ messages: HCSMessageWithCommonFields[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
 
@@ -526,7 +529,7 @@ export abstract class HCS10BaseClient extends Registration {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<HCSMessage[]> {
+  ): Promise<HCSMessageWithCommonFields[]> {
     try {
       const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
       if (!topicInfo) {
@@ -1135,7 +1138,7 @@ export abstract class HCS10BaseClient extends Registration {
       return null;
     }
 
-    const typedPayload = payload as HCSMessage;
+    const typedPayload = payload as HCSMessageWithCommonFields;
     const operation = typedPayload.op;
     let operationEnum: string;
     let topicTypeEnum: string;

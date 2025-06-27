@@ -31,6 +31,9 @@ const options = {
   waitForConfirmation: false,
   waitMaxAttempts: 100,
   waitIntervalMs: 4000,
+  progressCallback: data => {
+    console.log('progressCallback', data);
+  },
 };
 
 async function runDemo() {
