@@ -30,6 +30,30 @@ describe('detectKeyTypeFromString', () => {
       expect(result.detectedType).toBe('ed25519');
       expect(result.privateKey).toBeDefined();
     });
+
+    it('should properly parse ED25519 key with 0x prefix (hex encoded)', () => {
+      // Generate a valid ED25519 private key and get raw hex
+      const privateKey = PrivateKey.generateED25519();
+      const hexKey = privateKey.toStringRaw();
+      const ed25519HexKey = '0x' + hexKey;
+
+      const result = detectKeyTypeFromString(ed25519HexKey);
+
+      expect(result.privateKey).toBeDefined();
+      expect(result.privateKey.toStringRaw()).toBe(hexKey);
+    });
+
+    it('should detect ED25519 key without prefix (raw hex encoded)', () => {
+      // Generate a valid ED25519 private key and get raw hex
+      const privateKey = PrivateKey.generateED25519();
+      const hexKey = privateKey.toStringRaw();
+
+      const result = detectKeyTypeFromString(hexKey);
+
+      expect(result.detectedType).toBe('ed25519');
+      expect(result.privateKey).toBeDefined();
+      expect(result.privateKey.toStringRaw()).toBe(hexKey);
+    });
   });
 
   describe('ECDSA key detection', () => {
@@ -63,6 +87,17 @@ describe('detectKeyTypeFromString', () => {
 
       expect(result.detectedType).toBe('ecdsa');
       expect(result.privateKey.toString()).toBe(keyString);
+    });
+
+    it('should properly parse ECDSA key without prefix (raw hex encoded)', () => {
+      // Generate a valid ECDSA private key and get raw hex
+      const privateKey = PrivateKey.generateECDSA();
+      const hexKey = privateKey.toStringRaw();
+
+      const result = detectKeyTypeFromString(hexKey);
+
+      expect(result.privateKey).toBeDefined();
+      expect(result.privateKey.toStringRaw()).toBe(hexKey);
     });
   });
 
@@ -128,6 +163,29 @@ describe('detectKeyTypeFromString', () => {
 
       const result = detectKeyTypeFromString(ecdsaHexExample);
       expect(result.detectedType).toBe('ecdsa');
+      expect(result.privateKey).toBeDefined();
+    });
+  });
+
+  describe('Edge cases for hex encoded keys', () => {
+    it('should properly parse keys with whitespace', () => {
+      const privateKey = PrivateKey.generateED25519();
+      const hexKey = privateKey.toStringRaw();
+      const keyWithWhitespace = `  0x${hexKey}  `;
+
+      const result = detectKeyTypeFromString(keyWithWhitespace);
+      
+      expect(result.privateKey).toBeDefined();
+      expect(result.privateKey.toStringRaw()).toBe(hexKey);
+    });
+
+    it('should handle mixed case hex', () => {
+      const privateKey = PrivateKey.generateED25519();
+      const hexKey = privateKey.toStringRaw().toUpperCase();
+      const mixedCaseKey = `0x${hexKey}`;
+
+      const result = detectKeyTypeFromString(mixedCaseKey);
+      
       expect(result.privateKey).toBeDefined();
     });
   });
