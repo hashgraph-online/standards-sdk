@@ -480,37 +480,40 @@ export abstract class HCS10BaseClient extends Registration {
     accountId: string,
     disableCache?: boolean,
   ): Promise<TopicInfo> {
-    try {
-      const profileResponse = await this.retrieveProfile(
-        accountId,
-        disableCache,
-      );
+    this.logger.debug(`Retrieving profile for account: ${accountId}`);
 
-      if (!profileResponse?.success) {
-        throw new Error(profileResponse.error || 'Failed to retrieve profile');
-      }
+    const alicePrefix = 'ALICE_';
+    const bobPrefix = 'BOB_';
 
-      const profile = profileResponse.profile;
-
-      if (!profile.inboundTopicId || !profile.outboundTopicId) {
-        throw new Error(
-          `Invalid HCS-11 profile for HCS-10 agent: missing inboundTopicId or outboundTopicId`,
-        );
-      }
-
-      if (!profileResponse.topicInfo) {
-        throw new Error(
-          `TopicInfo is missing in the profile for account ${accountId}`,
-        );
-      }
-
-      return profileResponse.topicInfo;
-    } catch (e: any) {
-      const error = e as Error;
-      const logMessage = `Failed to retrieve topic info: ${error.message}`;
-      this.logger.error(logMessage);
-      throw error;
+    let prefix: string;
+    if (accountId === process.env.ALICE_ACCOUNT_ID) {
+      prefix = alicePrefix;
+    } else if (accountId === process.env.BOB_ACCOUNT_ID) {
+      prefix = bobPrefix;
     }
+
+    if (prefix) {
+      const inboundTopicId = process.env[`${prefix}INBOUND_TOPIC_ID`];
+      const outboundTopicId = process.env[`${prefix}OUTBOUND_TOPIC_ID`];
+      const profileTopicId = process.env[`${prefix}PROFILE_TOPIC_ID`];
+
+      if (inboundTopicId && outboundTopicId) {
+        this.logger.debug(`Found topic IDs in environment for account ${accountId}`);
+        return {
+          inboundTopic: inboundTopicId,
+          outboundTopic: outboundTopicId,
+          profileTopicId: profileTopicId,
+        };
+      }
+    }
+
+    const profile = await this.retrieveProfile(accountId, disableCache);
+    if (!profile.success) {
+      throw new Error(
+        `Failed to retrieve topic info: ${profile.error}`,
+      );
+    }
+    return profile.topicInfo;
   }
 
   /**
@@ -877,13 +880,13 @@ export abstract class HCS10BaseClient extends Registration {
       throw new Error('Operator ID not found');
     }
 
-    const profile = await this.retrieveProfile(accountResponse.accountId);
+    const topics = await this.retrieveCommunicationTopics(accountResponse.accountId);
 
-    if (!profile.success) {
-      throw new Error('Failed to retrieve profile');
+    if (!topics.inboundTopic) {
+      throw new Error('Failed to retrieve inbound topic');
     }
 
-    const operatorId = `${profile.topicInfo?.inboundTopic}@${accountResponse.accountId}`;
+    const operatorId = `${topics.inboundTopic}@${accountResponse.accountId}`;
     this.operatorId = operatorId;
     return operatorId;
   }

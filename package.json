@@ -68,6 +68,7 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
+    "@kiloscribe/inscription-sdk": "file:.yalc/@kiloscribe/inscription-sdk",
     "@swc/jest": "^0.2.37",
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.16",
@@ -95,7 +96,8 @@
     "@hashgraph/sdk": "2.66.0",
     "@hashgraphonline/hashinal-wc": "^1.0.100",
     "@hashgraphonline/hedera-agent-kit": "0.0.40",
-    "@kiloscribe/inscription-sdk": "^1.0.37",
+    "axios": "^1.10.0",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
     "file-type": "^20.4.1",

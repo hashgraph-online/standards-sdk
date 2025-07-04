@@ -1325,8 +1325,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
     const inscriptionOptions = {
       mode: 'file' as const,
       waitForConfirmation: true,
-      waitMaxAttempts: options?.waitMaxAttempts || 30,
-      waitIntervalMs: options?.waitIntervalMs || 4000,
+      waitMaxAttempts: options?.waitMaxAttempts || 60,
+      waitIntervalMs: options?.waitIntervalMs || 6000,
       progressCallback: options?.progressCallback,
       logging: {
         level: this.logger.getLevel ? this.logger.getLevel() : 'info',

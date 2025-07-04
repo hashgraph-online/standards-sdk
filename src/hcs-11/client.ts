@@ -206,10 +206,22 @@ export class HCS11Client {
       return;
     }
 
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.auth.privateKey)
-        : PrivateKey.fromStringED25519(this.auth.privateKey);
+    // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
+    let PK: PrivateKey;
+    try {
+      const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
+      PK = keyDetection.privateKey;
+    } catch (error) {
+      // Fallback to type-specific parsing if detection fails
+      this.logger.warn(
+        'Key detection failed in HCS11Client.initializeOperatorWithKeyType, falling back to type-specific parsing',
+        error
+      );
+      PK =
+        this.keyType === 'ecdsa'
+          ? PrivateKey.fromStringECDSA(this.auth.privateKey)
+          : PrivateKey.fromStringED25519(this.auth.privateKey);
+    }
 
     this.client.setOperator(this.operatorId, PK);
   }
@@ -533,6 +545,19 @@ export class HCS11Client {
 
         progressReporter.preparing('Using private key for inscription', 10);
 
+        const privateKey =
+          this.keyType === 'ed25519'
+            ? PrivateKey.fromStringED25519(this.auth.privateKey as string)
+            : PrivateKey.fromStringECDSA(this.auth.privateKey as string);
+
+        this.logger.debug(`About to call inscribe with:`);
+        this.logger.debug(`  accountId: ${this.auth.operatorId}`);
+        this.logger.debug(`  privateKey (string) length: ${this.auth.privateKey.length}`);
+        this.logger.debug(`  privateKey (parsed) type: ${privateKey.constructor.name}`);
+        this.logger.debug(`  privateKey toString() length: ${privateKey.toString().length}`);
+        this.logger.debug(`  privateKey toString() starts with: ${privateKey.toString().substring(0, 32)}`);
+        this.logger.debug(`  network: ${this.network}`);
+
         inscriptionResponse = await inscribe(
           {
             type: 'buffer',
@@ -542,7 +567,7 @@ export class HCS11Client {
           },
           {
             accountId: this.auth.operatorId,
-            privateKey: this.auth.privateKey,
+            privateKey,
             network: this.network as 'mainnet' | 'testnet',
           },
           {

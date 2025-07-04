@@ -1,4 +1,7 @@
-import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
+import {
+  InscriptionSDK,
+  StartInscriptionRequest,
+} from '@kiloscribe/inscription-sdk';
 import {
   InscriptionOptions,
   InscriptionResult,
@@ -8,6 +11,9 @@ import {
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { Logger } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
+import { PrivateKey } from '@hashgraph/sdk';
+import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { TransferTransaction } from '@hashgraph/sdk';
 
 export type InscriptionInput =
   | { type: 'url'; url: string }
@@ -67,10 +73,15 @@ export async function inscribe(
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
+
+      const privateKey = typeof clientConfig.privateKey === 'string'
+        ? detectKeyTypeFromString(clientConfig.privateKey).privateKey
+        : clientConfig.privateKey;
+
       sdk = await InscriptionSDK.createWithAuth({
         type: 'server',
         accountId: clientConfig.accountId,
-        privateKey: clientConfig.privateKey,
+        privateKey: privateKey,
         network: clientConfig.network || 'mainnet',
       });
     }
@@ -370,10 +381,11 @@ export async function retrieveInscription(
       });
     } else if (options?.accountId && options?.privateKey) {
       logger.debug('Initializing InscriptionSDK with server auth');
+      const parsedPrivateKey = detectKeyTypeFromString(options.privateKey).privateKey;
       sdk = await InscriptionSDK.createWithAuth({
         type: 'server',
         accountId: options.accountId,
-        privateKey: options.privateKey,
+        privateKey: parsedPrivateKey,
         network: options.network || 'mainnet',
       });
     } else {
@@ -433,8 +445,8 @@ function validateHashinalMetadata(metadata: any, logger: any): void {
 export async function waitForInscriptionConfirmation(
   sdk: InscriptionSDK,
   transactionId: string,
-  maxAttempts: number = 30,
-  intervalMs: number = 4000,
+  maxAttempts: number = 60,
+  intervalMs: number = 6000,
   progressCallback?: ProgressCallback,
 ): Promise<RetrievedInscriptionResult> {
   const logger = Logger.getInstance({ module: 'Inscriber' });

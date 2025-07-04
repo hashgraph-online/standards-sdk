@@ -100,23 +100,18 @@ export function detectKeyTypeFromString(
   }
 
   if ((has0xPrefix || isRawHex64 || isRawHex128) && isHex) {
-    const firstType = has0xPrefix ? 'ecdsa' : 'ed25519';
-    const secondType = has0xPrefix ? 'ed25519' : 'ecdsa';
+    // Always try ED25519 first, regardless of 0x prefix
+    const firstType = 'ed25519';
+    const secondType = 'ecdsa';
     
     try {
-      if (firstType === 'ecdsa') {
-        const privateKey = PrivateKey.fromStringECDSA(normalizedKey);
-        return { detectedType: 'ecdsa', privateKey };
-      } else {
-        const privateKey = PrivateKey.fromStringED25519(normalizedKey);
-        return { detectedType: 'ed25519', privateKey };
-      }
+      // Since we're always trying ED25519 first
+      const privateKey = PrivateKey.fromStringED25519(normalizedKey);
+      return { detectedType: 'ed25519', privateKey };
     } catch (firstError) {
       try {
-        const privateKey = secondType === 'ecdsa' 
-          ? PrivateKey.fromStringECDSA(normalizedKey)
-          : PrivateKey.fromStringED25519(normalizedKey);
-        return { detectedType: secondType, privateKey };
+        const privateKey = PrivateKey.fromStringECDSA(normalizedKey);
+        return { detectedType: 'ecdsa', privateKey };
       } catch (secondError) {
         throw new Error(
           `Failed to parse private key as either ED25519 or ECDSA: ${firstError}`,

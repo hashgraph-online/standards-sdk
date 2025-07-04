@@ -156,8 +156,9 @@ export async function getAgentFromEnv(
     !accountId ||
     !privateKey ||
     !inboundTopicId ||
-    !outboundTopicId ||
-    !profileTopicId
+    !outboundTopicId
+    // Commenting out profileTopicId check as it may cause authentication issues
+    // !profileTopicId
   ) {
     logger.info(`${agentName} agent not found in environment variables`);
     return null;

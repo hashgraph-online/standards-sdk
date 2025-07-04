@@ -81,7 +81,16 @@ export class HCS2Client extends HCS2BaseClient {
           'Failed to detect key type from private key format, defaulting to ED25519',
         );
         this.keyType = 'ed25519';
-        this.operatorKey = PrivateKey.fromString(config.operatorKey);
+        try {
+          this.operatorKey = PrivateKey.fromStringED25519(config.operatorKey);
+        } catch (ed25519Error) {
+          try {
+            this.operatorKey = PrivateKey.fromStringECDSA(config.operatorKey);
+            this.keyType = 'ecdsa';
+          } catch (ecdsaError) {
+            throw new Error(`Failed to parse private key with either ED25519 or ECDSA: ${ed25519Error}`);
+          }
+        }
       }
     } else {
       this.operatorKey = config.operatorKey;

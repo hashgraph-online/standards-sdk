@@ -16,6 +16,7 @@ import {
   TokenId,
   ScheduleCreateTransaction,
   Timestamp,
+  TransferTransaction,
 } from '@hashgraph/sdk';
 import {
   PayloadSizeError,
@@ -25,7 +26,10 @@ import {
 } from './errors';
 import {
   InscriptionSDK,
+  StartInscriptionRequest,
+  InscriptionResult,
   RetrievedInscriptionResult,
+  HederaClientConfig,
 } from '@kiloscribe/inscription-sdk';
 import { Logger, LogLevel, detectKeyTypeFromString } from '../utils';
 import { HCS10BaseClient } from './base-client';
@@ -90,10 +94,22 @@ export class HCS10Client extends HCS10BaseClient {
     this.operatorAccountId = config.operatorId;
     if (config.keyType) {
       this.keyType = config.keyType;
-      const PK =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+      // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
+      let PK: PrivateKey;
+      try {
+        const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
+        PK = keyDetection.privateKey;
+      } catch (error) {
+        // Fallback to type-specific parsing if detection fails
+        this.logger.warn(
+          'Key detection failed in constructor, falling back to type-specific parsing',
+          error
+        );
+        PK =
+          this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
+            : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+      }
       this.client.setOperator(config.operatorId, PK);
     } else {
       try {
@@ -102,12 +118,11 @@ export class HCS10Client extends HCS10BaseClient {
         this.keyType = keyDetection.detectedType;
       } catch (error) {
         this.logger.warn(
-          'Failed to detect key type from private key format, will query mirror node',
+          'Failed to detect key type from private key format, will query mirror node on first operation',
         );
         this.keyType = 'ed25519';
+        // Don't call initializeOperator() here - it will be called on first operation if needed
       }
-
-      this.initializeOperator();
     }
 
     this.network = config.network;
@@ -148,10 +163,24 @@ export class HCS10Client extends HCS10BaseClient {
       this.keyType = 'ed25519';
     }
 
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+    // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
+    let PK: PrivateKey;
+    try {
+      const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
+      PK = keyDetection.privateKey;
+      // Update the detected type if it differs from what we got from the account
+      this.keyType = keyDetection.detectedType;
+    } catch (error) {
+      // Fallback to type-specific parsing if detection fails
+      this.logger.warn(
+        'Key detection failed, falling back to type-specific parsing',
+        error
+      );
+      PK =
+        this.keyType === 'ecdsa'
+          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
+          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+    }
 
     this.logger.debug(
       `Setting operator: ${this.operatorAccountId} with key type: ${this.keyType}`,
@@ -469,7 +498,31 @@ export class HCS10Client extends HCS10BaseClient {
         pfpTopicId = existingPfpTopicId;
       }
 
-      const agentType = this.hcs11Client.getAgentTypeFromMetadata({
+      // Get the current client's operator account ID and private key
+      const currentOperatorAccountId = this.client.operatorAccountId?.toString();
+      if (!currentOperatorAccountId) {
+        throw new Error('No operator account ID found on current client');
+      }
+
+      this.logger.info(`Using operator account: ${currentOperatorAccountId} for profile inscription`);
+      this.logger.debug(`Private key length: ${this.operatorPrivateKey?.length || 0} characters`);
+
+      const parsedPrivateKey = detectKeyTypeFromString(this.operatorPrivateKey).privateKey;
+
+      // Create a temporary HCS11Client with the current client's credentials
+      // instead of using the base client's HCS11Client which may have different credentials
+      const tempHcs11Client = new HCS11Client({
+        network: this.network as 'mainnet' | 'testnet',
+        auth: {
+          operatorId: currentOperatorAccountId,
+          privateKey: parsedPrivateKey.toString(),
+        },
+        logLevel: this.logger.getLevel(),
+        silent: false,
+        keyType: this.keyType,
+      });
+
+      const agentType = tempHcs11Client.getAgentTypeFromMetadata({
         type: metadata.type || 'autonomous',
       } as HCS11AgentMetadata);
 
@@ -482,7 +535,7 @@ export class HCS10Client extends HCS10BaseClient {
             })) as SocialLink[])
         : undefined;
 
-      const profile = this.hcs11Client.createAIAgentProfile(
+      const profile = tempHcs11Client.createAIAgentProfile(
         agentName,
         agentType,
         capabilities,
@@ -499,7 +552,7 @@ export class HCS10Client extends HCS10BaseClient {
         },
       );
 
-      const profileResult = await this.hcs11Client.createAndInscribeProfile(
+      const profileResult = await tempHcs11Client.createAndInscribeProfile(
         profile,
         true,
       );
@@ -991,25 +1044,49 @@ export class HCS10Client extends HCS10BaseClient {
       throw new Error('Operator private key is not set');
     }
 
+    const accountId = this.client.operatorAccountId.toString();
     const mimeType = mime.lookup(fileName) || 'application/octet-stream';
+
+    this.logger.info('Creating inscription with account details', {
+      accountId,
+      fileName,
+      mimeType,
+      bufferSize: buffer.length,
+      network: this.network,
+    });
+
+    const privateKey = detectKeyTypeFromString(this.operatorPrivateKey).privateKey;
 
     const sdk = await InscriptionSDK.createWithAuth({
       type: 'server',
-      accountId: this.client.operatorAccountId.toString(),
-      privateKey: this.operatorPrivateKey.toString(),
+      accountId: accountId,
+      privateKey,
       network: this.network as 'testnet' | 'mainnet',
+    });
+
+    this.logger.debug('InscriptionSDK created successfully', {
+      accountId,
+      network: this.network,
+      authType: 'server',
     });
 
     const inscriptionOptions = {
       mode: 'file' as const,
       waitForConfirmation: true,
-      waitMaxAttempts: options?.waitMaxAttempts || 30,
-      waitIntervalMs: options?.waitIntervalMs || 4000,
+      waitMaxAttempts: options?.waitMaxAttempts || 60,
+      waitIntervalMs: options?.waitIntervalMs || 6000,
       progressCallback: options?.progressCallback,
       logging: {
         level: this.logger.getLevel ? this.logger.getLevel() : 'info',
       },
     };
+
+    this.logger.info('Starting inscription process', {
+      accountId,
+      fileName,
+      mimeType,
+      options: inscriptionOptions,
+    });
 
     const response = await inscribe(
       {
@@ -1019,8 +1096,8 @@ export class HCS10Client extends HCS10BaseClient {
         mimeType,
       },
       {
-        accountId: this.client.operatorAccountId.toString(),
-        privateKey: this.operatorPrivateKey.toString(),
+        accountId: accountId,
+        privateKey,
         network: this.network as 'testnet' | 'mainnet',
       },
       inscriptionOptions,
@@ -1028,8 +1105,20 @@ export class HCS10Client extends HCS10BaseClient {
     );
 
     if (!response.confirmed || !response.inscription) {
+      this.logger.error('Inscription was not confirmed', {
+        confirmed: response.confirmed,
+        hasInscription: response.confirmed ? !!response.inscription : false,
+        accountId,
+      });
       throw new Error('Inscription was not confirmed');
     }
+
+    this.logger.info('Inscription completed successfully', {
+      accountId,
+      fileName,
+      topicId: response.inscription.topic_id,
+      transactionId: response.inscription.transactionId,
+    });
 
     return response.inscription;
   }
@@ -1129,10 +1218,22 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   getAccountAndSigner(): GetAccountAndSignerResponse {
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+    // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
+    let PK: PrivateKey;
+    try {
+      const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
+      PK = keyDetection.privateKey;
+    } catch (error) {
+      // Fallback to type-specific parsing if detection fails
+      this.logger.warn(
+        'Key detection failed in getAccountAndSigner, falling back to type-specific parsing',
+        error
+      );
+      PK =
+        this.keyType === 'ecdsa'
+          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
+          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+    }
 
     return {
       accountId: this.client.operatorAccountId!.toString()!,
@@ -1231,20 +1332,19 @@ export class HCS10Client extends HCS10BaseClient {
         }
 
         const keyType = detectKeyTypeFromString(account.privateKey);
-
-        const privateKey =
-          keyType.detectedType === 'ed25519'
-            ? PrivateKey.fromStringED25519(account.privateKey)
-            : PrivateKey.fromStringECDSA(account.privateKey);
-
-        const publicKey = privateKey.publicKey.toString();
+        let operatorPrivateKey: PrivateKey;
+        
+        if (keyType.detectedType === 'ed25519') {
+          operatorPrivateKey = PrivateKey.fromStringED25519(account.privateKey);
+        } else {
+          operatorPrivateKey = PrivateKey.fromStringECDSA(account.privateKey);
+        }
 
         agentClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
-          operatorPublicKey: publicKey,
-          keyType: keyType.detectedType as 'ed25519' | 'ecdsa',
+          operatorPublicKey: operatorPrivateKey.publicKey.toString(),
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
@@ -1346,13 +1446,20 @@ export class HCS10Client extends HCS10BaseClient {
           );
         }
 
+        const keyType = detectKeyTypeFromString(account.privateKey);
+        let operatorPrivateKey: PrivateKey;
+        
+        if (keyType.detectedType === 'ed25519') {
+          operatorPrivateKey = PrivateKey.fromStringED25519(account.privateKey);
+        } else {
+          operatorPrivateKey = PrivateKey.fromStringECDSA(account.privateKey);
+        }
+
         agentClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
-          operatorPublicKey: PrivateKey.fromString(
-            account.privateKey,
-          ).publicKey.toString(),
+          operatorPublicKey: operatorPrivateKey.publicKey.toString(),
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
@@ -1908,8 +2015,30 @@ export class HCS10Client extends HCS10BaseClient {
         });
       }
 
-      await this.hcs11Client.initializeOperator();
-      const profile = this.hcs11Client.createMCPServerProfile(
+      // Get the current client's operator account ID and private key
+      const currentOperatorAccountId = this.client.operatorAccountId?.toString();
+      if (!currentOperatorAccountId) {
+        throw new Error('No operator account ID found on current client');
+      }
+
+      this.logger.info(`Using operator account: ${currentOperatorAccountId} for profile inscription`);
+      this.logger.debug(`Private key length: ${this.operatorPrivateKey?.length || 0} characters`);
+
+      // Create a temporary HCS11Client with the current client's credentials
+      // instead of using the base client's HCS11Client which may have different credentials
+      const tempHcs11Client = new HCS11Client({
+        network: this.network as 'mainnet' | 'testnet',
+        auth: {
+          operatorId: currentOperatorAccountId,
+          privateKey: this.operatorPrivateKey,
+        },
+        logLevel: this.logger.getLevel(),
+        silent: false,
+        keyType: this.keyType,
+      });
+
+      await tempHcs11Client.initializeOperator();
+      const profile = tempHcs11Client.createMCPServerProfile(
         config.name,
         config.mcpServer,
         {
@@ -1924,7 +2053,7 @@ export class HCS10Client extends HCS10BaseClient {
         },
       );
 
-      const profileResult = await this.hcs11Client.inscribeProfile(profile);
+      const profileResult = await tempHcs11Client.inscribeProfile(profile);
 
       if (!profileResult.success) {
         this.logger.error(
@@ -1940,7 +2069,7 @@ export class HCS10Client extends HCS10BaseClient {
         `MCP server profile stored with topic ID: ${result.profileTopicId}`,
       );
 
-      const memoResult = await this.hcs11Client.updateAccountMemoWithProfile(
+      const memoResult = await tempHcs11Client.updateAccountMemoWithProfile(
         accountId,
         result.profileTopicId,
       );
@@ -2225,6 +2354,7 @@ export class HCS10Client extends HCS10BaseClient {
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
           operatorPublicKey: publicKey,
+          keyType: keyType.detectedType as 'ed25519' | 'ecdsa',
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
@@ -2327,20 +2457,19 @@ export class HCS10Client extends HCS10BaseClient {
         }
 
         const keyType = detectKeyTypeFromString(account.privateKey);
-
-        const privateKey =
-          keyType.detectedType === 'ed25519'
-            ? PrivateKey.fromStringED25519(account.privateKey)
-            : PrivateKey.fromStringECDSA(account.privateKey);
-
-        const publicKey = privateKey.publicKey.toString();
+        let operatorPrivateKey: PrivateKey;
+        
+        if (keyType.detectedType === 'ed25519') {
+          operatorPrivateKey = PrivateKey.fromStringED25519(account.privateKey);
+        } else {
+          operatorPrivateKey = PrivateKey.fromStringECDSA(account.privateKey);
+        }
 
         serverClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
-          operatorPublicKey: publicKey,
-          keyType: keyType.detectedType as 'ed25519' | 'ecdsa',
+          operatorPublicKey: operatorPrivateKey.publicKey.toString(),
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
