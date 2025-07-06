@@ -26,6 +26,7 @@ describe('HCS-2 Integration Tests', () => {
   beforeAll(() => {
     operatorId = process.env.HEDERA_ACCOUNT_ID!;
     const operatorKey = process.env.HEDERA_PRIVATE_KEY!;
+    const keyType = process.env.HEDERA_KEY_TYPE as 'ed25519' | 'ecdsa' | undefined;
 
     if (!operatorId || !operatorKey) {
       throw new Error(
@@ -37,6 +38,7 @@ describe('HCS-2 Integration Tests', () => {
       operatorId,
       operatorKey,
       network: 'testnet',
+      keyType, // Use environment variable for key type
     });
   });
 
@@ -45,7 +47,6 @@ describe('HCS-2 Integration Tests', () => {
       const result = await client.createRegistry({
         registryType: HCS2RegistryType.INDEXED,
         ttl: INDEXED_TTL,
-        memo: 'Integration test indexed registry',
         adminKey: true,
         submitKey: true,
       });
@@ -66,7 +67,6 @@ describe('HCS-2 Integration Tests', () => {
       const result = await client.createRegistry({
         registryType: HCS2RegistryType.NON_INDEXED,
         ttl: NON_INDEXED_TTL,
-        memo: 'Integration test non-indexed registry',
       });
 
       expect(result.success).toBe(true);
@@ -88,7 +88,6 @@ describe('HCS-2 Integration Tests', () => {
       // 2. Create a registry using the custom key instance
       const result = await client.createRegistry({
         registryType: HCS2RegistryType.INDEXED,
-        memo: 'Integration test custom key registry',
         adminKey: customKey,
         submitKey: customKey,
         
@@ -110,7 +109,6 @@ describe('HCS-2 Integration Tests', () => {
 
     it('should create a target topic for testing', async () => {
       const result = await client.createRegistry({
-        memo: 'Integration test target topic',
       });
 
       expect(result.success).toBe(true);
@@ -128,7 +126,6 @@ describe('HCS-2 Integration Tests', () => {
     beforeAll(async () => {
       // Create a separate topic for the "updated" metadata to make the test more robust.
       const result = await client.createRegistry({
-        memo: 'Integration test updated metadata topic',
       });
       updatedMetadataTopicId = result.topicId!;
       console.log(`Created updated metadata topic: ${updatedMetadataTopicId}`);
@@ -297,7 +294,6 @@ describe('HCS-2 Integration Tests', () => {
     beforeAll(async () => {
       // Create a separate topic for the "updated" metadata to make the test more robust.
       const result = await client.createRegistry({
-        memo: 'Integration test updated metadata topic for non-indexed',
       });
       updatedMetadataTopicId = result.topicId!;
       console.log(
@@ -379,7 +375,6 @@ describe('HCS-2 Integration Tests', () => {
       const result = await client.createRegistry({
         registryType: HCS2RegistryType.INDEXED,
         ttl: INDEXED_TTL,
-        memo: 'Migration target topic',
       });
 
       expect(result.success).toBe(true);
@@ -538,7 +533,6 @@ describe('HCS-2 Integration Tests', () => {
       // Ensure targetTopicId exists
       if (!targetTopicId) {
         const result = await client.createRegistry({
-          memo: 'Pagination test target topic',
         });
         targetTopicId = result.topicId!;
         console.log(`Created target topic for pagination: ${targetTopicId}`);
@@ -547,7 +541,6 @@ describe('HCS-2 Integration Tests', () => {
       // Create a dedicated topic for pagination tests
       const result = await client.createRegistry({
         registryType: HCS2RegistryType.INDEXED,
-        memo: 'Pagination test registry',
       });
       paginationTestTopicId = result.topicId!;
       console.log(`Created pagination test topic: ${paginationTestTopicId}`);
@@ -607,6 +600,7 @@ describe('HCS-2 Integration Tests', () => {
     it('should detect ED25519 key type and retain the correct operator key', () => {
       const privateKey = PrivateKey.generateED25519();
       const keyString = privateKey.toString();
+      // Don't use environment variable for this test - test the actual detection
       const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet' });
       expect(client.getKeyType()).toBe('ed25519');
       expect(client.getOperatorKey().toString()).toBe(keyString);
@@ -615,7 +609,7 @@ describe('HCS-2 Integration Tests', () => {
     it('should detect ECDSA key type when explicitly set', () => {
       const privateKey = PrivateKey.generateECDSA();
       const raw = privateKey.toStringRaw();
-      // Using raw hex for ECDSA
+      // Using raw hex for ECDSA with explicit keyType
       const client = new HCS2Client({ operatorId, operatorKey: raw, network: 'testnet', keyType: 'ecdsa' });
       expect(client.getKeyType()).toBe('ecdsa');
       expect(client.getOperatorKey().toStringRaw()).toBe(raw);
@@ -625,9 +619,24 @@ describe('HCS-2 Integration Tests', () => {
       const privateKey = PrivateKey.generateECDSA();
       const raw = privateKey.toStringRaw();
       const keyString = '0x' + raw;
-      const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet' });
+      // For raw hex keys, we now require explicit keyType for professional handling
+      const client = new HCS2Client({ operatorId, operatorKey: keyString, network: 'testnet', keyType: 'ecdsa' });
       expect(client.getKeyType()).toBe('ecdsa');
       expect(client.getOperatorKey().toStringRaw()).toBe(raw);
+    });
+
+    it('should require explicit keyType for raw hex keys', () => {
+      const privateKey = PrivateKey.generateED25519();
+      const raw = privateKey.toStringRaw();
+      
+      // Should fail without keyType for raw hex
+      expect(() => {
+        new HCS2Client({ operatorId, operatorKey: raw, network: 'testnet' });
+      }).toThrow('Raw hex private keys are ambiguous. Please specify keyType parameter as either "ed25519" or "ecdsa"');
+      
+      // Should succeed with explicit keyType
+      const client = new HCS2Client({ operatorId, operatorKey: raw, network: 'testnet', keyType: 'ed25519' });
+      expect(client.getKeyType()).toBe('ed25519');
     });
   });
 

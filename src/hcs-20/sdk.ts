@@ -15,7 +15,7 @@ import {
 } from '@hashgraph/sdk';
 import { HCS20BaseClient } from './base-client';
 import {
-  SDKHCS20ClientConfig,
+  SDKHCS20ClientConfig as BaseSDKHCS20ClientConfig,
   DeployPointsOptions,
   MintPointsOptions,
   TransferPointsOptions,
@@ -36,7 +36,12 @@ import {
   PointsValidationError,
 } from './errors';
 import { sleep } from '../utils/sleep';
-import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { detectKeyTypeFromString } from '../utils';
+
+// Extend the config type to include keyType
+export interface SDKHCS20ClientConfig extends BaseSDKHCS20ClientConfig {
+  keyType?: 'ed25519' | 'ecdsa';
+}
 
 /**
  * SDK-specific HCS-20 client for server-side operations
@@ -62,59 +67,15 @@ export class HCS20Client extends HCS20BaseClient {
     this.client =
       this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
 
-    try {
-      const { privateKey, detectedType } = detectKeyTypeFromString(
-        config.operatorKey,
-      );
-      this.operatorKey = privateKey;
-      this.keyType = detectedType;
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-    } catch (error) {
-      this.logger.debug(
-        'Failed to detect key type from string, will initialize later',
-      );
-    }
-  }
-
-  /**
-   * Initialize operator by querying mirror node for key type
-   */
-  private async initializeOperator(): Promise<void> {
-    if (this.initialized) return;
-
-    try {
-      const accountInfo = await this.mirrorNode.requestAccount(
-        this.operatorId.toString(),
-      );
-      const keyType = accountInfo?.key?._type;
-
-      if (keyType?.includes('ECDSA')) {
-        this.keyType = 'ecdsa';
-      } else if (keyType?.includes('ED25519')) {
-        this.keyType = 'ed25519';
-      } else {
-        this.keyType = 'ed25519';
-      }
-
-      this.operatorKey =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorKeyString)
-          : PrivateKey.fromStringED25519(this.operatorKeyString);
-
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-
-      this.logger.debug(`Initialized operator with key type: ${this.keyType}`);
-    } catch (error) {
-      this.logger.warn(
-        'Failed to query mirror node for key type, using ED25519',
-      );
-      this.keyType = 'ed25519';
-      this.operatorKey = PrivateKey.fromStringED25519(this.operatorKeyString);
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-    }
+    // Always use the detector for explicit, robust key parsing
+    const { privateKey, detectedType } = detectKeyTypeFromString(
+      config.operatorKey,
+      config.keyType
+    );
+    this.operatorKey = privateKey;
+    this.keyType = detectedType;
+    this.client.setOperator(this.operatorId, this.operatorKey);
+    this.initialized = true;
   }
 
   /**
@@ -122,7 +83,11 @@ export class HCS20Client extends HCS20BaseClient {
    */
   private async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
-      await this.initializeOperator();
+      // Use the detector for explicit, robust key parsing
+      this.operatorKey = detectKeyTypeFromString(this.operatorKeyString, this.keyType).privateKey;
+      this.client.setOperator(this.operatorId, this.operatorKey);
+      this.initialized = true;
+      this.logger.debug(`Initialized operator with key type: ${this.keyType}`);
     }
   }
 

@@ -358,7 +358,6 @@ export async function createAgent(
         }
       },
     });
-
     if (!result.metadata) {
       logger.error(`${agentName} agent creation failed`);
       return null;

@@ -7,9 +7,10 @@ import {
   PrivateKey,
   Hbar,
   AccountId,
+  TransactionResponse,
 } from '@hashgraph/sdk';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
-import { Logger, LogLevel } from '../utils/logger';
+import { Logger, LogLevel, detectKeyTypeFromString } from '../utils';
 import {
   InscriptionSDK,
   RetrievedInscriptionResult,
@@ -165,7 +166,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     connectionTopicId: string,
     data: string,
     memo?: string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
     options?: {
       progressCallback?: RegistrationProgressCallback;
       waitMaxAttempts?: number;
@@ -812,14 +813,20 @@ export class BrowserHCSClient extends HCS10BaseClient {
       const maxAttempts = options?.maxAttempts ?? 60;
       const delayMs = options?.delayMs ?? 2000;
 
-      const confirmed = await this.waitForRegistrationConfirmation(
-        registrationResult.transactionId!,
-        network,
-        this.guardedRegistryBaseUrl,
-        maxAttempts,
-        delayMs,
-        this.logger,
-      );
+      let confirmed;
+      if (registrationResult.alreadyRegistered) {
+        this.logger.info('Agent already registered, skipping confirmation');
+        confirmed = true;
+      } else {
+        confirmed = await this.waitForRegistrationConfirmation(
+          registrationResult.transactionId!,
+          network,
+          this.guardedRegistryBaseUrl,
+          maxAttempts,
+          delayMs,
+          this.logger,
+        );
+      }
 
       this.updateStateForCompletedRegistration(state, inboundTopicId);
 
@@ -1236,7 +1243,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
   public async submitPayload(
     topicId: string,
     payload: object | string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
     requiresFee?: boolean,
   ): Promise<TransactionReceipt> {
     this.logger.debug(`Submitting payload to topic ${topicId}`);
@@ -1270,19 +1277,17 @@ export class BrowserHCSClient extends HCS10BaseClient {
     }
 
     if (submitKey) {
-      const { signer } = this.getAccountAndSigner();
-      transaction.freezeWithSigner(signer as any);
-      const signedTransaction = await transaction.sign(submitKey);
-      transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
-        signedTransaction,
-        true,
-      );
-    } else {
-      transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
-        transaction,
-        false,
+      // In browser context, the wallet will handle signing, so we just proceed.
+      // The `submitKey` string is present for interface compatibility but not used here.
+      this.logger.debug(
+        'submitKey provided in browser context, proceeding with wallet signing.',
       );
     }
+
+    transactionResponse = await this.hwc.executeTransactionWithErrorHandling(
+      transaction,
+      false,
+    );
 
     if (transactionResponse?.error) {
       this.logger.error(
@@ -1355,23 +1360,16 @@ export class BrowserHCSClient extends HCS10BaseClient {
     return response.inscription;
   }
 
-  getAccountAndSigner(): GetAccountAndSignerResponse {
-    const accountInfo = this?.hwc?.getAccountInfo();
-    const accountId = accountInfo?.accountId?.toString();
-    const signer = this?.hwc?.dAppConnector?.signers?.find(s => {
-      return s.getAccountId().toString() === accountId;
-    });
-
-    if (!signer) {
-      this.logger.error('Failed to find signer', {
-        accountId,
-        signers: this?.hwc?.dAppConnector?.signers,
-        accountInfo,
-      });
-      throw new Error('Failed to find signer');
+  getAccountAndSigner(): { accountId: string; signer: string } {
+    if (!this.hwc) {
+      throw new Error('Wallet not connected');
     }
-
-    return { accountId, signer: signer as any };
+    const accountId = this.hwc.getAccountInfo().accountId?.toString();
+    if (!accountId) {
+      throw new Error('Account ID not found in wallet');
+    }
+    // Browser client does not expose signer key
+    return { accountId, signer: '' };
   }
 
   /**

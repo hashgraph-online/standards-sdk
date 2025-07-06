@@ -158,23 +158,15 @@ export class HCS11Client {
     );
 
     if (this.auth.privateKey) {
+      // Handle key type detection explicitly
       if (config.keyType) {
         this.keyType = config.keyType;
-        this.initializeOperatorWithKeyType();
-      } else {
-        try {
-          const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
-          this.keyType = keyDetection.detectedType;
-          this.client.setOperator(this.operatorId, keyDetection.privateKey);
-        } catch (error) {
-          this.logger.warn(
-            'Failed to detect key type from private key format, will query mirror node',
-          );
-          this.keyType = 'ed25519';
-        }
-
-        this.initializeOperator();
       }
+
+      // Always use the detector for explicit, robust key parsing
+      const keyDetection = detectKeyTypeFromString(this.auth.privateKey, config.keyType);
+      this.keyType = keyDetection.detectedType;
+      this.client.setOperator(this.operatorId, keyDetection.privateKey);
     }
   }
 
@@ -187,43 +179,21 @@ export class HCS11Client {
   }
 
   public async initializeOperator() {
-    const account = await this.mirrorNode.requestAccount(this.operatorId);
-    const keyType = account?.key?._type;
-
-    if (keyType && keyType.includes('ECDSA')) {
-      this.keyType = 'ecdsa';
-    } else if (keyType && keyType.includes('ED25519')) {
-      this.keyType = 'ed25519';
-    } else {
-      this.keyType = 'ed25519';
+    // Use the detector for explicit, robust key parsing
+    if (this.auth.privateKey) {
+      const keyDetection = detectKeyTypeFromString(this.auth.privateKey, this.keyType);
+      this.client.setOperator(this.operatorId, keyDetection.privateKey);
+      this.keyType = keyDetection.detectedType;
     }
-
-    this.initializeOperatorWithKeyType();
   }
 
   private initializeOperatorWithKeyType() {
     if (!this.auth.privateKey) {
       return;
     }
-
-    // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
-    let PK: PrivateKey;
-    try {
-      const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
-      PK = keyDetection.privateKey;
-    } catch (error) {
-      // Fallback to type-specific parsing if detection fails
-      this.logger.warn(
-        'Key detection failed in HCS11Client.initializeOperatorWithKeyType, falling back to type-specific parsing',
-        error
-      );
-      PK =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.auth.privateKey)
-          : PrivateKey.fromStringED25519(this.auth.privateKey);
-    }
-
-    this.client.setOperator(this.operatorId, PK);
+    // Always use the detector and enforce explicit keyType for raw hex
+    const { privateKey } = detectKeyTypeFromString(this.auth.privateKey, this.keyType);
+    this.client.setOperator(this.operatorId, privateKey);
   }
 
   public createPersonalProfile(
@@ -501,8 +471,6 @@ export class HCS11Client {
       let inscriptionResponse;
       if (this.auth.signer) {
         if ('accountId' in this.auth.signer) {
-          progressReporter.preparing('Using signer for inscription', 10);
-
           inscriptionResponse = await inscribeWithSigner(
             {
               type: 'buffer',
@@ -543,21 +511,6 @@ export class HCS11Client {
           throw new Error('Private key is required for inscription');
         }
 
-        progressReporter.preparing('Using private key for inscription', 10);
-
-        const privateKey =
-          this.keyType === 'ed25519'
-            ? PrivateKey.fromStringED25519(this.auth.privateKey as string)
-            : PrivateKey.fromStringECDSA(this.auth.privateKey as string);
-
-        this.logger.debug(`About to call inscribe with:`);
-        this.logger.debug(`  accountId: ${this.auth.operatorId}`);
-        this.logger.debug(`  privateKey (string) length: ${this.auth.privateKey.length}`);
-        this.logger.debug(`  privateKey (parsed) type: ${privateKey.constructor.name}`);
-        this.logger.debug(`  privateKey toString() length: ${privateKey.toString().length}`);
-        this.logger.debug(`  privateKey toString() starts with: ${privateKey.toString().substring(0, 32)}`);
-        this.logger.debug(`  network: ${this.network}`);
-
         inscriptionResponse = await inscribe(
           {
             type: 'buffer',
@@ -567,7 +520,7 @@ export class HCS11Client {
           },
           {
             accountId: this.auth.operatorId,
-            privateKey,
+            privateKey: this.auth.privateKey,
             network: this.network as 'mainnet' | 'testnet',
           },
           {
@@ -689,17 +642,12 @@ export class HCS11Client {
 
       progressReporter.submitting('Submitting profile to Hedera network', 30);
 
-      const privateKey =
-        this.keyType === 'ed25519'
-          ? PrivateKey.fromStringED25519(this.auth.privateKey as string)
-          : PrivateKey.fromStringECDSA(this.auth.privateKey as string);
-
       const inscriptionResponse = this.auth.privateKey
         ? await inscribe(
             input,
             {
               accountId: this.auth.operatorId,
-              privateKey,
+              privateKey: this.auth.privateKey,
               network: this.network as 'mainnet' | 'testnet',
             },
             inscriptionOptions,

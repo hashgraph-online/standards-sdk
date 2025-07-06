@@ -67,6 +67,7 @@ async function main() {
       guardedRegistryBaseUrl: registryUrl,
       prettyPrint: true,
       logLevel: 'debug',
+      keyType: process.env.HEDERA_KEY_TYPE as 'ed25519' | 'ecdsa' | undefined,
     });
 
     const alicePfpPath = path.join(__dirname, 'assets', 'alice-icon.svg');

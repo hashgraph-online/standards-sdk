@@ -174,7 +174,7 @@ export interface WaitForConnectionConfirmationResponse {
 
 export interface GetAccountAndSignerResponse {
   accountId: string;
-  signer: PrivateKey;
+  signer: string;
 }
 
 export interface AgentRegistrationResult {
@@ -232,6 +232,7 @@ export type RegistrationResult = {
   success: boolean;
   error?: string;
   validationErrors?: ValidationError[];
+  alreadyRegistered?: boolean;
 };
 
 export interface RegistrationSearchOptions {

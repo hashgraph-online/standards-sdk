@@ -32,40 +32,32 @@ describe('detectKeyTypeFromString', () => {
     });
 
     it('should properly parse ED25519 key with 0x prefix (hex encoded)', () => {
-      // Generate a valid ED25519 private key and get raw hex
-      const privateKey = PrivateKey.generateED25519();
-      const hexKey = privateKey.toStringRaw();
-      const ed25519HexKey = '0x' + hexKey;
-
-      const result = detectKeyTypeFromString(ed25519HexKey);
-
+      const ed25519HexKey = '0x424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+      const result = detectKeyTypeFromString(ed25519HexKey, 'ed25519');
+      
+      expect(result.detectedType).toBe('ed25519');
       expect(result.privateKey).toBeDefined();
-      expect(result.privateKey.toStringRaw()).toBe(hexKey);
+      expect(result.privateKey.publicKey).toBeDefined();
     });
 
     it('should detect ED25519 key without prefix (raw hex encoded)', () => {
-      // Generate a valid ED25519 private key and get raw hex
-      const privateKey = PrivateKey.generateED25519();
-      const hexKey = privateKey.toStringRaw();
-
-      const result = detectKeyTypeFromString(hexKey);
-
+      const hexKey = '424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+      const result = detectKeyTypeFromString(hexKey, 'ed25519');
+      
       expect(result.detectedType).toBe('ed25519');
       expect(result.privateKey).toBeDefined();
-      expect(result.privateKey.toStringRaw()).toBe(hexKey);
+      expect(result.privateKey.publicKey).toBeDefined();
     });
   });
 
   describe('ECDSA key detection', () => {
     it('should detect ECDSA key with 0x prefix', () => {
-      const privateKey = PrivateKey.generateECDSA();
-      const hexKey = privateKey.toStringRaw();
-      const ecdsaKey = '0x' + hexKey;
-
-      const result = detectKeyTypeFromString(ecdsaKey);
-
+      const ecdsaKey = '0xcc67c922221db8d7e8f9b9cc7ef88d4e19ab3242d34379f378745c385f66f3b0';
+      const result = detectKeyTypeFromString(ecdsaKey, 'ecdsa');
+      
       expect(result.detectedType).toBe('ecdsa');
       expect(result.privateKey).toBeDefined();
+      expect(result.privateKey.publicKey).toBeDefined();
     });
 
     it('should detect ECDSA key with DER header', () => {
@@ -94,7 +86,7 @@ describe('detectKeyTypeFromString', () => {
       const privateKey = PrivateKey.generateECDSA();
       const hexKey = privateKey.toStringRaw();
 
-      const result = detectKeyTypeFromString(hexKey);
+      const result = detectKeyTypeFromString(hexKey, 'ecdsa');
 
       expect(result.privateKey).toBeDefined();
       expect(result.privateKey.toStringRaw()).toBe(hexKey);
@@ -161,7 +153,7 @@ describe('detectKeyTypeFromString', () => {
       const rawHex = privateKey.toStringRaw();
       const ecdsaHexExample = '0x' + rawHex;
 
-      const result = detectKeyTypeFromString(ecdsaHexExample);
+      const result = detectKeyTypeFromString(ecdsaHexExample, 'ecdsa');
       expect(result.detectedType).toBe('ecdsa');
       expect(result.privateKey).toBeDefined();
     });
@@ -173,7 +165,7 @@ describe('detectKeyTypeFromString', () => {
       const hexKey = privateKey.toStringRaw();
       const keyWithWhitespace = `  0x${hexKey}  `;
 
-      const result = detectKeyTypeFromString(keyWithWhitespace);
+      const result = detectKeyTypeFromString(keyWithWhitespace, 'ed25519');
       
       expect(result.privateKey).toBeDefined();
       expect(result.privateKey.toStringRaw()).toBe(hexKey);
@@ -184,7 +176,7 @@ describe('detectKeyTypeFromString', () => {
       const hexKey = privateKey.toStringRaw().toUpperCase();
       const mixedCaseKey = `0x${hexKey}`;
 
-      const result = detectKeyTypeFromString(mixedCaseKey);
+      const result = detectKeyTypeFromString(mixedCaseKey, 'ed25519');
       
       expect(result.privateKey).toBeDefined();
     });
@@ -290,7 +282,7 @@ describe('detectKeyTypeFromString', () => {
       const hexKey = privateKey.toStringRaw();
       const keyWith0x = '0x' + hexKey;
       
-      const result = detectKeyTypeFromString(keyWith0x);
+      const result = detectKeyTypeFromString(keyWith0x, 'ecdsa');
       
       expect(result.detectedType).toBe('ecdsa');
       expect(result.privateKey.toStringRaw()).toBe(hexKey);
@@ -300,7 +292,7 @@ describe('detectKeyTypeFromString', () => {
       const privateKey = PrivateKey.generateED25519();
       const hexKey = privateKey.toStringRaw();
       
-      const result = detectKeyTypeFromString(hexKey);
+      const result = detectKeyTypeFromString(hexKey, 'ed25519');
       
       expect(result.detectedType).toBe('ed25519');
       expect(result.privateKey.toStringRaw()).toBe(hexKey);
@@ -313,7 +305,7 @@ describe('detectKeyTypeFromString', () => {
       const keyWith0x = '0x' + hexKey;
       
       // This should still work due to fallback
-      const result = detectKeyTypeFromString(keyWith0x);
+      const result = detectKeyTypeFromString(keyWith0x, 'ed25519');
       
       expect(result.privateKey).toBeDefined();
       expect(result.privateKey.toStringRaw()).toBe(hexKey);
@@ -342,5 +334,71 @@ describe('detectKeyTypeFromString', () => {
         /Invalid hex string: odd number of characters/
       );
     });
+  });
+
+  describe('Specific problematic key cases', () => {
+    it('should correctly detect the problematic ED25519 key with 0x prefix', () => {
+      // This is the specific key that was causing issues
+      const problematicKey = '0x424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+      
+      const result = detectKeyTypeFromString(problematicKey, 'ed25519');
+      
+      expect(result.detectedType).toBe('ed25519');
+      expect(result.privateKey).toBeDefined();
+      expect(result.privateKey.toStringRaw()).toBe(problematicKey.substring(2));
+    });
+
+    it('should handle both ED25519 and ECDSA keys with 0x prefix correctly', () => {
+      // Test that both types work with 0x prefix
+      const ed25519Key = PrivateKey.generateED25519();
+      const ecdsaKey = PrivateKey.generateECDSA();
+      
+      const ed25519Hex = '0x' + ed25519Key.toStringRaw();
+      const ecdsaHex = '0x' + ecdsaKey.toStringRaw();
+      
+      const ed25519Result = detectKeyTypeFromString(ed25519Hex, 'ed25519');
+      const ecdsaResult = detectKeyTypeFromString(ecdsaHex, 'ecdsa');
+      
+      // Both should be detected correctly with explicit keyType
+      expect(ed25519Result.detectedType).toBe('ed25519');
+      expect(ecdsaResult.detectedType).toBe('ecdsa');
+      
+      expect(ed25519Result.privateKey).toBeDefined();
+      expect(ecdsaResult.privateKey).toBeDefined();
+    });
+  });
+
+  it('should detect ED25519 key from raw hex with explicit type', () => {
+    const ed25519HexKey = '424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+    const result = detectKeyTypeFromString(ed25519HexKey, 'ed25519');
+    
+    expect(result.detectedType).toBe('ed25519');
+    expect(result.privateKey).toBeDefined();
+    expect(result.privateKey.publicKey).toBeDefined();
+  });
+
+  it('should detect ED25519 key from hex with 0x prefix and explicit type', () => {
+    const hexKey = '0x424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+    const result = detectKeyTypeFromString(hexKey, 'ed25519');
+    
+    expect(result.detectedType).toBe('ed25519');
+    expect(result.privateKey).toBeDefined();
+    expect(result.privateKey.publicKey).toBeDefined();
+  });
+
+  it('should throw error for hex with 0x prefix without explicit type', () => {
+    const hexKey = '0x424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+    
+    expect(() => detectKeyTypeFromString(hexKey)).toThrow(
+      'Raw hex private keys are ambiguous'
+    );
+  });
+
+  it('should throw error for raw hex without explicit type', () => {
+    const ed25519HexKey = '424cc90352e7bfcf70276885ab453d62f70a65dfb03232065a49ba6122716904';
+    
+    expect(() => detectKeyTypeFromString(ed25519HexKey)).toThrow(
+      'Raw hex private keys are ambiguous'
+    );
   });
 });

@@ -12,7 +12,7 @@ import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { Logger } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { PrivateKey } from '@hashgraph/sdk';
-import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { detectKeyTypeFromString } from '../utils';
 import { TransferTransaction } from '@hashgraph/sdk';
 
 export type InscriptionInput =
@@ -73,15 +73,10 @@ export async function inscribe(
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
-
-      const privateKey = typeof clientConfig.privateKey === 'string'
-        ? detectKeyTypeFromString(clientConfig.privateKey).privateKey
-        : clientConfig.privateKey;
-
       sdk = await InscriptionSDK.createWithAuth({
         type: 'server',
         accountId: clientConfig.accountId,
-        privateKey: privateKey,
+        privateKey: clientConfig.privateKey,
         network: clientConfig.network || 'mainnet',
       });
     }
@@ -381,11 +376,10 @@ export async function retrieveInscription(
       });
     } else if (options?.accountId && options?.privateKey) {
       logger.debug('Initializing InscriptionSDK with server auth');
-      const parsedPrivateKey = detectKeyTypeFromString(options.privateKey).privateKey;
       sdk = await InscriptionSDK.createWithAuth({
         type: 'server',
         accountId: options.accountId,
-        privateKey: parsedPrivateKey,
+        privateKey: options.privateKey,
         network: options.network || 'mainnet',
       });
     } else {

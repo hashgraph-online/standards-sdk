@@ -20,6 +20,7 @@ describe('HCS-20 Integration Tests', () => {
   beforeAll(() => {
     operatorId = process.env.HEDERA_ACCOUNT_ID!;
     const operatorKey = process.env.HEDERA_PRIVATE_KEY!;
+    const keyType = process.env.HEDERA_KEY_TYPE as 'ed25519' | 'ecdsa' | undefined;
 
     if (!operatorId || !operatorKey) {
       throw new Error(
@@ -31,6 +32,7 @@ describe('HCS-20 Integration Tests', () => {
       operatorId,
       operatorKey,
       network: 'testnet',
+      keyType,
     });
   });
 

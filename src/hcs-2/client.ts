@@ -25,7 +25,7 @@ import {
   RegistryEntry
 } from './types';
 import { NetworkType } from '../utils/types';
-import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { detectKeyTypeFromString } from '../utils';
 
 /**
  * SDK client configuration for HCS-2
@@ -63,35 +63,17 @@ export class HCS2Client extends HCS2BaseClient {
       ? AccountId.fromString(config.operatorId) 
       : config.operatorId;
 
-    // Handle key type detection
+    // Handle key type detection explicitly
     if (config.keyType) {
       this.keyType = config.keyType;
       this.operatorKey = typeof config.operatorKey === 'string'
-        ? this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(config.operatorKey)
-          : PrivateKey.fromStringED25519(config.operatorKey)
+        ? detectKeyTypeFromString(config.operatorKey, config.keyType).privateKey
         : config.operatorKey;
     } else if (typeof config.operatorKey === 'string') {
-      try {
-        const keyDetection = detectKeyTypeFromString(config.operatorKey);
-        this.operatorKey = keyDetection.privateKey;
-        this.keyType = keyDetection.detectedType;
-      } catch (error) {
-        this.logger.warn(
-          'Failed to detect key type from private key format, defaulting to ED25519',
-        );
-        this.keyType = 'ed25519';
-        try {
-          this.operatorKey = PrivateKey.fromStringED25519(config.operatorKey);
-        } catch (ed25519Error) {
-          try {
-            this.operatorKey = PrivateKey.fromStringECDSA(config.operatorKey);
-            this.keyType = 'ecdsa';
-          } catch (ecdsaError) {
-            throw new Error(`Failed to parse private key with either ED25519 or ECDSA: ${ed25519Error}`);
-          }
-        }
-      }
+      // Always use the detector for explicit, robust key parsing
+      const keyDetection = detectKeyTypeFromString(config.operatorKey);
+      this.operatorKey = keyDetection.privateKey;
+      this.keyType = keyDetection.detectedType;
     } else {
       this.operatorKey = config.operatorKey;
       this.keyType = 'ed25519'; // Default if we can't detect

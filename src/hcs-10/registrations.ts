@@ -224,6 +224,15 @@ export abstract class Registration {
       const data = (await response.json()) as RegistrationsApiResponse;
 
       if (!response.ok) {
+        if (response.status === 409) {
+          if (logger) {
+            logger.info('Agent already registered (409 Conflict), treating as success');
+          }
+          return {
+            success: true,
+            alreadyRegistered: true,
+          };
+        }
         if (data.details?.length > 0) {
           return {
             validationErrors: data.details,

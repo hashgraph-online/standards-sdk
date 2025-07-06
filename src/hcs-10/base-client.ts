@@ -106,11 +106,11 @@ export abstract class HCS10BaseClient extends Registration {
   abstract submitPayload(
     topicId: string,
     payload: object | string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
     requiresFee?: boolean,
   ): Promise<TransactionReceipt>;
 
-  abstract getAccountAndSigner(): { accountId: string; signer: any };
+  abstract getAccountAndSigner(): { accountId: string; signer: string };
 
   /**
    * Updates the mirror node configuration.
@@ -1011,6 +1011,9 @@ export abstract class HCS10BaseClient extends Registration {
     network: string,
     baseUrl: string,
   ): Promise<{ status: 'pending' | 'success' | 'failed' }> {
+    this.logger.info(`Checking registration status for transaction ${transactionId}`);
+    this.logger.info(`baseUrl: ${baseUrl}`);
+    this.logger.info(`network: ${network}`);
     try {
       const response = await fetch(`${baseUrl}/api/request-confirm`, {
         method: 'POST',

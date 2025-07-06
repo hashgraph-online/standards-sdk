@@ -92,38 +92,16 @@ export class HCS10Client extends HCS10BaseClient {
     this.operatorPrivateKey = config.operatorPrivateKey;
 
     this.operatorAccountId = config.operatorId;
+    
+    // Handle key type detection explicitly
     if (config.keyType) {
       this.keyType = config.keyType;
-      // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
-      let PK: PrivateKey;
-      try {
-        const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-        PK = keyDetection.privateKey;
-      } catch (error) {
-        // Fallback to type-specific parsing if detection fails
-        this.logger.warn(
-          'Key detection failed in constructor, falling back to type-specific parsing',
-          error
-        );
-        PK =
-          this.keyType === 'ecdsa'
-            ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-            : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-      }
-      this.client.setOperator(config.operatorId, PK);
-    } else {
-      try {
-        const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-        this.client.setOperator(config.operatorId, keyDetection.privateKey);
-        this.keyType = keyDetection.detectedType;
-      } catch (error) {
-        this.logger.warn(
-          'Failed to detect key type from private key format, will query mirror node on first operation',
-        );
-        this.keyType = 'ed25519';
-        // Don't call initializeOperator() here - it will be called on first operation if needed
-      }
     }
+
+    // Always use the detector for explicit, robust key parsing
+    const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey, config.keyType);
+    this.client.setOperator(config.operatorId, keyDetection.privateKey);
+    this.keyType = keyDetection.detectedType;
 
     this.network = config.network;
     this.logger = Logger.getInstance({
@@ -152,35 +130,12 @@ export class HCS10Client extends HCS10BaseClient {
     keyType: 'ed25519' | 'ecdsa';
     client: Client;
   }> {
-    const account = await this.requestAccount(this.operatorAccountId);
-    const keyType = account?.key?._type;
-
-    if (keyType.includes('ECDSA')) {
-      this.keyType = 'ecdsa';
-    } else if (keyType.includes('ED25519')) {
-      this.keyType = 'ed25519';
-    } else {
-      this.keyType = 'ed25519';
-    }
-
-    // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
-    let PK: PrivateKey;
-    try {
-      const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-      PK = keyDetection.privateKey;
-      // Update the detected type if it differs from what we got from the account
-      this.keyType = keyDetection.detectedType;
-    } catch (error) {
-      // Fallback to type-specific parsing if detection fails
-      this.logger.warn(
-        'Key detection failed, falling back to type-specific parsing',
-        error
-      );
-      PK =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-    }
+    // Use the detector for explicit, robust key parsing
+    const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey, this.keyType);
+    const PK = keyDetection.privateKey;
+    this.keyType = keyDetection.detectedType;
+    
+    this.logger.debug(`Detected key type from private key: ${this.keyType}`);
 
     this.logger.debug(
       `Setting operator: ${this.operatorAccountId} with key type: ${this.keyType}`,
@@ -507,7 +462,7 @@ export class HCS10Client extends HCS10BaseClient {
       this.logger.info(`Using operator account: ${currentOperatorAccountId} for profile inscription`);
       this.logger.debug(`Private key length: ${this.operatorPrivateKey?.length || 0} characters`);
 
-      const parsedPrivateKey = detectKeyTypeFromString(this.operatorPrivateKey).privateKey;
+      const parsedPrivateKey = detectKeyTypeFromString(this.operatorPrivateKey, this.keyType).privateKey;
 
       // Create a temporary HCS11Client with the current client's credentials
       // instead of using the base client's HCS11Client which may have different credentials
@@ -809,7 +764,7 @@ export class HCS10Client extends HCS10BaseClient {
     connectedAccountId: string,
     connectionId: number,
     memo: string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
   ): Promise<number> {
     const operatorId = await this.getOperatorId();
     this.logger.info(`Confirming connection with ID ${connectionId}`);
@@ -850,7 +805,7 @@ export class HCS10Client extends HCS10BaseClient {
     connectionTopicId: string,
     data: string,
     memo?: string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
     options?: {
       progressCallback?: RegistrationProgressCallback;
       waitMaxAttempts?: number;
@@ -976,7 +931,7 @@ export class HCS10Client extends HCS10BaseClient {
   public async submitPayload(
     topicId: string,
     payload: object | string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
     requiresFee: boolean = false,
   ): Promise<TransactionReceipt> {
     const message =
@@ -1008,8 +963,9 @@ export class HCS10Client extends HCS10BaseClient {
 
     let transactionResponse: TransactionResponse;
     if (submitKey) {
+      const { privateKey } = detectKeyTypeFromString(submitKey);
       const frozenTransaction = transaction.freezeWith(this.client);
-      const signedTransaction = await frozenTransaction.sign(submitKey);
+      const signedTransaction = await frozenTransaction.sign(privateKey);
       transactionResponse = await signedTransaction.execute(this.client);
     } else {
       transactionResponse = await transaction.execute(this.client);
@@ -1097,7 +1053,7 @@ export class HCS10Client extends HCS10BaseClient {
       },
       {
         accountId: accountId,
-        privateKey,
+        privateKey: this.operatorPrivateKey,
         network: this.network as 'testnet' | 'mainnet',
       },
       inscriptionOptions,
@@ -1218,26 +1174,9 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   getAccountAndSigner(): GetAccountAndSignerResponse {
-    // Use the key detection function to handle all key formats (DER, PEM, Base64, raw hex)
-    let PK: PrivateKey;
-    try {
-      const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-      PK = keyDetection.privateKey;
-    } catch (error) {
-      // Fallback to type-specific parsing if detection fails
-      this.logger.warn(
-        'Key detection failed in getAccountAndSigner, falling back to type-specific parsing',
-        error
-      );
-      PK =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-    }
-
     return {
       accountId: this.client.operatorAccountId!.toString()!,
-      signer: PK,
+      signer: this.operatorPrivateKey,
     };
   }
 
@@ -1719,7 +1658,7 @@ export class HCS10Client extends HCS10BaseClient {
     accountId: string,
     inboundTopicId: string,
     memo: string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
   ): Promise<void> {
     this.logger.info('Registering agent');
     const payload = {
@@ -1865,7 +1804,7 @@ export class HCS10Client extends HCS10BaseClient {
     connectionTopicId: string,
     scheduleId: string,
     data: string,
-    submitKey?: PrivateKey,
+    submitKey?: string,
     options?: {
       memo?: string;
     },
@@ -1913,7 +1852,7 @@ export class HCS10Client extends HCS10BaseClient {
     options?: {
       scheduleMemo?: string;
       expirationTime?: number;
-      submitKey?: PrivateKey;
+      submitKey?: string;
       operationMemo?: string;
       schedulePayerAccountId?: string;
     },
@@ -2342,11 +2281,7 @@ export class HCS10Client extends HCS10BaseClient {
 
         builder.setExistingAccount(account.accountId, account.privateKey);
 
-        const privateKey =
-          keyType.detectedType === 'ed25519'
-            ? PrivateKey.fromStringED25519(account.privateKey)
-            : PrivateKey.fromStringECDSA(account.privateKey);
-
+        const { privateKey } = detectKeyTypeFromString(account.privateKey);
         const publicKey = privateKey.publicKey.toString();
 
         serverClient = new HCS10Client({
