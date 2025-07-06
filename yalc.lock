@@ -1,9 +1,0 @@
-{
-  "version": "v1",
-  "packages": {
-    "@kiloscribe/inscription-sdk": {
-      "signature": "6f610b5d42aa0d44b9c7d9f35552d402",
-      "file": true
-    }
-  }
-}
