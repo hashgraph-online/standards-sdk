@@ -533,6 +533,11 @@ export class HCS11Client {
 
         progressReporter.preparing('Using private key for inscription', 10);
 
+        const PK =
+          this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(this.auth.privateKey)
+            : PrivateKey.fromStringED25519(this.auth.privateKey);
+
         inscriptionResponse = await inscribe(
           {
             type: 'buffer',
@@ -542,7 +547,8 @@ export class HCS11Client {
           },
           {
             accountId: this.auth.operatorId,
-            privateKey: this.auth.privateKey,
+            // @ts-ignore
+            privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
           {
@@ -667,11 +673,17 @@ export class HCS11Client {
       let inscriptionResponse;
 
       if (this.auth.privateKey) {
+        const PK =
+          this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(this.auth.privateKey)
+            : PrivateKey.fromStringED25519(this.auth.privateKey);
+
         inscriptionResponse = await inscribe(
           input,
           {
             accountId: this.auth.operatorId,
-            privateKey: this.auth.privateKey, //this breaks when using privateKey Object
+            // @ts-ignore
+            privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
           inscriptionOptions,
@@ -689,7 +701,7 @@ export class HCS11Client {
       }
 
       if (
-        !inscriptionResponse.confirmed ||
+        !inscriptionResponse.confirmed &&
         !inscriptionResponse.inscription.topic_id
       ) {
         progressReporter.failed('Failed to inscribe profile content');
@@ -700,7 +712,6 @@ export class HCS11Client {
           error: 'Failed to inscribe profile content',
         };
       }
-
       const topicId = inscriptionResponse.inscription.topic_id;
 
       progressReporter.completed('Profile inscription completed', {

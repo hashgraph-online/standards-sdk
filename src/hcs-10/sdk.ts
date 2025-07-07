@@ -1014,6 +1014,11 @@ export class HCS10Client extends HCS10BaseClient {
       },
     };
 
+    const PK =
+      this.keyType === 'ecdsa'
+        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
+        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+
     const response = await inscribe(
       {
         type: 'buffer',
@@ -1023,7 +1028,8 @@ export class HCS10Client extends HCS10BaseClient {
       },
       {
         accountId: this.client.operatorAccountId.toString(),
-        privateKey: this.operatorPrivateKey.toString(),
+        // @ts-ignore
+        privateKey: PK,
         network: this.network as 'testnet' | 'mainnet',
       },
       inscriptionOptions,

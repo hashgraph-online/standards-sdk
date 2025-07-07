@@ -18,6 +18,22 @@ export function detectKeyTypeFromString(
 ): KeyDetectionResult {
   let detectedType: KeyType = 'ed25519';
 
+  try {
+    const pkDetectedAlgorithmn = PrivateKey.getAlgorithm(privateKeyString);
+
+    if (['ecdsa', 'ed25519'].includes(pkDetectedAlgorithmn)) {
+      return {
+        detectedType: pkDetectedAlgorithmn,
+        privateKey:
+          pkDetectedAlgorithmn === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(privateKeyString)
+            : PrivateKey.fromStringED25519(privateKeyString),
+      };
+    }
+  } catch (error) {
+    // getAlgorithm only works for der encoded keys
+  }
+
   if (privateKeyString.startsWith('0x')) {
     detectedType = 'ecdsa';
   } else if (privateKeyString.startsWith('302e020100300506032b6570')) {
