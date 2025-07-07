@@ -701,8 +701,8 @@ export class HCS11Client {
       }
 
       if (
-        !inscriptionResponse.confirmed &&
-        !inscriptionResponse.inscription.topic_id
+        !inscriptionResponse.confirmed ||
+        !inscriptionResponse.inscription?.topic_id
       ) {
         progressReporter.failed('Failed to inscribe profile content');
         return {
