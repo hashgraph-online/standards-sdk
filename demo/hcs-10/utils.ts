@@ -277,7 +277,9 @@ export async function createAgent(
         ? 'createAndRegisterAgent'
         : 'createAndRegisterMCPServer';
 
-    const result = await baseClient[method](agentBuilder as any, {
+    const currentBuilder = agentBuilder.setAlias(`${agentName}-${Date.now()}`);
+
+    const result = await baseClient[method](currentBuilder as any, {
       ...options,
       existingState: hasPartialState
         ? (existingState as AgentCreationState)
@@ -359,6 +361,7 @@ export async function createAgent(
     });
 
     if (!result.metadata) {
+      console.log('result failure', result);
       logger.error(`${agentName} agent creation failed`);
       return null;
     }
