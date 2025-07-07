@@ -996,10 +996,15 @@ export class HCS10Client extends HCS10BaseClient {
 
     const mimeType = mime.lookup(fileName) || 'application/octet-stream';
 
+    const privateKey =
+      this.keyType === 'ecdsa'
+        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
+        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+
     const sdk = await InscriptionSDK.createWithAuth({
       type: 'server',
       accountId: this.client.operatorAccountId.toString(),
-      privateKey: this.operatorPrivateKey,
+      privateKey: privateKey,
       network: this.network as 'testnet' | 'mainnet',
     });
 
@@ -1014,11 +1019,6 @@ export class HCS10Client extends HCS10BaseClient {
       },
     };
 
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-
     const response = await inscribe(
       {
         type: 'buffer',
@@ -1029,7 +1029,7 @@ export class HCS10Client extends HCS10BaseClient {
       {
         accountId: this.client.operatorAccountId.toString(),
         // @ts-ignore
-        privateKey: PK,
+        privateKey: privateKey,
         network: this.network as 'testnet' | 'mainnet',
       },
       inscriptionOptions,
