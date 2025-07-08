@@ -12,7 +12,7 @@ import {
   InscriptionInput,
   InscriptionOptions,
 } from '../inscribe';
-import { Logger, detectKeyTypeFromString } from '../utils';
+import { Logger, detectKeyTypeFromString, getTopicId } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
@@ -578,10 +578,10 @@ export class HCS11Client {
 
       if (inscriptionResponse.confirmed) {
         progressReporter.completed('Image inscription completed', {
-          topicId: inscriptionResponse.inscription.topicId,
+          topicId: getTopicId(inscriptionResponse.inscription),
         });
         return {
-          imageTopicId: inscriptionResponse.inscription.topicId || '',
+          imageTopicId: getTopicId(inscriptionResponse.inscription) || '',
           transactionId: inscriptionResponse.result.jobId,
           success: true,
         };
@@ -707,7 +707,7 @@ export class HCS11Client {
 
       if (
         !inscriptionResponse.confirmed ||
-        !inscriptionResponse.inscription?.topicId
+        !getTopicId(inscriptionResponse.inscription)
       ) {
         progressReporter.failed('Failed to inscribe profile content');
         return {
@@ -717,7 +717,7 @@ export class HCS11Client {
           error: 'Failed to inscribe profile content',
         };
       }
-      const topicId = inscriptionResponse.inscription.topicId;
+      const topicId = getTopicId(inscriptionResponse.inscription);
 
       progressReporter.completed('Profile inscription completed', {
         topicId,

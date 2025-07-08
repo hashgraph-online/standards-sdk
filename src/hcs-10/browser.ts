@@ -9,7 +9,7 @@ import {
   AccountId,
 } from '@hashgraph/sdk';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
-import { Logger, LogLevel } from '../utils/logger';
+import { Logger, LogLevel, getTopicId } from '../utils';
 import {
   InscriptionSDK,
   RetrievedInscriptionResult,
@@ -208,10 +208,10 @@ export class BrowserHCSClient extends HCS10BaseClient {
           },
         );
 
-        if (inscriptionResult?.topicId) {
-          payload.data = `hcs://1/${inscriptionResult.topicId}`;
+        if (getTopicId(inscriptionResult)) {
+          payload.data = `hcs://1/${getTopicId(inscriptionResult)}`;
           this.logger.info(
-            `Large message inscribed with topic ID: ${inscriptionResult.topicId}`,
+            `Large message inscribed with topic ID: ${getTopicId(inscriptionResult)}`,
           );
         } else {
           throw new Error('Failed to inscribe large message content');
