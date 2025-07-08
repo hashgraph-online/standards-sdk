@@ -275,8 +275,8 @@ export class ConnectionsManager implements IConnectionsManager {
       };
 
       if (
-        !isValidTopicId(topicInfo.inboundTopic) ||
-        !isValidTopicId(topicInfo.outboundTopic)
+        !isValidTopicId(topicInfo?.inboundTopic) ||
+        !isValidTopicId(topicInfo?.outboundTopic)
       ) {
         this.logger.warn(
           'Invalid topic IDs detected in retrieved communication topics',
@@ -286,8 +286,8 @@ export class ConnectionsManager implements IConnectionsManager {
 
       const [outboundMessagesResult, inboundMessagesResult] = await Promise.all(
         [
-          this.baseClient.getMessages(topicInfo.outboundTopic),
-          this.baseClient.getMessages(topicInfo.inboundTopic),
+          this.baseClient.getMessages(topicInfo?.outboundTopic),
+          this.baseClient.getMessages(topicInfo?.inboundTopic),
         ],
       );
 
