@@ -27,7 +27,7 @@ import {
   InscriptionSDK,
   RetrievedInscriptionResult,
 } from '@kiloscribe/inscription-sdk';
-import { Logger, LogLevel, detectKeyTypeFromString } from '../utils';
+import { Logger, LogLevel, detectKeyTypeFromString, getTopicId } from '../utils';
 import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
@@ -850,10 +850,10 @@ export class HCS10Client extends HCS10BaseClient {
           },
         );
 
-        if (inscriptionResult?.topicId) {
-          payload.data = `hcs://1/${inscriptionResult.topicId}`;
+        if (getTopicId(inscriptionResult)) {
+          payload.data = `hcs://1/${getTopicId(inscriptionResult)}`;
           this.logger.info(
-            `Large message inscribed with topic ID: ${inscriptionResult.topicId}`,
+            `Large message inscribed with topic ID: ${getTopicId(inscriptionResult)}`,
           );
         } else {
           throw new Error('Failed to inscribe large message content');
@@ -2545,7 +2545,7 @@ export class HCS10Client extends HCS10BaseClient {
           throw new Error('Metadata inscription was not confirmed');
         }
 
-        metadataTopicId = inscription.inscription.topic_id;
+        metadataTopicId = getTopicId(inscription.inscription);
         this.logger.info(`Metadata inscribed to topic: ${metadataTopicId}`);
       }
 

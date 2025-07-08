@@ -157,7 +157,8 @@ export async function getAgentFromEnv(
     !accountId ||
     !privateKey ||
     !inboundTopicId ||
-    !outboundTopicId
+    !outboundTopicId ||
+    !profileTopicId
   ) {
     logger.info(`${agentName} agent not found in environment variables`);
     return null;
@@ -422,9 +423,9 @@ export function createFooBuilder(
   pfpBuffer?: Buffer,
 ): AgentBuilder {
   const builder = new AgentBuilder()
-    .setName('DebugAgent1')
-    .setAlias('debug-agent-1')
-    .setBio('Debug Agent 1 - Testing Fee Configuration')
+    .setName('Foo Agent')
+    .setAlias('foo-agent')
+    .setBio('Agent Foo - HBAR Fee Demo')
     .setCapabilities([AIAgentCapability.TEXT_GENERATION])
     .setInboundTopicType(InboundTopicType.FEE_BASED)
     .setType('autonomous')
@@ -432,7 +433,7 @@ export function createFooBuilder(
     .setFeeConfig(feeConfigBuilder);
 
   if (pfpBuffer) {
-    builder.setProfilePicture(pfpBuffer, 'debug-agent-1-icon.svg');
+    builder.setProfilePicture(pfpBuffer, 'foo-icon.svg');
   }
   return builder;
 }
@@ -443,9 +444,9 @@ export function createBarBuilder(
   pfpBuffer?: Buffer,
 ): AgentBuilder {
   const builder = new AgentBuilder()
-    .setName('DebugAgent2')
-    .setAlias('debug-agent-2')
-    .setBio('Debug Agent 2 - Testing Fee Configuration')
+    .setName('Bar Agent')
+    .setAlias('bar-agent')
+    .setBio('Agent Bar - HBAR Fee Demo')
     .setCapabilities([AIAgentCapability.KNOWLEDGE_RETRIEVAL])
     .setInboundTopicType(InboundTopicType.FEE_BASED)
     .setType('autonomous')
@@ -453,7 +454,7 @@ export function createBarBuilder(
     .setFeeConfig(feeConfigBuilder);
 
   if (pfpBuffer) {
-    builder.setProfilePicture(pfpBuffer, 'debug-agent-2-icon.svg');
+    builder.setProfilePicture(pfpBuffer, 'bar-icon.svg');
   }
   return builder;
 }
@@ -623,13 +624,13 @@ export async function getOrCreateFoo(
   logger: Logger,
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
-  const existingFoo = await getAgentFromEnv(logger, baseClient, 'DebugAgent1', 'DEBUGAGENT1');
+  const existingFoo = await getAgentFromEnv(logger, baseClient, 'Foo', 'FOO');
 
   if (existingFoo) {
     return existingFoo;
   }
 
-  logger.info('Creating DebugAgent1 as it was not found in env...');
+  logger.info('Creating Foo agent as it was not found in env...');
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const network = baseClient.getNetwork() as NetworkType;
@@ -643,7 +644,7 @@ export async function getOrCreateFoo(
   }
 
   if (!pfpBuffer) {
-    logger.warn('DebugAgent1 profile picture not found, proceeding without it');
+    logger.warn('Foo profile picture not found, proceeding without it');
   }
 
   const feeConfigBuilder = FeeConfigBuilder.forHbar(
@@ -654,20 +655,20 @@ export async function getOrCreateFoo(
   );
 
   const fooBuilder = createFooBuilder(network, feeConfigBuilder, pfpBuffer);
-  return await createAgent(logger, baseClient, 'DebugAgent1', fooBuilder, 'DEBUGAGENT1');
+  return await createAgent(logger, baseClient, 'Foo', fooBuilder, 'FOO');
 }
 
 export async function getOrCreateBar(
   logger: Logger,
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
-  const existingBar = await getAgentFromEnv(logger, baseClient, 'DebugAgent2', 'DEBUGAGENT2');
+  const existingBar = await getAgentFromEnv(logger, baseClient, 'Bar', 'BAR');
 
   if (existingBar) {
     return existingBar;
   }
 
-  logger.info('Creating DebugAgent2 as it was not found in env...');
+  logger.info('Creating Bar agent as it was not found in env...');
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const network = baseClient.getNetwork() as NetworkType;
@@ -681,7 +682,7 @@ export async function getOrCreateBar(
   }
 
   if (!pfpBuffer) {
-    logger.warn('DebugAgent2 profile picture not found, proceeding without it.');
+    logger.warn('Bar profile picture not found, proceeding without it.');
   }
 
   const feeConfigBuilder = FeeConfigBuilder.forHbar(
@@ -692,7 +693,7 @@ export async function getOrCreateBar(
   );
 
   const barBuilder = createBarBuilder(network, feeConfigBuilder, pfpBuffer);
-  return await createAgent(logger, baseClient, 'DebugAgent2', barBuilder, 'DEBUGAGENT2', {
+  return await createAgent(logger, baseClient, 'Bar', barBuilder, 'BAR', {
     initialBalance: 60,
   });
 }
