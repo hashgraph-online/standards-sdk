@@ -21,6 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { HCSMessageWithCommonFields } from '../../src/services/types';
 
 export const MIN_REQUIRED_USD = 2.0;
 export const MIN_REQUIRED_HBAR_USD = 30.0;
@@ -156,8 +157,7 @@ export async function getAgentFromEnv(
     !accountId ||
     !privateKey ||
     !inboundTopicId ||
-    !outboundTopicId ||
-    !profileTopicId
+    !outboundTopicId
   ) {
     logger.info(`${agentName} agent not found in environment variables`);
     return null;
@@ -297,7 +297,6 @@ export async function createAgent(
           if (data.details.account?.accountId) {
             envUpdates[`${envPrefix}_ACCOUNT_ID`] =
               data.details.account.accountId;
-            logger.debug(`Account created: ${data.details.account.accountId}`);
           }
           if (data.details.account?.privateKey) {
             envUpdates[`${envPrefix}_PRIVATE_KEY`] =
@@ -306,25 +305,20 @@ export async function createAgent(
           if (data.details.outboundTopicId) {
             envUpdates[`${envPrefix}_OUTBOUND_TOPIC_ID`] =
               data.details.outboundTopicId;
-            logger.debug(`Outbound topic: ${data.details.outboundTopicId}`);
           }
           if (data.details.inboundTopicId) {
             envUpdates[`${envPrefix}_INBOUND_TOPIC_ID`] =
               data.details.inboundTopicId;
-            logger.debug(`Inbound topic: ${data.details.inboundTopicId}`);
           }
           if (data.details.pfpTopicId) {
             envUpdates[`${envPrefix}_PFP_TOPIC_ID`] = data.details.pfpTopicId;
-            logger.debug(`Profile picture topic: ${data.details.pfpTopicId}`);
           }
           if (data.details.profileTopicId) {
             envUpdates[`${envPrefix}_PROFILE_TOPIC_ID`] =
               data.details.profileTopicId;
-            logger.debug(`Profile topic: ${data.details.profileTopicId}`);
           }
           if (data.details.operatorId) {
             envUpdates[`${envPrefix}_OPERATOR_ID`] = data.details.operatorId;
-            logger.debug(`Operator ID: ${data.details.operatorId}`);
           }
 
           // Save stage information for recovery
@@ -353,15 +347,11 @@ export async function createAgent(
         // Update env file if there are any new values
         if (Object.keys(envUpdates).length > 0) {
           await updateEnvFile(ENV_FILE_PATH, envUpdates);
-          logger.debug(
-            `Updated env file with ${Object.keys(envUpdates).length} new values`,
-          );
         }
       },
     });
 
     if (!result.metadata) {
-      console.log('result failure', result);
       logger.error(`${agentName} agent creation failed`);
       return null;
     }
@@ -370,7 +360,6 @@ export async function createAgent(
 
     logger.info(`${agentName} agent created successfully`);
     logger.info(`${agentName} account ID: ${metadata.accountId}`);
-    logger.info(`${agentName} private key: ${metadata.privateKey}`);
     logger.info(`${agentName} inbound topic ID: ${metadata.inboundTopicId}`);
     logger.info(`${agentName} outbound topic ID: ${metadata.outboundTopicId}`);
 
@@ -433,8 +422,9 @@ export function createFooBuilder(
   pfpBuffer?: Buffer,
 ): AgentBuilder {
   const builder = new AgentBuilder()
-    .setName('Foo Agent')
-    .setBio('Agent Foo - HBAR Fee Demo')
+    .setName('DebugAgent1')
+    .setAlias('debug-agent-1')
+    .setBio('Debug Agent 1 - Testing Fee Configuration')
     .setCapabilities([AIAgentCapability.TEXT_GENERATION])
     .setInboundTopicType(InboundTopicType.FEE_BASED)
     .setType('autonomous')
@@ -442,7 +432,7 @@ export function createFooBuilder(
     .setFeeConfig(feeConfigBuilder);
 
   if (pfpBuffer) {
-    builder.setProfilePicture(pfpBuffer, 'foo-icon.svg');
+    builder.setProfilePicture(pfpBuffer, 'debug-agent-1-icon.svg');
   }
   return builder;
 }
@@ -453,8 +443,9 @@ export function createBarBuilder(
   pfpBuffer?: Buffer,
 ): AgentBuilder {
   const builder = new AgentBuilder()
-    .setName('Bar Agent')
-    .setBio('Agent Bar - HBAR Fee Demo')
+    .setName('DebugAgent2')
+    .setAlias('debug-agent-2')
+    .setBio('Debug Agent 2 - Testing Fee Configuration')
     .setCapabilities([AIAgentCapability.KNOWLEDGE_RETRIEVAL])
     .setInboundTopicType(InboundTopicType.FEE_BASED)
     .setType('autonomous')
@@ -462,34 +453,33 @@ export function createBarBuilder(
     .setFeeConfig(feeConfigBuilder);
 
   if (pfpBuffer) {
-    builder.setProfilePicture(pfpBuffer, 'bar-icon.svg');
+    builder.setProfilePicture(pfpBuffer, 'debug-agent-2-icon.svg');
   }
   return builder;
 }
 
 export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
   const bobBuilder = new AgentBuilder()
-    .setName('Bob')
-    .setAlias('bob')
-    .setBio('A language processing agent')
+    .setName(`Bob_${randomSuffix}`)
+    .setAlias(`bob-${randomSuffix}`)
+    .setBio('A test agent for debugging registration issues')
     .setCapabilities([
       AIAgentCapability.TEXT_GENERATION,
       AIAgentCapability.CODE_GENERATION,
-      AIAgentCapability.DATA_INTEGRATION,
-      AIAgentCapability.KNOWLEDGE_RETRIEVAL,
     ])
     .setType('autonomous')
-    .setModel('agent-model-2024')
-    .addSocial('x', '@bob')
-    .addProperty('name', 'Bob')
-    .addProperty('description', 'A language processing agent')
-    .addProperty('version', '1.0.0')
-    .addProperty('permissions', ['read_network', 'propose_message'])
+    .setModel('test-model-2024')
+    .addSocial('github', `@bob${randomSuffix}`)
+    .addProperty('name', `Bob_${randomSuffix}`)
+    .addProperty('description', 'A test agent for debugging registration issues')
+    .addProperty('version', '2.0.0')
+    .addProperty('permissions', ['read_network'])
     .setNetwork('testnet')
     .setInboundTopicType(InboundTopicType.PUBLIC);
 
   if (pfpBuffer) {
-    bobBuilder.setProfilePicture(pfpBuffer, 'bob-icon.svg');
+    bobBuilder.setProfilePicture(pfpBuffer, `bob-${randomSuffix}-icon.svg`);
   }
 
   return bobBuilder;
@@ -536,7 +526,11 @@ export async function getOrCreateBob(
   logger: Logger,
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
-  const existingBob = await getAgentFromEnv(logger, baseClient, 'Bob', 'BOB');
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const agentName = `Bob_${randomSuffix}`;
+  const envPrefix = `BOB_${randomSuffix.toUpperCase()}`;
+  
+  const existingBob = await getAgentFromEnv(logger, baseClient, agentName, envPrefix);
 
   if (existingBob) {
     return existingBob;
@@ -562,18 +556,22 @@ export async function getOrCreateBob(
   }
   const bobBuilder = createBobBuilder(pfpForBuilder);
 
-  return await createAgent(logger, baseClient, 'Bob', bobBuilder, 'BOB');
+  return await createAgent(logger, baseClient, agentName, bobBuilder, envPrefix);
 }
 
 export async function getOrCreateAlice(
   logger: Logger,
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const agentName = `Alice_${randomSuffix}`;
+  const envPrefix = `ALICE_${randomSuffix.toUpperCase()}`;
+  
   const existingAlice = await getAgentFromEnv(
     logger,
     baseClient,
-    'Alice',
-    'ALICE',
+    agentName,
+    envPrefix,
   );
 
   if (existingAlice) {
@@ -592,45 +590,46 @@ export async function getOrCreateAlice(
   }
 
   if (!pfpBuffer) {
-    logger.warn('Alice profile picture not found, using default');
+    logger.warn(`${agentName} profile picture not found, using default`);
   }
 
   const aliceBuilder = new AgentBuilder()
-    .setName('Alice')
-    .setBio('A helpful AI assistant for data analysis')
+    .setName(agentName)
+    .setAlias(`alice-${randomSuffix}`)
+    .setBio('A test agent for data processing and analysis')
     .setCapabilities([
-      AIAgentCapability.TEXT_GENERATION,
       AIAgentCapability.KNOWLEDGE_RETRIEVAL,
+      AIAgentCapability.DATA_INTEGRATION,
     ])
     .setType('manual')
-    .setModel('agent-model-2024')
-    .addSocial('x', '@alice')
-    .addProperty('name', 'Alice')
-    .addProperty('description', 'A helpful AI assistant for data analysis')
-    .addProperty('version', '1.0.0')
-    .addProperty('permissions', ['read_network', 'propose_message'])
+    .setModel('test-model-2024-v2')
+    .addSocial('linkedin', `@alice${randomSuffix}`)
+    .addProperty('name', agentName)
+    .addProperty('description', 'A test agent for data processing and analysis')
+    .addProperty('version', '3.0.0')
+    .addProperty('permissions', ['read_network', 'write_data'])
     .setNetwork('testnet')
     .setInboundTopicType(InboundTopicType.PUBLIC);
 
   const enableImageCreation = process.env.ENABLE_DEMO_PFP === 'true';
   if (pfpBuffer && enableImageCreation) {
-    aliceBuilder.setProfilePicture(pfpBuffer, 'alice-icon.svg');
+    aliceBuilder.setProfilePicture(pfpBuffer, `alice-${randomSuffix}-icon.svg`);
   }
 
-  return await createAgent(logger, baseClient, 'Alice', aliceBuilder, 'ALICE');
+  return await createAgent(logger, baseClient, agentName, aliceBuilder, envPrefix);
 }
 
 export async function getOrCreateFoo(
   logger: Logger,
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
-  const existingFoo = await getAgentFromEnv(logger, baseClient, 'Foo', 'FOO');
+  const existingFoo = await getAgentFromEnv(logger, baseClient, 'DebugAgent1', 'DEBUGAGENT1');
 
   if (existingFoo) {
     return existingFoo;
   }
 
-  logger.info('Creating Foo agent as it was not found in env...');
+  logger.info('Creating DebugAgent1 as it was not found in env...');
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const network = baseClient.getNetwork() as NetworkType;
@@ -644,7 +643,7 @@ export async function getOrCreateFoo(
   }
 
   if (!pfpBuffer) {
-    logger.warn('Foo profile picture not found, proceeding without it');
+    logger.warn('DebugAgent1 profile picture not found, proceeding without it');
   }
 
   const feeConfigBuilder = FeeConfigBuilder.forHbar(
@@ -655,20 +654,20 @@ export async function getOrCreateFoo(
   );
 
   const fooBuilder = createFooBuilder(network, feeConfigBuilder, pfpBuffer);
-  return await createAgent(logger, baseClient, 'Foo', fooBuilder, 'FOO');
+  return await createAgent(logger, baseClient, 'DebugAgent1', fooBuilder, 'DEBUGAGENT1');
 }
 
 export async function getOrCreateBar(
   logger: Logger,
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
-  const existingBar = await getAgentFromEnv(logger, baseClient, 'Bar', 'BAR');
+  const existingBar = await getAgentFromEnv(logger, baseClient, 'DebugAgent2', 'DEBUGAGENT2');
 
   if (existingBar) {
     return existingBar;
   }
 
-  logger.info('Creating Bar agent as it was not found in env...');
+  logger.info('Creating DebugAgent2 as it was not found in env...');
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const network = baseClient.getNetwork() as NetworkType;
@@ -682,7 +681,7 @@ export async function getOrCreateBar(
   }
 
   if (!pfpBuffer) {
-    logger.warn('Bar profile picture not found, proceeding without it.');
+    logger.warn('DebugAgent2 profile picture not found, proceeding without it.');
   }
 
   const feeConfigBuilder = FeeConfigBuilder.forHbar(
@@ -693,7 +692,7 @@ export async function getOrCreateBar(
   );
 
   const barBuilder = createBarBuilder(network, feeConfigBuilder, pfpBuffer);
-  return await createAgent(logger, baseClient, 'Bar', barBuilder, 'BAR', {
+  return await createAgent(logger, baseClient, 'DebugAgent2', barBuilder, 'DEBUGAGENT2', {
     initialBalance: 60,
   });
 }
@@ -904,7 +903,7 @@ export async function monitorTopics(
       inboundTopicId: string;
       outboundTopicId: string;
     },
-    message: HCSMessage,
+    message: HCSMessageWithCommonFields,
     connectionManager: ConnectionsManager,
   ) => Promise<string | null>,
   handleStandardMessage: (
@@ -915,10 +914,10 @@ export async function monitorTopics(
       inboundTopicId: string;
       outboundTopicId: string;
     },
-    message: HCSMessage,
+    message: HCSMessageWithCommonFields,
     topicId: string,
   ) => Promise<void>,
-  filterMessageOut: (message: HCSMessage) => boolean,
+  filterMessageOut: (message: HCSMessageWithCommonFields) => boolean,
   agent: {
     client: HCS10Client;
     accountId: string;
@@ -1052,7 +1051,7 @@ export async function monitorTopics(
       );
       const inboundProcessed = processedMessages.get(agent.inboundTopicId)!;
 
-      inboundMessages.messages.sort((a: HCSMessage, b: HCSMessage) => {
+      inboundMessages.messages.sort((a: HCSMessageWithCommonFields, b: HCSMessageWithCommonFields) => {
         const seqA =
           typeof a.sequence_number === 'number' ? a.sequence_number : 0;
         const seqB =
@@ -1148,7 +1147,7 @@ export async function monitorTopics(
           }
           const processedSet = processedMessages.get(topicId)!;
 
-          messages.messages.sort((a: HCSMessage, b: HCSMessage) => {
+          messages.messages.sort((a: HCSMessageWithCommonFields, b: HCSMessageWithCommonFields) => {
             const seqA =
               typeof a.sequence_number === 'number' ? a.sequence_number : 0;
             const seqB =

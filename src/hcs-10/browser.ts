@@ -208,10 +208,10 @@ export class BrowserHCSClient extends HCS10BaseClient {
           },
         );
 
-        if (inscriptionResult?.topic_id) {
-          payload.data = `hcs://1/${inscriptionResult.topic_id}`;
+        if (inscriptionResult?.topicId) {
+          payload.data = `hcs://1/${inscriptionResult.topicId}`;
           this.logger.info(
-            `Large message inscribed with topic ID: ${inscriptionResult.topic_id}`,
+            `Large message inscribed with topic ID: ${inscriptionResult.topicId}`,
           );
         } else {
           throw new Error('Failed to inscribe large message content');

@@ -86,11 +86,19 @@ export class HCS10Client extends HCS10BaseClient {
       silent: config.silent,
       keyType: config.keyType,
     });
+    
+    // Initialize logger first
+    this.logger = Logger.getInstance({
+      level: config.logLevel || 'info',
+      module: 'HCS-SDK',
+      silent: config.silent,
+    });
+    
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
     this.operatorPrivateKey = config.operatorPrivateKey;
-
     this.operatorAccountId = config.operatorId;
+    
     if (config.keyType) {
       this.keyType = config.keyType;
       const PK =
@@ -101,24 +109,24 @@ export class HCS10Client extends HCS10BaseClient {
     } else {
       try {
         const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-        this.client.setOperator(config.operatorId, keyDetection.privateKey);
         this.keyType = keyDetection.detectedType;
+        
+        if (keyDetection.warning) {
+          this.logger.warn(keyDetection.warning);
+        }
+        
+        this.client.setOperator(config.operatorId, keyDetection.privateKey);
       } catch (error) {
         this.logger.warn(
           'Failed to detect key type from private key format, will query mirror node',
         );
-        this.keyType = 'ed25519';
+        this.keyType = 'ecdsa'; // Default to ECDSA
       }
 
       this.initializeOperator();
     }
 
     this.network = config.network;
-    this.logger = Logger.getInstance({
-      level: config.logLevel || 'info',
-      module: 'HCS-SDK',
-      silent: config.silent,
-    });
     this.guardedRegistryBaseUrl =
       config.guardedRegistryBaseUrl || 'https://moonscape.tech';
 
@@ -143,12 +151,12 @@ export class HCS10Client extends HCS10BaseClient {
     const account = await this.requestAccount(this.operatorAccountId);
     const keyType = account?.key?._type;
 
-    if (keyType.includes('ECDSA')) {
+    if (keyType && keyType.includes('ECDSA')) {
       this.keyType = 'ecdsa';
-    } else if (keyType.includes('ED25519')) {
+    } else if (keyType && keyType.includes('ED25519')) {
       this.keyType = 'ed25519';
     } else {
-      this.keyType = 'ed25519';
+      this.keyType = 'ecdsa'; // Default to ECDSA
     }
 
     const PK =
@@ -842,10 +850,10 @@ export class HCS10Client extends HCS10BaseClient {
           },
         );
 
-        if (inscriptionResult?.topic_id) {
-          payload.data = `hcs://1/${inscriptionResult.topic_id}`;
+        if (inscriptionResult?.topicId) {
+          payload.data = `hcs://1/${inscriptionResult.topicId}`;
           this.logger.info(
-            `Large message inscribed with topic ID: ${inscriptionResult.topic_id}`,
+            `Large message inscribed with topic ID: ${inscriptionResult.topicId}`,
           );
         } else {
           throw new Error('Failed to inscribe large message content');
