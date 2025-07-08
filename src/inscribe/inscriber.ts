@@ -142,10 +142,12 @@ export async function inscribe(
     });
 
     if (result.completed && options.waitForConfirmation) {
+      const inscription = result as RetrievedInscriptionResult;
+
       return {
         confirmed: true,
         result,
-        inscription: result as unknown as RetrievedInscriptionResult,
+        inscription,
         sdk,
       };
     }

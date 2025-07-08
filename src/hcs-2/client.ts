@@ -77,16 +77,20 @@ export class HCS2Client extends HCS2BaseClient {
         const keyDetection = detectKeyTypeFromString(config.operatorKey);
         this.operatorKey = keyDetection.privateKey;
         this.keyType = keyDetection.detectedType;
+        
+        if (keyDetection.warning) {
+          this.logger.warn(keyDetection.warning);
+        }
       } catch (error) {
         this.logger.warn(
-          'Failed to detect key type from private key format, defaulting to ED25519',
+          'Failed to detect key type from private key format, defaulting to ECDSA',
         );
-        this.keyType = 'ed25519';
-        this.operatorKey = PrivateKey.fromString(config.operatorKey);
+        this.keyType = 'ecdsa';
+        this.operatorKey = PrivateKey.fromStringECDSA(config.operatorKey);
       }
     } else {
       this.operatorKey = config.operatorKey;
-      this.keyType = 'ed25519'; // Default if we can't detect
+      this.keyType = 'ecdsa'; // Default to ECDSA if we can't detect
     }
 
     this.client = this.createClient(config.network);
