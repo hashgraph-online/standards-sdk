@@ -746,6 +746,31 @@ export class BrowserHCSClient extends HCS10BaseClient {
       this.logger.info('Registering agent with guarded registry');
 
       const agentProfile = await this.retrieveProfile(accountId);
+      
+      if (!agentProfile.success) {
+        return {
+          error: `Failed to retrieve profile: ${agentProfile.error}`,
+          success: false,
+          state: {
+            currentStage: 'registration',
+            completedPercentage: 0,
+            error: agentProfile.error,
+          },
+        };
+      }
+
+      if (!agentProfile.topicInfo) {
+        return {
+          error: `No topic information found in profile for account ${accountId}`,
+          success: false,
+          state: {
+            currentStage: 'registration',
+            completedPercentage: 0,
+            error: 'No topic information found in profile',
+          },
+        };
+      }
+
       const inboundTopicId = agentProfile.topicInfo.inboundTopic;
       const state = this.initializeRegistrationState(
         inboundTopicId,
