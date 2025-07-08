@@ -428,13 +428,13 @@ export abstract class HCS10BaseClient extends Registration {
         };
       }
 
-      const profile = profileResult.profile;
+      const profile = profileResult?.profile;
       let topicInfo: TopicInfo | null = null;
 
       if (
-        profileResult.topicInfo?.inboundTopic &&
-        profileResult.topicInfo?.outboundTopic &&
-        profileResult.topicInfo?.profileTopicId
+        profileResult?.topicInfo?.inboundTopic &&
+        profileResult?.topicInfo?.outboundTopic &&
+        profileResult?.topicInfo?.profileTopicId
       ) {
         topicInfo = {
           inboundTopic: profileResult.topicInfo.inboundTopic,
@@ -876,14 +876,18 @@ export abstract class HCS10BaseClient extends Registration {
 
     const accountResponse = this.getAccountAndSigner();
 
-    if (!accountResponse.accountId) {
+    if (!accountResponse?.accountId) {
       throw new Error('Operator ID not found');
     }
 
     const profile = await this.retrieveProfile(accountResponse.accountId);
 
-    if (!profile.success) {
+    if (!profile?.success) {
       throw new Error('Failed to retrieve profile');
+    }
+
+    if (!profile?.topicInfo?.inboundTopic) {
+      throw new Error('Failed to retrieve inbound topic');
     }
 
     const operatorId = `${profile.topicInfo?.inboundTopic}@${accountResponse.accountId}`;
