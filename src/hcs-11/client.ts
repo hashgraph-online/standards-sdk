@@ -12,7 +12,7 @@ import {
   InscriptionInput,
   InscriptionOptions,
 } from '../inscribe';
-import { Logger, detectKeyTypeFromString } from '../utils';
+import { Logger, detectKeyTypeFromString, getTopicId } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
@@ -165,12 +165,17 @@ export class HCS11Client {
         try {
           const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
           this.keyType = keyDetection.detectedType;
+          
+          if (keyDetection.warning) {
+            this.logger.warn(keyDetection.warning);
+          }
+          
           this.client.setOperator(this.operatorId, keyDetection.privateKey);
         } catch (error) {
           this.logger.warn(
             'Failed to detect key type from private key format, will query mirror node',
           );
-          this.keyType = 'ed25519';
+          this.keyType = 'ecdsa'; // Default to ECDSA
         }
 
         this.initializeOperator();
@@ -195,7 +200,7 @@ export class HCS11Client {
     } else if (keyType && keyType.includes('ED25519')) {
       this.keyType = 'ed25519';
     } else {
-      this.keyType = 'ed25519';
+      this.keyType = 'ecdsa'; // Default to ECDSA
     }
 
     this.initializeOperatorWithKeyType();
@@ -573,10 +578,10 @@ export class HCS11Client {
 
       if (inscriptionResponse.confirmed) {
         progressReporter.completed('Image inscription completed', {
-          topic_id: inscriptionResponse.inscription.topic_id,
+          topicId: getTopicId(inscriptionResponse.inscription),
         });
         return {
-          imageTopicId: inscriptionResponse.inscription.topic_id || '',
+          imageTopicId: getTopicId(inscriptionResponse.inscription) || '',
           transactionId: inscriptionResponse.result.jobId,
           success: true,
         };
@@ -702,7 +707,7 @@ export class HCS11Client {
 
       if (
         !inscriptionResponse.confirmed ||
-        !inscriptionResponse.inscription?.topic_id
+        !getTopicId(inscriptionResponse.inscription)
       ) {
         progressReporter.failed('Failed to inscribe profile content');
         return {
@@ -712,7 +717,7 @@ export class HCS11Client {
           error: 'Failed to inscribe profile content',
         };
       }
-      const topicId = inscriptionResponse.inscription.topic_id;
+      const topicId = getTopicId(inscriptionResponse.inscription);
 
       progressReporter.completed('Profile inscription completed', {
         topicId,
