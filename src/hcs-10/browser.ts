@@ -409,10 +409,8 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
       state = updatedState;
 
-      if (!isAgentBuilder) {
-        (builder as PersonBuilder).setInboundTopicId(inboundTopicId);
-        (builder as PersonBuilder).setOutboundTopicId(outboundTopicId);
-      }
+      builder.setInboundTopicId(inboundTopicId);
+      builder.setOutboundTopicId(outboundTopicId);
 
       let pfpTopicId: string | undefined;
       let hasPfpBuffer: Buffer | undefined;
@@ -745,8 +743,39 @@ export class BrowserHCSClient extends HCS10BaseClient {
     try {
       this.logger.info('Registering agent with guarded registry');
 
-      const agentProfile = await this.retrieveProfile(accountId);
-      const inboundTopicId = agentProfile.topicInfo.inboundTopic;
+      let inboundTopicId: string;
+
+      if (options?.existingState?.inboundTopicId) {
+        this.logger.info('Using inboundTopicId from existing state');
+        inboundTopicId = options.existingState.inboundTopicId;
+      } else {
+        const profileResponse = await this.retrieveProfile(accountId, false, {
+          maxRetries: 5,
+          retryDelay: 3000,
+        });
+
+        if (
+          !profileResponse.success ||
+          !profileResponse.profile ||
+          !profileResponse.topicInfo
+        ) {
+          const errorMessage =
+            profileResponse.error ||
+            `Failed to retrieve profile for account ${accountId}. Make sure the agent profile is created and memo is updated before registration.`;
+          this.logger.error(errorMessage);
+          return {
+            error: errorMessage,
+            success: false,
+            state: {
+              currentStage: 'registration',
+              completedPercentage: 0,
+              error: errorMessage,
+            },
+          };
+        }
+
+        inboundTopicId = profileResponse.topicInfo.inboundTopic;
+      }
       const state = this.initializeRegistrationState(
         inboundTopicId,
         options?.existingState,
@@ -901,7 +930,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
             });
           },
           existingState: state,
-          updateAccountMemo: false,
+          updateAccountMemo: true,
         });
 
         if (!('state' in createResult)) {
@@ -916,6 +945,9 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
         state = createResult.state;
         state.agentMetadata = agentConfig.metadata;
+
+        this.logger.info('Waiting for account memo update to propagate...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
 
       progressReporter.preparing(
@@ -966,13 +998,6 @@ export class BrowserHCSClient extends HCS10BaseClient {
         }
 
         state = registrationResult.state;
-
-        if (state.profileTopicId) {
-          await this.hcs11Client?.updateAccountMemoWithProfile(
-            accountId,
-            state.profileTopicId,
-          );
-        }
       }
 
       progressReporter.completed('Agent creation and registration complete', {
@@ -1023,6 +1048,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
     existingPfpTopicId?: string,
     options?: {
       progressCallback?: RegistrationProgressCallback;
+      updateAccountMemo?: boolean;
     },
   ): Promise<StoreHCS11ProfileResponse> {
     try {
@@ -1132,7 +1158,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
 
       const profileResult = await this.hcs11Client.createAndInscribeProfile(
         profile,
-        true,
+        options?.updateAccountMemo ?? true,
         {
           progressCallback: profileData => {
             profileProgress.report({
@@ -1528,7 +1554,7 @@ export class BrowserHCSClient extends HCS10BaseClient {
         ttl: options?.ttl,
         accountId,
       });
-      // TODO: mimic SDK's createInboundTopic
+
       const inboundResult = await this.createTopic(inboundMemo, true, false);
       if (!inboundResult.success || !inboundResult.topicId) {
         throw new Error(
