@@ -228,6 +228,8 @@ export interface AgentConfiguration {
   alias: string;
   bio: string;
   capabilities: number[];
+  inboundTopicId: string;
+  outboundTopicId: string;
   metadata: AgentMetadata;
   pfpBuffer?: Buffer;
   pfpFileName?: string;
