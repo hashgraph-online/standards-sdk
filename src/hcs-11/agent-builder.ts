@@ -165,6 +165,16 @@ export class AgentBuilder {
     return this;
   }
 
+  setInboundTopicId(inboundTopicId: string): this {
+    this.config.inboundTopicId = inboundTopicId;
+    return this;
+  }
+
+  setOutboundTopicId(outboundTopicId: string): this {
+    this.config.outboundTopicId = outboundTopicId;
+    return this;
+  }
+
   build(): AgentConfiguration {
     if (!this.config.name) {
       throw new Error('Agent display name is required');
