@@ -922,7 +922,7 @@ export class HCS11Client {
       if (!memo?.startsWith('hcs-11:')) {
         return {
           success: false,
-          error: `Account ${accountId.toString()} does not have a valid HCS-11 memo`,
+          error: `Account ${accountId.toString()} does not have a valid HCS-11 memo. Current memo: ${memo || 'empty'}`,
         };
       }
 
