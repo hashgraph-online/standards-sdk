@@ -201,8 +201,8 @@ async function handleStandardMessage(
     openAIApiKey: process.env.OPENAI_API_KEY!,
     scheduleUserTransactionsInBytesMode: false,
     pluginConfig: {
-      plugins: getAllHederaCorePlugins()
-    }
+      plugins: getAllHederaCorePlugins(),
+    },
   });
   await hederaAgent.initialize();
 
