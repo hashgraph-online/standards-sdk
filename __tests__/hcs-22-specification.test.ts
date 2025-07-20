@@ -53,7 +53,8 @@ describe('HCS-22 Specification Compliance', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    manager = new FloraAccountManager(mockClient, mockLogger);
+    process.env.DISABLE_LOGS = 'true';
+    manager = new FloraAccountManager(mockClient);
   });
 
   describe('Prerequisites (Spec Section: Prerequisites)', () => {

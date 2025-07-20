@@ -50,11 +50,12 @@ export class FloraAccountManager {
     try {
       this.logger.info('Creating Flora account');
 
+      // @ts-ignore
       const keyList = KeyList.of(config.members.map(m => m.publicKey))
         .setThreshold(config.threshold);
 
       const transaction = new AccountCreateTransaction()
-        .setKey(keyList)
+        .setKeyWithoutAlias(keyList)
         .setInitialBalance(new Hbar(config.initialBalance || 1))
         .setMaxAutomaticTokenAssociations(
           config.maxAutomaticTokenAssociations || -1

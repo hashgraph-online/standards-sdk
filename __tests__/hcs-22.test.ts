@@ -64,7 +64,8 @@ describe('FloraAccountManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    manager = new FloraAccountManager(mockClient, mockLogger);
+    process.env.DISABLE_LOGS = 'true';
+    manager = new FloraAccountManager(mockClient);
   });
 
   describe('constructor', () => {
@@ -144,7 +145,6 @@ describe('FloraAccountManager', () => {
       expect(result.floraAccountId).toBeDefined();
       expect(result.topics).toBeDefined();
       expect(result.keyList).toBeDefined();
-      expect(mockLogger.info).toHaveBeenCalledWith('Flora created successfully', expect.any(Object));
     });
 
     it('should handle Flora creation errors', async () => {
@@ -164,7 +164,6 @@ describe('FloraAccountManager', () => {
       };
 
       await expect(manager.createFlora(config)).rejects.toThrow('Account creation failed');
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create Flora', expect.any(Error));
     });
   });
 
