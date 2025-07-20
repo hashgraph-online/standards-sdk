@@ -77,23 +77,60 @@ export class Logger {
     this.moduleContext = module;
   }
 
+  private formatArgs(args: any[]): { msg: string; data?: any } {
+    if (args.length === 0) {
+      return { msg: '' };
+    }
+
+    if (args.length === 1) {
+      if (typeof args[0] === 'string') {
+        return { msg: args[0] };
+      }
+      return { msg: '', data: args[0] };
+    }
+
+    const stringArgs: string[] = [];
+    const objectArgs: any[] = [];
+
+    args.forEach(arg => {
+      if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') {
+        stringArgs.push(String(arg));
+      } else {
+        objectArgs.push(arg);
+      }
+    });
+
+    const msg = stringArgs.join(' ');
+    return objectArgs.length > 0 ? { msg, data: objectArgs } : { msg };
+  }
+
   debug(...args: any[]): void {
-    this.logger.debug({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.debug(logObj, msg);
   }
 
   info(...args: any[]): void {
-    this.logger.info({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.info(logObj, msg);
   }
 
   warn(...args: any[]): void {
-    this.logger.warn({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.warn(logObj, msg);
   }
 
   error(...args: any[]): void {
-    this.logger.error({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.error(logObj, msg);
   }
 
   trace(...args: any[]): void {
-    this.logger.trace({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.trace(logObj, msg);
   }
 }
