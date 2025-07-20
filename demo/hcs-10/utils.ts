@@ -459,11 +459,11 @@ export function createBarBuilder(
   return builder;
 }
 
-export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
-  const randomSuffix = Math.random().toString(36).substring(2, 8);
+export function createBobBuilder(pfpBuffer?: Buffer, randomSuffix?: string): AgentBuilder {
+  const suffix = randomSuffix || Math.random().toString(36).substring(2, 8);
   const bobBuilder = new AgentBuilder()
-    .setName(`Bob_${randomSuffix}`)
-    .setAlias(`bob-${randomSuffix}`)
+    .setName(`Bob`)
+    .setAlias(`bob-${suffix}`)
     .setBio('A test agent for debugging registration issues')
     .setCapabilities([
       AIAgentCapability.TEXT_GENERATION,
@@ -471,8 +471,8 @@ export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
     ])
     .setType('autonomous')
     .setModel('test-model-2024')
-    .addSocial('github', `@bob${randomSuffix}`)
-    .addProperty('name', `Bob_${randomSuffix}`)
+    .addSocial('github', `@bob${suffix}`)
+    .addProperty('name', `Bob`)
     .addProperty('description', 'A test agent for debugging registration issues')
     .addProperty('version', '2.0.0')
     .addProperty('permissions', ['read_network'])
@@ -480,7 +480,7 @@ export function createBobBuilder(pfpBuffer?: Buffer): AgentBuilder {
     .setInboundTopicType(InboundTopicType.PUBLIC);
 
   if (pfpBuffer) {
-    bobBuilder.setProfilePicture(pfpBuffer, `bob-${randomSuffix}-icon.svg`);
+    bobBuilder.setProfilePicture(pfpBuffer, `bob-${suffix}-icon.svg`);
   }
 
   return bobBuilder;
@@ -528,9 +528,9 @@ export async function getOrCreateBob(
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
   const randomSuffix = Math.random().toString(36).substring(2, 8);
-  const agentName = `Bob_${randomSuffix}`;
-  const envPrefix = `BOB_${randomSuffix.toUpperCase()}`;
-  
+  const agentName = `Bob`;
+  const envPrefix = `BOB`;
+
   const existingBob = await getAgentFromEnv(logger, baseClient, agentName, envPrefix);
 
   if (existingBob) {
@@ -555,7 +555,7 @@ export async function getOrCreateBob(
   } else {
     pfpForBuilder = undefined;
   }
-  const bobBuilder = createBobBuilder(pfpForBuilder);
+  const bobBuilder = createBobBuilder(pfpForBuilder, randomSuffix);
 
   return await createAgent(logger, baseClient, agentName, bobBuilder, envPrefix);
 }
@@ -565,9 +565,9 @@ export async function getOrCreateAlice(
   baseClient: HCS10Client,
 ): Promise<AgentData | null> {
   const randomSuffix = Math.random().toString(36).substring(2, 8);
-  const agentName = `Alice_${randomSuffix}`;
-  const envPrefix = `ALICE_${randomSuffix.toUpperCase()}`;
-  
+  const agentName = `Alice`;
+  const envPrefix = `ALICE`;
+
   const existingAlice = await getAgentFromEnv(
     logger,
     baseClient,
@@ -595,7 +595,7 @@ export async function getOrCreateAlice(
   }
 
   const aliceBuilder = new AgentBuilder()
-    .setName(agentName)
+    .setName(`Alice`)
     .setAlias(`alice-${randomSuffix}`)
     .setBio('A test agent for data processing and analysis')
     .setCapabilities([
@@ -605,7 +605,7 @@ export async function getOrCreateAlice(
     .setType('manual')
     .setModel('test-model-2024-v2')
     .addSocial('linkedin', `@alice${randomSuffix}`)
-    .addProperty('name', agentName)
+    .addProperty('name', `Alice`)
     .addProperty('description', 'A test agent for data processing and analysis')
     .addProperty('version', '3.0.0')
     .addProperty('permissions', ['read_network', 'write_data'])
