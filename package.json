@@ -94,7 +94,7 @@
   "dependencies": {
     "@hashgraph/hedera-wallet-connect": "^1.5.1-0",
     "@hashgraph/proto": "^2.19.0",
-    "@hashgraph/sdk": "2.67.0",
+    "@hashgraph/sdk": "^2.68.0",
     "@hashgraphonline/hashinal-wc": "^1.0.100",
     "@hashgraphonline/hedera-agent-kit": "0.0.41",
     "@kiloscribe/inscription-sdk": "^1.0.56",
