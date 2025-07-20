@@ -18,6 +18,7 @@ describe('StateHashCalculator', () => {
   let calculator: StateHashCalculator;
 
   beforeEach(() => {
+    process.env.DISABLE_LOGS = 'true';
     calculator = new StateHashCalculator();
   });
 

@@ -65,7 +65,8 @@ describe('PetalAccountManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    manager = new PetalAccountManager(mockClient, mockLogger);
+    process.env.DISABLE_LOGS = 'true';
+    manager = new PetalAccountManager(mockClient);
   });
 
   describe('createBaseAccount', () => {
@@ -108,10 +109,6 @@ describe('PetalAccountManager', () => {
         privateKey: mockPrivateKey,
       });
 
-      expect(mockLogger.info).toHaveBeenCalledWith('Base account created', {
-        accountId: '0.0.12345',
-        evmAddress: '0x1234567890',
-      });
     });
 
     it('should throw error if account creation fails', async () => {
@@ -302,9 +299,11 @@ describe('PetalAccountManager', () => {
 
       (AccountCreateTransaction as jest.MockedClass<typeof AccountCreateTransaction>).mockImplementation(() => mockTransactionGenerator() as any);
 
-      jest.spyOn(global, 'setTimeout').mockImplementation((callback: any) => {
-        callback();
-        return {} as any;
+      jest.spyOn(global, 'setTimeout').mockImplementation((callback: any, delay: any) => {
+        if (typeof callback === 'function') {
+          callback();
+        }
+        return 1 as any;
       });
 
       const results = await manager.createPetalBouquet(mockPrivateKey, 3, {
@@ -367,7 +366,6 @@ describe('PetalAccountManager', () => {
       const result = await manager.verifySharedKey('0.0.1001', '0.0.1002');
 
       expect(result).toBe(false);
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to verify shared keys', expect.any(Error));
     });
   });
 
