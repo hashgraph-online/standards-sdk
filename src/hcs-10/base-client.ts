@@ -82,10 +82,10 @@ export interface ProfileResponse {
 }
 
 export abstract class HCS10BaseClient extends Registration {
-  protected network: string;
   protected logger: Logger;
   protected feeAmount: number;
   public mirrorNode: HederaMirrorNode;
+  public network: string;
 
   protected operatorId: string;
 
@@ -410,7 +410,7 @@ export abstract class HCS10BaseClient extends Registration {
           return cachedProfileResponse;
         }
       }
-      
+
       try {
         const hcs11Client = new HCS11Client({
           network: this.network as 'mainnet' | 'testnet',
@@ -434,7 +434,7 @@ export abstract class HCS10BaseClient extends Registration {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
             continue;
           }
-          
+
           this.logger.error(
             `Failed to retrieve profile for account ID: ${accountId}`,
             profileResult?.error,
@@ -479,7 +479,7 @@ export abstract class HCS10BaseClient extends Registration {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           continue;
         }
-        
+
         const error = e as Error;
         const logMessage = `Failed to retrieve profile: ${error.message}`;
         this.logger.error(logMessage);

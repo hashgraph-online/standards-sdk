@@ -6,7 +6,7 @@
 
 import { Logger } from '../src/utils/logger';
 
-// Mock pino to capture log calls
+
 jest.mock('pino', () => {
   const mockLogger = {
     debug: jest.fn(),
@@ -27,7 +27,7 @@ describe('Logger', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     logger = new Logger({ module: 'test-module' });
-    // Get the mocked pino instance
+
     const pino = require('pino');
     mockPinoLogger = pino();
   });
@@ -38,7 +38,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        'test message'
+        'test message',
       );
     });
 
@@ -47,7 +47,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        'test message with multiple parts'
+        'test message with multiple parts',
       );
     });
 
@@ -57,7 +57,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: testObj },
-        ''
+        '',
       );
     });
 
@@ -69,7 +69,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [userObj, permObj] },
-        'User logged in: with permissions:'
+        'User logged in: with permissions:',
       );
     });
 
@@ -79,7 +79,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [dataObj] },
-        'Processing completed in 250 ms with result:'
+        'Processing completed in 250 ms with result:',
       );
     });
 
@@ -88,7 +88,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        'Feature enabled: true Debug mode: false'
+        'Feature enabled: true Debug mode: false',
       );
     });
 
@@ -98,7 +98,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [items] },
-        'Processing items:'
+        'Processing items:',
       );
     });
 
@@ -107,7 +107,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        ''
+        '',
       );
     });
 
@@ -115,14 +115,14 @@ describe('Logger', () => {
       const complexObj = {
         user: { id: 123, profile: { name: 'Alice', roles: ['admin', 'user'] } },
         timestamp: new Date(),
-        metadata: { source: 'api', version: '1.0' }
+        metadata: { source: 'api', version: '1.0' },
       };
 
       logger.info('Complex operation:', complexObj);
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [complexObj] },
-        'Complex operation:'
+        'Complex operation:',
       );
     });
   });
@@ -134,7 +134,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.debug).toHaveBeenCalledWith(
         { module: 'test-module', data: [debugData] },
-        'Debug message:'
+        'Debug message:',
       );
     });
 
@@ -144,7 +144,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.warn).toHaveBeenCalledWith(
         { module: 'test-module', data: [warnData] },
-        'Warning:'
+        'Warning:',
       );
     });
 
@@ -154,7 +154,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.error).toHaveBeenCalledWith(
         { module: 'test-module', data: [errorData] },
-        'Error occurred:'
+        'Error occurred:',
       );
     });
 
@@ -164,7 +164,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.trace).toHaveBeenCalledWith(
         { module: 'test-module', data: [traceData] },
-        'Trace:'
+        'Trace:',
       );
     });
   });
@@ -176,7 +176,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'custom-module' },
-        'test'
+        'test',
       );
     });
 
@@ -186,7 +186,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'updated-module' },
-        'test after update'
+        'test after update',
       );
     });
 
@@ -196,7 +196,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'app' },
-        'test'
+        'test',
       );
     });
   });
@@ -207,7 +207,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [null] },
-        'Value is:'
+        'Value is:',
       );
     });
 
@@ -216,7 +216,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [undefined] },
-        'Value is:'
+        'Value is:',
       );
     });
 
@@ -226,7 +226,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        `Long string: ${longString}`
+        `Long string: ${longString}`,
       );
     });
 
@@ -238,7 +238,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [circularObj] },
-        'Circular object:'
+        'Circular object:',
       );
     });
   });
@@ -260,7 +260,7 @@ describe('Logger', () => {
       const silentLogger = Logger.getInstance({ module: 'silent-test' });
       silentLogger.info('Should be silent');
 
-      // Should still be called but with silent level
+
       expect(mockPinoLogger.info).toHaveBeenCalled();
 
       process.env.DISABLE_LOGS = originalEnv;

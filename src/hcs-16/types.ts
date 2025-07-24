@@ -1,7 +1,16 @@
-import { AccountId, TopicId, PublicKey, Key, PrivateKey, KeyList, TokenId } from '@hashgraph/sdk';
+import {
+  AccountId,
+  TopicId,
+  PublicKey,
+  Key,
+  PrivateKey,
+  KeyList,
+  TokenId,
+} from '@hashgraph/sdk';
+import { SocialLink } from '../hcs-11/types';
 
 /**
- * HCS-22 Topic type enums
+ * HCS-16 Topic type enums
  */
 export enum FloraTopicType {
   COMMUNICATION = 0,
@@ -10,16 +19,17 @@ export enum FloraTopicType {
 }
 
 /**
- * HCS-22 Flora member
+ * HCS-16 Flora member
  */
 export interface FloraMember {
   accountId: string;
-  publicKey?: PublicKey;
+  publicKey?: PublicKey | string; // Support both PublicKey objects and serialized strings
+  privateKey?: string;
   weight?: number;
 }
 
 /**
- * HCS-22 Flora topics
+ * HCS-16 Flora topics
  */
 export interface FloraTopics {
   communication: TopicId;
@@ -33,10 +43,11 @@ export interface FloraTopics {
 }
 
 /**
- * HCS-22 Flora configuration
+ * HCS-16 Flora configuration
  */
 export interface FloraConfig {
   displayName: string;
+  bio?: string;
   members: FloraMember[];
   threshold: number;
   initialBalance?: number;
@@ -49,10 +60,11 @@ export interface FloraConfig {
     amount: number;
     feeCollectorAccountId: string;
   }[];
+  metadata?: Record<string, any>;
 }
 
 /**
- * HCS-22 Flora creation result
+ * HCS-16 Flora creation result
  */
 export interface FloraCreationResult {
   floraAccountId: AccountId;
@@ -62,7 +74,7 @@ export interface FloraCreationResult {
 }
 
 /**
- * HCS-22 Message protocol operations
+ * HCS-16 Message protocol operations
  */
 export enum FloraOperation {
   FLORA_CREATE_REQUEST = 'flora_create_request',
@@ -77,10 +89,10 @@ export enum FloraOperation {
 }
 
 /**
- * HCS-22 Message envelope
+ * HCS-16 Message envelope
  */
 export interface FloraMessage {
-  p: 'hcs-22';
+  p: 'hcs-16';
   op: FloraOperation;
   operator_id: string;
   m?: string;
@@ -88,7 +100,7 @@ export interface FloraMessage {
 }
 
 /**
- * HCS-22 Flora profile (extends HCS-11)
+ * HCS-16 Flora profile (extends HCS-11)
  */
 export interface FloraProfile {
   version: string;
@@ -108,19 +120,23 @@ export interface FloraProfile {
   };
   alias?: string;
   bio?: string;
-  socials?: Array<{ platform: string; handle: string }>;
+  socials?: SocialLink[];
   profileImage?: string;
   properties?: Record<string, unknown>;
   inboundTopicId: string;
   outboundTopicId: string;
   policies?: Record<string, string>;
+  metadata?: Record<string, any>;
 }
 
 /**
- * HCS-22 errors
+ * HCS-16 errors
  */
 export class FloraError extends Error {
-  constructor(message: string, public readonly code: string) {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
     super(message);
     this.name = 'FloraError';
   }
@@ -130,7 +146,7 @@ export class FloraError extends Error {
  * Flora state update message
  */
 export interface FloraStateUpdate {
-  p: 'hcs-22';
+  p: 'hcs-16';
   op: 'state_update';
   operator_id: string;
   hash: string;
@@ -149,7 +165,7 @@ export interface TransactionTopicFee {
 }
 
 /**
- * Configuration for creating HCS-22 transaction topics with HIP-991 support
+ * Configuration for creating HCS-16 transaction topics with HIP-991 support
  */
 export interface TransactionTopicConfig {
   memo: string;
@@ -161,10 +177,10 @@ export interface TransactionTopicConfig {
 }
 
 /**
- * HCS-22 Credit purchase message
+ * HCS-16 Credit purchase message
  */
 export interface CreditPurchaseMessage extends FloraMessage {
-  p: 'hcs-22';
+  p: 'hcs-16';
   op: FloraOperation.CREDIT_PURCHASE;
   amount: number;
   purchaser: string;

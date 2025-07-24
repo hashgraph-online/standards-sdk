@@ -1,5 +1,14 @@
-import { PrivateKey, TransferTransaction, AccountId, TransactionId } from '@hashgraph/sdk';
-import { KeyTypeDetector, KeyType, detectKeyTypeFromString } from '../src/utils/key-type-detector';
+import {
+  PrivateKey,
+  TransferTransaction,
+  AccountId,
+  TransactionId,
+} from '@hashgraph/sdk';
+import {
+  KeyTypeDetector,
+  KeyType,
+  detectKeyTypeFromString,
+} from '../src/utils/key-type-detector';
 
 // Set longer timeout for transaction tests
 jest.setTimeout(30000);
@@ -8,28 +17,30 @@ describe('Key Type Detection', () => {
   // For testing ambiguous keys
   let ambiguousKey: string;
   let ambiguousKeyWithPrefix: string;
-  
+
   beforeAll(() => {
     // Generate an ambiguous key that works with both algorithms
     let isAmbiguous = false;
     let attempts = 0;
     const maxAttempts = 100;
-    
+
     while (!isAmbiguous && attempts < maxAttempts) {
       attempts++;
       const privateKey = PrivateKey.generateECDSA();
       const hexKey = privateKey.toStringRaw();
-      
+
       try {
         const ed25519Key = PrivateKey.fromStringED25519(hexKey);
         const ecdsaKey = PrivateKey.fromStringECDSA(hexKey);
-        
+
         const testMessage = new Uint8Array([1, 2, 3, 4, 5]);
         const ed25519Signature = ed25519Key.sign(testMessage);
         const ecdsaSignature = ecdsaKey.sign(testMessage);
-        
-        if (ed25519Key.publicKey.verify(testMessage, ed25519Signature) && 
-            ecdsaKey.publicKey.verify(testMessage, ecdsaSignature)) {
+
+        if (
+          ed25519Key.publicKey.verify(testMessage, ed25519Signature) &&
+          ecdsaKey.publicKey.verify(testMessage, ecdsaSignature)
+        ) {
           isAmbiguous = true;
           ambiguousKey = hexKey;
           ambiguousKeyWithPrefix = '0x' + hexKey;
@@ -43,7 +54,8 @@ describe('Key Type Detection', () => {
   describe('detectKeyTypeFromString', () => {
     describe('ED25519 key detection', () => {
       it('should detect ED25519 key with DER header', () => {
-        const ed25519DerKey = '302e020100300506032b657004220420' + '0'.repeat(64);
+        const ed25519DerKey =
+          '302e020100300506032b657004220420' + '0'.repeat(64);
         const result = detectKeyTypeFromString(ed25519DerKey);
 
         expect(result.detectedType).toBe('ed25519');
@@ -171,7 +183,7 @@ describe('Key Type Detection', () => {
       });
     });
   });
-  
+
   describe('KeyTypeDetector', () => {
     describe('Ambiguous key handling', () => {
       it('should default to ECDSA for ambiguous 32-byte keys', () => {
@@ -179,13 +191,15 @@ describe('Key Type Detection', () => {
           console.log('No ambiguous key found, skipping test');
           return;
         }
-        
+
         const result = KeyTypeDetector.detect(ambiguousKey);
-        
+
         expect(result.confidence).toBe('uncertain');
         expect(result.type).toBe(KeyType.ECDSA);
         expect(result.warning).toBeDefined();
-        expect(result.warning).toContain('Both ED25519 and ECDSA accept this key');
+        expect(result.warning).toContain(
+          'Both ED25519 and ECDSA accept this key',
+        );
       });
 
       it('should default to ECDSA for hex-encoded ambiguous keys', () => {
@@ -193,9 +207,9 @@ describe('Key Type Detection', () => {
           console.log('No ambiguous key found, skipping test');
           return;
         }
-        
+
         const result = KeyTypeDetector.detect(ambiguousKeyWithPrefix);
-        
+
         expect(result.confidence).toBe('uncertain');
         expect(result.type).toBe(KeyType.ECDSA);
         expect(result.warning).toBeDefined();
@@ -206,84 +220,102 @@ describe('Key Type Detection', () => {
           console.log('No ambiguous key found, skipping test');
           return;
         }
-        
+
         const result = detectKeyTypeFromString(ambiguousKey);
-        
+
         expect(result.detectedType).toBe('ecdsa');
         expect(result.warning).toBeDefined();
         expect(result.warning).toContain('Key type detection is uncertain');
-        expect(result.warning).toContain('If you have the associated account ID');
+        expect(result.warning).toContain(
+          'If you have the associated account ID',
+        );
         expect(result.warning).toContain('mirror node');
       });
-      
+
       it('should provide appropriate warning for ambiguous keys', () => {
         // Use a key that will be detected as ambiguous
-        const result = detectKeyTypeFromString('0000000000000000000000000000000000000000000000000000000000000001');
-        
+        const result = detectKeyTypeFromString(
+          '0000000000000000000000000000000000000000000000000000000000000001',
+        );
+
         expect(result.detectedType).toBe('ecdsa');
         expect(result.warning).toBeDefined();
         // Check for the actual warning message pattern - at least one of these should be in the warning
-        const hasExpectedWarning = 
-          result.warning!.includes('Key type detection is uncertain') || 
+        const hasExpectedWarning =
+          result.warning!.includes('Key type detection is uncertain') ||
           result.warning!.includes('Using ECDSA as default');
         expect(hasExpectedWarning).toBe(true);
       });
     });
-    
+
     describe('Format detection', () => {
       it('should detect various key formats correctly', () => {
         const ecdsaKey = PrivateKey.generateECDSA();
-        
-        expect(KeyTypeDetector.detect(ecdsaKey.toStringRaw()).format).toBe('hex');
-        expect(KeyTypeDetector.detect('0x' + ecdsaKey.toStringRaw()).format).toBe('hex');
+
+        expect(KeyTypeDetector.detect(ecdsaKey.toStringRaw()).format).toBe(
+          'hex',
+        );
+        expect(
+          KeyTypeDetector.detect('0x' + ecdsaKey.toStringRaw()).format,
+        ).toBe('hex');
         expect(KeyTypeDetector.detect(ecdsaKey.toString()).format).toBe('der');
       });
     });
-    
+
     describe('Transaction signing', () => {
       it('should successfully sign a transaction with detected ECDSA key', async () => {
         // Generate a new ECDSA key
         const ecdsaKey = PrivateKey.generateECDSA();
         const keyString = ecdsaKey.toString();
-        
+
         // Detect key type
         const keyDetection = detectKeyTypeFromString(keyString);
         expect(keyDetection.detectedType).toBe('ecdsa');
-        
+
         // Create a transaction with a transaction ID
         const transaction = await new TransferTransaction()
           .setNodeAccountIds([new AccountId(3)])
-          .setTransactionId(TransactionId.generate(AccountId.fromString('0.0.1000')))
+          .setTransactionId(
+            TransactionId.generate(AccountId.fromString('0.0.1000')),
+          )
           .freeze();
-        
+
         // Sign with the detected key
         const signedBytes = keyDetection.privateKey.sign(transaction.toBytes());
-        
+
         // Verify the signature with the public key
-        const verified = keyDetection.privateKey.publicKey.verify(transaction.toBytes(), signedBytes);
+        const verified = keyDetection.privateKey.publicKey.verify(
+          transaction.toBytes(),
+          signedBytes,
+        );
         expect(verified).toBe(true);
       });
-      
+
       it('should successfully sign a transaction with detected ED25519 key', async () => {
         // Generate a new ED25519 key
         const ed25519Key = PrivateKey.generateED25519();
         const keyString = ed25519Key.toString();
-        
+
         // Detect key type
         const keyDetection = detectKeyTypeFromString(keyString);
         expect(keyDetection.detectedType).toBe('ed25519');
-        
+
         // Create a transaction with a transaction ID
         const transaction = await new TransferTransaction()
           .setNodeAccountIds([new AccountId(3)])
-          .setTransactionId(TransactionId.generate(AccountId.fromString('0.0.1000')))
+          .setTransactionId(
+            TransactionId.generate(AccountId.fromString('0.0.1000')),
+          )
           .freeze();
-        
+
         // Sign with the detected key
         const signedBytes = keyDetection.privateKey.sign(transaction.toBytes());
-        
+
         // Verify the signature with the public key
-        const verified = keyDetection.privateKey.publicKey.verify(transaction.toBytes(), signedBytes);
+        const verified = keyDetection.privateKey.publicKey.verify(
+          transaction.toBytes(),
+          signedBytes,
+        );
         expect(verified).toBe(true);
       });
     });

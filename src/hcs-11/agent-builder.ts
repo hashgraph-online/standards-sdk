@@ -30,6 +30,7 @@ import { NetworkType } from '../utils/types';
 export class AgentBuilder {
   private config: Partial<AgentConfiguration> = {};
   private logger: Logger;
+  private baseAccount?: string;
 
   constructor() {
     this.logger = Logger.getInstance({
@@ -175,6 +176,11 @@ export class AgentBuilder {
     return this;
   }
 
+  setBaseAccount(baseAccountId: string): this {
+    this.baseAccount = baseAccountId;
+    return this;
+  }
+
   build(): AgentConfiguration {
     if (!this.config.name) {
       throw new Error('Agent display name is required');
@@ -213,6 +219,10 @@ export class AgentBuilder {
       throw new Error('Fee configuration is required for fee-based topics');
     }
 
-    return this.config as AgentConfiguration;
+    const config = this.config as AgentConfiguration & { baseAccount?: string };
+    if (this.baseAccount) {
+      (config as any).baseAccount = this.baseAccount;
+    }
+    return config as AgentConfiguration;
   }
 }

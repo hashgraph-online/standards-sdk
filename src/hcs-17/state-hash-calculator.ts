@@ -12,7 +12,7 @@ import {
 } from './types';
 
 /**
- * HCS-23 State Hash Calculator
+ * HCS-17 State Hash Calculator
  * Calculates state hashes for accounts and composite accounts (Flora/Bloom)
  */
 export class StateHashCalculator {
@@ -33,25 +33,20 @@ export class StateHashCalculator {
         topicCount: input.topics.length,
       });
 
-      // Sort topics by ID in ascending order
       const sortedTopics = [...input.topics].sort((a, b) =>
-        a.topicId.localeCompare(b.topicId)
+        a.topicId.localeCompare(b.topicId),
       );
 
-      // Concatenate topic IDs and running hashes
       let concatenated = '';
       for (const topic of sortedTopics) {
         concatenated += topic.topicId + topic.latestRunningHash;
       }
 
-      // Append public key
       const publicKeyString =
         typeof input.publicKey === 'string'
           ? input.publicKey
           : input.publicKey.toString();
       concatenated += publicKeyString;
-
-      // Calculate SHA384 hash
       const hash = createHash('sha384');
       hash.update(concatenated);
       const stateHash = hash.digest('hex');
@@ -71,7 +66,7 @@ export class StateHashCalculator {
       this.logger.error('Failed to calculate account state hash', error);
       throw new StateHashError(
         'Failed to calculate account state hash',
-        'CALCULATION_FAILED'
+        'CALCULATION_FAILED',
       );
     }
   }
@@ -85,7 +80,7 @@ export class StateHashCalculator {
    * )
    */
   calculateCompositeStateHash(
-    input: CompositeStateInput
+    input: CompositeStateInput,
   ): CompositeStateHashResult {
     try {
       this.logger.debug('Calculating composite state hash', {
@@ -94,31 +89,24 @@ export class StateHashCalculator {
         topicCount: input.compositeTopics.length,
       });
 
-      // Sort member states by account ID
       const sortedMembers = [...input.memberStates].sort((a, b) =>
-        a.accountId.localeCompare(b.accountId)
+        a.accountId.localeCompare(b.accountId),
       );
 
-      // Sort composite topics by ID
       const sortedTopics = [...input.compositeTopics].sort((a, b) =>
-        a.topicId.localeCompare(b.topicId)
+        a.topicId.localeCompare(b.topicId),
       );
 
-      // Concatenate member account IDs and state hashes
       let concatenated = '';
       for (const member of sortedMembers) {
         concatenated += member.accountId + member.stateHash;
       }
 
-      // Concatenate topic IDs and running hashes
       for (const topic of sortedTopics) {
         concatenated += topic.topicId + topic.latestRunningHash;
       }
 
-      // Append composite public key fingerprint
       concatenated += input.compositePublicKeyFingerprint;
-
-      // Calculate SHA384 hash
       const hash = createHash('sha384');
       hash.update(concatenated);
       const stateHash = hash.digest('hex');
@@ -140,7 +128,7 @@ export class StateHashCalculator {
       this.logger.error('Failed to calculate composite state hash', error);
       throw new StateHashError(
         'Failed to calculate composite state hash',
-        'CALCULATION_FAILED'
+        'CALCULATION_FAILED',
       );
     }
   }
@@ -149,23 +137,16 @@ export class StateHashCalculator {
    * Calculate deterministic public key fingerprint for KeyList/Threshold keys
    * Used for Flora/Bloom accounts
    */
-  calculateKeyFingerprint(
-    keys: PublicKey[],
-    threshold: number
-  ): string {
+  calculateKeyFingerprint(keys: PublicKey[], threshold: number): string {
     try {
-      // Sort keys lexicographically by their string representation
       const sortedKeys = [...keys].sort((a, b) =>
-        a.toString().localeCompare(b.toString())
+        a.toString().localeCompare(b.toString()),
       );
 
-      // Create a deterministic representation
       const keyData = {
         threshold,
         keys: sortedKeys.map(k => k.toString()),
       };
-
-      // Calculate SHA384 of the JSON representation
       const hash = createHash('sha384');
       hash.update(JSON.stringify(keyData));
       return hash.digest('hex');
@@ -173,22 +154,22 @@ export class StateHashCalculator {
       this.logger.error('Failed to calculate key fingerprint', error);
       throw new StateHashError(
         'Failed to calculate key fingerprint',
-        'FINGERPRINT_FAILED'
+        'FINGERPRINT_FAILED',
       );
     }
   }
 
   /**
-   * Create HCS-23 state hash message
+   * Create HCS-17 state hash message
    */
   createStateHashMessage(
     stateHash: string,
     accountId: string,
     topicIds: string[],
-    memo?: string
+    memo?: string,
   ): StateHashMessage {
     return {
-      p: 'hcs-23',
+      p: 'hcs-17',
       op: 'state_hash',
       state_hash: stateHash,
       topics: topicIds,
@@ -203,24 +184,23 @@ export class StateHashCalculator {
    */
   async verifyStateHash(
     input: AccountStateInput | CompositeStateInput,
-    expectedHash: string
+    expectedHash: string,
   ): Promise<boolean> {
     try {
       let calculatedHash: string;
 
       if ('publicKey' in input) {
-        // Account state hash
         const result = this.calculateAccountStateHash(input);
         calculatedHash = result.stateHash;
       } else {
-        // Composite state hash
         const result = this.calculateCompositeStateHash(input);
         calculatedHash = result.stateHash;
       }
 
       const isValid = calculatedHash === expectedHash;
 
-      const accountId = 'accountId' in input ? input.accountId : input.compositeAccountId;
+      const accountId =
+        'accountId' in input ? input.accountId : input.compositeAccountId;
       this.logger.debug('State hash verification', {
         accountId,
         isValid,
@@ -240,7 +220,6 @@ export class StateHashCalculator {
    * In production, this would query the actual Hedera network
    */
   async getTopicRunningHashes(topicIds: string[]): Promise<TopicState[]> {
-    // Mock implementation - replace with actual Hedera queries
     return topicIds.map(topicId => ({
       topicId,
       latestRunningHash: createHash('sha256')
@@ -258,17 +237,16 @@ export class StateHashCalculator {
     accountId: string,
     topicIds: string[],
     publishTopicId: string,
-    client: any
+    client: any,
   ): Promise<void> {
     try {
       const message = this.createStateHashMessage(
         stateHash,
         accountId,
         topicIds,
-        'State synchronization'
+        'State synchronization',
       );
 
-      // Import dynamically to avoid circular dependency
       const { TopicMessageSubmitTransaction } = await import('@hashgraph/sdk');
 
       const transaction = new TopicMessageSubmitTransaction()
@@ -287,7 +265,7 @@ export class StateHashCalculator {
       this.logger.error('Failed to publish state hash', error);
       throw new StateHashError(
         'Failed to publish state hash',
-        'PUBLISH_FAILED'
+        'PUBLISH_FAILED',
       );
     }
   }
