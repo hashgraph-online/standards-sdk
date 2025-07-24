@@ -93,6 +93,7 @@ export class HCS10Client extends HCS10BaseClient {
       module: 'HCS-SDK',
       silent: config.silent,
     });
+
     
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
@@ -105,6 +106,7 @@ export class HCS10Client extends HCS10BaseClient {
         this.keyType === 'ecdsa'
           ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
           : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+      
       this.client.setOperator(config.operatorId, PK);
     } else {
       try {
@@ -164,10 +166,6 @@ export class HCS10Client extends HCS10BaseClient {
         ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
         : PrivateKey.fromStringED25519(this.operatorPrivateKey);
 
-    this.logger.debug(
-      `Setting operator: ${this.operatorAccountId} with key type: ${this.keyType}`,
-    );
-
     this.client.setOperator(this.operatorAccountId, PK);
 
     return {
@@ -203,7 +201,6 @@ export class HCS10Client extends HCS10BaseClient {
       .setKeyWithoutAlias(newKey.publicKey)
       .setInitialBalance(new Hbar(initialBalance));
 
-    this.logger.debug('Executing account creation transaction');
     const accountResponse = await accountTransaction.execute(this.client);
     const accountReceipt = await accountResponse.getReceipt(this.client);
     const newAccountId = accountReceipt.accountId;
@@ -269,11 +266,6 @@ export class HCS10Client extends HCS10BaseClient {
           .customFees as TokenFeeConfig[];
         internalFees.forEach(fee => {
           if (!fee.feeCollectorAccountId) {
-            this.logger.debug(
-              `Defaulting fee collector for token ${
-                fee.feeTokenId || 'HBAR'
-              } to agent ${accountId}`,
-            );
             fee.feeCollectorAccountId = accountId;
           }
         });
@@ -880,7 +872,12 @@ export class HCS10Client extends HCS10BaseClient {
     submitKey?: boolean | PublicKey | KeyList,
     feeConfig?: TopicFeeConfig,
   ): Promise<string> {
-    this.logger.info('Creating topic');
+    this.logger.info('Creating topic', {
+      operatorId: this.client.operatorAccountId?.toString(),
+      keyType: this.keyType,
+      hasOperatorPublicKey: !!this.client.operatorPublicKey,
+      operatorPrivateKeyLength: this.operatorPrivateKey?.length,
+    });
     const transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
     if (adminKey) {
@@ -918,17 +915,26 @@ export class HCS10Client extends HCS10BaseClient {
       await this.setupFees(transaction, feeConfig);
     }
 
-    this.logger.debug('Executing topic creation transaction');
-    const txResponse = await transaction.execute(this.client);
-    const receipt = await txResponse.getReceipt(this.client);
+    
+    try {
+      const txResponse = await transaction.execute(this.client);
+      const receipt = await txResponse.getReceipt(this.client);
 
-    if (!receipt.topicId) {
-      this.logger.error('Failed to create topic: topicId is null');
-      throw new Error('Failed to create topic: topicId is null');
+      if (!receipt.topicId) {
+        this.logger.error('Failed to create topic: topicId is null');
+        throw new Error('Failed to create topic: topicId is null');
+      }
+
+      const topicId = receipt.topicId.toString();
+      return topicId;
+    } catch (error: any) {
+      this.logger.error('Topic creation failed', {
+        error: error.message,
+        transactionId: error.transactionId?.toString(),
+        operatorId: this.client.operatorAccountId?.toString(),
+      });
+      throw error;
     }
-
-    const topicId = receipt.topicId.toString();
-    return topicId;
   }
 
   public async submitPayload(
@@ -1736,7 +1742,6 @@ export class HCS10Client extends HCS10BaseClient {
       scheduleTransaction.setExpirationTime(timestamp);
     }
 
-    this.logger.debug('Executing schedule create transaction');
     const scheduleResponse = await scheduleTransaction.execute(this.client);
     const scheduleReceipt = await scheduleResponse.getReceipt(this.client);
 

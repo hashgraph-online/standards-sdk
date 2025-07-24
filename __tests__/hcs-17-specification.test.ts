@@ -15,7 +15,12 @@ import {
 } from '../src/hcs-23/types';
 import { Logger } from '../src/utils/logger';
 
-const mockLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } as any;
+const mockLogger = {
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+} as any;
 
 describe('HCS-23 Specification Compliance', () => {
   let calculator: StateHashCalculator;
@@ -43,8 +48,11 @@ describe('HCS-23 Specification Compliance', () => {
       expect(result.stateHash).toMatch(/^[0-9a-f]{96}$/);
 
       // Manual verification of spec example
-      const expectedConcatenation = '0.0.12345abcd12340.0.67890efgh5678FGHKLJHDGK';
-      const expectedHash = createHash('sha384').update(expectedConcatenation).digest('hex');
+      const expectedConcatenation =
+        '0.0.12345abcd12340.0.67890efgh5678FGHKLJHDGK';
+      const expectedHash = createHash('sha384')
+        .update(expectedConcatenation)
+        .digest('hex');
       expect(result.stateHash).toBe(expectedHash);
     });
 
@@ -62,8 +70,11 @@ describe('HCS-23 Specification Compliance', () => {
       const result = calculator.calculateAccountStateHash(input);
 
       // Verify correct sorting by manually calculating expected result
-      const sortedConcatenation = '0.0.12345hash10.0.67890hash20.0.99999hash3test-key';
-      const expectedHash = createHash('sha384').update(sortedConcatenation).digest('hex');
+      const sortedConcatenation =
+        '0.0.12345hash10.0.67890hash20.0.99999hash3test-key';
+      const expectedHash = createHash('sha384')
+        .update(sortedConcatenation)
+        .digest('hex');
       expect(result.stateHash).toBe(expectedHash);
     });
 
@@ -116,8 +127,11 @@ describe('HCS-23 Specification Compliance', () => {
       expect(result.stateHash).toMatch(/^[0-9a-f]{96}$/);
 
       // Manual verification per spec example
-      const expectedConcatenation = '0.0.1110xaaa0.0.2220xbbb0.0.3330xccc0.0.4440xddd0xffff';
-      const expectedHash = createHash('sha384').update(expectedConcatenation).digest('hex');
+      const expectedConcatenation =
+        '0.0.1110xaaa0.0.2220xbbb0.0.3330xccc0.0.4440xddd0xffff';
+      const expectedHash = createHash('sha384')
+        .update(expectedConcatenation)
+        .digest('hex');
       expect(result.stateHash).toBe(expectedHash);
     });
 
@@ -136,8 +150,11 @@ describe('HCS-23 Specification Compliance', () => {
       const result = calculator.calculateCompositeStateHash(input);
 
       // Verify sorting by calculating expected hash
-      const sortedConcatenation = '0.0.111hash10.0.555hash20.0.999hash3fingerprint';
-      const expectedHash = createHash('sha384').update(sortedConcatenation).digest('hex');
+      const sortedConcatenation =
+        '0.0.111hash10.0.555hash20.0.999hash3fingerprint';
+      const expectedHash = createHash('sha384')
+        .update(sortedConcatenation)
+        .digest('hex');
       expect(result.stateHash).toBe(expectedHash);
     });
 
@@ -156,8 +173,11 @@ describe('HCS-23 Specification Compliance', () => {
       const result = calculator.calculateCompositeStateHash(input);
 
       // Verify sorting by calculating expected hash
-      const sortedConcatenation = '0.0.111hash10.0.555hash20.0.999hash3fingerprint';
-      const expectedHash = createHash('sha384').update(sortedConcatenation).digest('hex');
+      const sortedConcatenation =
+        '0.0.111hash10.0.555hash20.0.999hash3fingerprint';
+      const expectedHash = createHash('sha384')
+        .update(sortedConcatenation)
+        .digest('hex');
       expect(result.stateHash).toBe(expectedHash);
     });
 
@@ -172,7 +192,9 @@ describe('HCS-23 Specification Compliance', () => {
       const result = calculator.calculateCompositeStateHash(input);
 
       // Should only contain fingerprint
-      const expectedHash = createHash('sha384').update('fingerprint').digest('hex');
+      const expectedHash = createHash('sha384')
+        .update('fingerprint')
+        .digest('hex');
       expect(result.stateHash).toBe(expectedHash);
     });
   });
@@ -225,7 +247,10 @@ describe('HCS-23 Specification Compliance', () => {
       const floraFingerprint = calculator.calculateKeyFingerprint(petalKeys, 2);
 
       // Should be deterministic across multiple calls
-      const floraFingerprint2 = calculator.calculateKeyFingerprint(petalKeys, 2);
+      const floraFingerprint2 = calculator.calculateKeyFingerprint(
+        petalKeys,
+        2,
+      );
       expect(floraFingerprint).toBe(floraFingerprint2);
 
       // Should be usable in composite state hash
@@ -239,7 +264,7 @@ describe('HCS-23 Specification Compliance', () => {
         '0x9a1cfb...',
         '0.0.123456',
         ['0.0.topic1', '0.0.topic2'],
-        'Change of state synchronization.'
+        'Change of state synchronization.',
       );
 
       // Verify exact spec format
@@ -263,11 +288,13 @@ describe('HCS-23 Specification Compliance', () => {
         'hash',
         '0.0.123',
         [],
-        'test'
+        'test',
       );
 
       expect(message.timestamp).toBeDefined();
-      expect(message.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(message.timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
     });
 
     it('should handle optional memo field', () => {
@@ -275,13 +302,13 @@ describe('HCS-23 Specification Compliance', () => {
         'hash',
         '0.0.123',
         [],
-        'test memo'
+        'test memo',
       );
 
       const messageWithoutMemo = calculator.createStateHashMessage(
         'hash',
         '0.0.123',
-        []
+        [],
       );
 
       expect(messageWithMemo.m).toBe('test memo');
@@ -292,8 +319,12 @@ describe('HCS-23 Specification Compliance', () => {
   describe('Recursive Composition (Spec Section: Composite State Hash)', () => {
     it('should support Bloom aggregating Flora hashes (REQUIRED)', () => {
       // Simulate Flora state hashes
-      const floraHash1 = createHash('sha384').update('flora-1-state').digest('hex');
-      const floraHash2 = createHash('sha384').update('flora-2-state').digest('hex');
+      const floraHash1 = createHash('sha384')
+        .update('flora-1-state')
+        .digest('hex');
+      const floraHash2 = createHash('sha384')
+        .update('flora-2-state')
+        .digest('hex');
 
       // Bloom composite with Flora members
       const bloomInput: CompositeStateInput = {
@@ -321,14 +352,21 @@ describe('HCS-23 Specification Compliance', () => {
       const petalHash = calculator.calculateAccountStateHash({
         accountId: '0.0.petal',
         publicKey: 'petal-key',
-        topics: [{ topicId: '0.0.petal-topic', latestRunningHash: 'petal-running-hash' }],
+        topics: [
+          {
+            topicId: '0.0.petal-topic',
+            latestRunningHash: 'petal-running-hash',
+          },
+        ],
       });
 
       // Flora state hash (aggregating Petal)
       const floraHash = calculator.calculateCompositeStateHash({
         compositeAccountId: '0.0.flora',
         compositePublicKeyFingerprint: 'flora-fingerprint',
-        memberStates: [{ accountId: '0.0.petal', stateHash: petalHash.stateHash }],
+        memberStates: [
+          { accountId: '0.0.petal', stateHash: petalHash.stateHash },
+        ],
         compositeTopics: [],
       });
 
@@ -336,7 +374,9 @@ describe('HCS-23 Specification Compliance', () => {
       const bloomHash = calculator.calculateCompositeStateHash({
         compositeAccountId: '0.0.bloom',
         compositePublicKeyFingerprint: 'bloom-fingerprint',
-        memberStates: [{ accountId: '0.0.flora', stateHash: floraHash.stateHash }],
+        memberStates: [
+          { accountId: '0.0.flora', stateHash: floraHash.stateHash },
+        ],
         compositeTopics: [],
       });
 
@@ -400,7 +440,7 @@ describe('HCS-23 Specification Compliance', () => {
       };
 
       const results = Array.from({ length: 10 }, () =>
-        calculator.calculateAccountStateHash(input)
+        calculator.calculateAccountStateHash(input),
       );
 
       // All results should be identical
@@ -441,7 +481,9 @@ describe('HCS-23 Specification Compliance', () => {
 
       const manyTopics = Array.from({ length: 100 }, (_, i) => ({
         topicId: `0.0.${3000 + i}`,
-        latestRunningHash: createHash('sha256').update(`topic-${i}`).digest('hex'),
+        latestRunningHash: createHash('sha256')
+          .update(`topic-${i}`)
+          .digest('hex'),
       }));
 
       const input: CompositeStateInput = {

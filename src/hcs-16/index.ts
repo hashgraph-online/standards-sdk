@@ -6,5 +6,5 @@ export { FloraAccountManager as HCS22Client } from './flora-account-manager';
 export type {
   TransactionTopicConfig,
   TransactionTopicFee,
-  CreditPurchaseMessage
+  CreditPurchaseMessage,
 } from './types';

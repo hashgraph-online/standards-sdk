@@ -4,11 +4,13 @@ import { RegistrationProgressCallback } from '../hcs-10/types';
 import { LogLevel } from '../utils/logger';
 import { FeeConfigBuilderInterface } from '../fees';
 import { NetworkType } from '../utils/types';
+import { FloraProfile } from '../hcs-16';
 
 export enum ProfileType {
   PERSONAL = 0,
   AI_AGENT = 1,
   MCP_SERVER = 2,
+  FLORA = 3,
 }
 
 export enum AIAgentType {
@@ -143,6 +145,7 @@ export interface BaseProfile {
   properties?: Record<string, any>;
   inboundTopicId?: string;
   outboundTopicId?: string;
+  base_account?: string;
 }
 
 export interface PersonalProfile extends BaseProfile {
@@ -159,7 +162,11 @@ export interface MCPServerProfile extends BaseProfile {
   mcpServer: MCPServerDetails;
 }
 
-export type HCS11Profile = PersonalProfile | AIAgentProfile | MCPServerProfile;
+export type HCS11Profile =
+  | PersonalProfile
+  | AIAgentProfile
+  | MCPServerProfile
+  | FloraProfile;
 
 export enum InboundTopicType {
   PUBLIC = 'PUBLIC',
