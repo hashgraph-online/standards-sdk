@@ -12,8 +12,10 @@ import {
   Hbar,
   TransferTransaction,
   ScheduleSignTransaction,
+  ScheduleCreateTransaction,
   KeyList,
 } from '@hashgraph/sdk';
+import { ConversationalAgent } from '@hashgraphonline/conversational-agent';
 import { format } from 'date-fns';
 import * as path from 'path';
 
@@ -107,17 +109,76 @@ Executed at: ${
 }
 
 /**
- * Creates a multi-signature transfer transaction that requires approval from both accounts
+ * Uses ConversationalAgent to generate transaction bytes for multi-signature transfers
  */
-function createMultiSigTransaction(
+async function generateMultiSigTransactionWithAgent(
   fooAccountId: string,
   barAccountId: string,
   amount: number,
-): TransferTransaction {
-  return new TransferTransaction()
-    .addHbarTransfer(fooAccountId, Hbar.fromTinybars(-amount / 2))
-    .addHbarTransfer(barAccountId, Hbar.fromTinybars(-amount / 2))
-    .addHbarTransfer('0.0.98', Hbar.fromTinybars(amount));
+  operatorAccountId: string,
+  operatorPrivateKey: string,
+  network: 'testnet' | 'mainnet' = 'testnet',
+): Promise<{ transactionBytes: string; description: string; scheduleId?: string }> {
+  logger.info('Generating multi-signature transaction using ConversationalAgent...');
+
+  // Create a ConversationalAgent instance with returnBytes mode
+  const agent = new ConversationalAgent({
+    accountId: operatorAccountId,
+    privateKey: operatorPrivateKey,
+    network,
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    operationalMode: 'returnBytes',
+    userAccountId: fooAccountId,
+    scheduleUserTransactionsInBytesMode: true,
+    verbose: false,
+  });
+
+  await agent.initialize();
+
+  // Convert amount from tinybars to HBAR
+  const hbarAmount = amount / 100000000;
+  const halfAmount = hbarAmount / 2;
+
+  const request = `I need to create a multi-signature transaction where ${fooAccountId} sends ${halfAmount} HBAR to Treasury (0.0.98) and ${barAccountId} sends ${halfAmount} HBAR to Treasury (0.0.98). Can you prepare this as a scheduled transaction?`;
+
+  logger.info(`Agent request: ${request}`);
+
+  // Process the message to get transaction bytes
+  let response;
+  try {
+    response = await agent.processMessage(request);
+  } catch (error: any) {
+    logger.error('Agent processMessage error:', error);
+    logger.error('Error details:', error.message);
+    if (error.response) {
+      logger.error('Error response:', error.response);
+    }
+    throw error;
+  }
+
+  if (!response.transactionBytes && !response.scheduleId) {
+    logger.error('Agent response:', response);
+    throw new Error('Agent did not return transaction bytes or schedule ID');
+  }
+  
+  if (response.scheduleId && !response.transactionBytes) {
+    logger.info('Agent created scheduled transaction successfully');
+    logger.info('Schedule ID:', response.scheduleId);
+    logger.info('The schedule can now be signed by the required parties');
+    
+    return {
+      scheduleId: response.scheduleId,
+      transactionBytes: 'SCHEDULE_CREATED',
+      description: response.message || `Schedule ${response.scheduleId} created successfully`,
+    };
+  }
+
+  logger.info('Transaction bytes generated successfully');
+
+  return {
+    transactionBytes: response.transactionBytes,
+    description: response.response || `Multi-signature transfer of ${hbarAmount} HBAR to Treasury`,
+  };
 }
 
 async function main() {
@@ -128,6 +189,12 @@ async function main() {
     if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
       throw new Error(
         'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY environment variables must be set',
+      );
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error(
+        'OPENAI_API_KEY environment variable must be set for ConversationalAgent',
       );
     }
 
@@ -197,74 +264,100 @@ async function main() {
     );
 
     logger.info(
-      `(${fooAccountId}) Creating a multi-signature transaction that requires both Foo and Bar to sign`,
+      `(${fooAccountId}) Creating a multi-signature transaction using ConversationalAgent`,
     );
 
-    const transferTx = createMultiSigTransaction(
+    const { transactionBytes, description, scheduleId } = await generateMultiSigTransactionWithAgent(
       fooAccountId,
       barAccountId,
-      200000000,
+      200000000 + Math.floor(Math.random() * 1000000),
+      process.env.HEDERA_ACCOUNT_ID!,
+      process.env.HEDERA_PRIVATE_KEY!,
+      'testnet',
     );
 
-    const scheduledTxResult = await foo.client.sendTransaction(
-      connectionTopicId,
-      transferTx,
-      'Transfer 2 HBAR to Treasury (requires both Foo and Bar)',
-      {
-        scheduleMemo: 'Transfer 2 HBAR to Treasury (requires both signatures)',
-        expirationTime: 24 * 60 * 60,
-        operationMemo:
-          'Please approve this transaction - it requires both our signatures',
-      },
-    );
+    let scheduledTxResult;
+    
+    if (scheduleId) {
+      logger.info(`Schedule created successfully: ${scheduleId}`);
+      logger.info('Schedule is ready for signing by participants');
+      scheduledTxResult = { scheduleId };
+    } else {
+      const scheduleTx = ScheduleCreateTransaction.fromBytes(
+        Buffer.from(transactionBytes, 'base64'),
+      );
 
-    logger.info(`
-    Scheduled transaction created:
-    Schedule ID: ${scheduledTxResult.scheduleId}
-    Transaction ID: ${scheduledTxResult.transactionId}
-    `);
+      scheduledTxResult = await foo.client.sendTransaction(
+        connectionTopicId,
+        scheduleTx,
+        'Multi-signature transfer generated by ConversationalAgent',
+        {
+          scheduleMemo: description,
+          expirationTime: 24 * 60 * 60,
+          operationMemo:
+            'Please approve this AI-generated transaction - it requires both our signatures',
+        },
+      );
 
-    logger.info(
-      `(${fooAccountId}) Transaction operation sent to Bar for approval`,
-    );
+      logger.info(`
+      Scheduled transaction created:
+      Schedule ID: ${scheduledTxResult.scheduleId}
+      Transaction ID: ${scheduledTxResult.transactionId}
+      `);
+    }
 
-    logger.info(`Transaction operation submitted successfully`);
+    if (!scheduleId) {
+      logger.info(
+        `(${fooAccountId}) Transaction operation sent to Bar for approval`,
+      );
+
+      logger.info(`Transaction operation submitted successfully`);
+    }
 
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    logger.info(`(${barAccountId}) Bar checking for pending transactions`);
+    logger.info(`(${barAccountId}) Bar checking for transactions to approve`);
 
     const connectionManager = new ConnectionsManager({
       baseClient: bar.client,
       logLevel: 'debug',
     });
-    const pendingTransactions =
-      await connectionManager.getPendingTransactions(connectionTopicId);
+    
+    let targetScheduleId = scheduledTxResult.scheduleId;
+    
+    if (!scheduleId) {
+      const pendingTransactions =
+        await connectionManager.getPendingTransactions(connectionTopicId);
 
-    logger.info(`Found ${pendingTransactions.length} pending transactions`);
+      logger.info(`Found ${pendingTransactions.length} pending transactions`);
 
-    if (pendingTransactions.length > 0) {
-      pendingTransactions.forEach(displayTransaction);
-
-      const targetTransaction = pendingTransactions[0];
-      logger.info(
-        `(${barAccountId}) Checking status of transaction ${targetTransaction.schedule_id}`,
-      );
-
-      const txStatus = await connectionManager.getScheduledTransactionStatus(
-        targetTransaction.schedule_id,
-      );
-
-      displayTransactionStatus(targetTransaction.schedule_id, txStatus);
-
-      if (txStatus.executed) {
-        logger.info(
-          `Transaction has already been executed! No need to approve.`,
-        );
+      if (pendingTransactions.length > 0) {
+        pendingTransactions.forEach(displayTransaction);
+        targetScheduleId = pendingTransactions[0].schedule_id;
       } else {
-        logger.info(
-          `(${barAccountId}) Approval process starting for transaction ${targetTransaction.schedule_id}`,
-        );
+        logger.info('No pending transactions found in connection topic');
+        return;
+      }
+    }
+
+    logger.info(
+      `(${barAccountId}) Checking status of transaction ${targetScheduleId}`,
+    );
+
+    const txStatus = await connectionManager.getScheduledTransactionStatus(
+      targetScheduleId,
+    );
+
+    displayTransactionStatus(targetScheduleId, txStatus);
+
+    if (txStatus.executed) {
+      logger.info(
+        `Transaction has already been executed! No need to approve.`,
+      );
+    } else {
+      logger.info(
+        `(${barAccountId}) Approval process starting for transaction ${targetScheduleId}`,
+      );
 
         const MAX_ATTEMPTS = 3;
         let attemptCount = 0;
@@ -301,7 +394,7 @@ async function main() {
             );
 
             const scheduleSignTx = await new ScheduleSignTransaction()
-              .setScheduleId(targetTransaction.schedule_id)
+              .setScheduleId(targetScheduleId)
               .execute(bar.client.getClient());
 
             logger.info(
@@ -350,13 +443,13 @@ async function main() {
 
         const finalStatus =
           await connectionManager.getScheduledTransactionStatus(
-            targetTransaction.schedule_id,
+            targetScheduleId,
           );
 
         logger.info(
           `Final transaction status after ${attemptCount} approval attempt(s):`,
         );
-        displayTransactionStatus(targetTransaction.schedule_id, finalStatus);
+        displayTransactionStatus(targetScheduleId, finalStatus);
 
         if (finalStatus.executed) {
           logger.info(`✅ Transaction successfully executed!`);
@@ -365,43 +458,54 @@ async function main() {
         } else {
           logger.info(`⏳ Transaction is still pending.`);
         }
-      }
+    }
 
-      logger.info(`(${fooAccountId}) Foo monitoring transaction status`);
+    logger.info(`(${fooAccountId}) Foo monitoring transaction status`);
 
-      const fooConnectionManager = new ConnectionsManager({
-        baseClient: foo.client,
-        logLevel: 'debug',
-      });
-      const currentStatus =
-        await fooConnectionManager.getScheduledTransactionStatus(
-          scheduledTxResult.scheduleId,
-        );
-
-      displayTransactionStatus(scheduledTxResult.scheduleId, currentStatus);
-
-      logger.info('');
-      logger.info('--- DEMONSTRATING CONVENIENCE METHOD ---');
-      logger.info(
-        `(${fooAccountId}) Creating and sending another transaction in one step`,
+    const fooConnectionManager = new ConnectionsManager({
+      baseClient: foo.client,
+      logLevel: 'debug',
+    });
+    const currentStatus =
+      await fooConnectionManager.getScheduledTransactionStatus(
+        scheduledTxResult.scheduleId,
       );
 
-      try {
-        const smallTransferTx = createMultiSigTransaction(
+    displayTransactionStatus(scheduledTxResult.scheduleId, currentStatus);
+
+    logger.info('');
+    logger.info('--- DEMONSTRATING CONVERSATIONAL AGENT AGAIN ---');
+    logger.info(
+      `(${fooAccountId}) Creating another multi-sig transfer using ConversationalAgent`,
+    );
+
+    try {
+      const { transactionBytes: smallTxBytes, description: smallTxDesc, scheduleId: smallScheduleId } =
+        await generateMultiSigTransactionWithAgent(
           fooAccountId,
           barAccountId,
-          50000000,
+          50000000 + Math.floor(Math.random() * 1000000),
+          process.env.HEDERA_ACCOUNT_ID!,
+          process.env.HEDERA_PRIVATE_KEY!,
+          'testnet',
+        );
+
+      if (smallScheduleId) {
+        logger.info(`Second schedule created successfully: ${smallScheduleId}`);
+        logger.info('Demo complete - both schedules created for signing');
+      } else {
+        const smallScheduleTx = ScheduleCreateTransaction.fromBytes(
+          Buffer.from(smallTxBytes, 'base64'),
         );
 
         const combinedResult = await foo.client.sendTransaction(
           connectionTopicId,
-          smallTransferTx,
-          'Small transfer requiring both signatures',
+          smallScheduleTx,
+          'Smaller multi-sig transfer generated by ConversationalAgent',
           {
-            scheduleMemo:
-              'Demo of combined method - multi-signature transaction',
+            scheduleMemo: smallTxDesc,
             expirationTime: 12 * 60 * 60,
-            operationMemo: 'This demonstrates the direct transaction method',
+            operationMemo: 'This demonstrates AI-generated multi-signature transactions',
           },
         );
 
@@ -445,9 +549,9 @@ async function main() {
             .execute(client);
           `);
         }
-      } catch (error) {
-        logger.error(`Error with convenience method transaction: ${error}`);
       }
+    } catch (error) {
+      logger.error(`Error with convenience method transaction: ${error}`);
     }
 
     logger.info('==== AGENT TRANSACT DEMO COMPLETE ====');
@@ -462,9 +566,11 @@ async function main() {
     logger.info(`Connection Topic: ${connectionTopicId}`);
     logger.info(`Scheduled Transaction ID: ${scheduledTxResult.scheduleId}`);
     logger.info('==================================');
+    process.exit(0);
   } catch (error) {
     console.log(error);
     logger.error('Error in transact demo:', error);
+    process.exit(1);
   }
 }
 
