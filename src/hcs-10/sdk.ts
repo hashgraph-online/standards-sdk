@@ -70,7 +70,7 @@ export class HCS10Client extends HCS10BaseClient {
   private client: Client;
   private operatorPrivateKey: string;
   private operatorAccountId: string;
-  declare protected network: string;
+  declare public network: string;
   declare protected logger: Logger;
   protected guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client;
@@ -86,19 +86,19 @@ export class HCS10Client extends HCS10BaseClient {
       silent: config.silent,
       keyType: config.keyType,
     });
-    
+
     // Initialize logger first
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
       module: 'HCS-SDK',
       silent: config.silent,
-    });
-    
+        });
+
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
     this.operatorPrivateKey = config.operatorPrivateKey;
     this.operatorAccountId = config.operatorId;
-    
+
     if (config.keyType) {
       this.keyType = config.keyType;
       const PK =
@@ -110,11 +110,11 @@ export class HCS10Client extends HCS10BaseClient {
       try {
         const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
         this.keyType = keyDetection.detectedType;
-        
+
         if (keyDetection.warning) {
           this.logger.warn(keyDetection.warning);
         }
-        
+
         this.client.setOperator(config.operatorId, keyDetection.privateKey);
       } catch (error) {
         this.logger.warn(
