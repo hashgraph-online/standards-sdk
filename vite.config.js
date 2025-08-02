@@ -15,7 +15,7 @@ export default defineConfig(async () => {
   }
 
   const externalDependencies = [
-    '@hashgraphonline/hedera-agent-kit',
+    '@hashgraphonline/conversational-agent',
     '@hashgraph/proto',
     '@hashgraph/sdk',
     'fetch-retry',
