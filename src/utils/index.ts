@@ -1,4 +1,5 @@
 export * from './logger';
+export * from './logger-adapter';
 export * from './types';
 export * from './topic-fee-utils';
 export * from './progress-reporter';

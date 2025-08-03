@@ -9,7 +9,7 @@ import {
   AccountId,
 } from '@hashgraph/sdk';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
-import { Logger, LogLevel, getTopicId } from '../utils';
+import { Logger, LogLevel, ILogger, getTopicId } from '../utils';
 import {
   InscriptionSDK,
   RetrievedInscriptionResult,
@@ -103,7 +103,7 @@ export type RegisteredAgent = {
 
 export class BrowserHCSClient extends HCS10BaseClient {
   private hwc: HashinalsWalletConnectSDK;
-  declare protected logger: Logger;
+  declare protected logger: ILogger;
   private guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client | null = null;
 

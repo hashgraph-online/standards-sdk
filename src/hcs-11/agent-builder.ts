@@ -5,7 +5,7 @@ import {
   AIAgentCapability,
   SocialPlatform,
 } from './types';
-import { Logger } from '../utils/logger';
+import { Logger , ILogger } from '../utils/logger';
 import { FeeConfigBuilderInterface } from '../fees';
 import { NetworkType } from '../utils/types';
 
@@ -29,7 +29,7 @@ import { NetworkType } from '../utils/types';
  */
 export class AgentBuilder {
   private config: Partial<AgentConfiguration> = {};
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor() {
     this.logger = Logger.getInstance({
