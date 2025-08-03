@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.163",
+  "version": "0.0.165",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -97,7 +97,7 @@
     "@hashgraph/proto": "^2.20.0",
     "@hashgraph/sdk": "2.69.0",
     "@hashgraphonline/hashinal-wc": "^1.0.102",
-    "@kiloscribe/inscription-sdk": "^1.0.58",
+    "@kiloscribe/inscription-sdk": "^1.0.59",
     "axios": "^1.10.0",
     "bignumber.js": "^9.3.1",
     "buffer": "^6.0.3",

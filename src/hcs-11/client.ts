@@ -42,45 +42,45 @@ import {
   VerificationType,
 } from './types';
 
-const SocialLinkSchema = z.object({
+export const SocialLinkSchema = z.object({
   platform: z.string().min(1),
   handle: z.string().min(1),
 });
 
-const AIAgentDetailsSchema = z.object({
+export const AIAgentDetailsSchema = z.object({
   type: z.nativeEnum(AIAgentType),
   capabilities: z.array(z.nativeEnum(AIAgentCapability)).min(1),
   model: z.string().min(1),
   creator: z.string().optional(),
 });
 
-const MCPServerConnectionInfoSchema = z.object({
+export const MCPServerConnectionInfoSchema = z.object({
   url: z.string().min(1),
   transport: z.enum(['stdio', 'sse']),
 });
 
-const MCPServerVerificationSchema = z.object({
+export const MCPServerVerificationSchema = z.object({
   type: z.nativeEnum(VerificationType),
   value: z.string(),
   dns_field: z.string().optional(),
   challenge_path: z.string().optional(),
 });
 
-const MCPServerHostSchema = z.object({
+export const MCPServerHostSchema = z.object({
   minVersion: z.string().optional(),
 });
 
-const MCPServerResourceSchema = z.object({
+export const MCPServerResourceSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
 });
 
-const MCPServerToolSchema = z.object({
+export const MCPServerToolSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
 });
 
-const MCPServerDetailsSchema = z.object({
+export const MCPServerDetailsSchema = z.object({
   version: z.string().min(1),
   connectionInfo: MCPServerConnectionInfoSchema,
   services: z.array(z.nativeEnum(MCPServerCapability)).min(1),
@@ -95,7 +95,7 @@ const MCPServerDetailsSchema = z.object({
   docs: z.string().optional(),
 });
 
-const BaseProfileSchema = z.object({
+export const BaseProfileSchema = z.object({
   version: z.string().min(1),
   type: z.nativeEnum(ProfileType),
   display_name: z.string().min(1),
@@ -108,23 +108,23 @@ const BaseProfileSchema = z.object({
   outboundTopicId: z.string().optional(),
 });
 
-const PersonalProfileSchema = BaseProfileSchema.extend({
+export const PersonalProfileSchema = BaseProfileSchema.extend({
   type: z.literal(ProfileType.PERSONAL),
   language: z.string().optional(),
   timezone: z.string().optional(),
 });
 
-const AIAgentProfileSchema = BaseProfileSchema.extend({
+export const AIAgentProfileSchema = BaseProfileSchema.extend({
   type: z.literal(ProfileType.AI_AGENT),
   aiAgent: AIAgentDetailsSchema,
 });
 
-const MCPServerProfileSchema = BaseProfileSchema.extend({
+export const MCPServerProfileSchema = BaseProfileSchema.extend({
   type: z.literal(ProfileType.MCP_SERVER),
   mcpServer: MCPServerDetailsSchema,
 });
 
-const HCS11ProfileSchema = z.union([
+export const HCS11ProfileSchema = z.union([
   PersonalProfileSchema,
   AIAgentProfileSchema,
   MCPServerProfileSchema,
