@@ -1,4 +1,4 @@
-import { Logger } from '../utils/logger';
+import { ILogger } from '../utils/logger';
 import { HCS11Client } from '../hcs-11/client';
 import { sleep } from '../utils/sleep';
 import {
@@ -27,7 +27,7 @@ export abstract class Registration {
     transactionId: string,
     network: string,
     baseUrl: string,
-    logger?: Logger,
+    logger?: ILogger,
   ): Promise<RegistrationStatusResponse> {
     try {
       const response = await fetch(`${baseUrl}/api/request-confirm`, {
@@ -73,7 +73,7 @@ export abstract class Registration {
     baseUrl: string,
     maxAttempts: number = 60,
     delayMs: number = 2000,
-    logger?: Logger,
+    logger?: ILogger,
   ): Promise<boolean> {
     let attempts = 0;
     while (attempts < maxAttempts) {
@@ -132,7 +132,7 @@ export abstract class Registration {
     accountId: string,
     network: string = 'mainnet',
     baseUrl: string = 'https://moonscape.tech',
-    logger?: Logger,
+    logger?: ILogger,
   ): Promise<RegistrationResult> {
     try {
       if (logger) {

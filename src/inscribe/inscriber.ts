@@ -6,7 +6,7 @@ import {
   HederaClientConfig,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
-import { Logger } from '../utils/logger';
+import { Logger , ILogger } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 
 export type InscriptionInput =
