@@ -1,4 +1,4 @@
-import { Logger } from '../utils/logger';
+import { Logger , ILogger } from '../utils/logger';
 import { HederaMirrorNode } from '../services/mirror-node';
 import {
   HCS2ClientConfig,
@@ -30,7 +30,7 @@ import { ZodError } from 'zod';
  * This abstract class provides shared functionality for both SDK and browser implementations
  */
 export abstract class HCS2BaseClient {
-  protected logger: Logger;
+  protected logger: ILogger;
   protected mirrorNode: HederaMirrorNode;
   protected network: NetworkType;
 

@@ -1,4 +1,4 @@
-import { Logger } from './logger';
+import { Logger, ILogger } from './logger';
 
 export type ProgressStage =
   | 'preparing'
@@ -20,7 +20,7 @@ export type ProgressCallback = (data: ProgressData) => void;
 export interface ProgressReporterOptions {
   module?: string;
   callback?: ProgressCallback;
-  logger?: Logger;
+  logger?: ILogger;
   logProgress?: boolean;
   minPercent?: number;
   maxPercent?: number;
@@ -34,7 +34,7 @@ export class ProgressReporter {
   private static instance: ProgressReporter;
   private module: string;
   private callback?: ProgressCallback;
-  private logger: Logger;
+  private logger: ILogger;
   private logProgress: boolean;
   private minPercent: number;
   private maxPercent: number;
@@ -90,7 +90,7 @@ export class ProgressReporter {
     this.module = module;
   }
 
-  setLogger(logger: Logger): void {
+  setLogger(logger: ILogger): void {
     this.logger = logger;
   }
 

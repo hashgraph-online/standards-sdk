@@ -27,7 +27,7 @@ import {
   InscriptionSDK,
   RetrievedInscriptionResult,
 } from '@kiloscribe/inscription-sdk';
-import { Logger, LogLevel, detectKeyTypeFromString, getTopicId } from '../utils';
+import { Logger, LogLevel, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
 import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
@@ -71,7 +71,7 @@ export class HCS10Client extends HCS10BaseClient {
   private operatorPrivateKey: string;
   private operatorAccountId: string;
   declare public network: string;
-  declare protected logger: Logger;
+  declare protected logger: ILogger;
   protected guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client;
   private keyType: 'ed25519' | 'ecdsa';
@@ -1688,7 +1688,7 @@ export class HCS10Client extends HCS10BaseClient {
     return this.network;
   }
 
-  getLogger(): Logger {
+  getLogger(): ILogger {
     return this.logger;
   }
 

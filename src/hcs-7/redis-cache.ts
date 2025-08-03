@@ -3,7 +3,7 @@ import { EVMCache } from './evm-bridge';
 // npm install ioredis
 // npm install @types/ioredis --save-dev
 import Redis from 'ioredis';
-import { Logger } from '../utils/logger';
+import { Logger , ILogger } from '../utils/logger';
 
 export interface RedisConfig {
   host?: string;
@@ -20,7 +20,7 @@ export interface RedisConfig {
 export class RedisCache implements EVMCache {
   private client: Redis;
   private prefix: string;
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor(config: RedisConfig = {}) {
     const {

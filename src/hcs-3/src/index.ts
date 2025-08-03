@@ -5,7 +5,7 @@ import {
   HCSConfig,
   LoadType,
 } from './types';
-import { Logger } from '../../utils/logger';
+import { Logger, ILogger } from '../../utils/logger';
 
 export const sleep = (ms: number) => {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -26,7 +26,7 @@ export class HCS implements HCSSDK {
   isProcessingQueue: boolean;
   private modelViewerLoaded: boolean = false;
   private modelViewerLoading: Promise<void> | null = null;
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor() {
     this.config = {

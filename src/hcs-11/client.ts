@@ -12,7 +12,7 @@ import {
   InscriptionInput,
   InscriptionOptions,
 } from '../inscribe';
-import { Logger, detectKeyTypeFromString, getTopicId } from '../utils';
+import { Logger, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
@@ -134,7 +134,7 @@ export class HCS11Client {
   private client: Client;
   private auth: HCS11Auth;
   private network: string;
-  private logger: Logger;
+  private logger: ILogger;
   private mirrorNode: HederaMirrorNode;
   private keyType: 'ed25519' | 'ecdsa';
   private operatorId: string;

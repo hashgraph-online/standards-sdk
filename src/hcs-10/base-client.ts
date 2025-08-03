@@ -1,4 +1,4 @@
-import { Logger, LogLevel } from '../utils/logger';
+import { Logger, LogLevel, ILogger } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
 import {
@@ -83,7 +83,7 @@ export interface ProfileResponse {
 
 export abstract class HCS10BaseClient extends Registration {
   protected network: string;
-  protected logger: Logger;
+  protected logger: ILogger;
   protected feeAmount: number;
   public mirrorNode: HederaMirrorNode;
 
