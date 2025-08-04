@@ -11,7 +11,7 @@ import {
   VerificationType,
   SocialLink,
 } from './types';
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 
 /**

@@ -38,7 +38,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        'test message'
+        'test message',
       );
     });
 
@@ -47,7 +47,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        'test message with multiple parts'
+        'test message with multiple parts',
       );
     });
 
@@ -57,7 +57,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: testObj },
-        ''
+        '',
       );
     });
 
@@ -69,7 +69,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [userObj, permObj] },
-        'User logged in: with permissions:'
+        'User logged in: with permissions:',
       );
     });
 
@@ -79,7 +79,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [dataObj] },
-        'Processing completed in 250 ms with result:'
+        'Processing completed in 250 ms with result:',
       );
     });
 
@@ -88,7 +88,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        'Feature enabled: true Debug mode: false'
+        'Feature enabled: true Debug mode: false',
       );
     });
 
@@ -98,7 +98,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [items] },
-        'Processing items:'
+        'Processing items:',
       );
     });
 
@@ -107,7 +107,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        ''
+        '',
       );
     });
   });
@@ -119,7 +119,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.debug).toHaveBeenCalledWith(
         { module: 'test-module', data: [debugData] },
-        'Debug message:'
+        'Debug message:',
       );
     });
 
@@ -129,7 +129,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.warn).toHaveBeenCalledWith(
         { module: 'test-module', data: [warnData] },
-        'Warning:'
+        'Warning:',
       );
     });
 
@@ -139,7 +139,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.error).toHaveBeenCalledWith(
         { module: 'test-module', data: [errorData] },
-        'Error occurred:'
+        'Error occurred:',
       );
     });
 
@@ -149,7 +149,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.trace).toHaveBeenCalledWith(
         { module: 'test-module', data: [traceData] },
-        'Trace:'
+        'Trace:',
       );
     });
   });
@@ -160,7 +160,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [null] },
-        'Value is:'
+        'Value is:',
       );
     });
 
@@ -169,7 +169,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module', data: [undefined] },
-        'Value is:'
+        'Value is:',
       );
     });
 
@@ -179,7 +179,7 @@ describe('Logger', () => {
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
         { module: 'test-module' },
-        `Long string: ${longString}`
+        `Long string: ${longString}`,
       );
     });
   });

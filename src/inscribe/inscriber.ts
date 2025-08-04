@@ -6,7 +6,7 @@ import {
   HederaClientConfig,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 
 export type InscriptionInput =
@@ -141,16 +141,8 @@ export async function inscribe(
       transactionId: result.jobId,
     });
 
-    if (result.completed && options.waitForConfirmation) {
-      const inscription = result as RetrievedInscriptionResult;
-
-      return {
-        confirmed: true,
-        result,
-        inscription,
-        sdk,
-      };
-    }
+    // Always retrieve full inscription details when waitForConfirmation is true
+    // The basic result doesn't contain hashinal fields like jsonTopicId
 
     if (options.waitForConfirmation) {
       console.log('Waiting for inscription confirmation', {

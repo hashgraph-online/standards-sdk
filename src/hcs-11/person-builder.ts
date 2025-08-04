@@ -1,5 +1,5 @@
 import { HCS11Profile, SocialLink, SocialPlatform } from './types';
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 
 export class PersonBuilder {
   private config: Partial<
