@@ -77,7 +77,7 @@ export class HCS2Client extends HCS2BaseClient {
         const keyDetection = detectKeyTypeFromString(config.operatorKey);
         this.operatorKey = keyDetection.privateKey;
         this.keyType = keyDetection.detectedType;
-        
+
         if (keyDetection.warning) {
           this.logger.warn(keyDetection.warning);
         }
@@ -217,11 +217,13 @@ export class HCS2Client extends HCS2BaseClient {
    * Register a new entry in the registry
    * @param registryTopicId The topic ID of the registry
    * @param options Registration options
+   * @param protocol Optional protocol version (defaults to 'hcs-2')
    * @returns Promise resolving to the operation result
    */
   async registerEntry(
     registryTopicId: string,
     options: RegisterEntryOptions,
+    protocol: string = 'hcs-2',
   ): Promise<RegistryOperationResponse> {
     try {
       // Create register message
@@ -229,12 +231,13 @@ export class HCS2Client extends HCS2BaseClient {
         options.targetTopicId,
         options.metadata,
         options.memo,
+        protocol,
       );
 
       const receipt = await this.submitMessage(registryTopicId, message);
 
       this.logger.info(
-        `Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId}`,
+        `Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId} using protocol ${protocol}`,
       );
 
       return {

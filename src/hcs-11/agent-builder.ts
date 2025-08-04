@@ -5,7 +5,7 @@ import {
   AIAgentCapability,
   SocialPlatform,
 } from './types';
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { FeeConfigBuilderInterface } from '../fees';
 import { NetworkType } from '../utils/types';
 

@@ -3,7 +3,7 @@
  */
 
 import { AccountId, TopicId } from '@hashgraph/sdk';
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { HederaMirrorNode } from '../services/mirror-node';
 import type { NetworkType } from '../utils/types';
 import {

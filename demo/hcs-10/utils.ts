@@ -459,7 +459,10 @@ export function createBarBuilder(
   return builder;
 }
 
-export function createBobBuilder(pfpBuffer?: Buffer, randomSuffix?: string): AgentBuilder {
+export function createBobBuilder(
+  pfpBuffer?: Buffer,
+  randomSuffix?: string,
+): AgentBuilder {
   const suffix = randomSuffix || Math.random().toString(36).substring(2, 8);
   const bobBuilder = new AgentBuilder()
     .setName(`Bob`)
@@ -473,7 +476,10 @@ export function createBobBuilder(pfpBuffer?: Buffer, randomSuffix?: string): Age
     .setModel('test-model-2024')
     .addSocial('github', `@bob${suffix}`)
     .addProperty('name', `Bob`)
-    .addProperty('description', 'A test agent for debugging registration issues')
+    .addProperty(
+      'description',
+      'A test agent for debugging registration issues',
+    )
     .addProperty('version', '2.0.0')
     .addProperty('permissions', ['read_network'])
     .setNetwork('testnet')
@@ -531,7 +537,12 @@ export async function getOrCreateBob(
   const agentName = `Bob`;
   const envPrefix = `BOB`;
 
-  const existingBob = await getAgentFromEnv(logger, baseClient, agentName, envPrefix);
+  const existingBob = await getAgentFromEnv(
+    logger,
+    baseClient,
+    agentName,
+    envPrefix,
+  );
 
   if (existingBob) {
     return existingBob;
@@ -557,7 +568,13 @@ export async function getOrCreateBob(
   }
   const bobBuilder = createBobBuilder(pfpForBuilder, randomSuffix);
 
-  return await createAgent(logger, baseClient, agentName, bobBuilder, envPrefix);
+  return await createAgent(
+    logger,
+    baseClient,
+    agentName,
+    bobBuilder,
+    envPrefix,
+  );
 }
 
 export async function getOrCreateAlice(
@@ -617,7 +634,13 @@ export async function getOrCreateAlice(
     aliceBuilder.setProfilePicture(pfpBuffer, `alice-${randomSuffix}-icon.svg`);
   }
 
-  return await createAgent(logger, baseClient, agentName, aliceBuilder, envPrefix);
+  return await createAgent(
+    logger,
+    baseClient,
+    agentName,
+    aliceBuilder,
+    envPrefix,
+  );
 }
 
 export async function getOrCreateFoo(
@@ -1052,13 +1075,15 @@ export async function monitorTopics(
       );
       const inboundProcessed = processedMessages.get(agent.inboundTopicId)!;
 
-      inboundMessages.messages.sort((a: HCSMessageWithCommonFields, b: HCSMessageWithCommonFields) => {
-        const seqA =
-          typeof a.sequence_number === 'number' ? a.sequence_number : 0;
-        const seqB =
-          typeof b.sequence_number === 'number' ? b.sequence_number : 0;
-        return seqA - seqB;
-      });
+      inboundMessages.messages.sort(
+        (a: HCSMessageWithCommonFields, b: HCSMessageWithCommonFields) => {
+          const seqA =
+            typeof a.sequence_number === 'number' ? a.sequence_number : 0;
+          const seqB =
+            typeof b.sequence_number === 'number' ? b.sequence_number : 0;
+          return seqA - seqB;
+        },
+      );
 
       for (const message of inboundMessages.messages) {
         if (
@@ -1148,13 +1173,15 @@ export async function monitorTopics(
           }
           const processedSet = processedMessages.get(topicId)!;
 
-          messages.messages.sort((a: HCSMessageWithCommonFields, b: HCSMessageWithCommonFields) => {
-            const seqA =
-              typeof a.sequence_number === 'number' ? a.sequence_number : 0;
-            const seqB =
-              typeof b.sequence_number === 'number' ? b.sequence_number : 0;
-            return seqA - seqB;
-          });
+          messages.messages.sort(
+            (a: HCSMessageWithCommonFields, b: HCSMessageWithCommonFields) => {
+              const seqA =
+                typeof a.sequence_number === 'number' ? a.sequence_number : 0;
+              const seqB =
+                typeof b.sequence_number === 'number' ? b.sequence_number : 0;
+              return seqA - seqB;
+            },
+          );
 
           const lastOperatorActivity =
             await connectionManager.getLastOperatorActivity(
