@@ -9,6 +9,6 @@
  */
 export function getTopicId(inscription: any): string | undefined {
   if (!inscription) return undefined;
-  
+
   return inscription.topicId ?? inscription.topic_id;
-} 
+}

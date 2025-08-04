@@ -1,4 +1,9 @@
-import { Logger, ILogger, setLoggerFactory, LogLevel } from '../src/utils/logger';
+import {
+  Logger,
+  ILogger,
+  setLoggerFactory,
+  LogLevel,
+} from '../src/utils/logger';
 
 describe('Logger', () => {
   beforeEach(() => {
@@ -11,10 +16,10 @@ describe('Logger', () => {
   describe('Swappable Logger Implementation', () => {
     it('should use default Pino implementation when no factory is set', () => {
       const logger = new Logger({ module: 'test' });
-      
+
       expect(logger).toBeInstanceOf(Logger);
       expect(logger.getLevel()).toBe('info');
-      
+
       // Test that logging methods work
       expect(() => logger.debug('debug message')).not.toThrow();
       expect(() => logger.info('info message')).not.toThrow();
@@ -44,17 +49,17 @@ describe('Logger', () => {
 
       // Verify it returns our mock
       expect(logger).toBe(mockLogger);
-      
+
       // Test that our mock methods are called
       logger.debug('test debug');
       expect(mockLogger.debug).toHaveBeenCalledWith('test debug');
-      
+
       logger.info('test info');
       expect(mockLogger.info).toHaveBeenCalledWith('test info');
-      
+
       logger.warn('test warn');
       expect(mockLogger.warn).toHaveBeenCalledWith('test warn');
-      
+
       logger.error('test error');
       expect(mockLogger.error).toHaveBeenCalledWith('test error');
     });
@@ -63,10 +68,10 @@ describe('Logger', () => {
       // Create logger with default factory
       const logger1 = Logger.getInstance({ module: 'test1' });
       const logger2 = Logger.getInstance({ module: 'test1' });
-      
+
       // Should be the same instance
       expect(logger1).toBe(logger2);
-      
+
       // Set a new factory
       const mockLogger: ILogger = {
         debug: jest.fn(),
@@ -79,9 +84,9 @@ describe('Logger', () => {
         setSilent: jest.fn(),
         setModule: jest.fn(),
       };
-      
+
       setLoggerFactory(() => mockLogger);
-      
+
       // Get instance again - should be the mock now
       const logger3 = Logger.getInstance({ module: 'test1' });
       expect(logger3).toBe(mockLogger);
@@ -114,7 +119,7 @@ describe('Logger', () => {
       };
 
       let moduleCount = 0;
-      setLoggerFactory((options) => {
+      setLoggerFactory(options => {
         moduleCount++;
         return moduleCount === 1 ? mockLogger1 : mockLogger2;
       });
@@ -130,7 +135,7 @@ describe('Logger', () => {
     });
 
     it('should pass options to custom logger factory', () => {
-      const factorySpy = jest.fn((options) => ({
+      const factorySpy = jest.fn(options => ({
         debug: jest.fn(),
         info: jest.fn(),
         warn: jest.fn(),
@@ -144,16 +149,16 @@ describe('Logger', () => {
 
       setLoggerFactory(factorySpy);
 
-      const logger = Logger.getInstance({ 
+      const logger = Logger.getInstance({
         module: 'test-module',
         level: 'debug',
-        timestamp: true
+        timestamp: true,
       });
 
       expect(factorySpy).toHaveBeenCalledWith({
         module: 'test-module',
         level: 'debug',
-        timestamp: true
+        timestamp: true,
       });
     });
 
@@ -214,7 +219,9 @@ describe('Logger', () => {
       expect(mockLogger.info).toHaveBeenCalledWith('message', obj, 123);
 
       logger.error('error occurred', err, { context: 'test' });
-      expect(mockLogger.error).toHaveBeenCalledWith('error occurred', err, { context: 'test' });
+      expect(mockLogger.error).toHaveBeenCalledWith('error occurred', err, {
+        context: 'test',
+      });
     });
   });
 });

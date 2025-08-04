@@ -64,16 +64,14 @@ export class HCS20Client extends HCS20BaseClient {
       this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
 
     try {
-      const keyDetection = detectKeyTypeFromString(
-        config.operatorKey,
-      );
+      const keyDetection = detectKeyTypeFromString(config.operatorKey);
       this.operatorKey = keyDetection.privateKey;
       this.keyType = keyDetection.detectedType;
-      
+
       if (keyDetection.warning) {
         this.logger.warn(keyDetection.warning);
       }
-      
+
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
     } catch (error) {

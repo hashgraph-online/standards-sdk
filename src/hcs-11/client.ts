@@ -165,11 +165,11 @@ export class HCS11Client {
         try {
           const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
           this.keyType = keyDetection.detectedType;
-          
+
           if (keyDetection.warning) {
             this.logger.warn(keyDetection.warning);
           }
-          
+
           this.client.setOperator(this.operatorId, keyDetection.privateKey);
         } catch (error) {
           this.logger.warn(

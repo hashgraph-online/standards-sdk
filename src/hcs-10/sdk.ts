@@ -27,7 +27,13 @@ import {
   InscriptionSDK,
   RetrievedInscriptionResult,
 } from '@kiloscribe/inscription-sdk';
-import { Logger, LogLevel, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
+import {
+  Logger,
+  LogLevel,
+  ILogger,
+  detectKeyTypeFromString,
+  getTopicId,
+} from '../utils';
 import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
@@ -92,7 +98,7 @@ export class HCS10Client extends HCS10BaseClient {
       level: config.logLevel || 'info',
       module: 'HCS-SDK',
       silent: config.silent,
-        });
+    });
 
     this.client =
       config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
@@ -1363,13 +1369,20 @@ export class HCS10Client extends HCS10BaseClient {
           );
         }
 
+        const publicKey =
+          this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(
+                account.privateKey,
+              ).publicKey.toString()
+            : PrivateKey.fromStringED25519(
+                account.privateKey,
+              ).publicKey.toString();
+
         agentClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
-          operatorPublicKey: PrivateKey.fromString(
-            account.privateKey,
-          ).publicKey.toString(),
+          operatorPublicKey: publicKey,
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
