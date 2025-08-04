@@ -399,7 +399,9 @@ export abstract class HCS10BaseClient extends Registration {
     let retryCount = 0;
 
     while (retryCount <= maxRetries) {
-      this.logger.debug(`Retrieving profile for account: ${accountId}${retryCount > 0 ? ` (attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`);
+      this.logger.debug(
+        `Retrieving profile for account: ${accountId}${retryCount > 0 ? ` (attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`,
+      );
 
       const cacheKey = `${accountId}-${this.network}`;
 
@@ -410,7 +412,7 @@ export abstract class HCS10BaseClient extends Registration {
           return cachedProfileResponse;
         }
       }
-      
+
       try {
         const hcs11Client = new HCS11Client({
           network: this.network as 'mainnet' | 'testnet',
@@ -434,7 +436,7 @@ export abstract class HCS10BaseClient extends Registration {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
             continue;
           }
-          
+
           this.logger.error(
             `Failed to retrieve profile for account ID: ${accountId}`,
             profileResult?.error,
@@ -479,7 +481,7 @@ export abstract class HCS10BaseClient extends Registration {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           continue;
         }
-        
+
         const error = e as Error;
         const logMessage = `Failed to retrieve profile: ${error.message}`;
         this.logger.error(logMessage);

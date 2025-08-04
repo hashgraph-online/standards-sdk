@@ -118,8 +118,14 @@ async function generateMultiSigTransactionWithAgent(
   operatorAccountId: string,
   operatorPrivateKey: string,
   network: 'testnet' | 'mainnet' = 'testnet',
-): Promise<{ transactionBytes: string; description: string; scheduleId?: string }> {
-  logger.info('Generating multi-signature transaction using ConversationalAgent...');
+): Promise<{
+  transactionBytes: string;
+  description: string;
+  scheduleId?: string;
+}> {
+  logger.info(
+    'Generating multi-signature transaction using ConversationalAgent...',
+  );
 
   // Create a ConversationalAgent instance with returnBytes mode
   const agent = new ConversationalAgent({
@@ -160,16 +166,18 @@ async function generateMultiSigTransactionWithAgent(
     logger.error('Agent response:', response);
     throw new Error('Agent did not return transaction bytes or schedule ID');
   }
-  
+
   if (response.scheduleId && !response.transactionBytes) {
     logger.info('Agent created scheduled transaction successfully');
     logger.info('Schedule ID:', response.scheduleId);
     logger.info('The schedule can now be signed by the required parties');
-    
+
     return {
       scheduleId: response.scheduleId,
       transactionBytes: 'SCHEDULE_CREATED',
-      description: response.message || `Schedule ${response.scheduleId} created successfully`,
+      description:
+        response.message ||
+        `Schedule ${response.scheduleId} created successfully`,
     };
   }
 
@@ -177,7 +185,9 @@ async function generateMultiSigTransactionWithAgent(
 
   return {
     transactionBytes: response.transactionBytes,
-    description: response.response || `Multi-signature transfer of ${hbarAmount} HBAR to Treasury`,
+    description:
+      response.response ||
+      `Multi-signature transfer of ${hbarAmount} HBAR to Treasury`,
   };
 }
 
@@ -267,17 +277,18 @@ async function main() {
       `(${fooAccountId}) Creating a multi-signature transaction using ConversationalAgent`,
     );
 
-    const { transactionBytes, description, scheduleId } = await generateMultiSigTransactionWithAgent(
-      fooAccountId,
-      barAccountId,
-      200000000 + Math.floor(Math.random() * 1000000),
-      process.env.HEDERA_ACCOUNT_ID!,
-      process.env.HEDERA_PRIVATE_KEY!,
-      'testnet',
-    );
+    const { transactionBytes, description, scheduleId } =
+      await generateMultiSigTransactionWithAgent(
+        fooAccountId,
+        barAccountId,
+        200000000 + Math.floor(Math.random() * 1000000),
+        process.env.HEDERA_ACCOUNT_ID!,
+        process.env.HEDERA_PRIVATE_KEY!,
+        'testnet',
+      );
 
     let scheduledTxResult;
-    
+
     if (scheduleId) {
       logger.info(`Schedule created successfully: ${scheduleId}`);
       logger.info('Schedule is ready for signing by participants');
@@ -322,9 +333,9 @@ async function main() {
       baseClient: bar.client,
       logLevel: 'debug',
     });
-    
+
     let targetScheduleId = scheduledTxResult.scheduleId;
-    
+
     if (!scheduleId) {
       const pendingTransactions =
         await connectionManager.getPendingTransactions(connectionTopicId);
@@ -344,120 +355,111 @@ async function main() {
       `(${barAccountId}) Checking status of transaction ${targetScheduleId}`,
     );
 
-    const txStatus = await connectionManager.getScheduledTransactionStatus(
-      targetScheduleId,
-    );
+    const txStatus =
+      await connectionManager.getScheduledTransactionStatus(targetScheduleId);
 
     displayTransactionStatus(targetScheduleId, txStatus);
 
     if (txStatus.executed) {
-      logger.info(
-        `Transaction has already been executed! No need to approve.`,
-      );
+      logger.info(`Transaction has already been executed! No need to approve.`);
     } else {
       logger.info(
         `(${barAccountId}) Approval process starting for transaction ${targetScheduleId}`,
       );
 
-        const MAX_ATTEMPTS = 3;
-        let attemptCount = 0;
-        let transactionApproved = false;
+      const MAX_ATTEMPTS = 3;
+      let attemptCount = 0;
+      let transactionApproved = false;
 
-        while (attemptCount < MAX_ATTEMPTS && !transactionApproved) {
-          attemptCount++;
+      while (attemptCount < MAX_ATTEMPTS && !transactionApproved) {
+        attemptCount++;
 
-          try {
-            logger.info(`Approval attempt ${attemptCount}/${MAX_ATTEMPTS}...`);
+        try {
+          logger.info(`Approval attempt ${attemptCount}/${MAX_ATTEMPTS}...`);
 
-            const freshStatus =
-              await connectionManager.getScheduledTransactionStatus(
-                targetTransaction.schedule_id,
-              );
-
-            if (freshStatus.executed) {
-              logger.info(
-                `Transaction was already executed. Skipping approval.`,
-              );
-              transactionApproved = true;
-              break;
-            }
-
-            if (freshStatus.deleted) {
-              logger.info(`Transaction was deleted. Skipping approval.`);
-              break;
-            }
-
-            logger.info(
-              `Transaction status before approval: ${
-                freshStatus.executed ? 'EXECUTED' : 'PENDING'
-              }`,
+          const freshStatus =
+            await connectionManager.getScheduledTransactionStatus(
+              targetScheduleId,
             );
 
-            const scheduleSignTx = await new ScheduleSignTransaction()
-              .setScheduleId(targetScheduleId)
-              .execute(bar.client.getClient());
-
-            logger.info(
-              `Transaction approval submitted, waiting for receipt...`,
-            );
-
-            try {
-              const receipt = await scheduleSignTx.getReceipt(
-                bar.client.getClient(),
-              );
-              logger.info(
-                `Transaction approval status: ${receipt.status.toString()}`,
-              );
-              transactionApproved = true;
-              break;
-            } catch (receiptError: any) {
-              if (receiptError?.status === 'SCHEDULE_ALREADY_EXECUTED') {
-                logger.info(
-                  `Transaction was executed by someone else during our approval.`,
-                );
-                transactionApproved = true;
-                break;
-              } else {
-                logger.error(
-                  `Error getting receipt: ${JSON.stringify(receiptError)}`,
-                );
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-            }
-          } catch (attemptError: any) {
-            logger.error(
-              `Approval attempt ${attemptCount} failed: ${attemptError}`,
-            );
-
-            if (attemptError?.status === 'SCHEDULE_ALREADY_EXECUTED') {
-              logger.info(`Transaction was already executed.`);
-              transactionApproved = true;
-              break;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 1000));
+          if (freshStatus.executed) {
+            logger.info(`Transaction was already executed. Skipping approval.`);
+            transactionApproved = true;
+            break;
           }
-        }
 
-        await new Promise(resolve => setTimeout(resolve, 3000));
+          if (freshStatus.deleted) {
+            logger.info(`Transaction was deleted. Skipping approval.`);
+            break;
+          }
 
-        const finalStatus =
-          await connectionManager.getScheduledTransactionStatus(
-            targetScheduleId,
+          logger.info(
+            `Transaction status before approval: ${
+              freshStatus.executed ? 'EXECUTED' : 'PENDING'
+            }`,
           );
 
-        logger.info(
-          `Final transaction status after ${attemptCount} approval attempt(s):`,
-        );
-        displayTransactionStatus(targetScheduleId, finalStatus);
+          const scheduleSignTx = await new ScheduleSignTransaction()
+            .setScheduleId(targetScheduleId)
+            .execute(bar.client.getClient());
 
-        if (finalStatus.executed) {
-          logger.info(`✅ Transaction successfully executed!`);
-        } else if (finalStatus.deleted) {
-          logger.info(`⚠️ Transaction was deleted.`);
-        } else {
-          logger.info(`⏳ Transaction is still pending.`);
+          logger.info(`Transaction approval submitted, waiting for receipt...`);
+
+          try {
+            const receipt = await scheduleSignTx.getReceipt(
+              bar.client.getClient(),
+            );
+            logger.info(
+              `Transaction approval status: ${receipt.status.toString()}`,
+            );
+            transactionApproved = true;
+            break;
+          } catch (receiptError: any) {
+            if (receiptError?.status === 'SCHEDULE_ALREADY_EXECUTED') {
+              logger.info(
+                `Transaction was executed by someone else during our approval.`,
+              );
+              transactionApproved = true;
+              break;
+            } else {
+              logger.error(
+                `Error getting receipt: ${JSON.stringify(receiptError)}`,
+              );
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        } catch (attemptError: any) {
+          logger.error(
+            `Approval attempt ${attemptCount} failed: ${attemptError}`,
+          );
+
+          if (attemptError?.status === 'SCHEDULE_ALREADY_EXECUTED') {
+            logger.info(`Transaction was already executed.`);
+            transactionApproved = true;
+            break;
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const finalStatus =
+        await connectionManager.getScheduledTransactionStatus(targetScheduleId);
+
+      logger.info(
+        `Final transaction status after ${attemptCount} approval attempt(s):`,
+      );
+      displayTransactionStatus(targetScheduleId, finalStatus);
+
+      if (finalStatus.executed) {
+        logger.info(`✅ Transaction successfully executed!`);
+      } else if (finalStatus.deleted) {
+        logger.info(`⚠️ Transaction was deleted.`);
+      } else {
+        logger.info(`⏳ Transaction is still pending.`);
+      }
     }
 
     logger.info(`(${fooAccountId}) Foo monitoring transaction status`);
@@ -480,15 +482,18 @@ async function main() {
     );
 
     try {
-      const { transactionBytes: smallTxBytes, description: smallTxDesc, scheduleId: smallScheduleId } =
-        await generateMultiSigTransactionWithAgent(
-          fooAccountId,
-          barAccountId,
-          50000000 + Math.floor(Math.random() * 1000000),
-          process.env.HEDERA_ACCOUNT_ID!,
-          process.env.HEDERA_PRIVATE_KEY!,
-          'testnet',
-        );
+      const {
+        transactionBytes: smallTxBytes,
+        description: smallTxDesc,
+        scheduleId: smallScheduleId,
+      } = await generateMultiSigTransactionWithAgent(
+        fooAccountId,
+        barAccountId,
+        50000000 + Math.floor(Math.random() * 1000000),
+        process.env.HEDERA_ACCOUNT_ID!,
+        process.env.HEDERA_PRIVATE_KEY!,
+        'testnet',
+      );
 
       if (smallScheduleId) {
         logger.info(`Second schedule created successfully: ${smallScheduleId}`);
@@ -505,7 +510,8 @@ async function main() {
           {
             scheduleMemo: smallTxDesc,
             expirationTime: 12 * 60 * 60,
-            operationMemo: 'This demonstrates AI-generated multi-signature transactions',
+            operationMemo:
+              'This demonstrates AI-generated multi-signature transactions',
           },
         );
 

@@ -83,7 +83,6 @@ export class KeyTypeDetector {
       0x00, 0x0a, 0x04, 0x22, 0x04, 0x20,
     ]);
 
-
   private static readonly ECDSA_SECP256K1_PRIVATE_KEY_PREFIX_LONG = Buffer.from(
     [0x30, 0x77, 0x02, 0x01, 0x01, 0x04, 0x20],
   );
@@ -251,12 +250,10 @@ export class KeyTypeDetector {
 
     switch (bytes.length) {
       case this.ED25519_PUBLIC_KEY_LENGTH:
-
         if (format === 'hex') {
           const hexStr = Array.from(bytes)
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
-
 
           const privateResult = this.tryCreateKey(hexStr);
           if (privateResult.type !== KeyType.UNKNOWN) {
@@ -376,7 +373,6 @@ export class KeyTypeDetector {
         if (this.isValidHex(keyStr) && keyStr.length === 64) {
           const keyBytes = this.hexToBytes(keyStr);
 
-
           const signatureResult = this.detectBySignature(keyStr);
           if (signatureResult.type !== KeyType.UNKNOWN) {
             return {
@@ -398,9 +394,7 @@ export class KeyTypeDetector {
           };
         }
       }
-    } catch {
-
-    }
+    } catch {}
 
     return {
       type: KeyType.UNKNOWN,
@@ -428,12 +422,10 @@ export class KeyTypeDetector {
     confidence: 'certain' | 'uncertain';
     warning?: string;
   } {
-
     const keyBigInt = BigInt('0x' + hexKey);
     const secp256k1Order = BigInt(
       '0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141',
     );
-
 
     if (keyBigInt === 0n) {
       return {
@@ -442,7 +434,6 @@ export class KeyTypeDetector {
       };
     }
 
-
     if (keyBigInt >= secp256k1Order) {
       return {
         type: KeyType.ED25519,
@@ -450,10 +441,8 @@ export class KeyTypeDetector {
       };
     }
 
-
     let ed25519CanSign = false;
     let ecdsaCanSign = false;
-
 
     try {
       const ed25519Key = PrivateKey.fromStringED25519(hexKey);
@@ -462,10 +451,7 @@ export class KeyTypeDetector {
       if (ed25519Key.publicKey.verify(testMessage, signature)) {
         ed25519CanSign = true;
       }
-    } catch {
-
-    }
-
+    } catch {}
 
     try {
       const ecdsaKey = PrivateKey.fromStringECDSA(hexKey);
@@ -474,15 +460,10 @@ export class KeyTypeDetector {
       if (ecdsaKey.publicKey.verify(testMessage, signature)) {
         ecdsaCanSign = true;
       }
-    } catch {
-
-    }
-
+    } catch {}
 
     if (ed25519CanSign && ecdsaCanSign) {
-
       const keyBytes = this.hexToBytes(hexKey);
-
 
       if (keyBytes[0] === 0xa8 && keyBytes[1] === 0x01) {
         return {
@@ -493,12 +474,10 @@ export class KeyTypeDetector {
         };
       }
 
-
       let highBytes = 0;
       for (const byte of keyBytes) {
         if (byte >= 0x80) highBytes++;
       }
-
 
       const highByteRatio = highBytes / keyBytes.length;
       if (highByteRatio >= 0.4 && highByteRatio <= 0.6) {
@@ -510,7 +489,6 @@ export class KeyTypeDetector {
         };
       }
 
-
       return {
         type: KeyType.ECDSA,
         confidence: 'uncertain',
@@ -518,7 +496,6 @@ export class KeyTypeDetector {
           'Detection based on entropy heuristic. Both ED25519 and ECDSA accept this key. Defaulting to ECDSA.',
       };
     }
-
 
     if (ed25519CanSign && !ecdsaCanSign) {
       return {
@@ -605,7 +582,6 @@ export class KeyTypeDetector {
    * @private
    */
   private static containsECDSAPrivateKeyPattern(bytes: Uint8Array): boolean {
-
     for (let i = 0; i < bytes.length - 7; i++) {
       if (
         bytes[i] === 0x30 &&
@@ -630,7 +606,6 @@ export class KeyTypeDetector {
    * @private
    */
   private static extractECDSAPrivateKey(bytes: Uint8Array): Uint8Array {
-
     for (let i = 0; i < bytes.length - 32; i++) {
       if (bytes[i] === 0x04 && bytes[i + 1] === 0x20) {
         return bytes.slice(i + 2, i + 34);
@@ -657,9 +632,7 @@ export class KeyTypeDetector {
 export function detectKeyTypeFromString(
   privateKeyString: string,
 ): KeyDetectionResult {
-
   const keyInfo = KeyTypeDetector.detect(privateKeyString);
-
 
   if (keyInfo.type !== KeyType.UNKNOWN) {
     try {
@@ -667,7 +640,6 @@ export function detectKeyTypeFromString(
         keyInfo.type === KeyType.ECDSA
           ? PrivateKey.fromStringECDSA(privateKeyString)
           : PrivateKey.fromStringED25519(privateKeyString);
-
 
       const result: KeyDetectionResult = {
         detectedType: keyInfo.type as 'ed25519' | 'ecdsa',
@@ -681,13 +653,8 @@ export function detectKeyTypeFromString(
       }
 
       return result;
-    } catch (error) {
-
-    }
+    } catch (error) {}
   }
-
-
-
 
   try {
     const privateKey = PrivateKey.fromStringECDSA(privateKeyString);
@@ -697,7 +664,6 @@ export function detectKeyTypeFromString(
       warning: `Using ECDSA as default. If you have the associated account ID, consider using the Hedera mirror node to confirm the key type.`,
     };
   } catch (ecdsaError) {
-
     try {
       const privateKey = PrivateKey.fromStringED25519(privateKeyString);
       return {
@@ -706,7 +672,6 @@ export function detectKeyTypeFromString(
         warning: `Using ED25519 as fallback. If you have the associated account ID, consider using the Hedera mirror node to confirm the key type.`,
       };
     } catch (ed25519Error) {
-
       throw new Error(
         `Failed to parse private key as either ECDSA or ED25519: ${ecdsaError}`,
       );
