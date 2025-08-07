@@ -179,19 +179,7 @@ export class HCS6Client extends HCS6BaseClient {
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
-      let adminKeyPrivate: PrivateKey | undefined;
-      if (options.adminKey) {
-        let adminPublicKey: PublicKey;
-        if (typeof options.adminKey === 'string') {
-          adminPublicKey = PublicKey.fromString(options.adminKey);
-        } else if (typeof options.adminKey === 'boolean') {
-          adminPublicKey = this.operatorKey.publicKey;
-        } else {
-          adminPublicKey = options.adminKey.publicKey;
-          adminKeyPrivate = options.adminKey;
-        }
-        transaction = transaction.setAdminKey(adminPublicKey);
-      }
+
 
       let submitKeyPrivate: PrivateKey | undefined;
       if (options.submitKey) {
@@ -209,9 +197,7 @@ export class HCS6Client extends HCS6BaseClient {
 
       const frozenTx = await transaction.freezeWith(this.client);
 
-      if (adminKeyPrivate) {
-        await frozenTx.sign(adminKeyPrivate);
-      }
+
 
       if (submitKeyPrivate) {
         await frozenTx.sign(submitKeyPrivate);
