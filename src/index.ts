@@ -9,3 +9,4 @@ export * from './utils';
 export * from './inscribe';
 export * from './services';
 export * from './fees';
+export * from './content-store';
