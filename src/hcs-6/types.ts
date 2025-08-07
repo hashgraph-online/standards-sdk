@@ -98,7 +98,6 @@ export interface HCS6TopicRegistry {
  */
 export interface HCS6CreateRegistryOptions {
   ttl?: number;
-  adminKey?: string | boolean | PrivateKey;
   submitKey?: string | boolean | PrivateKey;
 }
 
