@@ -498,7 +498,6 @@ export class HCS6Client extends HCS6BaseClient {
       } else {
         const registryResponse = await this.createRegistry({
           ttl: options.ttl,
-          adminKey: true,
           submitKey: true,
         });
 
@@ -618,7 +617,6 @@ export class HCS6Client extends HCS6BaseClient {
       } else {
         const registryResponse = await this.createRegistry({
           ttl: options.ttl,
-          adminKey: true,
           submitKey: true,
         });
 
