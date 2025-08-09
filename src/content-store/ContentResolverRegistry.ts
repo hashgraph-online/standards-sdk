@@ -6,11 +6,13 @@
  */
 
 import type { ContentResolverInterface } from './types';
+import { Logger } from '../utils/logger';
 
 class ContentResolverRegistryImpl {
   private static _instance: ContentResolverRegistryImpl;
   private resolver: ContentResolverInterface | null = null;
   private onUnavailableCallbacks: (() => void)[] = [];
+  private logger = Logger.getInstance({ module: 'ContentResolverRegistry' });
 
   static getInstance(): ContentResolverRegistryImpl {
     if (!ContentResolverRegistryImpl._instance) {
@@ -24,12 +26,10 @@ class ContentResolverRegistryImpl {
    */
   register(resolver: ContentResolverInterface): void {
     if (this.resolver) {
-      console.warn(
-        '[ContentResolverRegistry] Resolver already registered, replacing existing',
-      );
+      this.logger.warn('Resolver already registered, replacing existing');
     }
     this.resolver = resolver;
-    console.log('[ContentResolverRegistry] Content resolver registered');
+    this.logger.info('Content resolver registered');
   }
 
   /**
@@ -52,15 +52,12 @@ class ContentResolverRegistryImpl {
   unregister(): void {
     if (this.resolver) {
       this.resolver = null;
-      console.log('[ContentResolverRegistry] Content resolver unregistered');
+      this.logger.info('Content resolver unregistered');
       this.onUnavailableCallbacks.forEach(callback => {
         try {
           callback();
         } catch (error) {
-          console.error(
-            '[ContentResolverRegistry] Error in unavailable callback:',
-            error,
-          );
+          this.logger.error('Error in unavailable callback:', error);
         }
       });
     }
@@ -94,16 +91,11 @@ class ContentResolverRegistryImpl {
       try {
         return await operation(this.resolver);
       } catch (error) {
-        console.warn(
-          '[ContentResolverRegistry] Resolver operation failed, using fallback:',
-          error,
-        );
+        this.logger.warn('Resolver operation failed, using fallback:', error);
         return await fallback();
       }
     } else {
-      console.warn(
-        '[ContentResolverRegistry] No resolver available, using fallback',
-      );
+      this.logger.warn('No resolver available, using fallback');
       return await fallback();
     }
   }

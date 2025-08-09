@@ -5,5 +5,8 @@ export * from './topic-fee-utils';
 export * from './progress-reporter';
 export * from './hrl-resolver';
 export * from './transaction-parser';
+export * from './transaction-parser-types';
 export * from './key-type-detector';
 export * from './topic-id-utils';
+export * from './parsers/hts-parser';
+export * from './parsers/schedule-parser';

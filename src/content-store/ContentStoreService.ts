@@ -1,10 +1,11 @@
 /**
  * Content Store Service
- * 
+ *
  * Provides utility functions for content storage and reference handling.
  */
 
 import type { ContentStoreInterface } from './types';
+import { Logger } from '../utils/logger';
 
 /**
  * Maximum content size before using references (50KB)
@@ -17,6 +18,7 @@ export const REFERENCE_THRESHOLD = 50 * 1024;
 class ContentStoreServiceImpl {
   private static _instance: ContentStoreServiceImpl;
   private contentStore: ContentStoreInterface | null = null;
+  private logger = Logger.getInstance({ module: 'ContentStoreService' });
 
   static getInstance(): ContentStoreServiceImpl {
     if (!ContentStoreServiceImpl._instance) {
@@ -30,10 +32,10 @@ class ContentStoreServiceImpl {
    */
   async setInstance(store: ContentStoreInterface): Promise<void> {
     if (this.contentStore) {
-      console.warn('[ContentStoreService] Content store already set, replacing');
+      this.logger.warn('Content store already set, replacing');
     }
     this.contentStore = store;
-    console.log('[ContentStoreService] Content store instance set');
+    this.logger.info('Content store instance set');
   }
 
   /**
@@ -48,7 +50,7 @@ class ContentStoreServiceImpl {
    */
   dispose(): void {
     this.contentStore = null;
-    console.log('[ContentStoreService] Content store disposed');
+    this.logger.info('Content store disposed');
   }
 
   /**
@@ -64,19 +66,17 @@ class ContentStoreServiceImpl {
  */
 export function extractReferenceId(input: string): string | null {
   const trimmed = input.trim();
-  
-  // Check for exact reference format
+
   const exactMatch = trimmed.match(/^content-ref:([a-f0-9]+)$/);
   if (exactMatch) {
     return exactMatch[1];
   }
-  
-  // Check for reference within content
+
   const embeddedMatch = trimmed.match(/content-ref:([a-f0-9]+)/);
   if (embeddedMatch) {
     return embeddedMatch[1];
   }
-  
+
   return null;
 }
 
@@ -84,10 +84,11 @@ export function extractReferenceId(input: string): string | null {
  * Check if content should use reference based on size
  */
 export function shouldUseReference(content: string | Buffer): boolean {
-  const size = typeof content === 'string' 
-    ? Buffer.byteLength(content, 'utf8')
-    : content.length;
-  
+  const size =
+    typeof content === 'string'
+      ? Buffer.byteLength(content, 'utf8')
+      : content.length;
+
   return size > REFERENCE_THRESHOLD;
 }
 
