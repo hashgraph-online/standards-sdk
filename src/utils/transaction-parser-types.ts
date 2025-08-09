@@ -77,8 +77,10 @@ export type TokenCreationData = {
   supplyKey?: string;
   feeScheduleKey?: string;
   pauseKey?: string;
+  metadataKey?: string;
   autoRenewAccount?: string;
   autoRenewPeriod?: string;
+  expiry?: string;
   customFees?: CustomFeeData[];
 };
 
@@ -110,11 +112,16 @@ export type FileCreateData = {
   contents?: string;
   memo?: string;
   maxSize?: string;
+  // Enhanced content fields
+  contentType?: string;
+  contentSize?: number;
 };
 
 export type FileAppendData = {
   fileId?: string;
   contents?: string;
+  // Enhanced content fields
+  contentSize?: number;
 };
 
 export type FileUpdateData = {
@@ -123,6 +130,8 @@ export type FileUpdateData = {
   keys?: string;
   contents?: string;
   memo?: string;
+  // Enhanced content fields
+  contentSize?: number;
 };
 
 export type FileDeleteData = {
@@ -170,6 +179,70 @@ export type TokenFeeScheduleUpdateData = {
 export type UtilPrngData = {
   range?: number;
   prngBytes?: string;
+};
+
+/**
+ * System and Network Operation Data Types
+ */
+export type NetworkFreezeData = {
+  startTime?: string;
+  endTime?: string;
+  updateFile?: string;
+  fileHash?: string;
+  freezeType?:
+    | 'FREEZE_ONLY'
+    | 'PREPARE_UPGRADE'
+    | 'FREEZE_UPGRADE'
+    | 'FREEZE_ABORT';
+};
+
+export type SystemDeleteData = {
+  fileId?: string;
+  contractId?: string;
+  expirationTime?: string;
+};
+
+export type SystemUndeleteData = {
+  fileId?: string;
+  contractId?: string;
+};
+
+export type NodeCreateData = {
+  nodeId?: number;
+  accountId?: string;
+  description?: string;
+  gossipEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  serviceEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  gossipCaCertificate?: string;
+  grpcCertificateHash?: string;
+  adminKey?: string;
+};
+
+export type NodeUpdateData = {
+  nodeId?: number;
+  accountId?: string;
+  description?: string;
+  gossipEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  serviceEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  gossipCaCertificate?: string;
+  grpcCertificateHash?: string;
+  adminKey?: string;
+};
+
+export type NodeDeleteData = {
+  nodeId?: number;
 };
 
 export type TokenFreezeData = {
@@ -313,6 +386,96 @@ export type ContractDeleteData = {
   transferContractId?: string;
 };
 
+/**
+ * Token Airdrop data structure supporting both fungible tokens and NFTs
+ */
+export type TokenAirdropData = {
+  tokenTransfers: {
+    tokenId: string;
+    transfers: Array<{
+      accountId: string;
+      amount: string;
+      serialNumbers?: string[];
+    }>;
+  }[];
+};
+
+/**
+ * Schedule Create data structure
+ */
+export type ScheduleCreateData = {
+  scheduledTransactionBody?: string;
+  memo?: string;
+  adminKey?: string;
+  payerAccountId?: string;
+  expirationTime?: string;
+  waitForExpiry?: boolean;
+};
+
+/**
+ * Schedule Sign data structure
+ */
+export type ScheduleSignData = {
+  scheduleId?: string;
+};
+
+/**
+ * Schedule Delete data structure
+ */
+export type ScheduleDeleteData = {
+  scheduleId?: string;
+};
+
+/**
+ * Validation result for transaction bytes
+ */
+export type ValidationResult = {
+  isValid: boolean;
+  format?: 'base64' | 'hex';
+  error?: string;
+  length?: number;
+};
+
+/**
+ * Parse options for configuring parsing behavior
+ */
+export type ParseOptions = {
+  /** Whether to use fallback parsing when primary parsing fails */
+  enableFallback?: boolean;
+  /** Whether to enforce strict validation of transaction format */
+  strictMode?: boolean;
+  /** Whether to include raw protobuf data in the result */
+  includeRaw?: boolean;
+  /** Maximum number of retry attempts for parsing */
+  maxRetries?: number;
+};
+
+/**
+ * Custom error class for transaction parsing failures
+ */
+export class TransactionParsingError extends Error {
+  public readonly code: string;
+  public readonly originalError?: Error;
+  public readonly transactionBytes?: string;
+
+  constructor(
+    message: string,
+    code: string = 'PARSING_FAILED',
+    originalError?: Error,
+    transactionBytes?: string,
+  ) {
+    super(message);
+    this.name = 'TransactionParsingError';
+    this.code = code;
+    this.originalError = originalError;
+    this.transactionBytes = transactionBytes;
+
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, TransactionParsingError);
+    }
+  }
+}
+
 export type ParsedTransaction = {
   type: string;
   humanReadableType: string;
@@ -353,5 +516,24 @@ export type ParsedTransaction = {
   contractCreate?: ContractCreateData;
   contractUpdate?: ContractUpdateData;
   contractDelete?: ContractDeleteData;
-  raw: proto.SchedulableTransactionBody;
+  /** New fields for unified parser */
+  tokenAirdrop?: TokenAirdropData;
+  scheduleCreate?: ScheduleCreateData;
+  scheduleSign?: ScheduleSignData;
+  scheduleDelete?: ScheduleDeleteData;
+  /** Metadata fields */
+  transactionId?: string;
+  nodeAccountIds?: string[];
+  maxTransactionFee?: string;
+  validStart?: string;
+  validDuration?: string;
+  /** Transaction details and debugging info */
+  details?: Record<string, any>;
+  /** Format detection metadata */
+  formatDetection?: {
+    originalFormat: 'base64' | 'hex';
+    wasConverted: boolean;
+    length: number;
+  };
+  raw?: proto.SchedulableTransactionBody;
 };
