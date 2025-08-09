@@ -101,5 +101,3 @@ describe('reference utilities', () => {
     expect(shouldUseReference(large)).toBe(true);
   });
 });
-
-

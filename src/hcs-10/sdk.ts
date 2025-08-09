@@ -68,9 +68,12 @@ import { FeeConfigBuilderInterface, TopicFeeConfig } from '../fees';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
 import { Hcs10MemoType } from './base-client';
 import { AgentBuilder } from '../hcs-11/agent-builder';
+import { PersonBuilder } from '../hcs-11/person-builder';
 import { inscribe } from '../inscribe/inscriber';
 import { TokenFeeConfig } from '../fees/types';
 import { addSeconds } from 'date-fns';
+import { ProgressReporter } from '../utils/progress-reporter';
+import { InscribeProfileResponse } from '../hcs-11/types';
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -93,7 +96,6 @@ export class HCS10Client extends HCS10BaseClient {
       keyType: config.keyType,
     });
 
-    // Initialize logger first
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
       module: 'HCS-SDK',
@@ -126,7 +128,7 @@ export class HCS10Client extends HCS10BaseClient {
         this.logger.warn(
           'Failed to detect key type from private key format, will query mirror node',
         );
-        this.keyType = 'ecdsa'; // Default to ECDSA
+        this.keyType = 'ecdsa';
       }
 
       this.initializeOperator();
@@ -162,7 +164,7 @@ export class HCS10Client extends HCS10BaseClient {
     } else if (keyType && keyType.includes('ED25519')) {
       this.keyType = 'ed25519';
     } else {
-      this.keyType = 'ecdsa'; // Default to ECDSA
+      this.keyType = 'ecdsa';
     }
 
     const PK =
@@ -393,6 +395,184 @@ export class HCS10Client extends HCS10BaseClient {
     }
 
     return result;
+  }
+
+  /**
+   * Creates a profile (person or agent) with HCS-10 topics and HCS-11 profile.
+   * This method provides a unified interface for creating both person and agent profiles.
+   *
+   * @param builder - AgentBuilder or PersonBuilder instance
+   * @param options - Optional configuration including progress callback and state
+   * @returns Promise resolving to profile creation result
+   */
+  async create(
+    builder: AgentBuilder | PersonBuilder,
+    options?: {
+      progressCallback?: RegistrationProgressCallback;
+      existingState?: AgentCreationState;
+      ttl?: number;
+      updateAccountMemo?: boolean;
+    },
+  ): Promise<CreateAgentResponse | InscribeProfileResponse> {
+    const progressCallback = options?.progressCallback;
+    const progressReporter = new ProgressReporter({
+      module: 'ProfileCreate',
+      logger: this.logger,
+      callback: progressCallback as any,
+    });
+
+    try {
+      const isAgentBuilder = builder instanceof AgentBuilder;
+
+      let state;
+      if (options?.existingState) {
+        state = options.existingState;
+      } else {
+        state = {
+          currentStage: 'init',
+          completedPercentage: 0,
+          createdResources: [],
+        } as AgentCreationState;
+      }
+
+      if (isAgentBuilder) {
+        this.logger.info('Creating Agent Profile and HCS-10 Topics');
+        const agentConfig = (builder as AgentBuilder).build();
+        state.agentMetadata = agentConfig.metadata;
+      } else {
+        this.logger.info('Creating Person HCS-11 Profile');
+      }
+
+      progressReporter.preparing(
+        `Starting ${isAgentBuilder ? 'agent' : 'person'} resource creation`,
+        0,
+        {
+          state,
+        },
+      );
+
+      const accountId = this.client.operatorAccountId?.toString();
+      if (!accountId) {
+        throw new Error('Failed to retrieve operator account ID');
+      }
+
+      const {
+        inboundTopicId,
+        outboundTopicId,
+        state: updatedState,
+      } = await this.createCommunicationTopics(
+        accountId,
+        options,
+        progressReporter,
+      );
+
+      state = updatedState;
+
+      builder.setInboundTopicId(inboundTopicId);
+      builder.setOutboundTopicId(outboundTopicId);
+
+      let pfpTopicId: string | undefined;
+      let hasPfpBuffer: Buffer | undefined;
+      let pfpFileName: string | undefined;
+
+      if (isAgentBuilder) {
+        const agentProfile = (builder as AgentBuilder).build();
+        pfpTopicId = agentProfile.existingPfpTopicId || state.pfpTopicId;
+        hasPfpBuffer = agentProfile.pfpBuffer;
+        pfpFileName = agentProfile.pfpFileName || 'pfp.png';
+      } else {
+        const personProfile = (builder as PersonBuilder).build();
+        pfpTopicId = state.pfpTopicId;
+        hasPfpBuffer = personProfile.pfpBuffer;
+        pfpFileName = personProfile.pfpFileName;
+      }
+
+      if (!pfpTopicId && hasPfpBuffer && pfpFileName) {
+        pfpTopicId = await this.handleProfilePictureCreation(
+          hasPfpBuffer,
+          pfpFileName,
+          state,
+          progressReporter,
+        );
+      } else if (pfpTopicId) {
+        progressReporter.preparing(
+          `Using existing profile picture: ${pfpTopicId}`,
+          50,
+          { state },
+        );
+        state.pfpTopicId = pfpTopicId;
+      }
+
+      await this.createAndInscribeProfile(
+        isAgentBuilder,
+        builder as any,
+        pfpTopicId,
+        state,
+        inboundTopicId,
+        outboundTopicId,
+        options,
+        progressReporter,
+      );
+
+      state.currentStage = 'complete';
+      state.completedPercentage = 100;
+      progressReporter.completed(
+        `${isAgentBuilder ? 'Agent' : 'Person'} profile created successfully`,
+        {
+          profileTopicId: state.profileTopicId,
+          inboundTopicId,
+          outboundTopicId,
+          pfpTopicId,
+          state,
+        },
+      );
+
+      let outTopicId = '';
+      if (state.outboundTopicId) {
+        outTopicId = state.outboundTopicId;
+      }
+
+      let inTopicId = '';
+      if (state.inboundTopicId) {
+        inTopicId = state.inboundTopicId;
+      }
+
+      let profilePicTopicId = '';
+      if (state.pfpTopicId) {
+        profilePicTopicId = state.pfpTopicId;
+      }
+
+      let profTopicId = '';
+      if (state.profileTopicId) {
+        profTopicId = state.profileTopicId;
+      }
+
+      return {
+        outboundTopicId: outTopicId,
+        inboundTopicId: inTopicId,
+        pfpTopicId: profilePicTopicId,
+        profileTopicId: profTopicId,
+        success: true,
+        state,
+      } as CreateAgentResponse | InscribeProfileResponse;
+    } catch (error: any) {
+      progressReporter.failed('Error during profile creation', {
+        error: error.message,
+      });
+      return {
+        outboundTopicId: '',
+        inboundTopicId: '',
+        pfpTopicId: '',
+        profileTopicId: '',
+        success: false,
+        error: error.message,
+        state: {
+          currentStage: 'init',
+          completedPercentage: 0,
+          error: error.message,
+        } as AgentCreationState,
+      } as CreateAgentResponse;
+    }
   }
 
   /**
@@ -1042,7 +1222,6 @@ export class HCS10Client extends HCS10BaseClient {
       },
       {
         accountId: this.client.operatorAccountId.toString(),
-        // @ts-ignore
         privateKey: privateKey,
         network: this.network as 'testnet' | 'mainnet',
       },
@@ -1871,6 +2050,247 @@ export class HCS10Client extends HCS10BaseClient {
       transactionId,
       receipt,
     };
+  }
+
+  /**
+   * Creates communication topics (inbound and outbound) for a profile.
+   * Helper method used by the create method.
+   */
+  private async createCommunicationTopics(
+    accountId: string,
+    options?: {
+      existingState?: AgentCreationState;
+      ttl?: number;
+    },
+    progressReporter?: ProgressReporter,
+  ): Promise<{
+    inboundTopicId: string;
+    outboundTopicId: string;
+    state: AgentCreationState;
+  }> {
+    let state =
+      options?.existingState ||
+      ({
+        currentStage: 'init',
+        completedPercentage: 0,
+        createdResources: [],
+      } as AgentCreationState);
+
+    if (progressReporter) {
+      progressReporter.preparing('Starting communication topic creation', 0, {
+        state,
+      });
+    }
+
+    if (!state.outboundTopicId) {
+      state.currentStage = 'topics';
+      if (progressReporter) {
+        progressReporter.preparing('Creating outbound topic', 5, {
+          state,
+        });
+      }
+      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+        ttl: options?.ttl,
+        accountId,
+      });
+      const outboundTopicId = await this.createTopic(outboundMemo, true, true);
+      state.outboundTopicId = outboundTopicId;
+      if (state.createdResources)
+        state.createdResources.push(`outbound:${state.outboundTopicId}`);
+    }
+
+    if (!state.inboundTopicId) {
+      state.currentStage = 'topics';
+      if (progressReporter) {
+        progressReporter.preparing('Creating inbound topic', 10, {
+          state,
+        });
+      }
+      const inboundMemo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
+        ttl: options?.ttl,
+        accountId,
+      });
+
+      const inboundTopicId = await this.createTopic(inboundMemo, true, false);
+      state.inboundTopicId = inboundTopicId;
+      if (state.createdResources)
+        state.createdResources.push(`inbound:${state.inboundTopicId}`);
+    }
+
+    return {
+      inboundTopicId: state.inboundTopicId,
+      outboundTopicId: state.outboundTopicId,
+      state,
+    };
+  }
+
+  /**
+   * Handles profile picture creation by inscribing it.
+   * Helper method used by the create method.
+   */
+  private async handleProfilePictureCreation(
+    pfpBuffer: Buffer,
+    pfpFileName: string,
+    state: AgentCreationState,
+    progressReporter: ProgressReporter,
+  ): Promise<string> {
+    state.currentStage = 'pfp';
+    progressReporter.preparing('Creating profile picture', 30, {
+      state,
+    });
+
+    const pfpProgress = progressReporter.createSubProgress({
+      minPercent: 30,
+      maxPercent: 50,
+      logPrefix: 'PFP',
+    });
+
+    const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName);
+
+    if (!pfpResult.success) {
+      let errorMessage = 'Failed to inscribe profile picture';
+      if (pfpResult.error) {
+        errorMessage = pfpResult.error;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const pfpTopicId = pfpResult.pfpTopicId;
+    state.pfpTopicId = pfpTopicId;
+
+    if (state.createdResources) {
+      state.createdResources.push(`pfp:${state.pfpTopicId}`);
+    }
+
+    progressReporter.preparing('Profile picture created', 50, { state });
+
+    return pfpTopicId;
+  }
+
+  /**
+   * Creates and inscribes the HCS-11 profile.
+   * Helper method used by the create method.
+   */
+  private async createAndInscribeProfile(
+    isAgentBuilder: boolean,
+    builder: AgentBuilder | PersonBuilder,
+    pfpTopicId: string | undefined,
+    state: AgentCreationState,
+    inboundTopicId: string,
+    outboundTopicId: string,
+    options?: {
+      updateAccountMemo?: boolean;
+    },
+    progressReporter?: ProgressReporter,
+  ): Promise<void> {
+    this.logger.info('Creating and inscribing profile');
+    if (!state.profileTopicId) {
+      if (progressReporter) {
+        progressReporter.preparing(
+          `Storing HCS-11 ${isAgentBuilder ? 'agent' : 'person'} profile`,
+          80,
+        );
+      }
+
+      const profileProgress = progressReporter?.createSubProgress({
+        minPercent: 80,
+        maxPercent: 95,
+        logPrefix: 'StoreProfile',
+      });
+
+      let hcs11Profile;
+
+      if (isAgentBuilder) {
+        const agentProfile = (builder as AgentBuilder).build();
+
+        const socialLinks = agentProfile.metadata?.socials
+          ? Object.entries(agentProfile.metadata.socials).map(
+              ([platform, handle]) => ({
+                platform: platform as SocialPlatform,
+                handle: handle as string,
+              }),
+            )
+          : [];
+
+        hcs11Profile = this.hcs11Client.createAIAgentProfile(
+          agentProfile.name,
+          agentProfile.metadata?.type === 'manual' ? 0 : 1,
+          agentProfile.capabilities || [],
+          agentProfile.metadata?.model || 'unknown',
+          {
+            alias: agentProfile.name.toLowerCase().replace(/\s+/g, '_'),
+            bio: agentProfile.bio,
+            profileImage: pfpTopicId ? `hcs://1/${pfpTopicId}` : undefined,
+            socials: socialLinks,
+            properties: agentProfile.metadata?.properties || {},
+            inboundTopicId,
+            outboundTopicId,
+            creator: agentProfile.metadata?.creator,
+          },
+        );
+      } else {
+        const personProfile = (builder as PersonBuilder).build();
+
+        const { pfpBuffer, pfpFileName, ...cleanProfile } = personProfile;
+
+        hcs11Profile = this.hcs11Client.createPersonalProfile(
+          personProfile.display_name,
+          {
+            alias: personProfile.alias,
+            bio: personProfile.bio,
+            socials: personProfile.socials,
+            profileImage: pfpTopicId
+              ? `hcs://1/${pfpTopicId}`
+              : personProfile.profileImage,
+            properties: personProfile.properties,
+            inboundTopicId,
+            outboundTopicId,
+          },
+        );
+      }
+
+      const profileResult = await this.hcs11Client.createAndInscribeProfile(
+        hcs11Profile,
+        options?.updateAccountMemo ?? true,
+      );
+
+      if (!profileResult.success) {
+        if (progressReporter) {
+          progressReporter.failed(
+            `Failed to inscribe ${isAgentBuilder ? 'agent' : 'person'} profile`,
+            {
+              error: profileResult.error,
+            },
+          );
+        }
+
+        let errorMessage = `Failed to inscribe ${
+          isAgentBuilder ? 'agent' : 'person'
+        } profile`;
+        if (profileResult.error) {
+          errorMessage = profileResult.error;
+        }
+        throw new Error(errorMessage);
+      }
+
+      state.profileTopicId = profileResult.profileTopicId;
+
+      if (state.createdResources) {
+        state.createdResources.push(`profile:${profileResult.profileTopicId}`);
+      }
+
+      if (progressReporter) {
+        progressReporter.preparing('HCS-11 Profile stored', 95, { state });
+      }
+    } else if (progressReporter) {
+      progressReporter.preparing(
+        `Using existing ${isAgentBuilder ? 'agent' : 'person'} profile`,
+        95,
+        {
+          state,
+        },
+      );
+    }
   }
 
   /**
