@@ -1,6 +1,6 @@
 /**
  * Content Store Types
- * 
+ *
  * Common interfaces for content storage and resolution across packages.
  * These types enable dependency injection without circular dependencies.
  */

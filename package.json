@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.170",
+  "version": "0.0.176",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -73,7 +73,7 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
-    "@hashgraphonline/conversational-agent": "0.1.205",
+    "@hashgraphonline/conversational-agent": "0.1.209",
     "@swc/jest": "^0.2.37",
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.16",

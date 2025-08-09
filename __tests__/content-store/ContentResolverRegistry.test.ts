@@ -8,7 +8,9 @@ import type {
 } from '../../src/content-store';
 
 class MockResolver implements ContentResolverInterface {
-  async resolveReference(referenceId: string): Promise<ReferenceResolutionResult> {
+  async resolveReference(
+    referenceId: string,
+  ): Promise<ReferenceResolutionResult> {
     const content = Buffer.from(`resolved:${referenceId}`);
     return { content };
   }
@@ -97,25 +99,34 @@ describe('ContentResolverRegistryImpl (isolated instance)', () => {
   it('withResolver uses resolver when available', async () => {
     const resolver = new MockResolver();
     registry.register(resolver);
-    const result = await registry.withResolver(async r => {
-      const resolved = await r.resolveReference('abc');
-      return resolved.content.toString('utf8');
-    }, async () => 'fallback');
+    const result = await registry.withResolver(
+      async r => {
+        const resolved = await r.resolveReference('abc');
+        return resolved.content.toString('utf8');
+      },
+      async () => 'fallback',
+    );
     expect(result).toBe('resolved:abc');
   });
 
   it('withResolver falls back when operation throws', async () => {
     const resolver = new MockResolver();
     registry.register(resolver);
-    const result = await registry.withResolver(async () => {
-      throw new Error('boom');
-    }, async () => 'fallback');
+    const result = await registry.withResolver(
+      async () => {
+        throw new Error('boom');
+      },
+      async () => 'fallback',
+    );
     expect(result).toBe('fallback');
     expect(warnSpy).toHaveBeenCalled();
   });
 
   it('withResolver falls back when resolver unavailable', async () => {
-    const result = await registry.withResolver(async () => 'primary', async () => 'fallback');
+    const result = await registry.withResolver(
+      async () => 'primary',
+      async () => 'fallback',
+    );
     expect(result).toBe('fallback');
     expect(warnSpy).toHaveBeenCalled();
   });
@@ -147,15 +158,16 @@ describe('ContentResolverRegistry (singleton)', () => {
     const resolver = new MockResolver();
     ContentResolverRegistry.register(resolver);
     expect(ContentResolverRegistry.isAvailable()).toBe(true);
-    const value = await ContentResolverRegistry.withResolver(async r => {
-      const res = await r.resolveReference('xyz');
-      return res.content.toString('utf8');
-    }, async () => 'fallback');
+    const value = await ContentResolverRegistry.withResolver(
+      async r => {
+        const res = await r.resolveReference('xyz');
+        return res.content.toString('utf8');
+      },
+      async () => 'fallback',
+    );
     expect(value).toBe('resolved:xyz');
     ContentResolverRegistry.unregister();
     expect(ContentResolverRegistry.isAvailable()).toBe(false);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 });
-
-
