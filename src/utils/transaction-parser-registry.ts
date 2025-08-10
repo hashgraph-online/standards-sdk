@@ -19,6 +19,7 @@ export const transactionParserRegistry: Record<
     bodyField: keyof proto.TransactionBody;
     parser: (data: any) => any;
     resultField: keyof Partial<ParsedTransaction>;
+    spreadResult?: boolean;
   }
 > = {
   TOKENCREATE: {
@@ -141,11 +142,15 @@ export const transactionParserRegistry: Record<
   CRYPTOTRANSFER: {
     bodyField: 'cryptoTransfer',
     parser: (body: proto.ICryptoTransferTransactionBody) => {
-      const result: Partial<ParsedTransaction> = {};
+      const result: Partial<ParsedTransaction> = {
+        transfers: [],
+        tokenTransfers: [],
+      };
       CryptoParser.parseCryptoTransfers(body, result as ParsedTransaction);
       return result;
     },
     resultField: 'transfers' as keyof Partial<ParsedTransaction>,
+    spreadResult: true,
   },
   APPROVEALLOWANCE: {
     bodyField: 'cryptoApproveAllowance',
