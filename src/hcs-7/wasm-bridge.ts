@@ -1,6 +1,6 @@
 // TextEncoder and TextDecoder are available globally in modern browsers
 // and in Node.js without explicit import
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 
 export interface BaseMessage {
   p: string;

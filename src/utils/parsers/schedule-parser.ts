@@ -43,7 +43,6 @@ export class ScheduleParser {
     [key: string]: unknown;
   } {
     try {
-      // First, try to parse from protobuf data if available
       if (originalBytes || transaction.toBytes) {
         try {
           const bytesToParse = originalBytes || transaction.toBytes();
@@ -53,12 +52,9 @@ export class ScheduleParser {
             const tx = decoded.transactionList[0];
             let txBody: proto.ITransactionBody | null = null;
 
-            // Handle regular transaction branch
             if (tx.bodyBytes && tx.bodyBytes.length > 0) {
               txBody = proto.TransactionBody.decode(tx.bodyBytes);
-            }
-            // Handle signed transaction branch (was missing in original)
-            else if (
+            } else if (
               tx.signedTransactionBytes &&
               tx.signedTransactionBytes.length > 0
             ) {
@@ -77,12 +73,9 @@ export class ScheduleParser {
               }
             }
           }
-        } catch (protoError) {
-          // Continue to Transaction object parsing
-        }
+        } catch (protoError) {}
       }
 
-      // Fallback to Transaction object parsing
       return this.parseFromTransactionInternals(transaction);
     } catch (error) {
       return {
@@ -101,7 +94,6 @@ export class ScheduleParser {
     humanReadableType?: string;
     [key: string]: unknown;
   } {
-    // Schedule Create
     if (txBody.scheduleCreate) {
       const scheduleCreate = this.parseScheduleCreateFromProto(
         txBody.scheduleCreate,
@@ -115,7 +107,6 @@ export class ScheduleParser {
       }
     }
 
-    // Schedule Sign
     if (txBody.scheduleSign) {
       const scheduleSign = this.parseScheduleSignFromProto(txBody.scheduleSign);
       if (scheduleSign) {
@@ -127,7 +118,6 @@ export class ScheduleParser {
       }
     }
 
-    // Schedule Delete
     if (txBody.scheduleDelete) {
       const scheduleDelete = this.parseScheduleDeleteFromProto(
         txBody.scheduleDelete,
@@ -165,7 +155,6 @@ export class ScheduleParser {
         constructor?: { name?: string };
       };
 
-      // Schedule Create (most common) - use protobuf data instead of constructor name
       if (hasTransactionType(transaction, 'scheduleCreate')) {
         const scheduleCreate: ScheduleCreateData = {
           scheduledTransactionBody: Buffer.from(
@@ -185,7 +174,6 @@ export class ScheduleParser {
         };
       }
 
-      // Schedule Sign - use protobuf data instead of constructor name
       if (hasTransactionType(transaction, 'scheduleSign')) {
         const scheduleSign: ScheduleSignData = {
           scheduleId: tx._scheduleId.toString(),
@@ -198,7 +186,6 @@ export class ScheduleParser {
         };
       }
 
-      // Schedule Delete - use protobuf data instead of constructor name
       if (hasTransactionType(transaction, 'scheduleDelete')) {
         const scheduleDelete: ScheduleDeleteData = {
           scheduleId: tx._scheduleId.toString(),
@@ -220,7 +207,7 @@ export class ScheduleParser {
   /**
    * Parse Schedule Create from protobuf data
    */
-  private static parseScheduleCreateFromProto(
+  static parseScheduleCreateFromProto(
     body: proto.IScheduleCreateTransactionBody,
   ): ScheduleCreateData | undefined {
     if (!body) return undefined;
@@ -267,7 +254,7 @@ export class ScheduleParser {
   /**
    * Parse Schedule Sign from protobuf data
    */
-  private static parseScheduleSignFromProto(
+  static parseScheduleSignFromProto(
     body: proto.IScheduleSignTransactionBody,
   ): ScheduleSignData | undefined {
     if (!body) return undefined;
@@ -288,7 +275,7 @@ export class ScheduleParser {
   /**
    * Parse Schedule Delete from protobuf data
    */
-  private static parseScheduleDeleteFromProto(
+  static parseScheduleDeleteFromProto(
     body: proto.IScheduleDeleteTransactionBody,
   ): ScheduleDeleteData | undefined {
     if (!body) return undefined;

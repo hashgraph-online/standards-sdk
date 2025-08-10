@@ -1,7 +1,7 @@
 import { AccountId, ContractId } from '@hashgraph/sdk';
 import { EVMConfig } from './wasm-bridge';
 import { ethers } from 'ethers';
-import { Logger , ILogger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 
 export interface EVMCache {
   get(key: string): Promise<string | undefined> | string | undefined;
