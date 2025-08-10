@@ -70,14 +70,14 @@ export function extractTransactionBody(
 
     const tx = decoded.transactionList[0];
 
-    // Try bodyBytes first
     if (tx.bodyBytes && tx.bodyBytes.length > 0) {
       return proto.TransactionBody.decode(tx.bodyBytes);
     }
 
-    // Try signedTransactionBytes as fallback
     if (tx.signedTransactionBytes && tx.signedTransactionBytes.length > 0) {
-      const signedTx = proto.SignedTransaction.decode(tx.signedTransactionBytes);
+      const signedTx = proto.SignedTransaction.decode(
+        tx.signedTransactionBytes,
+      );
       if (signedTx.bodyBytes) {
         return proto.TransactionBody.decode(signedTx.bodyBytes);
       }

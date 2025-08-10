@@ -179,8 +179,6 @@ export class HCS6Client extends HCS6BaseClient {
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
-
-
       let submitKeyPrivate: PrivateKey | undefined;
       if (options.submitKey) {
         let submitPublicKey: PublicKey;
@@ -196,8 +194,6 @@ export class HCS6Client extends HCS6BaseClient {
       }
 
       const frozenTx = await transaction.freezeWith(this.client);
-
-
 
       if (submitKeyPrivate) {
         await frozenTx.sign(submitKeyPrivate);
@@ -489,7 +485,7 @@ export class HCS6Client extends HCS6BaseClient {
         );
         registryTopicId = options.registryTopicId;
 
-          const isValid = await this.validateHCS6Topic(registryTopicId);
+        const isValid = await this.validateHCS6Topic(registryTopicId);
         if (!isValid) {
           throw new Error(
             `Topic ${registryTopicId} is not a valid HCS-6 registry`,
@@ -608,7 +604,7 @@ export class HCS6Client extends HCS6BaseClient {
         );
         registryTopicId = options.registryTopicId;
 
-          const isValid = await this.validateHCS6Topic(registryTopicId);
+        const isValid = await this.validateHCS6Topic(registryTopicId);
         if (!isValid) {
           throw new Error(
             `Topic ${registryTopicId} is not a valid HCS-6 registry`,

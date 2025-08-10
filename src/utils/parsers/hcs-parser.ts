@@ -150,14 +150,18 @@ export class HCSParser {
     [key: string]: unknown;
   } {
     try {
-      const transactionBody = (transaction as unknown as { _transactionBody?: unknown })._transactionBody as proto.ITransactionBody | undefined;
+      const transactionBody = (
+        transaction as unknown as { _transactionBody?: unknown }
+      )._transactionBody as proto.ITransactionBody | undefined;
 
       if (!transactionBody) {
         return {};
       }
 
       if (transactionBody.consensusCreateTopic) {
-        const consensusCreateTopic = this.parseConsensusCreateTopic(transactionBody.consensusCreateTopic);
+        const consensusCreateTopic = this.parseConsensusCreateTopic(
+          transactionBody.consensusCreateTopic,
+        );
         if (consensusCreateTopic) {
           return {
             type: 'TOPICCREATE',
@@ -168,7 +172,9 @@ export class HCSParser {
       }
 
       if (transactionBody.consensusSubmitMessage) {
-        const consensusSubmitMessage = this.parseConsensusSubmitMessage(transactionBody.consensusSubmitMessage);
+        const consensusSubmitMessage = this.parseConsensusSubmitMessage(
+          transactionBody.consensusSubmitMessage,
+        );
         if (consensusSubmitMessage) {
           return {
             type: 'CONSENSUSSUBMITMESSAGE',
@@ -179,7 +185,9 @@ export class HCSParser {
       }
 
       if (transactionBody.consensusUpdateTopic) {
-        const consensusUpdateTopic = this.parseConsensusUpdateTopic(transactionBody.consensusUpdateTopic);
+        const consensusUpdateTopic = this.parseConsensusUpdateTopic(
+          transactionBody.consensusUpdateTopic,
+        );
         if (consensusUpdateTopic) {
           return {
             type: 'TOPICUPDATE',
@@ -190,7 +198,9 @@ export class HCSParser {
       }
 
       if (transactionBody.consensusDeleteTopic) {
-        const consensusDeleteTopic = this.parseConsensusDeleteTopic(transactionBody.consensusDeleteTopic);
+        const consensusDeleteTopic = this.parseConsensusDeleteTopic(
+          transactionBody.consensusDeleteTopic,
+        );
         if (consensusDeleteTopic) {
           return {
             type: 'TOPICDELETE',
