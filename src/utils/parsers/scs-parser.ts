@@ -50,6 +50,7 @@ export class SCSParser {
             const tx = decoded.transactionList[0];
             let txBody: proto.ITransactionBody | null = null;
 
+            // Handle regular transaction branch
             if (tx.bodyBytes && tx.bodyBytes.length > 0) {
               txBody = proto.TransactionBody.decode(tx.bodyBytes);
             } else if (
@@ -74,6 +75,7 @@ export class SCSParser {
         } catch (protoError) {}
       }
 
+      // Fallback to Transaction object parsing
       return this.parseFromTransactionInternals(transaction);
     } catch (error) {
       return {
@@ -103,6 +105,7 @@ export class SCSParser {
       }
     }
 
+    // Contract Create
     if (txBody.contractCreateInstance) {
       const contractCreate = this.parseContractCreate(
         txBody.contractCreateInstance,
@@ -116,6 +119,7 @@ export class SCSParser {
       }
     }
 
+    // Contract Update
     if (txBody.contractUpdateInstance) {
       const contractUpdate = this.parseContractUpdate(
         txBody.contractUpdateInstance,
@@ -129,6 +133,7 @@ export class SCSParser {
       }
     }
 
+    // Contract Delete
     if (txBody.contractDeleteInstance) {
       const contractDelete = this.parseContractDelete(
         txBody.contractDeleteInstance,
@@ -142,6 +147,7 @@ export class SCSParser {
       }
     }
 
+    // Ethereum Transaction (was completely missing)
     if (txBody.ethereumTransaction) {
       const ethereumCall = this.parseEthereumTransaction(
         txBody.ethereumTransaction,
@@ -150,7 +156,7 @@ export class SCSParser {
         return {
           type: 'ETHEREUMTRANSACTION',
           humanReadableType: 'Ethereum Transaction',
-          contractCall: ethereumCall,
+          ethereumTransaction: ethereumCall,
         };
       }
     }
@@ -189,6 +195,7 @@ export class SCSParser {
         constructor?: { name?: string };
       };
 
+      // Contract Call (most common)
       if (tx._contractId && tx._gas) {
         const contractCall: ContractCallData = {
           contractId: tx._contractId.toString(),
@@ -214,6 +221,7 @@ export class SCSParser {
         };
       }
 
+      // Contract Create
       if (hasTransactionType(transaction, 'contractCreateInstance')) {
         const contractCreate: ContractCreateData = {
           gas: tx._gas.toString(),
@@ -250,10 +258,8 @@ export class SCSParser {
             tx._stakedNodeId,
           ).toString();
         }
-        if (tx._declineReward !== undefined)
-          contractCreate.declineReward = tx._declineReward;
-        if (tx._autoRenewPeriod)
-          contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+        if (tx._declineReward !== undefined) contractCreate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod) contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
 
         return {
           type: 'CONTRACTCREATE',
@@ -262,6 +268,7 @@ export class SCSParser {
         };
       }
 
+      // Contract Update
       if (hasTransactionType(transaction, 'contractUpdateInstance')) {
         const contractUpdate: ContractUpdateData = {
           contractIdToUpdate: tx._contractId.toString(),
@@ -283,10 +290,8 @@ export class SCSParser {
             tx._stakedNodeId,
           ).toString();
         }
-        if (tx._declineReward !== undefined)
-          contractUpdate.declineReward = tx._declineReward;
-        if (tx._autoRenewPeriod)
-          contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+        if (tx._declineReward !== undefined) contractUpdate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod) contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
 
         return {
           type: 'CONTRACTUPDATE',
@@ -295,6 +300,7 @@ export class SCSParser {
         };
       }
 
+      // Contract Delete
       if (hasTransactionType(transaction, 'contractDeleteInstance')) {
         const contractDelete: ContractDeleteData = {
           contractIdToDelete: tx._contractId.toString(),
@@ -328,6 +334,7 @@ export class SCSParser {
 
     const selector = functionParameters.substring(0, 8);
 
+    // Common ERC-20/ERC-721 function selectors
     const commonSelectors: Record<string, string> = {
       a9059cbb: 'transfer',
       '095ea7b3': 'approve',
@@ -363,6 +370,7 @@ export class SCSParser {
   ): ContractCallData | undefined {
     if (!body) return undefined;
 
+    // Extract data from Ethereum transaction
     const data: ContractCallData = {
       contractId: 'EVM',
       gas: body.maxGasAllowance
@@ -375,6 +383,7 @@ export class SCSParser {
       const ethData = Buffer.from(body.ethereumData).toString('hex');
       data.functionParameters = ethData;
 
+      // Try to extract function selector from ethereum data
       if (ethData.length >= 8) {
         data.functionName = this.extractFunctionName(ethData);
       }

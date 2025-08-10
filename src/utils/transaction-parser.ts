@@ -21,11 +21,6 @@ import { SCSParser } from './parsers/scs-parser';
 import { UtilParser } from './parsers/util-parser';
 import { ScheduleParser } from './parsers/schedule-parser';
 import { transactionParserRegistry } from './transaction-parser-registry';
-import {
-  getTransactionTypeFromBody,
-  getSchedulableTransactionType,
-  getHumanReadableTransactionType,
-} from './transaction-type-registries';
 
 interface TransactionInternals {
   _transactionBody?: proto.ITransactionBody;
@@ -1297,7 +1292,13 @@ export class TransactionParser {
     if (parserConfig) {
       const bodyData = txBody[parserConfig.bodyField];
       if (bodyData) {
-        result[parserConfig.resultField] = parserConfig.parser(bodyData);
+        const parserResult = parserConfig.parser(bodyData);
+
+        if (parserConfig.spreadResult) {
+          Object.assign(result, parserResult);
+        } else {
+          result[parserConfig.resultField] = parserResult;
+        }
       }
     }
 

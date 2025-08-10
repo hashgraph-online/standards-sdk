@@ -115,7 +115,7 @@ export class UtilParser {
         return {
           type: 'FREEZE',
           humanReadableType: 'Network Freeze',
-          networkFreeze,
+          freeze: networkFreeze,
         };
       }
     }
@@ -246,7 +246,7 @@ export class UtilParser {
         return {
           type: 'FREEZE',
           humanReadableType: 'Network Freeze',
-          networkFreeze,
+          freeze: networkFreeze,
         };
       }
 
