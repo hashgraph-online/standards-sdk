@@ -4,10 +4,23 @@ import {
   InscriptionResult,
   RetrievedInscriptionResult,
   HederaClientConfig,
+  QuoteResult,
+  StartInscriptionRequest,
+  InscriptionJobResponse,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { Logger, ILogger } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
+import { TransactionParser } from '../utils/transaction-parser';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileTypeFromBuffer } from 'file-type';
+import {
+  getOrCreateSDK,
+  getCachedQuote,
+  cacheQuote,
+  validateQuoteParameters,
+} from './quote-cache';
 
 export type InscriptionInput =
   | { type: 'url'; url: string }
@@ -19,14 +32,58 @@ export type InscriptionInput =
       mimeType?: string;
     };
 
-export type InscriptionResponse =
-  | { confirmed: false; result: InscriptionResult; sdk: InscriptionSDK }
-  | {
-      confirmed: true;
-      result: InscriptionResult;
-      inscription: RetrievedInscriptionResult;
-      sdk: InscriptionSDK;
-    };
+/**
+ * Convert file path to base64 with mime type detection
+ */
+async function convertFileToBase64(filePath: string): Promise<{
+  base64: string;
+  fileName: string;
+  mimeType: string;
+}> {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    const base64 = buffer.toString('base64');
+    const fileName = path.basename(filePath);
+
+    // Try to detect mime type
+    let mimeType = 'application/octet-stream';
+    try {
+      const fileTypeResult = await fileTypeFromBuffer(buffer);
+      if (fileTypeResult) {
+        mimeType = fileTypeResult.mime;
+      }
+    } catch (error) {
+      // Fallback to basic mime type detection based on extension
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.txt': 'text/plain',
+        '.json': 'application/json',
+        '.html': 'text/html',
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.pdf': 'application/pdf',
+      };
+      mimeType = mimeMap[ext] || 'application/octet-stream';
+    }
+
+    return { base64, fileName, mimeType };
+  } catch (error) {
+    throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+  }
+}
+
+export interface InscriptionResponse {
+  confirmed: boolean;
+  result: InscriptionResult | QuoteResult;
+  inscription?: RetrievedInscriptionResult;
+  sdk?: InscriptionSDK;
+  quote?: boolean;
+}
 
 export async function inscribe(
   input: InscriptionInput,
@@ -42,6 +99,7 @@ export async function inscribe(
   logger.info('Starting inscription process', {
     type: input.type,
     mode: options.mode || 'file',
+    quoteOnly: options.quoteOnly || false,
     ...(input.type === 'url' ? { url: input.url } : {}),
     ...(input.type === 'file' ? { path: input.path } : {}),
     ...(input.type === 'buffer'
@@ -50,6 +108,11 @@ export async function inscribe(
   });
 
   try {
+    if (options.quoteOnly) {
+      logger.debug('Quote-only mode requested, generating quote');
+      return await generateQuote(input, clientConfig, options, existingSDK);
+    }
+
     if (options.mode === 'hashinal' && options.metadata) {
       validateHashinalMetadata(options.metadata, logger);
     }
@@ -83,7 +146,7 @@ export async function inscribe(
       chunkSize: options.chunkSize,
     };
 
-    let request: any;
+    let request: StartInscriptionRequest;
     switch (input.type) {
       case 'url':
         request = {
@@ -95,15 +158,19 @@ export async function inscribe(
         };
         break;
 
-      case 'file':
+      case 'file': {
+        const fileData = await convertFileToBase64(input.path);
         request = {
           ...baseRequest,
           file: {
-            type: 'path',
-            path: input.path,
+            type: 'base64',
+            base64: fileData.base64,
+            fileName: fileData.fileName,
+            mimeType: fileData.mimeType,
           },
         };
         break;
+      }
 
       case 'buffer':
         request = {
@@ -141,11 +208,8 @@ export async function inscribe(
       transactionId: result.jobId,
     });
 
-    // Always retrieve full inscription details when waitForConfirmation is true
-    // The basic result doesn't contain hashinal fields like jsonTopicId
-
     if (options.waitForConfirmation) {
-      console.log('Waiting for inscription confirmation', {
+      logger.debug('Waiting for inscription confirmation', {
         transactionId: result.jobId,
         maxAttempts: options.waitMaxAttempts,
         intervalMs: options.waitIntervalMs,
@@ -196,6 +260,7 @@ export async function inscribeWithSigner(
   logger.info('Starting inscription process with signer', {
     type: input.type,
     mode: options.mode || 'file',
+    quoteOnly: options.quoteOnly || false,
     ...(input.type === 'url' ? { url: input.url } : {}),
     ...(input.type === 'file' ? { path: input.path } : {}),
     ...(input.type === 'buffer'
@@ -204,6 +269,16 @@ export async function inscribeWithSigner(
   });
 
   try {
+    if (options.quoteOnly) {
+      logger.debug('Quote-only mode requested with signer, generating quote');
+      const clientConfig = {
+        accountId: signer.getAccountId().toString(),
+        privateKey: '',
+        network: options.network || 'mainnet',
+      };
+      return await generateQuote(input, clientConfig, options, existingSDK);
+    }
+
     if (options.mode === 'hashinal' && options.metadata) {
       validateHashinalMetadata(options.metadata, logger);
     }
@@ -240,7 +315,7 @@ export async function inscribeWithSigner(
       chunkSize: options.chunkSize,
     };
 
-    let request: any;
+    let request: StartInscriptionRequest;
     switch (input.type) {
       case 'url':
         request = {
@@ -252,15 +327,19 @@ export async function inscribeWithSigner(
         };
         break;
 
-      case 'file':
+      case 'file': {
+        const fileData = await convertFileToBase64(input.path);
         request = {
           ...baseRequest,
           file: {
-            type: 'path',
-            path: input.path,
+            type: 'base64',
+            base64: fileData.base64,
+            fileName: fileData.fileName,
+            mimeType: fileData.mimeType,
           },
         };
         break;
+      }
 
       case 'buffer':
         request = {
@@ -411,7 +490,10 @@ export async function retrieveInscription(
   }
 }
 
-function validateHashinalMetadata(metadata: any, logger: any): void {
+function validateHashinalMetadata(
+  metadata: Record<string, unknown>,
+  logger: ILogger,
+): void {
   const requiredFields = ['name', 'creator', 'description', 'type'];
   const missingFields = requiredFields.filter(field => !metadata[field]);
 
@@ -432,6 +514,289 @@ function validateHashinalMetadata(metadata: any, logger: any): void {
     hasProperties: !!metadata.properties,
   });
 }
+
+/**
+ * Generate a quote for an inscription without executing it
+ * @param input - The inscription input data
+ * @param clientConfig - Hedera client configuration
+ * @param options - Inscription options
+ * @param existingSDK - Optional existing SDK instance
+ * @returns Promise containing the quote result
+ */
+export async function generateQuote(
+  input: InscriptionInput,
+  clientConfig: HederaClientConfig,
+  options: InscriptionOptions,
+  existingSDK?: InscriptionSDK,
+): Promise<InscriptionResponse> {
+  const logger = Logger.getInstance({
+    module: 'Inscriber',
+    ...options.logging,
+  });
+
+  logger.info('Generating inscription quote', {
+    type: input.type,
+    mode: options.mode || 'file',
+    ...(input.type === 'url' ? { url: input.url } : {}),
+    ...(input.type === 'file' ? { path: input.path } : {}),
+    ...(input.type === 'buffer'
+      ? { fileName: input.fileName, bufferSize: input.buffer.byteLength }
+      : {}),
+  });
+
+  try {
+    validateQuoteParameters(input, clientConfig, options);
+
+    const cachedQuote = getCachedQuote(input, clientConfig, options);
+
+    if (cachedQuote) {
+      logger.debug('Returning cached quote');
+      return {
+        confirmed: false,
+        quote: true,
+        result: cachedQuote,
+      };
+    }
+
+    if (options.mode === 'hashinal' && options.metadata) {
+      validateHashinalMetadata(options.metadata, logger);
+    }
+
+    const sdk = await getOrCreateSDK(clientConfig, options, existingSDK);
+
+    const baseRequest = {
+      holderId: clientConfig.accountId,
+      metadata: options.metadata || {},
+      tags: options.tags || [],
+      mode: options.mode || 'file',
+      chunkSize: options.chunkSize,
+    };
+
+    let request: StartInscriptionRequest;
+    switch (input.type) {
+      case 'url':
+        request = {
+          ...baseRequest,
+          file: {
+            type: 'url',
+            url: input.url,
+          },
+        };
+        break;
+
+      case 'file': {
+        const fileData = await convertFileToBase64(input.path);
+        request = {
+          ...baseRequest,
+          file: {
+            type: 'base64',
+            base64: fileData.base64,
+            fileName: fileData.fileName,
+            mimeType: fileData.mimeType,
+          },
+        };
+        break;
+      }
+
+      case 'buffer':
+        request = {
+          ...baseRequest,
+          file: {
+            type: 'base64',
+            base64: Buffer.from(input.buffer).toString('base64'),
+            fileName: input.fileName,
+            mimeType: input.mimeType,
+          },
+        };
+        break;
+    }
+
+    if (options.mode === 'hashinal') {
+      request.metadataObject = options.metadata;
+      request.creator = options.metadata?.creator || clientConfig.accountId;
+      request.description = options.metadata?.description;
+
+      if (options.jsonFileURL) {
+        request.jsonFileURL = options.jsonFileURL;
+      }
+    }
+
+    logger.debug('Calling inscription SDK startInscription for quote', {
+      type: input.type,
+      mode: options.mode || 'file',
+      holderId: clientConfig.accountId,
+    });
+
+    const inscriptionResponse = await sdk.startInscription(request);
+
+    logger.debug('Received inscription response for quote parsing', {
+      hasTransactionBytes: !!inscriptionResponse.transactionBytes,
+      bytesLength: inscriptionResponse.transactionBytes?.length || 0,
+      transactionBytesType: typeof inscriptionResponse.transactionBytes,
+      totalCost: (inscriptionResponse as InscriptionJobResponse).totalCost,
+    });
+
+    const quote = await parseTransactionForQuote(
+      inscriptionResponse as InscriptionJobResponse,
+      logger,
+    );
+
+    cacheQuote(input, clientConfig, options, quote);
+
+    logger.info('Successfully generated inscription quote', {
+      totalCostHbar: quote.totalCostHbar,
+    });
+
+    return {
+      confirmed: false,
+      quote: true,
+      result: quote,
+    };
+  } catch (error) {
+    logger.error('Error generating inscription quote', error);
+    throw error;
+  }
+}
+
+/**
+ * Parse inscription response to extract HBAR cost information
+ * @param inscriptionResponse - Response from inscription SDK
+ * @param logger - Logger instance for debugging
+ * @returns Promise containing the quote result
+ */
+async function parseTransactionForQuote(
+  inscriptionResponse: InscriptionJobResponse,
+  logger: ILogger,
+): Promise<QuoteResult> {
+
+  try {
+    let totalCostHbar = '0.001';
+
+    if (
+      inscriptionResponse.totalCost &&
+      typeof inscriptionResponse.totalCost === 'number'
+    ) {
+      const hbarAmount = inscriptionResponse.totalCost / 100000000;
+      totalCostHbar = hbarAmount.toString();
+
+      logger.debug('Using totalCost from inscription response', {
+        totalCostTinybars: inscriptionResponse.totalCost,
+        totalCostHbar: totalCostHbar,
+      });
+    } else if (inscriptionResponse.transactionBytes) {
+      logger.debug('Parsing transaction bytes for cost information');
+
+      try {
+        let transactionBytesString: string;
+
+        if (typeof inscriptionResponse.transactionBytes === 'string') {
+          transactionBytesString = inscriptionResponse.transactionBytes;
+        } else if (
+          inscriptionResponse.transactionBytes &&
+          typeof inscriptionResponse.transactionBytes === 'object' &&
+          'data' in inscriptionResponse.transactionBytes
+        ) {
+          const buffer = Buffer.from(inscriptionResponse.transactionBytes.data);
+          transactionBytesString = buffer.toString('base64');
+        } else {
+          throw new Error('Invalid transactionBytes format');
+        }
+
+        logger.debug('About to parse transaction bytes', {
+          bytesLength: transactionBytesString.length,
+          bytesPreview: transactionBytesString.slice(0, 100),
+        });
+
+        const parsedTransaction = await TransactionParser.parseTransactionBytes(
+          transactionBytesString,
+          { includeRaw: false },
+        );
+
+        logger.debug('Parsed transaction for quote', {
+          type: parsedTransaction.type,
+          hasTransfers: !!parsedTransaction.transfers,
+          transferCount: parsedTransaction.transfers?.length || 0,
+          transfers: parsedTransaction.transfers,
+        });
+
+        let totalTransferAmount = 0;
+
+        if (
+          parsedTransaction.transfers &&
+          parsedTransaction.transfers.length > 0
+        ) {
+          for (const transfer of parsedTransaction.transfers) {
+            const transferAmount =
+              typeof transfer.amount === 'string'
+                ? parseFloat(transfer.amount)
+                : transfer.amount;
+
+            if (transferAmount < 0) {
+              const amountHbar = Math.abs(transferAmount);
+              totalTransferAmount += amountHbar;
+
+              logger.debug('Found HBAR transfer', {
+                from: transfer.accountId,
+                to: 'service',
+                amount: amountHbar,
+              });
+            }
+          }
+        }
+
+        if (totalTransferAmount > 0) {
+          totalCostHbar = totalTransferAmount.toString();
+          logger.debug('Using parsed transaction transfer amount', {
+            totalTransferAmount,
+            totalCostHbar,
+          });
+        }
+      } catch (parseError) {
+        logger.warn(
+          'Could not parse transaction bytes, using totalCost fallback',
+          {
+            error: parseError,
+            errorMessage:
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError),
+          },
+        );
+      }
+    }
+
+    const transfers = [
+      {
+        to: 'Inscription Service',
+        amount: totalCostHbar,
+        description: `Inscription fee (${totalCostHbar} HBAR)`,
+      },
+    ];
+
+    const validUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    const quote: QuoteResult = {
+      totalCostHbar,
+      validUntil,
+      breakdown: {
+        transfers,
+      },
+    };
+
+    logger.debug('Successfully parsed transaction for quote', {
+      totalCostHbar: quote.totalCostHbar,
+      transferCount: transfers.length,
+      hasTransactionBytes: !!inscriptionResponse.transactionBytes,
+      hasTotalCost: !!inscriptionResponse.totalCost,
+    });
+
+    return quote;
+  } catch (error) {
+    logger.error('Error parsing transaction for quote', error);
+    throw error;
+  }
+}
+
 
 export async function waitForInscriptionConfirmation(
   sdk: InscriptionSDK,
@@ -490,8 +855,6 @@ export async function waitForInscriptionConfirmation(
         wrappedCallback,
       );
     } catch (e) {
-      console.log(e);
-      // Fall back to standard method if progress callback fails
       logger.debug('Falling back to standard waitForInscription method', {
         error: e,
       });

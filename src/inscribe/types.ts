@@ -5,6 +5,7 @@ import {
   HederaClientConfig,
   InscriptionNumbersParams,
   InscriptionNumberDetails,
+  ImageJobResponse,
 } from '@kiloscribe/inscription-sdk';
 import { LoggerOptions, LogLevel } from '../utils/logger';
 import { RegistrationProgressCallback } from '../hcs-10/types';
@@ -57,6 +58,7 @@ export interface InscriptionOptions {
   };
   progressCallback?: RegistrationProgressCallback;
   network?: 'mainnet' | 'testnet';
+  quoteOnly?: boolean;
 }
 
 export interface TextInscriptionOptions extends InscriptionOptions {
@@ -100,3 +102,37 @@ export interface HashinalInscriptionOptions extends InscriptionOptions {
   jsonFileURL?: string;
   chunkSize?: number;
 }
+
+/**
+ * Result interface for inscription quotes providing cost breakdown and execution parameters
+ */
+export interface QuoteResult {
+  /** Total cost in HBAR for the inscription */
+  totalCostHbar: string;
+  /** Quote expiration timestamp in ISO format */
+  validUntil: string;
+  /** Detailed cost breakdown */
+  breakdown: {
+    /** Array of HBAR transfers that will occur during execution */
+    transfers: Array<{
+      /** Recipient account ID */
+      to: string;
+      /** Transfer amount in HBAR */
+      amount: string;
+      /** Description of the transfer purpose */
+      description: string;
+    }>;
+  };
+}
+
+/**
+ * Inscription job response with additional fields from the API
+ */
+export interface InscriptionJobResponse
+  extends Omit<ImageJobResponse, 'transactionBytes'> {
+  totalCost?: number;
+  totalMessages?: number;
+  message?: string;
+  transactionBytes?: string | { type: string; data: number[] };
+}
+

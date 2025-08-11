@@ -3,15 +3,13 @@ import { Buffer } from 'buffer';
 import { Hbar, HbarUnit, Long, Transaction, AccountId } from '@hashgraph/sdk';
 import { ethers } from 'ethers';
 import {
-  TokenAmount,
   ParsedTransaction,
   ValidationResult,
   ParseOptions,
   TransactionParsingError,
   TokenCreationData,
-  TokenAirdropData,
 } from './transaction-parser-types';
-
+import { resolveTransactionSummary } from './transaction-summary-registry';
 export { TransactionParsingError } from './transaction-parser-types';
 import { HTSParser } from './parsers/hts-parser';
 import { HCSParser } from './parsers/hcs-parser';
@@ -21,6 +19,10 @@ import { SCSParser } from './parsers/scs-parser';
 import { UtilParser } from './parsers/util-parser';
 import { ScheduleParser } from './parsers/schedule-parser';
 import { transactionParserRegistry } from './transaction-parser-registry';
+import {
+  getHumanReadableTransactionType,
+  getTransactionTypeFromBody,
+} from './transaction-type-registries';
 
 interface TransactionInternals {
   _transactionBody?: proto.ITransactionBody;
@@ -419,7 +421,7 @@ export class TransactionParser {
   private static getTransactionType(
     txBody: proto.SchedulableTransactionBody,
   ): string {
-    return getSchedulableTransactionType(txBody);
+    return getTransactionTypeFromBody(txBody as proto.TransactionBody).type;
   }
 
   /**
@@ -437,304 +439,7 @@ export class TransactionParser {
    * @returns The human-readable summary of the transaction
    */
   static getTransactionSummary(parsedTx: ParsedTransaction): string {
-    if (parsedTx.type === 'cryptoTransfer') {
-      const senders = [];
-      const receivers = [];
-
-      for (const transfer of parsedTx.transfers) {
-        const originalAmountFloat = parseFloat(transfer.amount);
-
-        let displayStr = transfer.amount;
-        if (displayStr.startsWith('-')) {
-          displayStr = displayStr.substring(1);
-        }
-        displayStr = displayStr.replace(/\s*ℏ$/, '');
-
-        if (originalAmountFloat < 0) {
-          senders.push(`${transfer.accountId} (${displayStr} ℏ)`);
-        } else if (originalAmountFloat > 0) {
-          receivers.push(`${transfer.accountId} (${displayStr} ℏ)`);
-        }
-      }
-
-      if (senders.length > 0 && receivers.length > 0) {
-        return `Transfer of HBAR from ${senders.join(', ')} to ${receivers.join(
-          ', ',
-        )}`;
-      } else {
-        return parsedTx.humanReadableType;
-      }
-    } else if (parsedTx.contractCall) {
-      let contractCallSummary = `Contract call to ${parsedTx.contractCall.contractId} with ${parsedTx.contractCall.gas} gas`;
-
-      if (parsedTx.contractCall.amount > 0) {
-        contractCallSummary += ` and ${parsedTx.contractCall.amount} HBAR`;
-      }
-
-      if (parsedTx.contractCall.functionName) {
-        contractCallSummary += ` calling function ${parsedTx.contractCall.functionName}`;
-      }
-
-      return contractCallSummary;
-    } else if (parsedTx.tokenMint) {
-      return `Mint ${parsedTx.tokenMint.amount} tokens for token ${parsedTx.tokenMint.tokenId}`;
-    } else if (parsedTx.tokenBurn) {
-      return `Burn ${parsedTx.tokenBurn.amount} tokens for token ${parsedTx.tokenBurn.tokenId}`;
-    } else if (parsedTx.tokenCreation) {
-      let summary = `Create token ${
-        parsedTx.tokenCreation.tokenName || '(No Name)'
-      } (${parsedTx.tokenCreation.tokenSymbol || '(No Symbol)'})`;
-      if (parsedTx.tokenCreation.initialSupply) {
-        summary += ` with initial supply ${parsedTx.tokenCreation.initialSupply}`;
-      }
-      if (parsedTx.tokenCreation.customFees?.length) {
-        summary += ` including ${parsedTx.tokenCreation.customFees.length} custom fee(s)`;
-      }
-      return summary;
-    } else if (parsedTx.tokenTransfers.length > 0) {
-      const tokenGroups: Record<string, TokenAmount[]> = {};
-
-      for (const transfer of parsedTx.tokenTransfers) {
-        if (!tokenGroups[transfer.tokenId]) {
-          tokenGroups[transfer.tokenId] = [];
-        }
-        tokenGroups[transfer.tokenId].push(transfer);
-      }
-
-      const tokenSummaries = [];
-
-      for (const [tokenId, transfers] of Object.entries(tokenGroups)) {
-        const tokenSenders = [];
-        const tokenReceivers = [];
-
-        for (const transfer of transfers) {
-          const transferAmountValue = parseFloat(transfer.amount.toString());
-          if (transferAmountValue < 0) {
-            tokenSenders.push(
-              `${transfer.accountId} (${Math.abs(transferAmountValue)})`,
-            );
-          } else if (transferAmountValue > 0) {
-            tokenReceivers.push(
-              `${transfer.accountId} (${transferAmountValue})`,
-            );
-          }
-        }
-
-        if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
-          tokenSummaries.push(
-            `Transfer of token ${tokenId} from ${tokenSenders.join(
-              ', ',
-            )} to ${tokenReceivers.join(', ')}`,
-          );
-        }
-      }
-
-      if (tokenSummaries.length > 0) {
-        return tokenSummaries.join('; ');
-      } else {
-        return parsedTx.humanReadableType;
-      }
-    } else if (parsedTx.consensusCreateTopic) {
-      let summary = `Create new topic`;
-      if (parsedTx.consensusCreateTopic.memo) {
-        summary += ` with memo "${parsedTx.consensusCreateTopic.memo}"`;
-      }
-      if (parsedTx.consensusCreateTopic.autoRenewAccountId) {
-        summary += `, auto-renew by ${parsedTx.consensusCreateTopic.autoRenewAccountId}`;
-      }
-      return summary;
-    } else if (parsedTx.consensusSubmitMessage) {
-      let summary = `Submit message`;
-      if (parsedTx.consensusSubmitMessage.topicId) {
-        summary += ` to topic ${parsedTx.consensusSubmitMessage.topicId}`;
-      }
-      if (parsedTx.consensusSubmitMessage.message) {
-        if (parsedTx.consensusSubmitMessage.messageEncoding === 'utf8') {
-          const messagePreview =
-            parsedTx.consensusSubmitMessage.message.substring(0, 70);
-          summary += `: "${messagePreview}${
-            parsedTx.consensusSubmitMessage.message.length > 70 ? '...' : ''
-          }"`;
-        } else {
-          summary += ` (binary message data, length: ${
-            Buffer.from(parsedTx.consensusSubmitMessage.message, 'base64')
-              .length
-          } bytes)`;
-        }
-      }
-      if (
-        parsedTx.consensusSubmitMessage.chunkInfoNumber &&
-        parsedTx.consensusSubmitMessage.chunkInfoTotal
-      ) {
-        summary += ` (chunk ${parsedTx.consensusSubmitMessage.chunkInfoNumber}/${parsedTx.consensusSubmitMessage.chunkInfoTotal})`;
-      }
-      return summary;
-    } else if (parsedTx.fileCreate) {
-      let summary = 'Create File';
-      if (parsedTx.fileCreate.memo) {
-        summary += ` with memo "${parsedTx.fileCreate.memo}"`;
-      }
-      if (parsedTx.fileCreate.contents) {
-        summary += ` (includes content)`;
-      }
-      return summary;
-    } else if (parsedTx.fileAppend) {
-      return `Append to File ${parsedTx.fileAppend.fileId || '(Unknown ID)'}`;
-    } else if (parsedTx.fileUpdate) {
-      return `Update File ${parsedTx.fileUpdate.fileId || '(Unknown ID)'}`;
-    } else if (parsedTx.fileDelete) {
-      return `Delete File ${parsedTx.fileDelete.fileId || '(Unknown ID)'}`;
-    } else if (parsedTx.consensusUpdateTopic) {
-      return `Update Topic ${
-        parsedTx.consensusUpdateTopic.topicId || '(Unknown ID)'
-      }`;
-    } else if (parsedTx.consensusDeleteTopic) {
-      return `Delete Topic ${
-        parsedTx.consensusDeleteTopic.topicId || '(Unknown ID)'
-      }`;
-    } else if (parsedTx.tokenUpdate) {
-      return `Update Token ${parsedTx.tokenUpdate.tokenId || '(Unknown ID)'}`;
-    } else if (parsedTx.tokenFeeScheduleUpdate) {
-      return `Update Fee Schedule for Token ${
-        parsedTx.tokenFeeScheduleUpdate.tokenId || '(Unknown ID)'
-      }`;
-    } else if (parsedTx.utilPrng) {
-      let summary = 'Generate Random Number';
-      if (parsedTx.utilPrng.range && parsedTx.utilPrng.range > 0) {
-        summary += ` (range up to ${parsedTx.utilPrng.range - 1})`;
-      }
-      return summary;
-    } else if (parsedTx.tokenFreeze) {
-      return `Freeze Token ${parsedTx.tokenFreeze.tokenId} for Account ${parsedTx.tokenFreeze.accountId}`;
-    } else if (parsedTx.tokenUnfreeze) {
-      return `Unfreeze Token ${parsedTx.tokenUnfreeze.tokenId} for Account ${parsedTx.tokenUnfreeze.accountId}`;
-    } else if (parsedTx.tokenGrantKyc) {
-      return `Grant KYC for Token ${parsedTx.tokenGrantKyc.tokenId} to Account ${parsedTx.tokenGrantKyc.accountId}`;
-    } else if (parsedTx.tokenRevokeKyc) {
-      return `Revoke KYC for Token ${parsedTx.tokenRevokeKyc.tokenId} from Account ${parsedTx.tokenRevokeKyc.accountId}`;
-    } else if (parsedTx.tokenPause) {
-      return `Pause Token ${parsedTx.tokenPause.tokenId}`;
-    } else if (parsedTx.tokenUnpause) {
-      return `Unpause Token ${parsedTx.tokenUnpause.tokenId}`;
-    } else if (parsedTx.tokenWipeAccount) {
-      let summary = `Wipe Token ${parsedTx.tokenWipeAccount.tokenId} from Account ${parsedTx.tokenWipeAccount.accountId}`;
-      if (parsedTx.tokenWipeAccount.serialNumbers?.length) {
-        summary += ` (Serials: ${parsedTx.tokenWipeAccount.serialNumbers.join(
-          ', ',
-        )})`;
-      }
-      if (parsedTx.tokenWipeAccount.amount) {
-        summary += ` (Amount: ${parsedTx.tokenWipeAccount.amount})`;
-      }
-      return summary;
-    } else if (parsedTx.tokenDelete) {
-      return `Delete Token ${parsedTx.tokenDelete.tokenId}`;
-    } else if (parsedTx.tokenAssociate) {
-      return `Associate Account ${
-        parsedTx.tokenAssociate.accountId
-      } with Tokens: ${parsedTx.tokenAssociate.tokenIds?.join(', ')}`;
-    } else if (parsedTx.tokenDissociate) {
-      return `Dissociate Account ${
-        parsedTx.tokenDissociate.accountId
-      } from Tokens: ${parsedTx.tokenDissociate.tokenIds?.join(', ')}`;
-    } else if (parsedTx.cryptoDelete) {
-      return `Delete Account ${parsedTx.cryptoDelete.deleteAccountId}`;
-    }
-    if (parsedTx.cryptoCreateAccount) {
-      let summary = 'Create Account';
-      if (
-        parsedTx.cryptoCreateAccount.initialBalance &&
-        parsedTx.cryptoCreateAccount.initialBalance !== '0'
-      ) {
-        summary += ` with balance ${parsedTx.cryptoCreateAccount.initialBalance}`;
-      }
-      if (parsedTx.cryptoCreateAccount.alias) {
-        summary += ` (Alias: ${parsedTx.cryptoCreateAccount.alias})`;
-      }
-      return summary;
-    }
-    if (parsedTx.cryptoUpdateAccount) {
-      return `Update Account ${
-        parsedTx.cryptoUpdateAccount.accountIdToUpdate || '(Unknown ID)'
-      }`;
-    }
-    if (parsedTx.cryptoApproveAllowance) {
-      let count =
-        (parsedTx.cryptoApproveAllowance.hbarAllowances?.length || 0) +
-        (parsedTx.cryptoApproveAllowance.tokenAllowances?.length || 0) +
-        (parsedTx.cryptoApproveAllowance.nftAllowances?.length || 0);
-      return `Approve ${count} Crypto Allowance(s)`;
-    }
-    if (parsedTx.cryptoDeleteAllowance) {
-      return `Delete ${
-        parsedTx.cryptoDeleteAllowance.nftAllowancesToRemove?.length || 0
-      } NFT Crypto Allowance(s)`;
-    }
-    if (parsedTx.contractCreate) {
-      let summary = 'Create Contract';
-      if (parsedTx.contractCreate.memo) {
-        summary += ` (Memo: ${parsedTx.contractCreate.memo})`;
-      }
-      return summary;
-    }
-    if (parsedTx.contractUpdate) {
-      return `Update Contract ${
-        parsedTx.contractUpdate.contractIdToUpdate || '(Unknown ID)'
-      }`;
-    }
-    if (parsedTx.contractDelete) {
-      let summary = `Delete Contract ${
-        parsedTx.contractDelete.contractIdToDelete || '(Unknown ID)'
-      }`;
-      if (parsedTx.contractDelete.transferAccountId) {
-        summary += ` (Transfer to Account: ${parsedTx.contractDelete.transferAccountId})`;
-      } else if (parsedTx.contractDelete.transferContractId) {
-        summary += ` (Transfer to Contract: ${parsedTx.contractDelete.transferContractId})`;
-      }
-      return summary;
-    }
-    if (
-      parsedTx.humanReadableType &&
-      parsedTx.humanReadableType !== 'Unknown Transaction'
-    ) {
-      return parsedTx.humanReadableType;
-    }
-    if (parsedTx.tokenTransfers.length > 0) {
-      const tokenGroups: Record<string, TokenAmount[]> = {};
-      for (const transfer of parsedTx.tokenTransfers) {
-        if (!tokenGroups[transfer.tokenId]) {
-          tokenGroups[transfer.tokenId] = [];
-        }
-        tokenGroups[transfer.tokenId].push(transfer);
-      }
-      const tokenSummaries = [];
-      for (const [tokenId, transfers] of Object.entries(tokenGroups)) {
-        const tokenSenders = transfers
-          .filter(t => t.amount < 0)
-          .map(t => `${t.accountId} (${Math.abs(t.amount)})`);
-        const tokenReceivers = transfers
-          .filter(t => t.amount > 0)
-          .map(t => `${t.accountId} (${t.amount})`);
-        if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
-          tokenSummaries.push(
-            `Transfer of token ${tokenId} from ${tokenSenders.join(
-              ', ',
-            )} to ${tokenReceivers.join(', ')}`,
-          );
-        } else if (tokenReceivers.length > 0) {
-          tokenSummaries.push(
-            `Token ${tokenId} received by ${tokenReceivers.join(', ')}`,
-          );
-        } else if (tokenSenders.length > 0) {
-          tokenSummaries.push(
-            `Token ${tokenId} sent from ${tokenSenders.join(', ')}`,
-          );
-        }
-      }
-      if (tokenSummaries.length > 0) return tokenSummaries.join('; ');
-    }
-
-    return 'Unknown Transaction';
+    return resolveTransactionSummary(parsedTx);
   }
 
   /**

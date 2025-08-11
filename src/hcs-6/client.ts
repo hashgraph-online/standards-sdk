@@ -183,7 +183,18 @@ export class HCS6Client extends HCS6BaseClient {
       if (options.submitKey) {
         let submitPublicKey: PublicKey;
         if (typeof options.submitKey === 'string') {
-          submitPublicKey = PublicKey.fromString(options.submitKey);
+          try {
+            submitPublicKey = PublicKey.fromString(options.submitKey);
+          } catch {
+            const keyBytes = Buffer.from(
+              options.submitKey.replace(/^0x/i, ''),
+              'hex',
+            );
+            submitPublicKey =
+              this.keyType === 'ed25519'
+                ? PublicKey.fromBytesED25519(keyBytes)
+                : PublicKey.fromBytesECDSA(keyBytes);
+          }
         } else if (typeof options.submitKey === 'boolean') {
           submitPublicKey = this.operatorKey.publicKey;
         } else {

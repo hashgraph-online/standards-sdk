@@ -258,8 +258,10 @@ export class SCSParser {
             tx._stakedNodeId,
           ).toString();
         }
-        if (tx._declineReward !== undefined) contractCreate.declineReward = tx._declineReward;
-        if (tx._autoRenewPeriod) contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+        if (tx._declineReward !== undefined)
+          contractCreate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod)
+          contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
 
         return {
           type: 'CONTRACTCREATE',
@@ -290,8 +292,10 @@ export class SCSParser {
             tx._stakedNodeId,
           ).toString();
         }
-        if (tx._declineReward !== undefined) contractUpdate.declineReward = tx._declineReward;
-        if (tx._autoRenewPeriod) contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+        if (tx._declineReward !== undefined)
+          contractUpdate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod)
+          contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
 
         return {
           type: 'CONTRACTUPDATE',
