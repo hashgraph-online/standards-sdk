@@ -1,4 +1,4 @@
-import { inscribe } from '../src/';
+import { inscribe, QuoteResult } from '../src/';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -56,10 +56,11 @@ async function runDemo() {
       },
     );
 
-    if (textResponse.type === 'quote') {
-      console.log(`Total cost: ${textResponse.result.totalCostHbar} HBAR`);
-      console.log(`Valid until: ${textResponse.result.validUntil}`);
-      console.log(`Transfer details:`, textResponse.result.breakdown.transfers);
+    if (textResponse.quote) {
+      const quoteResult = textResponse.result as QuoteResult;
+      console.log(`Total cost: ${quoteResult.totalCostHbar} HBAR`);
+      console.log(`Valid until: ${quoteResult.validUntil}`);
+      console.log(`Transfer details:`, quoteResult.breakdown.transfers);
     } else {
       throw new Error('Expected quote result');
     }
