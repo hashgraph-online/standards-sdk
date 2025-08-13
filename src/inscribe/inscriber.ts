@@ -143,6 +143,7 @@ export async function inscribe(
       metadata: options.metadata || {},
       tags: options.tags || [],
       mode: options.mode || 'file',
+      fileStandard: options.fileStandard,
       chunkSize: options.chunkSize,
     };
 
@@ -312,6 +313,7 @@ export async function inscribeWithSigner(
       metadata: options.metadata || {},
       tags: options.tags || [],
       mode: options.mode || 'file',
+      fileStandard: options.fileStandard,
       chunkSize: options.chunkSize,
     };
 
@@ -569,6 +571,7 @@ export async function generateQuote(
       metadata: options.metadata || {},
       tags: options.tags || [],
       mode: options.mode || 'file',
+      fileStandard: options.fileStandard,
       chunkSize: options.chunkSize,
     };
 
@@ -668,7 +671,6 @@ async function parseTransactionForQuote(
   inscriptionResponse: InscriptionJobResponse,
   logger: ILogger,
 ): Promise<QuoteResult> {
-
   try {
     let totalCostHbar = '0.001';
 
@@ -796,7 +798,6 @@ async function parseTransactionForQuote(
     throw error;
   }
 }
-
 
 export async function waitForInscriptionConfirmation(
   sdk: InscriptionSDK,

@@ -52,6 +52,7 @@ export interface InscriptionOptions {
   tags?: string[];
   metadata?: Record<string, any>;
   jsonFileURL?: string;
+  fileStandard?: string;
   chunkSize?: number;
   logging?: {
     level?: LogLevel;

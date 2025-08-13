@@ -11,6 +11,7 @@ import {
   inscribeWithSigner,
   InscriptionInput,
   InscriptionOptions,
+  InscriptionResult,
 } from '../inscribe';
 import { Logger, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
 import * as mime from 'mime-types';
@@ -582,16 +583,19 @@ export class HCS11Client {
         });
         return {
           imageTopicId: getTopicId(inscriptionResponse.inscription) || '',
-          transactionId: inscriptionResponse.result.jobId,
+          transactionId: (inscriptionResponse.result as InscriptionResult).jobId,
           success: true,
         };
       } else {
+        const jobId = inscriptionResponse.quote
+          ? 'quote-only'
+          : (inscriptionResponse.result as InscriptionResult).jobId;
         progressReporter.verifying('Waiting for inscription confirmation', 50, {
-          jobId: inscriptionResponse.result.jobId,
+          jobId,
         });
         return {
           imageTopicId: '',
-          transactionId: inscriptionResponse.result.jobId,
+          transactionId: jobId,
           success: false,
           error: 'Inscription not confirmed',
         };
@@ -721,12 +725,12 @@ export class HCS11Client {
 
       progressReporter.completed('Profile inscription completed', {
         topicId,
-        transactionId: inscriptionResponse.result.transactionId,
+        transactionId: (inscriptionResponse.result as InscriptionResult).transactionId,
       });
 
       return {
         profileTopicId: topicId,
-        transactionId: inscriptionResponse.result.transactionId,
+        transactionId: (inscriptionResponse.result as InscriptionResult).transactionId,
         success: true,
       };
     } catch (error: any) {

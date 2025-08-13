@@ -98,9 +98,10 @@ export class BrowserHCS2Client extends HCS2BaseClient {
           } catch {
             const keyInfo = KeyTypeDetector.detect(options.adminKey);
             if (keyInfo.rawBytes) {
-              adminPublicKey = keyInfo.type === 'ed25519'
-                ? PublicKey.fromBytesED25519(keyInfo.rawBytes)
-                : PublicKey.fromBytesECDSA(keyInfo.rawBytes);
+              adminPublicKey =
+                keyInfo.type === 'ed25519'
+                  ? PublicKey.fromBytesED25519(keyInfo.rawBytes)
+                  : PublicKey.fromBytesECDSA(keyInfo.rawBytes);
             } else {
               throw new Error('Failed to parse admin public key');
             }
@@ -123,9 +124,10 @@ export class BrowserHCS2Client extends HCS2BaseClient {
           } catch {
             const keyInfo = KeyTypeDetector.detect(options.submitKey);
             if (keyInfo.rawBytes) {
-              submitPublicKey = keyInfo.type === 'ed25519'
-                ? PublicKey.fromBytesED25519(keyInfo.rawBytes)
-                : PublicKey.fromBytesECDSA(keyInfo.rawBytes);
+              submitPublicKey =
+                keyInfo.type === 'ed25519'
+                  ? PublicKey.fromBytesED25519(keyInfo.rawBytes)
+                  : PublicKey.fromBytesECDSA(keyInfo.rawBytes);
             } else {
               throw new Error('Failed to parse submit public key');
             }
