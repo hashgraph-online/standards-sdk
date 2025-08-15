@@ -246,7 +246,9 @@ describe('HCS-6 Integration Tests', () => {
         invalidOperation,
       );
       expect(invalidOperationResult.valid).toBe(false);
-      expect(invalidOperationResult.errors).toContain("op: Invalid discriminator value. Expected 'register'");
+      expect(invalidOperationResult.errors).toContain(
+        "op: Invalid discriminator value. Expected 'register'",
+      );
 
       const longMemo = {
         p: 'hcs-6',

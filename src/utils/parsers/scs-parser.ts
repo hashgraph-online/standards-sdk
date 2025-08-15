@@ -7,12 +7,16 @@ import {
   ContractDeleteData,
 } from '../transaction-parser-types';
 import { Buffer } from 'buffer';
-import { parseKey, extractTransactionBody, hasTransactionType } from './parser-utils';
+import {
+  parseKey,
+  extractTransactionBody,
+  hasTransactionType,
+} from './parser-utils';
 import { AccountId, FileId } from '@hashgraph/sdk';
 
 /**
  * Smart Contract Service (SCS) Parser
- * 
+ *
  * Handles parsing for all contract-related transaction types including:
  * - Contract calls (including EthereumTransaction)
  * - Contract creation, updates, and deletion
@@ -26,7 +30,7 @@ export class SCSParser {
    */
   static parseSCSTransaction(
     transaction: Transaction,
-    originalBytes?: Uint8Array
+    originalBytes?: Uint8Array,
   ): {
     type?: string;
     humanReadableType?: string;
@@ -37,28 +41,30 @@ export class SCSParser {
     [key: string]: unknown;
   } {
     try {
-      // First, try to parse from protobuf data if available
       if (originalBytes || transaction.toBytes) {
         try {
           const bytesToParse = originalBytes || transaction.toBytes();
           const decoded = proto.TransactionList.decode(bytesToParse);
-          
+
           if (decoded.transactionList && decoded.transactionList.length > 0) {
             const tx = decoded.transactionList[0];
             let txBody: proto.ITransactionBody | null = null;
-            
+
             // Handle regular transaction branch
             if (tx.bodyBytes && tx.bodyBytes.length > 0) {
               txBody = proto.TransactionBody.decode(tx.bodyBytes);
-            }
-            // Handle signed transaction branch (was missing in original)
-            else if (tx.signedTransactionBytes && tx.signedTransactionBytes.length > 0) {
-              const signedTx = proto.SignedTransaction.decode(tx.signedTransactionBytes);
+            } else if (
+              tx.signedTransactionBytes &&
+              tx.signedTransactionBytes.length > 0
+            ) {
+              const signedTx = proto.SignedTransaction.decode(
+                tx.signedTransactionBytes,
+              );
               if (signedTx.bodyBytes) {
                 txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
               }
             }
-            
+
             if (txBody) {
               const protoResult = this.parseFromProtobufTxBody(txBody);
               if (protoResult.type && protoResult.type !== 'UNKNOWN') {
@@ -66,15 +72,16 @@ export class SCSParser {
               }
             }
           }
-        } catch (protoError) {
-          // Continue to Transaction object parsing
-        }
+        } catch (protoError) {}
       }
-      
+
       // Fallback to Transaction object parsing
       return this.parseFromTransactionInternals(transaction);
     } catch (error) {
-      return { type: 'UNKNOWN', humanReadableType: 'Unknown Contract Transaction' };
+      return {
+        type: 'UNKNOWN',
+        humanReadableType: 'Unknown Contract Transaction',
+      };
     }
   }
 
@@ -82,14 +89,11 @@ export class SCSParser {
    * Parse contract transaction from protobuf TransactionBody
    * Handles all contract operations from decoded protobuf data
    */
-  private static parseFromProtobufTxBody(
-    txBody: proto.ITransactionBody
-  ): {
+  private static parseFromProtobufTxBody(txBody: proto.ITransactionBody): {
     type?: string;
     humanReadableType?: string;
     [key: string]: unknown;
   } {
-    // Contract Call
     if (txBody.contractCall) {
       const contractCall = this.parseContractCall(txBody.contractCall);
       if (contractCall) {
@@ -100,10 +104,12 @@ export class SCSParser {
         };
       }
     }
-    
+
     // Contract Create
     if (txBody.contractCreateInstance) {
-      const contractCreate = this.parseContractCreate(txBody.contractCreateInstance);
+      const contractCreate = this.parseContractCreate(
+        txBody.contractCreateInstance,
+      );
       if (contractCreate) {
         return {
           type: 'CONTRACTCREATE',
@@ -112,10 +118,12 @@ export class SCSParser {
         };
       }
     }
-    
+
     // Contract Update
     if (txBody.contractUpdateInstance) {
-      const contractUpdate = this.parseContractUpdate(txBody.contractUpdateInstance);
+      const contractUpdate = this.parseContractUpdate(
+        txBody.contractUpdateInstance,
+      );
       if (contractUpdate) {
         return {
           type: 'CONTRACTUPDATE',
@@ -124,10 +132,12 @@ export class SCSParser {
         };
       }
     }
-    
+
     // Contract Delete
     if (txBody.contractDeleteInstance) {
-      const contractDelete = this.parseContractDelete(txBody.contractDeleteInstance);
+      const contractDelete = this.parseContractDelete(
+        txBody.contractDeleteInstance,
+      );
       if (contractDelete) {
         return {
           type: 'CONTRACTDELETE',
@@ -136,29 +146,29 @@ export class SCSParser {
         };
       }
     }
-    
+
     // Ethereum Transaction (was completely missing)
     if (txBody.ethereumTransaction) {
-      const ethereumCall = this.parseEthereumTransaction(txBody.ethereumTransaction);
+      const ethereumCall = this.parseEthereumTransaction(
+        txBody.ethereumTransaction,
+      );
       if (ethereumCall) {
         return {
           type: 'ETHEREUMTRANSACTION',
           humanReadableType: 'Ethereum Transaction',
-          contractCall: ethereumCall, // Map to contractCall structure for consistency
+          ethereumTransaction: ethereumCall,
         };
       }
     }
-    
+
     return {};
   }
-  
+
   /**
    * Extract contract data from Transaction internal fields
    * This handles cases where data is stored in Transaction object internals
    */
-  private static parseFromTransactionInternals(
-    transaction: Transaction
-  ): {
+  private static parseFromTransactionInternals(transaction: Transaction): {
     type?: string;
     humanReadableType?: string;
     [key: string]: unknown;
@@ -184,36 +194,40 @@ export class SCSParser {
         _transferContractId?: { toString(): string };
         constructor?: { name?: string };
       };
-      
+
       // Contract Call (most common)
       if (tx._contractId && tx._gas) {
         const contractCall: ContractCallData = {
           contractId: tx._contractId.toString(),
-          gas: typeof tx._gas === 'number' ? tx._gas : Long.fromValue(tx._gas).toNumber(),
+          gas:
+            typeof tx._gas === 'number'
+              ? tx._gas
+              : Long.fromValue(tx._gas).toNumber(),
           amount: tx._amount ? parseFloat(tx._amount.toString()) : 0,
         };
-        
+
         if (tx._functionParameters) {
-          const funcParams = Buffer.from(tx._functionParameters).toString('hex');
+          const funcParams = Buffer.from(tx._functionParameters).toString(
+            'hex',
+          );
           contractCall.functionParameters = funcParams;
-          // Enhanced function name extraction
           contractCall.functionName = this.extractFunctionName(funcParams);
         }
-        
+
         return {
           type: 'CONTRACTCALL',
           humanReadableType: 'Contract Call',
           contractCall,
         };
       }
-      
+
       // Contract Create
       if (hasTransactionType(transaction, 'contractCreateInstance')) {
         const contractCreate: ContractCreateData = {
           gas: tx._gas.toString(),
           initialBalance: tx._initialBalance?.toString() || '0',
         };
-        
+
         if (tx._fileId) {
           contractCreate.initcodeSource = 'fileID';
           contractCreate.initcode = tx._fileId.toString();
@@ -221,148 +235,167 @@ export class SCSParser {
           contractCreate.initcodeSource = 'bytes';
           contractCreate.initcode = Buffer.from(tx._bytecode).toString('hex');
         }
-        
+
         if (tx._constructorParameters) {
-          contractCreate.constructorParameters = Buffer.from(tx._constructorParameters).toString('hex');
+          contractCreate.constructorParameters = Buffer.from(
+            tx._constructorParameters,
+          ).toString('hex');
         }
-        
+
         if (tx._memo) contractCreate.memo = tx._memo;
         if (tx._adminKey) contractCreate.adminKey = parseKey(tx._adminKey);
         if (tx._maxAutomaticTokenAssociations !== undefined) {
-          contractCreate.maxAutomaticTokenAssociations = tx._maxAutomaticTokenAssociations;
+          contractCreate.maxAutomaticTokenAssociations =
+            tx._maxAutomaticTokenAssociations;
         }
         if (tx._stakedAccountId) {
           contractCreate.stakedAccountId = tx._stakedAccountId.toString();
-        } else if (tx._stakedNodeId !== null && tx._stakedNodeId !== undefined) {
-          contractCreate.stakedNodeId = Long.fromValue(tx._stakedNodeId).toString();
+        } else if (
+          tx._stakedNodeId !== null &&
+          tx._stakedNodeId !== undefined
+        ) {
+          contractCreate.stakedNodeId = Long.fromValue(
+            tx._stakedNodeId,
+          ).toString();
         }
-        if (tx._declineReward !== undefined) contractCreate.declineReward = tx._declineReward;
-        if (tx._autoRenewPeriod) contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
-        
+        if (tx._declineReward !== undefined)
+          contractCreate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod)
+          contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+
         return {
           type: 'CONTRACTCREATE',
           humanReadableType: 'Contract Create',
           contractCreate,
         };
       }
-      
+
       // Contract Update
       if (hasTransactionType(transaction, 'contractUpdateInstance')) {
         const contractUpdate: ContractUpdateData = {
           contractIdToUpdate: tx._contractId.toString(),
         };
-        
+
         if (tx._memo) contractUpdate.memo = tx._memo;
         if (tx._adminKey) contractUpdate.adminKey = parseKey(tx._adminKey);
         if (tx._maxAutomaticTokenAssociations !== undefined) {
-          contractUpdate.maxAutomaticTokenAssociations = tx._maxAutomaticTokenAssociations;
+          contractUpdate.maxAutomaticTokenAssociations =
+            tx._maxAutomaticTokenAssociations;
         }
         if (tx._stakedAccountId) {
           contractUpdate.stakedAccountId = tx._stakedAccountId.toString();
-        } else if (tx._stakedNodeId !== null && tx._stakedNodeId !== undefined) {
-          contractUpdate.stakedNodeId = Long.fromValue(tx._stakedNodeId).toString();
+        } else if (
+          tx._stakedNodeId !== null &&
+          tx._stakedNodeId !== undefined
+        ) {
+          contractUpdate.stakedNodeId = Long.fromValue(
+            tx._stakedNodeId,
+          ).toString();
         }
-        if (tx._declineReward !== undefined) contractUpdate.declineReward = tx._declineReward;
-        if (tx._autoRenewPeriod) contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
-        
+        if (tx._declineReward !== undefined)
+          contractUpdate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod)
+          contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+
         return {
           type: 'CONTRACTUPDATE',
           humanReadableType: 'Contract Update',
           contractUpdate,
         };
       }
-      
+
       // Contract Delete
       if (hasTransactionType(transaction, 'contractDeleteInstance')) {
         const contractDelete: ContractDeleteData = {
           contractIdToDelete: tx._contractId.toString(),
         };
-        
+
         if (tx._transferAccountId) {
           contractDelete.transferAccountId = tx._transferAccountId.toString();
         } else if (tx._transferContractId) {
           contractDelete.transferContractId = tx._transferContractId.toString();
         }
-        
+
         return {
           type: 'CONTRACTDELETE',
           humanReadableType: 'Contract Delete',
           contractDelete,
         };
       }
-      
+
       return {};
     } catch (error) {
       return {};
     }
   }
-  
+
   /**
    * Enhanced function name extraction from contract call parameters
    * Attempts to decode function selector and map to known function names
    */
   private static extractFunctionName(functionParameters: string): string {
     if (functionParameters.length < 8) return 'unknown';
-    
+
     const selector = functionParameters.substring(0, 8);
-    
+
     // Common ERC-20/ERC-721 function selectors
     const commonSelectors: Record<string, string> = {
-      'a9059cbb': 'transfer',
+      a9059cbb: 'transfer',
       '095ea7b3': 'approve',
       '23b872dd': 'transferFrom',
       '70a08231': 'balanceOf',
-      'dd62ed3e': 'allowance',
+      dd62ed3e: 'allowance',
       '18160ddd': 'totalSupply',
       '06fdde03': 'name',
       '95d89b41': 'symbol',
       '313ce567': 'decimals',
       '42842e0e': 'safeTransferFrom',
-      'b88d4fde': 'safeTransferFrom',
-      'e985e9c5': 'isApprovedForAll',
-      'a22cb465': 'setApprovalForAll',
+      b88d4fde: 'safeTransferFrom',
+      e985e9c5: 'isApprovedForAll',
+      a22cb465: 'setApprovalForAll',
       '6352211e': 'ownerOf',
-      'c87b56dd': 'tokenURI',
+      c87b56dd: 'tokenURI',
       '01ffc9a7': 'supportsInterface',
       '40c10f19': 'mint',
       '42966c68': 'burn',
-      'f2fde38b': 'transferOwnership',
+      f2fde38b: 'transferOwnership',
       '715018a6': 'renounceOwnership',
       '8da5cb5b': 'owner',
     };
-    
+
     return commonSelectors[selector] || selector;
   }
-  
+
   /**
    * Parse Ethereum Transaction (was completely missing from original parser)
    */
-  private static parseEthereumTransaction(
-    body: proto.IEthereumTransactionBody
+  static parseEthereumTransaction(
+    body: proto.IEthereumTransactionBody,
   ): ContractCallData | undefined {
     if (!body) return undefined;
-    
+
     // Extract data from Ethereum transaction
     const data: ContractCallData = {
-      contractId: 'EVM', // Ethereum transactions don't have Hedera contract IDs
-      gas: body.maxGasAllowance ? Long.fromValue(body.maxGasAllowance).toNumber() : 0,
-      amount: 0, // Will be extracted from ethereum data if present
+      contractId: 'EVM',
+      gas: body.maxGasAllowance
+        ? Long.fromValue(body.maxGasAllowance).toNumber()
+        : 0,
+      amount: 0,
     };
-    
+
     if (body.ethereumData && body.ethereumData.length > 0) {
       const ethData = Buffer.from(body.ethereumData).toString('hex');
       data.functionParameters = ethData;
-      
+
       // Try to extract function selector from ethereum data
       if (ethData.length >= 8) {
         data.functionName = this.extractFunctionName(ethData);
       }
     }
-    
+
     return data;
   }
 
-  // Original parsing methods with enhanced function name extraction
   static parseContractCall(
     body: proto.IContractCallTransactionBody,
   ): ContractCallData | undefined {
@@ -382,7 +415,6 @@ export class SCSParser {
         'hex',
       );
       if (data.functionParameters.length >= 8) {
-        // Use enhanced function name extraction
         data.functionName = this.extractFunctionName(data.functionParameters);
       }
     }

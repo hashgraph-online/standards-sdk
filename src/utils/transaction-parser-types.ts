@@ -112,7 +112,6 @@ export type FileCreateData = {
   contents?: string;
   memo?: string;
   maxSize?: string;
-  // Enhanced content fields
   contentType?: string;
   contentSize?: number;
 };
@@ -120,7 +119,6 @@ export type FileCreateData = {
 export type FileAppendData = {
   fileId?: string;
   contents?: string;
-  // Enhanced content fields
   contentSize?: number;
 };
 
@@ -130,7 +128,6 @@ export type FileUpdateData = {
   keys?: string;
   contents?: string;
   memo?: string;
-  // Enhanced content fields
   contentSize?: number;
 };
 
@@ -243,6 +240,99 @@ export type NodeUpdateData = {
 
 export type NodeDeleteData = {
   nodeId?: number;
+};
+
+export type NodeStakeUpdateData = {
+  nodeId?: number;
+  maxStake?: string;
+  minStake?: string;
+  rewardRate?: string;
+};
+
+export type EthereumTransactionData = {
+  contractId: string;
+  gas: number;
+  amount: number;
+  functionParameters?: string;
+  functionName?: string;
+};
+
+export type TokenCancelAirdropData = {
+  pendingAirdrops?: any[];
+};
+
+export type TokenClaimAirdropData = {
+  pendingAirdrops?: any[];
+};
+
+export type TokenRejectData = {
+  owner?: string;
+  rejections?: any[];
+};
+
+export type TokenUpdateNftsData = {
+  tokenId?: string;
+  serialNumbers?: string[];
+  metadata?: string;
+};
+
+export type CryptoAddLiveHashData = {
+  accountId?: string;
+  liveHash?: any;
+};
+
+export type CryptoDeleteLiveHashData = {
+  accountId?: string;
+  liveHashToDelete?: any;
+};
+
+export type UncheckedSubmitData = {
+  topicId?: string;
+  message?: any;
+};
+
+export type AtomicBatchData = {
+  transactions?: any[];
+};
+
+export type StateSignatureTransactionData = {
+  signature?: any;
+  round?: string;
+};
+
+export type HistoryProofSignatureData = {
+  signature?: any;
+  round?: string;
+};
+
+export type HistoryProofKeyPublicationData = {
+  publicKey?: any;
+  round?: string;
+};
+
+export type HistoryProofVoteData = {
+  vote?: any;
+  round?: string;
+};
+
+export type HintsPreprocessingVoteData = {
+  vote?: any;
+  round?: string;
+};
+
+export type HintsKeyPublicationData = {
+  publicKey?: any;
+  round?: string;
+};
+
+export type HintsPartialSignatureData = {
+  signature?: any;
+  round?: string;
+};
+
+export type CrsPublicationData = {
+  crs?: any;
+  round?: string;
 };
 
 export type TokenFreezeData = {
@@ -521,6 +611,36 @@ export type ParsedTransaction = {
   scheduleCreate?: ScheduleCreateData;
   scheduleSign?: ScheduleSignData;
   scheduleDelete?: ScheduleDeleteData;
+  /** System operation fields */
+  ethereumTransaction?: EthereumTransactionData;
+  freeze?: NetworkFreezeData;
+  systemDelete?: SystemDeleteData;
+  systemUndelete?: SystemUndeleteData;
+  /** Token operation fields */
+  tokenCancelAirdrop?: TokenCancelAirdropData;
+  tokenClaimAirdrop?: TokenClaimAirdropData;
+  tokenReject?: TokenRejectData;
+  tokenUpdateNfts?: TokenUpdateNftsData;
+  /** Crypto operation fields */
+  cryptoAddLiveHash?: CryptoAddLiveHashData;
+  cryptoDeleteLiveHash?: CryptoDeleteLiveHashData;
+  /** Node operation fields */
+  nodeCreate?: NodeCreateData;
+  nodeUpdate?: NodeUpdateData;
+  nodeDelete?: NodeDeleteData;
+  nodeStakeUpdate?: NodeStakeUpdateData;
+  /** Consensus operation fields */
+  uncheckedSubmit?: UncheckedSubmitData;
+  /** Advanced operation fields */
+  atomicBatch?: AtomicBatchData;
+  stateSignatureTransaction?: StateSignatureTransactionData;
+  historyProofSignature?: HistoryProofSignatureData;
+  historyProofKeyPublication?: HistoryProofKeyPublicationData;
+  historyProofVote?: HistoryProofVoteData;
+  hintsPreprocessingVote?: HintsPreprocessingVoteData;
+  hintsKeyPublication?: HintsKeyPublicationData;
+  hintsPartialSignature?: HintsPartialSignatureData;
+  crsPublication?: CrsPublicationData;
   /** Metadata fields */
   transactionId?: string;
   nodeAccountIds?: string[];

@@ -6,7 +6,11 @@ import {
   FileUpdateData,
   FileDeleteData,
 } from '../transaction-parser-types';
-import { parseKey, extractTransactionBody, hasTransactionType } from './parser-utils';
+import {
+  parseKey,
+  extractTransactionBody,
+  hasTransactionType,
+} from './parser-utils';
 import { Buffer } from 'buffer';
 import { FileId } from '@hashgraph/sdk';
 
@@ -26,7 +30,7 @@ export class FileParser {
    */
   static parseFileTransaction(
     transaction: Transaction,
-    originalBytes?: Uint8Array
+    originalBytes?: Uint8Array,
   ): {
     type?: string;
     humanReadableType?: string;
@@ -37,7 +41,6 @@ export class FileParser {
     [key: string]: unknown;
   } {
     try {
-      // First, try to parse from protobuf data if available
       if (originalBytes || transaction.toBytes) {
         try {
           const bytesToParse = originalBytes || transaction.toBytes();
@@ -47,13 +50,15 @@ export class FileParser {
             const tx = decoded.transactionList[0];
             let txBody: proto.ITransactionBody | null = null;
 
-            // Handle regular transaction branch
             if (tx.bodyBytes && tx.bodyBytes.length > 0) {
               txBody = proto.TransactionBody.decode(tx.bodyBytes);
-            }
-            // Handle signed transaction branch (was missing in original)
-            else if (tx.signedTransactionBytes && tx.signedTransactionBytes.length > 0) {
-              const signedTx = proto.SignedTransaction.decode(tx.signedTransactionBytes);
+            } else if (
+              tx.signedTransactionBytes &&
+              tx.signedTransactionBytes.length > 0
+            ) {
+              const signedTx = proto.SignedTransaction.decode(
+                tx.signedTransactionBytes,
+              );
               if (signedTx.bodyBytes) {
                 txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
               }
@@ -66,12 +71,9 @@ export class FileParser {
               }
             }
           }
-        } catch (protoError) {
-          // Continue to Transaction object parsing
-        }
+        } catch (protoError) {}
       }
 
-      // Fallback to Transaction object parsing
       return this.parseFromTransactionInternals(transaction);
     } catch (error) {
       return { type: 'UNKNOWN', humanReadableType: 'Unknown File Transaction' };
@@ -82,14 +84,11 @@ export class FileParser {
    * Parse file transaction from protobuf TransactionBody
    * Handles all file operations from decoded protobuf data
    */
-  private static parseFromProtobufTxBody(
-    txBody: proto.ITransactionBody
-  ): {
+  private static parseFromProtobufTxBody(txBody: proto.ITransactionBody): {
     type?: string;
     humanReadableType?: string;
     [key: string]: unknown;
   } {
-    // File Create
     if (txBody.fileCreate) {
       const fileCreate = this.parseFileCreate(txBody.fileCreate);
       if (fileCreate) {
@@ -101,7 +100,6 @@ export class FileParser {
       }
     }
 
-    // File Append
     if (txBody.fileAppend) {
       const fileAppend = this.parseFileAppend(txBody.fileAppend);
       if (fileAppend) {
@@ -113,7 +111,6 @@ export class FileParser {
       }
     }
 
-    // File Update
     if (txBody.fileUpdate) {
       const fileUpdate = this.parseFileUpdate(txBody.fileUpdate);
       if (fileUpdate) {
@@ -125,7 +122,6 @@ export class FileParser {
       }
     }
 
-    // File Delete
     if (txBody.fileDelete) {
       const fileDelete = this.parseFileDelete(txBody.fileDelete);
       if (fileDelete) {
@@ -144,9 +140,7 @@ export class FileParser {
    * Extract file data from Transaction internal fields
    * This handles cases where data is stored in Transaction object internals
    */
-  private static parseFromTransactionInternals(
-    transaction: Transaction
-  ): {
+  private static parseFromTransactionInternals(transaction: Transaction): {
     type?: string;
     humanReadableType?: string;
     [key: string]: unknown;
@@ -161,7 +155,6 @@ export class FileParser {
         constructor?: { name?: string };
       };
 
-      // File Create
       if (hasTransactionType(transaction, 'fileCreate')) {
         const fileCreate: FileCreateData = {};
 
@@ -177,7 +170,9 @@ export class FileParser {
         }
 
         if (tx._keys && tx._keys.length > 0) {
-          const keyList: proto.IKeyList = { keys: tx._keys as unknown as proto.IKey[] };
+          const keyList: proto.IKeyList = {
+            keys: tx._keys as unknown as proto.IKey[],
+          };
           fileCreate.keys = parseKey({ keyList });
         }
 
@@ -196,7 +191,6 @@ export class FileParser {
         };
       }
 
-      // File Append
       if (hasTransactionType(transaction, 'fileAppend')) {
         const fileAppend: FileAppendData = {
           fileId: tx._fileId.toString(),
@@ -217,7 +211,6 @@ export class FileParser {
         };
       }
 
-      // File Update
       if (hasTransactionType(transaction, 'fileUpdate')) {
         const fileUpdate: FileUpdateData = {
           fileId: tx._fileId.toString(),
@@ -232,7 +225,9 @@ export class FileParser {
         }
 
         if (tx._keys && tx._keys.length > 0) {
-          const keyList: proto.IKeyList = { keys: tx._keys as unknown as proto.IKey[] };
+          const keyList: proto.IKeyList = {
+            keys: tx._keys as unknown as proto.IKey[],
+          };
           fileUpdate.keys = parseKey({ keyList });
         }
 
@@ -251,7 +246,6 @@ export class FileParser {
         };
       }
 
-      // File Delete
       if (hasTransactionType(transaction, 'fileDelete')) {
         const fileDelete: FileDeleteData = {
           fileId: tx._fileId.toString(),
@@ -281,42 +275,44 @@ export class FileParser {
     const size = contents.length;
     const contentBuffer = Buffer.from(contents);
 
-    // Try to detect content type based on magic bytes and content
     let contentType: string | undefined;
 
-    // Check for common file signatures
     if (size >= 4) {
       const header = contentBuffer.subarray(0, 4);
       const headerHex = header.toString('hex');
 
-      // Common file type signatures
       const signatures: Record<string, string> = {
         '89504e47': 'image/png',
-        'ffd8ffe0': 'image/jpeg',
-        'ffd8ffe1': 'image/jpeg',
+        ffd8ffe0: 'image/jpeg',
+        ffd8ffe1: 'image/jpeg',
         '47494638': 'image/gif',
         '25504446': 'application/pdf',
         '504b0304': 'application/zip',
         '7f454c46': 'application/x-executable',
-        'd0cf11e0': 'application/msoffice',
+        d0cf11e0: 'application/msoffice',
       };
 
       contentType = signatures[headerHex.toLowerCase()];
     }
 
-    // If no signature match, try to detect text vs binary
     if (!contentType) {
       try {
         const textContent = contentBuffer.toString('utf8');
-        // Check if it's likely text (no control characters except common ones)
-        const hasControlChars = /[\x00-\x08\x0B\x0E-\x1F\x7F]/.test(textContent);
+        const hasControlChars = /[\x00-\x08\x0B\x0E-\x1F\x7F]/.test(
+          textContent,
+        );
         const hasReplacementChars = textContent.includes('\uFFFD');
 
         if (!hasControlChars && !hasReplacementChars) {
-          // Further classify text content
-          if (textContent.trim().startsWith('{') && textContent.trim().endsWith('}')) {
+          if (
+            textContent.trim().startsWith('{') &&
+            textContent.trim().endsWith('}')
+          ) {
             contentType = 'application/json';
-          } else if (textContent.includes('<?xml') || textContent.includes('<html')) {
+          } else if (
+            textContent.includes('<?xml') ||
+            textContent.includes('<html')
+          ) {
             contentType = 'text/xml';
           } else if (textContent.includes('<!DOCTYPE html')) {
             contentType = 'text/html';
@@ -331,13 +327,17 @@ export class FileParser {
       }
     }
 
-    // For text content, try UTF-8 first, otherwise base64
     let encoded: string;
-    if (contentType?.startsWith('text/') || contentType === 'application/json') {
+    if (
+      contentType?.startsWith('text/') ||
+      contentType === 'application/json'
+    ) {
       try {
         encoded = contentBuffer.toString('utf8');
-        // Double-check it's valid UTF-8
-        if (encoded.includes('\uFFFD') || /[\x00-\x08\x0B\x0E-\x1F\x7F]/.test(encoded)) {
+        if (
+          encoded.includes('\uFFFD') ||
+          /[\x00-\x08\x0B\x0E-\x1F\x7F]/.test(encoded)
+        ) {
           encoded = contentBuffer.toString('base64');
         }
       } catch {

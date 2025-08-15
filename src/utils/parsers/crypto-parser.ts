@@ -1,5 +1,12 @@
 import { proto } from '@hashgraph/proto';
-import { AccountId, TokenId, Hbar, HbarUnit, Long, Transaction } from '@hashgraph/sdk';
+import {
+  AccountId,
+  TokenId,
+  Hbar,
+  HbarUnit,
+  Long,
+  Transaction,
+} from '@hashgraph/sdk';
 import {
   AccountAmount,
   TokenAmount,
@@ -298,12 +305,14 @@ export class CryptoParser {
     const transfers: Array<{ accountId: string; amount: number }> = [];
 
     try {
-      const hbarTransfers = (transaction as unknown as {
-        _hbarTransfers?: Array<{
-          accountId?: AccountId;
-          amount?: Hbar;
-        }>;
-      })._hbarTransfers;
+      const hbarTransfers = (
+        transaction as unknown as {
+          _hbarTransfers?: Array<{
+            accountId?: AccountId;
+            amount?: Hbar;
+          }>;
+        }
+      )._hbarTransfers;
 
       if (Array.isArray(hbarTransfers)) {
         hbarTransfers.forEach(transfer => {
@@ -326,9 +335,7 @@ export class CryptoParser {
   /**
    * Extract token transfers from Transaction object
    */
-  static extractTokenTransfersFromTransaction(
-    transaction: Transaction,
-  ): Array<{
+  static extractTokenTransfersFromTransaction(transaction: Transaction): Array<{
     tokenId: string;
     transfers: Array<{ accountId: string; amount: number }>;
   }> {
@@ -338,15 +345,17 @@ export class CryptoParser {
     }> = [];
 
     try {
-      const tokenTransfersList = (transaction as unknown as {
-        _tokenTransfers?: Array<{
-          tokenId?: { toString(): string };
-          transfers?: Array<{
-            accountId?: AccountId;
-            amount?: number | Long;
+      const tokenTransfersList = (
+        transaction as unknown as {
+          _tokenTransfers?: Array<{
+            tokenId?: { toString(): string };
+            transfers?: Array<{
+              accountId?: AccountId;
+              amount?: number | Long;
+            }>;
           }>;
-        }>;
-      })._tokenTransfers;
+        }
+      )._tokenTransfers;
 
       if (Array.isArray(tokenTransfersList)) {
         tokenTransfersList.forEach(tokenTransfer => {
@@ -375,13 +384,23 @@ export class CryptoParser {
   static parseFromTransactionObject(transaction: Transaction): {
     type?: string;
     humanReadableType?: string;
-    transfers?: Array<{ accountId: string; amount: string; isDecimal?: boolean }>;
-    tokenTransfers?: Array<{ tokenId: string; accountId: string; amount: number }>;
+    transfers?: Array<{
+      accountId: string;
+      amount: string;
+      isDecimal?: boolean;
+    }>;
+    tokenTransfers?: Array<{
+      tokenId: string;
+      accountId: string;
+      amount: number;
+    }>;
     [key: string]: unknown;
   } {
     try {
-      const hbarTransfers = this.extractHbarTransfersFromTransaction(transaction);
-      const tokenTransfers = this.extractTokenTransfersFromTransaction(transaction);
+      const hbarTransfers =
+        this.extractHbarTransfersFromTransaction(transaction);
+      const tokenTransfers =
+        this.extractTokenTransfersFromTransaction(transaction);
 
       if (hbarTransfers.length > 0 || tokenTransfers.length > 0) {
         const convertedTransfers = hbarTransfers.map(transfer => ({

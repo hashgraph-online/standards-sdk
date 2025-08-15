@@ -264,7 +264,7 @@ describe('HCS6Client', () => {
       mockMirrorNode.getTopicInfo.mockResolvedValue({
         memo: 'hcs-6:1:86400',
       });
-      
+
       jest.spyOn(client as any, 'validateHCS6Topic').mockResolvedValue(true);
     });
 
@@ -273,7 +273,9 @@ describe('HCS6Client', () => {
         topicSequenceNumber: { low: 1 },
       } as any;
 
-      jest.spyOn(client as any, 'submitMessageWithKey').mockResolvedValue(mockReceipt);
+      jest
+        .spyOn(client as any, 'submitMessageWithKey')
+        .mockResolvedValue(mockReceipt);
 
       const options: HCS6RegisterEntryOptions = {
         targetTopicId: '0.0.12345',
@@ -455,16 +457,16 @@ describe('HCS6Client', () => {
         t_id: '0.0.12345',
       };
 
-      await expect((client as any).submitMessage('0.0.98765', message)).rejects.toThrow(
-        'Transaction failed',
-      );
+      await expect(
+        (client as any).submitMessage('0.0.98765', message),
+      ).rejects.toThrow('Transaction failed');
     });
   });
 
   describe('createHashinal', () => {
     it('should create hashinal successfully', async () => {
       jest.spyOn(client as any, 'validateHCS6Topic').mockResolvedValue(true);
-      
+
       const mockRegistryResponse: HCS6TopicRegistrationResponse = {
         success: true,
         topicId: '0.0.98765',

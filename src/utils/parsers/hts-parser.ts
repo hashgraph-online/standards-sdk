@@ -23,7 +23,11 @@ import {
   RoyaltyFeeData,
 } from '../transaction-parser-types';
 import { ParsedTransaction } from '../transaction-parser-types';
-import { parseKey, extractTransactionBody, hasTransactionType } from './parser-utils';
+import {
+  parseKey,
+  extractTransactionBody,
+  hasTransactionType,
+} from './parser-utils';
 import { Buffer } from 'buffer';
 
 import { Transaction } from '@hashgraph/sdk';
@@ -844,7 +848,6 @@ export class HTSParser {
         };
       }
 
-      // Check for token airdrop transaction using protobuf data
       if (hasTransactionType(transaction, 'tokenAirdrop')) {
         const txBody = extractTransactionBody(transaction);
         if (txBody?.tokenAirdrop) {
@@ -852,14 +855,15 @@ export class HTSParser {
         }
       }
 
-      // Fallback: check internal transaction fields for airdrop data
       const tx = transaction as unknown as {
         _tokenTransfers?: Array<{
           tokenId?: { toString(): string } | string;
           transfers?: Array<{
             accountId?: { toString(): string } | string;
             amount?: { toString(): string } | string | number | Long;
-            serialNumbers?: Array<{ toString(): string } | string | number | Long>;
+            serialNumbers?: Array<
+              { toString(): string } | string | number | Long
+            >;
           }>;
         }>;
       };
@@ -1177,7 +1181,9 @@ export class HTSParser {
 
             if (txBody) {
               if (txBody.tokenCreation) {
-                const tokenCreation = this.parseTokenCreate(txBody.tokenCreation);
+                const tokenCreation = this.parseTokenCreate(
+                  txBody.tokenCreation,
+                );
                 if (tokenCreation) {
                   return {
                     type: 'TOKENCREATE',
@@ -1273,7 +1279,9 @@ export class HTSParser {
                 }
               }
               if (txBody.tokenUnpause) {
-                const tokenUnpause = this.parseTokenUnpause(txBody.tokenUnpause);
+                const tokenUnpause = this.parseTokenUnpause(
+                  txBody.tokenUnpause,
+                );
                 if (tokenUnpause) {
                   return {
                     type: 'TOKENUNPAUSE',
@@ -1366,7 +1374,8 @@ export class HTSParser {
         return protoResult;
       }
 
-      const tokenCreation = this.extractTokenCreationFromTransaction(transaction);
+      const tokenCreation =
+        this.extractTokenCreationFromTransaction(transaction);
       const tokenAirdrop = this.extractTokenAirdropFromTransaction(transaction);
       if (tokenCreation) {
         return {

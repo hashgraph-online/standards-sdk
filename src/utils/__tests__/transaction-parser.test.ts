@@ -453,8 +453,8 @@ describe('TransactionParser', () => {
 
       expect(result.tokenCreation).toBeDefined();
       if (result.tokenCreation) {
-        expect(result.tokenCreation.name).toBe('SUPPLY');
-        expect(result.tokenCreation.symbol).toBe('SUPPL');
+        expect(result.tokenCreation.tokenName).toBe('SUPPLY');
+        expect(result.tokenCreation.tokenSymbol).toBe('SUPPL');
       }
     });
 

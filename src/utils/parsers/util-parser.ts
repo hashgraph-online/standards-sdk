@@ -7,9 +7,13 @@ import {
   SystemUndeleteData,
   NodeCreateData,
   NodeUpdateData,
-  NodeDeleteData
+  NodeDeleteData,
 } from '../transaction-parser-types';
-import { parseKey, extractTransactionBody, hasTransactionType } from './parser-utils';
+import {
+  parseKey,
+  extractTransactionBody,
+  hasTransactionType,
+} from './parser-utils';
 
 /**
  * Utility and System Operations Parser
@@ -29,7 +33,7 @@ export class UtilParser {
    */
   static parseUtilTransaction(
     transaction: Transaction,
-    originalBytes?: Uint8Array
+    originalBytes?: Uint8Array,
   ): {
     type?: string;
     humanReadableType?: string;
@@ -43,7 +47,6 @@ export class UtilParser {
     [key: string]: unknown;
   } {
     try {
-      // First, try to parse from protobuf data if available
       if (originalBytes || transaction.toBytes) {
         try {
           const bytesToParse = originalBytes || transaction.toBytes();
@@ -53,13 +56,15 @@ export class UtilParser {
             const tx = decoded.transactionList[0];
             let txBody: proto.ITransactionBody | null = null;
 
-            // Handle regular transaction branch
             if (tx.bodyBytes && tx.bodyBytes.length > 0) {
               txBody = proto.TransactionBody.decode(tx.bodyBytes);
-            }
-            // Handle signed transaction branch (was missing in original)
-            else if (tx.signedTransactionBytes && tx.signedTransactionBytes.length > 0) {
-              const signedTx = proto.SignedTransaction.decode(tx.signedTransactionBytes);
+            } else if (
+              tx.signedTransactionBytes &&
+              tx.signedTransactionBytes.length > 0
+            ) {
+              const signedTx = proto.SignedTransaction.decode(
+                tx.signedTransactionBytes,
+              );
               if (signedTx.bodyBytes) {
                 txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
               }
@@ -72,15 +77,15 @@ export class UtilParser {
               }
             }
           }
-        } catch (protoError) {
-          // Continue to Transaction object parsing
-        }
+        } catch (protoError) {}
       }
 
-      // Fallback to Transaction object parsing
       return this.parseFromTransactionInternals(transaction);
     } catch (error) {
-      return { type: 'UNKNOWN', humanReadableType: 'Unknown Utility Transaction' };
+      return {
+        type: 'UNKNOWN',
+        humanReadableType: 'Unknown Utility Transaction',
+      };
     }
   }
 
@@ -88,14 +93,11 @@ export class UtilParser {
    * Parse utility transaction from protobuf TransactionBody
    * Handles all utility operations from decoded protobuf data
    */
-  private static parseFromProtobufTxBody(
-    txBody: proto.ITransactionBody
-  ): {
+  private static parseFromProtobufTxBody(txBody: proto.ITransactionBody): {
     type?: string;
     humanReadableType?: string;
     [key: string]: unknown;
   } {
-    // PRNG (Pseudo Random Number Generation)
     if (txBody.utilPrng) {
       const utilPrng = this.parseUtilPrng(txBody.utilPrng);
       if (utilPrng) {
@@ -107,19 +109,17 @@ export class UtilParser {
       }
     }
 
-    // Network Freeze
     if (txBody.freeze) {
       const networkFreeze = this.parseNetworkFreezeFromProto(txBody.freeze);
       if (networkFreeze) {
         return {
           type: 'FREEZE',
           humanReadableType: 'Network Freeze',
-          networkFreeze,
+          freeze: networkFreeze,
         };
       }
     }
 
-    // System Delete
     if (txBody.systemDelete) {
       const systemDelete = this.parseSystemDeleteFromProto(txBody.systemDelete);
       if (systemDelete) {
@@ -131,9 +131,10 @@ export class UtilParser {
       }
     }
 
-    // System Undelete
     if (txBody.systemUndelete) {
-      const systemUndelete = this.parseSystemUndeleteFromProto(txBody.systemUndelete);
+      const systemUndelete = this.parseSystemUndeleteFromProto(
+        txBody.systemUndelete,
+      );
       if (systemUndelete) {
         return {
           type: 'SYSTEMUNDELETE',
@@ -143,7 +144,6 @@ export class UtilParser {
       }
     }
 
-    // Node Create
     if (txBody.nodeCreate) {
       const nodeCreate = this.parseNodeCreateFromProto(txBody.nodeCreate);
       if (nodeCreate) {
@@ -155,7 +155,6 @@ export class UtilParser {
       }
     }
 
-    // Node Update
     if (txBody.nodeUpdate) {
       const nodeUpdate = this.parseNodeUpdateFromProto(txBody.nodeUpdate);
       if (nodeUpdate) {
@@ -167,7 +166,6 @@ export class UtilParser {
       }
     }
 
-    // Node Delete
     if (txBody.nodeDelete) {
       const nodeDelete = this.parseNodeDeleteFromProto(txBody.nodeDelete);
       if (nodeDelete) {
@@ -186,9 +184,7 @@ export class UtilParser {
    * Extract utility data from Transaction internal fields
    * This handles cases where data is stored in Transaction object internals
    */
-  private static parseFromTransactionInternals(
-    transaction: Transaction
-  ): {
+  private static parseFromTransactionInternals(transaction: Transaction): {
     type?: string;
     humanReadableType?: string;
     [key: string]: unknown;
@@ -215,7 +211,6 @@ export class UtilParser {
         constructor?: { name?: string };
       };
 
-      // PRNG
       if (hasTransactionType(transaction, 'utilPrng')) {
         const utilPrng: UtilPrngData = {};
         if (tx._range && tx._range !== 0) {
@@ -229,7 +224,6 @@ export class UtilParser {
         };
       }
 
-      // Network Freeze
       if (hasTransactionType(transaction, 'freeze')) {
         const networkFreeze: NetworkFreezeData = {};
 
@@ -252,11 +246,10 @@ export class UtilParser {
         return {
           type: 'FREEZE',
           humanReadableType: 'Network Freeze',
-          networkFreeze,
+          freeze: networkFreeze,
         };
       }
 
-      // System Delete
       if (hasTransactionType(transaction, 'systemDelete')) {
         const systemDelete: SystemDeleteData = {};
 
@@ -277,7 +270,6 @@ export class UtilParser {
         };
       }
 
-      // System Undelete
       if (hasTransactionType(transaction, 'systemUndelete')) {
         const systemUndelete: SystemUndeleteData = {};
 
@@ -294,9 +286,6 @@ export class UtilParser {
         };
       }
 
-      // Node operations would be handled here if they were more commonly used
-      // For now, they're primarily handled via protobuf parsing
-
       return {};
     } catch (error) {
       return {};
@@ -307,7 +296,7 @@ export class UtilParser {
    * Parse Network Freeze from protobuf data
    */
   private static parseNetworkFreezeFromProto(
-    body: proto.IFreezeTransactionBody
+    body: proto.IFreezeTransactionBody,
   ): NetworkFreezeData | undefined {
     if (!body) return undefined;
 
@@ -318,8 +307,6 @@ export class UtilParser {
         body.startTime.seconds,
       ).toString()}.${body.startTime.nanos ?? 0}`;
     }
-
-    // Some proto versions may not expose endTime; skip if not present
 
     if (body.updateFile) {
       data.updateFile = new FileId(
@@ -333,10 +320,14 @@ export class UtilParser {
       data.fileHash = Buffer.from(body.fileHash).toString('hex');
     }
 
-    // Map freeze type enum if available
     if (body.freezeType !== undefined) {
-      const freezeTypes = ['FREEZE_ONLY', 'PREPARE_UPGRADE', 'FREEZE_UPGRADE', 'FREEZE_ABORT'];
-      data.freezeType = freezeTypes[body.freezeType] as any || 'FREEZE_ONLY';
+      const freezeTypes = [
+        'FREEZE_ONLY',
+        'PREPARE_UPGRADE',
+        'FREEZE_UPGRADE',
+        'FREEZE_ABORT',
+      ];
+      data.freezeType = (freezeTypes[body.freezeType] as any) || 'FREEZE_ONLY';
     }
 
     return data;
@@ -346,7 +337,7 @@ export class UtilParser {
    * Parse System Delete from protobuf data
    */
   private static parseSystemDeleteFromProto(
-    body: proto.ISystemDeleteTransactionBody
+    body: proto.ISystemDeleteTransactionBody,
   ): SystemDeleteData | undefined {
     if (!body) return undefined;
 
@@ -379,7 +370,7 @@ export class UtilParser {
    * Parse System Undelete from protobuf data
    */
   private static parseSystemUndeleteFromProto(
-    body: proto.ISystemUndeleteTransactionBody
+    body: proto.ISystemUndeleteTransactionBody,
   ): SystemUndeleteData | undefined {
     if (!body) return undefined;
 
@@ -406,7 +397,7 @@ export class UtilParser {
    * Parse Node Create from protobuf data
    */
   private static parseNodeCreateFromProto(
-    body: any
+    body: any,
   ): NodeCreateData | undefined {
     if (!body) return undefined;
 
@@ -416,9 +407,6 @@ export class UtilParser {
       data.nodeId = Long.fromValue(body.nodeId).toNumber();
     }
 
-    // Note: Node operations are rarely used in practice and proto definitions may vary
-    // This provides basic structure for future implementation
-
     return data;
   }
 
@@ -426,7 +414,7 @@ export class UtilParser {
    * Parse Node Update from protobuf data
    */
   private static parseNodeUpdateFromProto(
-    body: any
+    body: any,
   ): NodeUpdateData | undefined {
     if (!body) return undefined;
 
@@ -443,7 +431,7 @@ export class UtilParser {
    * Parse Node Delete from protobuf data
    */
   private static parseNodeDeleteFromProto(
-    body: any
+    body: any,
   ): NodeDeleteData | undefined {
     if (!body) return undefined;
 
@@ -456,7 +444,6 @@ export class UtilParser {
     return data;
   }
 
-  // Original parsing methods
   static parseUtilPrng(
     body: proto.IUtilPrngTransactionBody,
   ): UtilPrngData | undefined {
@@ -466,6 +453,12 @@ export class UtilParser {
       data.range = body.range;
     }
     return data;
+  }
+
+  static parseFreeze(
+    body: proto.IFreezeTransactionBody,
+  ): NetworkFreezeData | undefined {
+    return this.parseNetworkFreezeFromProto(body);
   }
 
   /**
