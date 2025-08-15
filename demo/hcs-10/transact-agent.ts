@@ -191,7 +191,7 @@ async function handleStandardMessage(
     openAIApiKey: process.env.OPENAI_API_KEY!,
     operationalMode: 'returnBytes',
     userAccountId,
-    verbose: false
+    verbose: false,
   });
   await hederaAgent.initialize();
 

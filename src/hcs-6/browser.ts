@@ -18,8 +18,7 @@ import { TransactionReceipt } from '@hashgraph/sdk';
 /**
  * Browser client configuration for HCS-6
  */
-export interface BrowserHCS6ClientConfig extends HCS6ClientConfig {
-}
+export interface BrowserHCS6ClientConfig extends HCS6ClientConfig {}
 
 /**
  * Browser client for HCS-6 operations

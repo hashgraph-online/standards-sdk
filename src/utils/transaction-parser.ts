@@ -3,15 +3,13 @@ import { Buffer } from 'buffer';
 import { Hbar, HbarUnit, Long, Transaction, AccountId } from '@hashgraph/sdk';
 import { ethers } from 'ethers';
 import {
-  TokenAmount,
   ParsedTransaction,
   ValidationResult,
   ParseOptions,
   TransactionParsingError,
   TokenCreationData,
-  TokenAirdropData,
 } from './transaction-parser-types';
-
+import { resolveTransactionSummary } from './transaction-summary-registry';
 export { TransactionParsingError } from './transaction-parser-types';
 import { HTSParser } from './parsers/hts-parser';
 import { HCSParser } from './parsers/hcs-parser';
@@ -20,6 +18,11 @@ import { CryptoParser } from './parsers/crypto-parser';
 import { SCSParser } from './parsers/scs-parser';
 import { UtilParser } from './parsers/util-parser';
 import { ScheduleParser } from './parsers/schedule-parser';
+import { transactionParserRegistry } from './transaction-parser-registry';
+import {
+  getHumanReadableTransactionType,
+  getTransactionTypeFromBody,
+} from './transaction-type-registries';
 
 interface TransactionInternals {
   _transactionBody?: proto.ITransactionBody;
@@ -172,9 +175,23 @@ export class TransactionParser {
    */
   static parseTransactionObject(
     transaction: Transaction,
-    originalBytes?: Uint8Array,
+    originalBytesOrOptions?: Uint8Array | ParseOptions,
     options: ParseOptions = {},
   ): ParsedTransaction {
+    let originalBytes: Uint8Array | undefined;
+    let actualOptions: ParseOptions;
+
+    if (
+      originalBytesOrOptions &&
+      !Buffer.isBuffer(originalBytesOrOptions) &&
+      !(originalBytesOrOptions instanceof Uint8Array)
+    ) {
+      actualOptions = originalBytesOrOptions as ParseOptions;
+      originalBytes = undefined;
+    } else {
+      originalBytes = originalBytesOrOptions as Uint8Array | undefined;
+      actualOptions = options;
+    }
     try {
       const metadata = this.extractTransactionMetadata(transaction);
 
@@ -264,7 +281,7 @@ export class TransactionParser {
         tokenTransfers: [],
         ...metadata,
         ...primaryResult,
-        raw: options.includeRaw
+        raw: actualOptions.includeRaw
           ? ((transaction as unknown as TransactionInternals)
               ._transactionBody as proto.SchedulableTransactionBody) ||
             ({} as proto.SchedulableTransactionBody)
@@ -290,7 +307,7 @@ export class TransactionParser {
         humanReadableType: 'Unknown Transaction',
         transfers: [],
         tokenTransfers: [],
-        raw: options.includeRaw
+        raw: actualOptions.includeRaw
           ? ({} as proto.SchedulableTransactionBody)
           : undefined,
         details: {
@@ -301,7 +318,7 @@ export class TransactionParser {
   }
 
   /**
-   * Parse a base64 encoded transaction body and return structured data (legacy method)
+   * Parse a base64 encoded transaction body using registry pattern
    * @param transactionBodyBase64 - The base64 encoded transaction body
    * @returns The parsed transaction
    */
@@ -333,186 +350,7 @@ export class TransactionParser {
         result.transactionFee = hbarAmount.toString(HbarUnit.Hbar);
       }
 
-      if (txBody.cryptoTransfer) {
-        CryptoParser.parseCryptoTransfers(txBody.cryptoTransfer, result);
-      }
-
-      if (txBody.cryptoDelete) {
-        result.cryptoDelete = CryptoParser.parseCryptoDelete(
-          txBody.cryptoDelete,
-        );
-      }
-
-      if (txBody.cryptoCreateAccount) {
-        result.cryptoCreateAccount = CryptoParser.parseCryptoCreateAccount(
-          txBody.cryptoCreateAccount,
-        );
-      }
-
-      if (txBody.cryptoUpdateAccount) {
-        result.cryptoUpdateAccount = CryptoParser.parseCryptoUpdateAccount(
-          txBody.cryptoUpdateAccount,
-        );
-      }
-
-      if (txBody.cryptoApproveAllowance) {
-        result.cryptoApproveAllowance =
-          CryptoParser.parseCryptoApproveAllowance(
-            txBody.cryptoApproveAllowance,
-          );
-      }
-
-      if (txBody.cryptoDeleteAllowance) {
-        result.cryptoDeleteAllowance = CryptoParser.parseCryptoDeleteAllowance(
-          txBody.cryptoDeleteAllowance,
-        );
-      }
-
-      if (txBody.contractCall) {
-        result.contractCall = SCSParser.parseContractCall(txBody.contractCall);
-      }
-
-      if (txBody.contractCreateInstance) {
-        result.contractCreate = SCSParser.parseContractCreate(
-          txBody.contractCreateInstance,
-        );
-      }
-
-      if (txBody.contractUpdateInstance) {
-        result.contractUpdate = SCSParser.parseContractUpdate(
-          txBody.contractUpdateInstance,
-        );
-      }
-
-      if (txBody.contractDeleteInstance) {
-        result.contractDelete = SCSParser.parseContractDelete(
-          txBody.contractDeleteInstance,
-        );
-      }
-
-      if (txBody.tokenCreation) {
-        result.tokenCreation = HTSParser.parseTokenCreate(txBody.tokenCreation);
-      }
-
-      if (txBody.tokenMint) {
-        result.tokenMint = HTSParser.parseTokenMint(txBody.tokenMint);
-      }
-
-      if (txBody.tokenBurn) {
-        result.tokenBurn = HTSParser.parseTokenBurn(txBody.tokenBurn);
-      }
-
-      if (txBody.tokenUpdate) {
-        result.tokenUpdate = HTSParser.parseTokenUpdate(txBody.tokenUpdate);
-      }
-
-      if (txBody.tokenFeeScheduleUpdate) {
-        result.tokenFeeScheduleUpdate = HTSParser.parseTokenFeeScheduleUpdate(
-          txBody.tokenFeeScheduleUpdate,
-        );
-      }
-
-      if (txBody.tokenFreeze) {
-        result.tokenFreeze = HTSParser.parseTokenFreeze(txBody.tokenFreeze);
-      }
-
-      if (txBody.tokenUnfreeze) {
-        result.tokenUnfreeze = HTSParser.parseTokenUnfreeze(
-          txBody.tokenUnfreeze,
-        );
-      }
-
-      if (txBody.tokenGrantKyc) {
-        result.tokenGrantKyc = HTSParser.parseTokenGrantKyc(
-          txBody.tokenGrantKyc,
-        );
-      }
-
-      if (txBody.tokenRevokeKyc) {
-        result.tokenRevokeKyc = HTSParser.parseTokenRevokeKyc(
-          txBody.tokenRevokeKyc,
-        );
-      }
-
-      if (txBody.tokenPause) {
-        result.tokenPause = HTSParser.parseTokenPause(txBody.tokenPause);
-      }
-
-      if (txBody.tokenUnpause) {
-        result.tokenUnpause = HTSParser.parseTokenUnpause(txBody.tokenUnpause);
-      }
-
-      if (txBody.tokenWipe) {
-        result.tokenWipeAccount = HTSParser.parseTokenWipeAccount(
-          txBody.tokenWipe,
-        );
-      }
-
-      if (txBody.tokenDeletion) {
-        result.tokenDelete = HTSParser.parseTokenDelete(txBody.tokenDeletion);
-      }
-
-      if (txBody.tokenAssociate) {
-        result.tokenAssociate = HTSParser.parseTokenAssociate(
-          txBody.tokenAssociate,
-        );
-      }
-
-      if (txBody.tokenDissociate) {
-        result.tokenDissociate = HTSParser.parseTokenDissociate(
-          txBody.tokenDissociate,
-        );
-      }
-
-      if (txBody.tokenAirdrop) {
-        result.tokenAirdrop = HTSParser.parseTokenAirdropFromProto(
-          txBody.tokenAirdrop,
-        );
-      }
-
-      if (txBody.consensusCreateTopic) {
-        result.consensusCreateTopic = HCSParser.parseConsensusCreateTopic(
-          txBody.consensusCreateTopic,
-        );
-      }
-
-      if (txBody.consensusSubmitMessage) {
-        result.consensusSubmitMessage = HCSParser.parseConsensusSubmitMessage(
-          txBody.consensusSubmitMessage,
-        );
-      }
-
-      if (txBody.consensusUpdateTopic) {
-        result.consensusUpdateTopic = HCSParser.parseConsensusUpdateTopic(
-          txBody.consensusUpdateTopic,
-        );
-      }
-
-      if (txBody.consensusDeleteTopic) {
-        result.consensusDeleteTopic = HCSParser.parseConsensusDeleteTopic(
-          txBody.consensusDeleteTopic,
-        );
-      }
-
-      if (txBody.fileCreate) {
-        result.fileCreate = FileParser.parseFileCreate(txBody.fileCreate);
-      }
-
-      if (txBody.fileAppend) {
-        result.fileAppend = FileParser.parseFileAppend(txBody.fileAppend);
-      }
-
-      if (txBody.fileUpdate) {
-        result.fileUpdate = FileParser.parseFileUpdate(txBody.fileUpdate);
-      }
-
-      if (txBody.fileDelete) {
-        result.fileDelete = FileParser.parseFileDelete(txBody.fileDelete);
-      }
-
-      if (txBody.utilPrng) {
-        result.utilPrng = UtilParser.parseUtilPrng(txBody.utilPrng);
-      }
+      this.applySchedulableTransactionParsing(txBody, result);
 
       return result;
     } catch (error) {
@@ -533,7 +371,7 @@ export class TransactionParser {
 
   /**
    * Detect transaction type and human-readable type from transaction body protobuf
-   * Centralized method to eliminate duplication across parsing methods
+   * Uses registry pattern to eliminate massive if-else chain
    */
   private static detectTransactionTypeFromBody(
     txBody: proto.ITransactionBody,
@@ -541,103 +379,7 @@ export class TransactionParser {
     type: string;
     humanReadableType: string;
   } {
-    if (txBody.tokenCreation) {
-      return { type: 'TOKENCREATE', humanReadableType: 'Token Creation' };
-    } else if (txBody.tokenAirdrop) {
-      return { type: 'TOKENAIRDROP', humanReadableType: 'Token Airdrop' };
-    } else if (txBody.cryptoTransfer) {
-      return { type: 'CRYPTOTRANSFER', humanReadableType: 'Crypto Transfer' };
-    } else if (txBody.consensusSubmitMessage) {
-      return {
-        type: 'CONSENSUSSUBMITMESSAGE',
-        humanReadableType: 'Submit Message',
-      };
-    } else if (txBody.contractCall) {
-      return { type: 'CONTRACTCALL', humanReadableType: 'Contract Call' };
-    } else if (txBody.cryptoCreateAccount) {
-      return { type: 'ACCOUNTCREATE', humanReadableType: 'Account Creation' };
-    } else if (txBody.cryptoUpdateAccount) {
-      return { type: 'ACCOUNTUPDATE', humanReadableType: 'Account Update' };
-    } else if (txBody.cryptoDelete) {
-      return { type: 'ACCOUNTDELETE', humanReadableType: 'Account Deletion' };
-    } else if (txBody.cryptoApproveAllowance) {
-      return {
-        type: 'APPROVEALLOWANCE',
-        humanReadableType: 'Approve Allowance',
-      };
-    } else if (txBody.cryptoDeleteAllowance) {
-      return { type: 'DELETEALLOWANCE', humanReadableType: 'Delete Allowance' };
-    } else if (txBody.tokenMint) {
-      return { type: 'TOKENMINT', humanReadableType: 'Token Mint' };
-    } else if (txBody.tokenBurn) {
-      return { type: 'TOKENBURN', humanReadableType: 'Token Burn' };
-    } else if (txBody.tokenUpdate) {
-      return { type: 'TOKENUPDATE', humanReadableType: 'Token Update' };
-    } else if (txBody.tokenDeletion) {
-      return { type: 'TOKENDELETE', humanReadableType: 'Token Deletion' };
-    } else if (txBody.tokenAssociate) {
-      return { type: 'TOKENASSOCIATE', humanReadableType: 'Token Association' };
-    } else if (txBody.tokenDissociate) {
-      return {
-        type: 'TOKENDISSOCIATE',
-        humanReadableType: 'Token Dissociation',
-      };
-    } else if (txBody.tokenFreeze) {
-      return { type: 'TOKENFREEZE', humanReadableType: 'Token Freeze' };
-    } else if (txBody.tokenUnfreeze) {
-      return { type: 'TOKENUNFREEZE', humanReadableType: 'Token Unfreeze' };
-    } else if (txBody.tokenGrantKyc) {
-      return { type: 'TOKENGRANTKYC', humanReadableType: 'Token Grant KYC' };
-    } else if (txBody.tokenRevokeKyc) {
-      return { type: 'TOKENREVOKEKYC', humanReadableType: 'Token Revoke KYC' };
-    } else if (txBody.tokenWipe) {
-      return { type: 'TOKENWIPE', humanReadableType: 'Token Wipe' };
-    } else if (txBody.tokenPause) {
-      return { type: 'TOKENPAUSE', humanReadableType: 'Token Pause' };
-    } else if (txBody.tokenUnpause) {
-      return { type: 'TOKENUNPAUSE', humanReadableType: 'Token Unpause' };
-    } else if (txBody.tokenFeeScheduleUpdate) {
-      return {
-        type: 'TOKENFEESCHEDULEUPDATE',
-        humanReadableType: 'Token Fee Schedule Update',
-      };
-    } else if (txBody.fileCreate) {
-      return { type: 'FILECREATE', humanReadableType: 'File Creation' };
-    } else if (txBody.fileUpdate) {
-      return { type: 'FILEUPDATE', humanReadableType: 'File Update' };
-    } else if (txBody.fileDelete) {
-      return { type: 'FILEDELETE', humanReadableType: 'File Deletion' };
-    } else if (txBody.fileAppend) {
-      return { type: 'FILEAPPEND', humanReadableType: 'File Append' };
-    } else if (txBody.consensusCreateTopic) {
-      return { type: 'TOPICCREATE', humanReadableType: 'Topic Creation' };
-    } else if (txBody.consensusUpdateTopic) {
-      return { type: 'TOPICUPDATE', humanReadableType: 'Topic Update' };
-    } else if (txBody.consensusDeleteTopic) {
-      return { type: 'TOPICDELETE', humanReadableType: 'Topic Deletion' };
-    } else if (txBody.contractCreateInstance) {
-      return { type: 'CONTRACTCREATE', humanReadableType: 'Contract Creation' };
-    } else if (txBody.contractUpdateInstance) {
-      return { type: 'CONTRACTUPDATE', humanReadableType: 'Contract Update' };
-    } else if (txBody.contractDeleteInstance) {
-      return { type: 'CONTRACTDELETE', humanReadableType: 'Contract Deletion' };
-    } else if (txBody.scheduleCreate) {
-      return { type: 'SCHEDULECREATE', humanReadableType: 'Schedule Creation' };
-    } else if (txBody.scheduleSign) {
-      return { type: 'SCHEDULESIGN', humanReadableType: 'Schedule Sign' };
-    } else if (txBody.scheduleDelete) {
-      return { type: 'SCHEDULEDELETE', humanReadableType: 'Schedule Deletion' };
-    } else if (txBody.utilPrng) {
-      return { type: 'PRNG', humanReadableType: 'Pseudo Random Number' };
-    } else if (txBody.freeze) {
-      return { type: 'FREEZE', humanReadableType: 'Network Freeze' };
-    } else if (txBody.systemDelete) {
-      return { type: 'SYSTEMDELETE', humanReadableType: 'System Delete' };
-    } else if (txBody.systemUndelete) {
-      return { type: 'SYSTEMUNDELETE', humanReadableType: 'System Undelete' };
-    } else {
-      return { type: 'UNKNOWN', humanReadableType: 'Unknown Transaction' };
-    }
+    return getTransactionTypeFromBody(txBody as proto.TransactionBody);
   }
 
   /**
@@ -672,116 +414,23 @@ export class TransactionParser {
   }
 
   /**
-   * Determine the transaction type
+   * Determine the transaction type using registry pattern
    * @param txBody - The transaction body to determine the type of
    * @returns The type of the transaction
    */
   private static getTransactionType(
     txBody: proto.SchedulableTransactionBody,
   ): string {
-    if (txBody.tokenCreation) return 'tokenCreate';
-    if (txBody.tokenAirdrop) return 'tokenAirdrop';
-    if (txBody.cryptoTransfer) return 'cryptoTransfer';
-    if (txBody.consensusSubmitMessage) return 'consensusSubmitMessage';
-    if (txBody.contractCall) return 'contractCall';
-    if (txBody.cryptoCreateAccount) return 'cryptoCreateAccount';
-    if (txBody.cryptoUpdateAccount) return 'cryptoUpdateAccount';
-    if (txBody.cryptoApproveAllowance) return 'cryptoApproveAllowance';
-    if (txBody.cryptoDeleteAllowance) return 'cryptoDeleteAllowance';
-    if (txBody.cryptoDelete) return 'cryptoDelete';
-    if (txBody.consensusCreateTopic) return 'consensusCreateTopic';
-    if (txBody.consensusUpdateTopic) return 'consensusUpdateTopic';
-    if (txBody.consensusDeleteTopic) return 'consensusDeleteTopic';
-    if (txBody.fileCreate) return 'fileCreate';
-    if (txBody.fileAppend) return 'fileAppend';
-    if (txBody.fileUpdate) return 'fileUpdate';
-    if (txBody.fileDelete) return 'fileDelete';
-    if (txBody.contractCreateInstance) return 'contractCreate';
-    if (txBody.contractUpdateInstance) return 'contractUpdate';
-    if (txBody.contractDeleteInstance) return 'contractDelete';
-    if (txBody.tokenUpdate) return 'tokenUpdate';
-    if (txBody.tokenDeletion) return 'tokenDelete';
-    if (txBody.tokenAssociate) return 'tokenAssociate';
-    if (txBody.tokenDissociate) return 'tokenDissociate';
-    if (txBody.tokenMint) return 'tokenMint';
-    if (txBody.tokenBurn) return 'tokenBurn';
-    if (txBody.tokenFeeScheduleUpdate) return 'tokenFeeScheduleUpdate';
-    if (txBody.tokenFreeze) return 'tokenFreeze';
-    if (txBody.tokenUnfreeze) return 'tokenUnfreeze';
-    if (txBody.tokenGrantKyc) return 'tokenGrantKyc';
-    if (txBody.tokenRevokeKyc) return 'tokenRevokeKyc';
-    if (txBody.tokenPause) return 'tokenPause';
-    if (txBody.tokenUnpause) return 'tokenUnpause';
-    if (txBody.tokenWipe) return 'tokenWipe';
-    if (txBody.utilPrng) return 'utilPrng';
-    return 'unknown';
+    return getTransactionTypeFromBody(txBody as proto.TransactionBody).type;
   }
 
   /**
-   * Convert technical transaction type to human-readable format
+   * Convert technical transaction type to human-readable format using registry pattern
    * @param type - The technical transaction type
    * @returns The human-readable transaction type
    */
   private static getHumanReadableType(type: string): string {
-    const typeMap: Record<string, string> = {
-      cryptoTransfer: 'HBAR Transfer',
-      cryptoCreateAccount: 'Create Account',
-      cryptoUpdateAccount: 'Update Account',
-      cryptoDeleteAccount: 'Delete Account',
-      cryptoApproveAllowance: 'Approve Allowance',
-      cryptoDeleteAllowance: 'Delete Allowance',
-      cryptoDelete: 'Delete Account',
-
-      consensusCreateTopic: 'Create Topic',
-      consensusUpdateTopic: 'Update Topic',
-      consensusSubmitMessage: 'Submit Message',
-      consensusDeleteTopic: 'Delete Topic',
-
-      fileCreate: 'Create File',
-      fileAppend: 'Append File',
-      fileUpdate: 'Update File',
-      fileDelete: 'Delete File',
-
-      contractCall: 'Contract Call',
-      contractCreate: 'Create Contract',
-      contractUpdate: 'Update Contract',
-      contractDelete: 'Delete Contract',
-      ethereumTransaction: 'Ethereum Transaction',
-
-      tokenCreate: 'Create Token',
-      TOKENCREATE: 'Create Token',
-      tokenUpdate: 'Update Token',
-      tokenDelete: 'Delete Token',
-      tokenAssociate: 'Associate Token',
-      tokenDissociate: 'Dissociate Token',
-      tokenMint: 'Mint Token',
-      tokenBurn: 'Burn Token',
-      tokenFeeScheduleUpdate: 'Update Token Fee Schedule',
-      tokenFreeze: 'Freeze Token',
-      tokenUnfreeze: 'Unfreeze Token',
-      tokenGrantKyc: 'Grant KYC',
-      tokenRevokeKyc: 'Revoke KYC',
-      tokenPause: 'Pause Token',
-      tokenUnpause: 'Unpause Token',
-      tokenWipe: 'Wipe Token',
-      tokenAirdrop: 'Token Airdrop',
-
-      scheduleCreate: 'Create Schedule',
-      scheduleSign: 'Sign Schedule',
-
-      utilPrng: 'Generate Random Number',
-
-      unknown: 'Unknown Transaction',
-    };
-
-    let result: string;
-    if (typeMap[type]) {
-      result = typeMap[type];
-    } else {
-      result = 'Unknown Transaction';
-    }
-
-    return result;
+    return getHumanReadableTransactionType(type);
   }
 
   /**
@@ -790,304 +439,7 @@ export class TransactionParser {
    * @returns The human-readable summary of the transaction
    */
   static getTransactionSummary(parsedTx: ParsedTransaction): string {
-    if (parsedTx.type === 'cryptoTransfer') {
-      const senders = [];
-      const receivers = [];
-
-      for (const transfer of parsedTx.transfers) {
-        const originalAmountFloat = parseFloat(transfer.amount);
-
-        let displayStr = transfer.amount;
-        if (displayStr.startsWith('-')) {
-          displayStr = displayStr.substring(1);
-        }
-        displayStr = displayStr.replace(/\s*ℏ$/, '');
-
-        if (originalAmountFloat < 0) {
-          senders.push(`${transfer.accountId} (${displayStr} ℏ)`);
-        } else if (originalAmountFloat > 0) {
-          receivers.push(`${transfer.accountId} (${displayStr} ℏ)`);
-        }
-      }
-
-      if (senders.length > 0 && receivers.length > 0) {
-        return `Transfer of HBAR from ${senders.join(', ')} to ${receivers.join(
-          ', ',
-        )}`;
-      } else {
-        return parsedTx.humanReadableType;
-      }
-    } else if (parsedTx.contractCall) {
-      let contractCallSummary = `Contract call to ${parsedTx.contractCall.contractId} with ${parsedTx.contractCall.gas} gas`;
-
-      if (parsedTx.contractCall.amount > 0) {
-        contractCallSummary += ` and ${parsedTx.contractCall.amount} HBAR`;
-      }
-
-      if (parsedTx.contractCall.functionName) {
-        contractCallSummary += ` calling function ${parsedTx.contractCall.functionName}`;
-      }
-
-      return contractCallSummary;
-    } else if (parsedTx.tokenMint) {
-      return `Mint ${parsedTx.tokenMint.amount} tokens for token ${parsedTx.tokenMint.tokenId}`;
-    } else if (parsedTx.tokenBurn) {
-      return `Burn ${parsedTx.tokenBurn.amount} tokens for token ${parsedTx.tokenBurn.tokenId}`;
-    } else if (parsedTx.tokenCreation) {
-      let summary = `Create token ${
-        parsedTx.tokenCreation.tokenName || '(No Name)'
-      } (${parsedTx.tokenCreation.tokenSymbol || '(No Symbol)'})`;
-      if (parsedTx.tokenCreation.initialSupply) {
-        summary += ` with initial supply ${parsedTx.tokenCreation.initialSupply}`;
-      }
-      if (parsedTx.tokenCreation.customFees?.length) {
-        summary += ` including ${parsedTx.tokenCreation.customFees.length} custom fee(s)`;
-      }
-      return summary;
-    } else if (parsedTx.tokenTransfers.length > 0) {
-      const tokenGroups: Record<string, TokenAmount[]> = {};
-
-      for (const transfer of parsedTx.tokenTransfers) {
-        if (!tokenGroups[transfer.tokenId]) {
-          tokenGroups[transfer.tokenId] = [];
-        }
-        tokenGroups[transfer.tokenId].push(transfer);
-      }
-
-      const tokenSummaries = [];
-
-      for (const [tokenId, transfers] of Object.entries(tokenGroups)) {
-        const tokenSenders = [];
-        const tokenReceivers = [];
-
-        for (const transfer of transfers) {
-          const transferAmountValue = parseFloat(transfer.amount.toString());
-          if (transferAmountValue < 0) {
-            tokenSenders.push(
-              `${transfer.accountId} (${Math.abs(transferAmountValue)})`,
-            );
-          } else if (transferAmountValue > 0) {
-            tokenReceivers.push(
-              `${transfer.accountId} (${transferAmountValue})`,
-            );
-          }
-        }
-
-        if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
-          tokenSummaries.push(
-            `Transfer of token ${tokenId} from ${tokenSenders.join(
-              ', ',
-            )} to ${tokenReceivers.join(', ')}`,
-          );
-        }
-      }
-
-      if (tokenSummaries.length > 0) {
-        return tokenSummaries.join('; ');
-      } else {
-        return parsedTx.humanReadableType;
-      }
-    } else if (parsedTx.consensusCreateTopic) {
-      let summary = `Create new topic`;
-      if (parsedTx.consensusCreateTopic.memo) {
-        summary += ` with memo "${parsedTx.consensusCreateTopic.memo}"`;
-      }
-      if (parsedTx.consensusCreateTopic.autoRenewAccountId) {
-        summary += `, auto-renew by ${parsedTx.consensusCreateTopic.autoRenewAccountId}`;
-      }
-      return summary;
-    } else if (parsedTx.consensusSubmitMessage) {
-      let summary = `Submit message`;
-      if (parsedTx.consensusSubmitMessage.topicId) {
-        summary += ` to topic ${parsedTx.consensusSubmitMessage.topicId}`;
-      }
-      if (parsedTx.consensusSubmitMessage.message) {
-        if (parsedTx.consensusSubmitMessage.messageEncoding === 'utf8') {
-          const messagePreview =
-            parsedTx.consensusSubmitMessage.message.substring(0, 70);
-          summary += `: "${messagePreview}${
-            parsedTx.consensusSubmitMessage.message.length > 70 ? '...' : ''
-          }"`;
-        } else {
-          summary += ` (binary message data, length: ${
-            Buffer.from(parsedTx.consensusSubmitMessage.message, 'base64')
-              .length
-          } bytes)`;
-        }
-      }
-      if (
-        parsedTx.consensusSubmitMessage.chunkInfoNumber &&
-        parsedTx.consensusSubmitMessage.chunkInfoTotal
-      ) {
-        summary += ` (chunk ${parsedTx.consensusSubmitMessage.chunkInfoNumber}/${parsedTx.consensusSubmitMessage.chunkInfoTotal})`;
-      }
-      return summary;
-    } else if (parsedTx.fileCreate) {
-      let summary = 'Create File';
-      if (parsedTx.fileCreate.memo) {
-        summary += ` with memo "${parsedTx.fileCreate.memo}"`;
-      }
-      if (parsedTx.fileCreate.contents) {
-        summary += ` (includes content)`;
-      }
-      return summary;
-    } else if (parsedTx.fileAppend) {
-      return `Append to File ${parsedTx.fileAppend.fileId || '(Unknown ID)'}`;
-    } else if (parsedTx.fileUpdate) {
-      return `Update File ${parsedTx.fileUpdate.fileId || '(Unknown ID)'}`;
-    } else if (parsedTx.fileDelete) {
-      return `Delete File ${parsedTx.fileDelete.fileId || '(Unknown ID)'}`;
-    } else if (parsedTx.consensusUpdateTopic) {
-      return `Update Topic ${
-        parsedTx.consensusUpdateTopic.topicId || '(Unknown ID)'
-      }`;
-    } else if (parsedTx.consensusDeleteTopic) {
-      return `Delete Topic ${
-        parsedTx.consensusDeleteTopic.topicId || '(Unknown ID)'
-      }`;
-    } else if (parsedTx.tokenUpdate) {
-      return `Update Token ${parsedTx.tokenUpdate.tokenId || '(Unknown ID)'}`;
-    } else if (parsedTx.tokenFeeScheduleUpdate) {
-      return `Update Fee Schedule for Token ${
-        parsedTx.tokenFeeScheduleUpdate.tokenId || '(Unknown ID)'
-      }`;
-    } else if (parsedTx.utilPrng) {
-      let summary = 'Generate Random Number';
-      if (parsedTx.utilPrng.range && parsedTx.utilPrng.range > 0) {
-        summary += ` (range up to ${parsedTx.utilPrng.range - 1})`;
-      }
-      return summary;
-    } else if (parsedTx.tokenFreeze) {
-      return `Freeze Token ${parsedTx.tokenFreeze.tokenId} for Account ${parsedTx.tokenFreeze.accountId}`;
-    } else if (parsedTx.tokenUnfreeze) {
-      return `Unfreeze Token ${parsedTx.tokenUnfreeze.tokenId} for Account ${parsedTx.tokenUnfreeze.accountId}`;
-    } else if (parsedTx.tokenGrantKyc) {
-      return `Grant KYC for Token ${parsedTx.tokenGrantKyc.tokenId} to Account ${parsedTx.tokenGrantKyc.accountId}`;
-    } else if (parsedTx.tokenRevokeKyc) {
-      return `Revoke KYC for Token ${parsedTx.tokenRevokeKyc.tokenId} from Account ${parsedTx.tokenRevokeKyc.accountId}`;
-    } else if (parsedTx.tokenPause) {
-      return `Pause Token ${parsedTx.tokenPause.tokenId}`;
-    } else if (parsedTx.tokenUnpause) {
-      return `Unpause Token ${parsedTx.tokenUnpause.tokenId}`;
-    } else if (parsedTx.tokenWipeAccount) {
-      let summary = `Wipe Token ${parsedTx.tokenWipeAccount.tokenId} from Account ${parsedTx.tokenWipeAccount.accountId}`;
-      if (parsedTx.tokenWipeAccount.serialNumbers?.length) {
-        summary += ` (Serials: ${parsedTx.tokenWipeAccount.serialNumbers.join(
-          ', ',
-        )})`;
-      }
-      if (parsedTx.tokenWipeAccount.amount) {
-        summary += ` (Amount: ${parsedTx.tokenWipeAccount.amount})`;
-      }
-      return summary;
-    } else if (parsedTx.tokenDelete) {
-      return `Delete Token ${parsedTx.tokenDelete.tokenId}`;
-    } else if (parsedTx.tokenAssociate) {
-      return `Associate Account ${
-        parsedTx.tokenAssociate.accountId
-      } with Tokens: ${parsedTx.tokenAssociate.tokenIds?.join(', ')}`;
-    } else if (parsedTx.tokenDissociate) {
-      return `Dissociate Account ${
-        parsedTx.tokenDissociate.accountId
-      } from Tokens: ${parsedTx.tokenDissociate.tokenIds?.join(', ')}`;
-    } else if (parsedTx.cryptoDelete) {
-      return `Delete Account ${parsedTx.cryptoDelete.deleteAccountId}`;
-    }
-    if (parsedTx.cryptoCreateAccount) {
-      let summary = 'Create Account';
-      if (
-        parsedTx.cryptoCreateAccount.initialBalance &&
-        parsedTx.cryptoCreateAccount.initialBalance !== '0'
-      ) {
-        summary += ` with balance ${parsedTx.cryptoCreateAccount.initialBalance}`;
-      }
-      if (parsedTx.cryptoCreateAccount.alias) {
-        summary += ` (Alias: ${parsedTx.cryptoCreateAccount.alias})`;
-      }
-      return summary;
-    }
-    if (parsedTx.cryptoUpdateAccount) {
-      return `Update Account ${
-        parsedTx.cryptoUpdateAccount.accountIdToUpdate || '(Unknown ID)'
-      }`;
-    }
-    if (parsedTx.cryptoApproveAllowance) {
-      let count =
-        (parsedTx.cryptoApproveAllowance.hbarAllowances?.length || 0) +
-        (parsedTx.cryptoApproveAllowance.tokenAllowances?.length || 0) +
-        (parsedTx.cryptoApproveAllowance.nftAllowances?.length || 0);
-      return `Approve ${count} Crypto Allowance(s)`;
-    }
-    if (parsedTx.cryptoDeleteAllowance) {
-      return `Delete ${
-        parsedTx.cryptoDeleteAllowance.nftAllowancesToRemove?.length || 0
-      } NFT Crypto Allowance(s)`;
-    }
-    if (parsedTx.contractCreate) {
-      let summary = 'Create Contract';
-      if (parsedTx.contractCreate.memo) {
-        summary += ` (Memo: ${parsedTx.contractCreate.memo})`;
-      }
-      return summary;
-    }
-    if (parsedTx.contractUpdate) {
-      return `Update Contract ${
-        parsedTx.contractUpdate.contractIdToUpdate || '(Unknown ID)'
-      }`;
-    }
-    if (parsedTx.contractDelete) {
-      let summary = `Delete Contract ${
-        parsedTx.contractDelete.contractIdToDelete || '(Unknown ID)'
-      }`;
-      if (parsedTx.contractDelete.transferAccountId) {
-        summary += ` (Transfer to Account: ${parsedTx.contractDelete.transferAccountId})`;
-      } else if (parsedTx.contractDelete.transferContractId) {
-        summary += ` (Transfer to Contract: ${parsedTx.contractDelete.transferContractId})`;
-      }
-      return summary;
-    }
-    if (
-      parsedTx.humanReadableType &&
-      parsedTx.humanReadableType !== 'Unknown Transaction'
-    ) {
-      return parsedTx.humanReadableType;
-    }
-    if (parsedTx.tokenTransfers.length > 0) {
-      const tokenGroups: Record<string, TokenAmount[]> = {};
-      for (const transfer of parsedTx.tokenTransfers) {
-        if (!tokenGroups[transfer.tokenId]) {
-          tokenGroups[transfer.tokenId] = [];
-        }
-        tokenGroups[transfer.tokenId].push(transfer);
-      }
-      const tokenSummaries = [];
-      for (const [tokenId, transfers] of Object.entries(tokenGroups)) {
-        const tokenSenders = transfers
-          .filter(t => t.amount < 0)
-          .map(t => `${t.accountId} (${Math.abs(t.amount)})`);
-        const tokenReceivers = transfers
-          .filter(t => t.amount > 0)
-          .map(t => `${t.accountId} (${t.amount})`);
-        if (tokenSenders.length > 0 && tokenReceivers.length > 0) {
-          tokenSummaries.push(
-            `Transfer of token ${tokenId} from ${tokenSenders.join(
-              ', ',
-            )} to ${tokenReceivers.join(', ')}`,
-          );
-        } else if (tokenReceivers.length > 0) {
-          tokenSummaries.push(
-            `Token ${tokenId} received by ${tokenReceivers.join(', ')}`,
-          );
-        } else if (tokenSenders.length > 0) {
-          tokenSummaries.push(
-            `Token ${tokenId} sent from ${tokenSenders.join(', ')}`,
-          );
-        }
-      }
-      if (tokenSummaries.length > 0) return tokenSummaries.join('; ');
-    }
-
-    return 'Unknown Transaction';
+    return resolveTransactionSummary(parsedTx);
   }
 
   /**
@@ -1204,88 +556,28 @@ export class TransactionParser {
       const transaction = Transaction.fromBytes(bytes);
       const metadata = this.extractTransactionMetadataEnhanced(transaction);
 
-      const htsResult = HTSParser.parseFromTransactionObject(transaction);
-      const cryptoResult = CryptoParser.parseFromTransactionObject(transaction);
-      const hcsResult = HCSParser.parseFromTransactionObject(transaction);
-      const fileResult = FileParser.parseFromTransactionObject(transaction);
-      const scsResult = SCSParser.parseFromTransactionObject(transaction);
-      const scheduleResult =
-        ScheduleParser.parseFromTransactionObject(transaction);
-      const utilResult = UtilParser.parseFromTransactionObject(transaction);
+      const parserResults = this.runAllParsers(transaction);
 
-      const results = [
-        htsResult,
-        cryptoResult,
-        hcsResult,
-        fileResult,
-        scsResult,
-        scheduleResult,
-        utilResult,
-      ];
       const primaryResult =
-        results.find(result => result.type && result.type !== 'UNKNOWN') || {};
+        parserResults.find(
+          result => result.type && result.type !== 'UNKNOWN',
+        ) || {};
 
-      let transactionType = 'UNKNOWN';
-      let humanReadableType = 'Unknown Transaction';
-      let parsedTokenCreation: TokenCreationData | undefined;
+      const protoParsingResult = this.parseFromProtobuf(bytes);
 
-      try {
-        const decoded = proto.TransactionList.decode(bytes);
-        if (decoded.transactionList && decoded.transactionList.length > 0) {
-          const tx = decoded.transactionList[0];
-
-          if (tx.bodyBytes && tx.bodyBytes.length > 0) {
-            const txBody = proto.TransactionBody.decode(tx.bodyBytes);
-            const typeResult = this.detectTransactionTypeFromBody(txBody);
-            transactionType = typeResult.type;
-            humanReadableType = typeResult.humanReadableType;
-
-            const protoParsingResult = this.parseTransactionBodyDetails(
-              txBody,
-              transactionType,
-            );
-            if (protoParsingResult.tokenCreation) {
-              parsedTokenCreation = protoParsingResult.tokenCreation;
-            }
-          } else if (
-            tx.signedTransactionBytes &&
-            tx.signedTransactionBytes.length > 0
-          ) {
-            const signedTx = proto.SignedTransaction.decode(
-              tx.signedTransactionBytes,
-            );
-            if (signedTx.bodyBytes) {
-              const txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
-              const typeResult = this.detectTransactionTypeFromBody(txBody);
-              transactionType = typeResult.type;
-              humanReadableType = typeResult.humanReadableType;
-
-              const protoParsingResult = this.parseTransactionBodyDetails(
-                txBody,
-                transactionType,
-              );
-              if (protoParsingResult.tokenCreation) {
-                parsedTokenCreation = protoParsingResult.tokenCreation;
-              }
-            }
-          }
-        }
-      } catch (protoError) {}
-
-      if (transactionType === 'UNKNOWN' && primaryResult.type) {
-        transactionType = primaryResult.type;
-        humanReadableType =
-          primaryResult.humanReadableType || 'Unknown Transaction';
-      }
+      const finalType =
+        protoParsingResult.type || primaryResult.type || 'UNKNOWN';
+      const finalHumanReadableType =
+        protoParsingResult.humanReadableType ||
+        primaryResult.humanReadableType ||
+        'Unknown Transaction';
 
       const result: ParsedTransaction = {
-        type: transactionType,
-        humanReadableType,
-        transfers: cryptoResult.transfers || [],
-        tokenTransfers: cryptoResult.tokenTransfers || [],
-        details: {
-          ...metadata,
-        },
+        type: finalType,
+        humanReadableType: finalHumanReadableType,
+        transfers: [],
+        tokenTransfers: [],
+        details: { ...metadata },
         memo: typeof metadata.memo === 'string' ? metadata.memo : undefined,
         transactionId:
           typeof metadata.transactionId === 'string'
@@ -1306,60 +598,17 @@ export class TransactionParser {
           typeof metadata.validDuration === 'string'
             ? metadata.validDuration
             : undefined,
-        ...primaryResult,
         raw: options.includeRaw
           ? ({} as proto.SchedulableTransactionBody)
           : undefined,
       };
 
-      if (transactionType === 'TOKENCREATE') {
-        const tokenCreationData =
-          parsedTokenCreation ||
-          htsResult.tokenCreation ||
-          HTSParser.extractTokenCreationFromTransaction(transaction);
-        if (tokenCreationData) {
-          result.tokenCreation = tokenCreationData;
-        }
-      }
-
-      if (htsResult.tokenAirdrop && !result.tokenAirdrop) {
-        result.tokenAirdrop = htsResult.tokenAirdrop;
-      }
-
-      if (transactionType === 'TOKENAIRDROP' && !result.tokenAirdrop) {
-        try {
-          const buffer = Buffer.from(transactionBytes, 'base64');
-          const decoded = proto.TransactionList.decode(buffer);
-
-          if (decoded.transactionList && decoded.transactionList.length > 0) {
-            const tx = decoded.transactionList[0];
-            let txBody: proto.TransactionBody | null = null;
-
-            if (tx.bodyBytes && tx.bodyBytes.length > 0) {
-              txBody = proto.TransactionBody.decode(tx.bodyBytes);
-            } else if (
-              tx.signedTransactionBytes &&
-              tx.signedTransactionBytes.length > 0
-            ) {
-              const signedTx = proto.SignedTransaction.decode(
-                tx.signedTransactionBytes,
-              );
-              if (signedTx.bodyBytes) {
-                txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
-              }
-            }
-
-            if (txBody && txBody.tokenAirdrop) {
-              const parsedAirdrop = HTSParser.parseTokenAirdropFromProto(
-                txBody.tokenAirdrop,
-              );
-              if (parsedAirdrop) {
-                result.tokenAirdrop = parsedAirdrop;
-              }
-            }
-          }
-        } catch (error) {}
-      }
+      this.mergeAllResults(
+        result,
+        protoParsingResult,
+        primaryResult,
+        parserResults,
+      );
 
       return result;
     } catch (error) {
@@ -1455,8 +704,288 @@ export class TransactionParser {
   }
 
   /**
+   * Run all available parsers on a transaction
+   */
+  private static runAllParsers(transaction: Transaction): any[] {
+    return [
+      HTSParser.parseFromTransactionObject(transaction),
+      CryptoParser.parseFromTransactionObject(transaction),
+      HCSParser.parseFromTransactionObject(transaction),
+      FileParser.parseFromTransactionObject(transaction),
+      SCSParser.parseFromTransactionObject(transaction),
+      ScheduleParser.parseFromTransactionObject(transaction),
+      UtilParser.parseFromTransactionObject(transaction),
+    ];
+  }
+
+  /**
+   * Parse transaction from protobuf bytes
+   */
+  private static parseFromProtobuf(
+    bytes: Uint8Array,
+  ): Partial<ParsedTransaction> {
+    const result: Partial<ParsedTransaction> = {};
+
+    try {
+      const decoded = proto.TransactionList.decode(bytes);
+      if (decoded.transactionList && decoded.transactionList.length > 0) {
+        const tx = decoded.transactionList[0];
+        let txBody: proto.TransactionBody | null = null;
+
+        if (tx.bodyBytes && tx.bodyBytes.length > 0) {
+          txBody = proto.TransactionBody.decode(tx.bodyBytes);
+        } else if (
+          tx.signedTransactionBytes &&
+          tx.signedTransactionBytes.length > 0
+        ) {
+          const signedTx = proto.SignedTransaction.decode(
+            tx.signedTransactionBytes,
+          );
+          if (signedTx.bodyBytes) {
+            txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
+          }
+        }
+
+        if (txBody) {
+          const typeResult = this.detectTransactionTypeFromBody(txBody);
+          result.type = typeResult.type;
+          result.humanReadableType = typeResult.humanReadableType;
+
+          const details = this.parseTransactionBodyDetails(
+            txBody,
+            typeResult.type,
+          );
+          Object.assign(result, details);
+        }
+      }
+    } catch (error) {}
+
+    return result;
+  }
+
+  /**
+   * Intelligently merge all parsing results
+   */
+  private static mergeAllResults(
+    result: ParsedTransaction,
+    protoResult: Partial<ParsedTransaction>,
+    primaryResult: any,
+    parserResults: any[],
+  ): void {
+    const cryptoResult =
+      parserResults.find(r => r.transfers || r.tokenTransfers) || {};
+    result.transfers = cryptoResult.transfers || result.transfers || [];
+    result.tokenTransfers =
+      cryptoResult.tokenTransfers || result.tokenTransfers || [];
+
+    Object.keys(protoResult).forEach(key => {
+      if (
+        protoResult[key as keyof ParsedTransaction] !== undefined &&
+        key !== 'type' &&
+        key !== 'humanReadableType'
+      ) {
+        (result as any)[key] = protoResult[key as keyof ParsedTransaction];
+      }
+    });
+
+    Object.keys(primaryResult).forEach(key => {
+      if (
+        primaryResult[key] !== undefined &&
+        !(key in result) &&
+        key !== 'type' &&
+        key !== 'humanReadableType'
+      ) {
+        (result as any)[key] = primaryResult[key];
+      }
+    });
+  }
+
+  /**
+   * Apply schedulable transaction parsing using registry pattern
+   * Eliminates conditional logic in parseTransactionBody
+   */
+  private static applySchedulableTransactionParsing(
+    txBody: proto.SchedulableTransactionBody,
+    result: ParsedTransaction,
+  ): void {
+    if (txBody.cryptoTransfer) {
+      CryptoParser.parseCryptoTransfers(txBody.cryptoTransfer, result);
+    }
+
+    if (txBody.cryptoDelete) {
+      result.cryptoDelete = CryptoParser.parseCryptoDelete(txBody.cryptoDelete);
+    }
+
+    if (txBody.cryptoCreateAccount) {
+      result.cryptoCreateAccount = CryptoParser.parseCryptoCreateAccount(
+        txBody.cryptoCreateAccount,
+      );
+    }
+
+    if (txBody.cryptoUpdateAccount) {
+      result.cryptoUpdateAccount = CryptoParser.parseCryptoUpdateAccount(
+        txBody.cryptoUpdateAccount,
+      );
+    }
+
+    if (txBody.cryptoApproveAllowance) {
+      result.cryptoApproveAllowance = CryptoParser.parseCryptoApproveAllowance(
+        txBody.cryptoApproveAllowance,
+      );
+    }
+
+    if (txBody.cryptoDeleteAllowance) {
+      result.cryptoDeleteAllowance = CryptoParser.parseCryptoDeleteAllowance(
+        txBody.cryptoDeleteAllowance,
+      );
+    }
+
+    if (txBody.contractCall) {
+      result.contractCall = SCSParser.parseContractCall(txBody.contractCall);
+    }
+
+    if (txBody.contractCreateInstance) {
+      result.contractCreate = SCSParser.parseContractCreate(
+        txBody.contractCreateInstance,
+      );
+    }
+
+    if (txBody.contractUpdateInstance) {
+      result.contractUpdate = SCSParser.parseContractUpdate(
+        txBody.contractUpdateInstance,
+      );
+    }
+
+    if (txBody.contractDeleteInstance) {
+      result.contractDelete = SCSParser.parseContractDelete(
+        txBody.contractDeleteInstance,
+      );
+    }
+
+    if (txBody.tokenCreation) {
+      result.tokenCreation = HTSParser.parseTokenCreate(txBody.tokenCreation);
+    }
+
+    if (txBody.tokenMint) {
+      result.tokenMint = HTSParser.parseTokenMint(txBody.tokenMint);
+    }
+
+    if (txBody.tokenBurn) {
+      result.tokenBurn = HTSParser.parseTokenBurn(txBody.tokenBurn);
+    }
+
+    if (txBody.tokenUpdate) {
+      result.tokenUpdate = HTSParser.parseTokenUpdate(txBody.tokenUpdate);
+    }
+
+    if (txBody.tokenFeeScheduleUpdate) {
+      result.tokenFeeScheduleUpdate = HTSParser.parseTokenFeeScheduleUpdate(
+        txBody.tokenFeeScheduleUpdate,
+      );
+    }
+
+    if (txBody.tokenFreeze) {
+      result.tokenFreeze = HTSParser.parseTokenFreeze(txBody.tokenFreeze);
+    }
+
+    if (txBody.tokenUnfreeze) {
+      result.tokenUnfreeze = HTSParser.parseTokenUnfreeze(txBody.tokenUnfreeze);
+    }
+
+    if (txBody.tokenGrantKyc) {
+      result.tokenGrantKyc = HTSParser.parseTokenGrantKyc(txBody.tokenGrantKyc);
+    }
+
+    if (txBody.tokenRevokeKyc) {
+      result.tokenRevokeKyc = HTSParser.parseTokenRevokeKyc(
+        txBody.tokenRevokeKyc,
+      );
+    }
+
+    if (txBody.tokenPause) {
+      result.tokenPause = HTSParser.parseTokenPause(txBody.tokenPause);
+    }
+
+    if (txBody.tokenUnpause) {
+      result.tokenUnpause = HTSParser.parseTokenUnpause(txBody.tokenUnpause);
+    }
+
+    if (txBody.tokenWipe) {
+      result.tokenWipeAccount = HTSParser.parseTokenWipeAccount(
+        txBody.tokenWipe,
+      );
+    }
+
+    if (txBody.tokenDeletion) {
+      result.tokenDelete = HTSParser.parseTokenDelete(txBody.tokenDeletion);
+    }
+
+    if (txBody.tokenAssociate) {
+      result.tokenAssociate = HTSParser.parseTokenAssociate(
+        txBody.tokenAssociate,
+      );
+    }
+
+    if (txBody.tokenDissociate) {
+      result.tokenDissociate = HTSParser.parseTokenDissociate(
+        txBody.tokenDissociate,
+      );
+    }
+
+    if (txBody.tokenAirdrop) {
+      result.tokenAirdrop = HTSParser.parseTokenAirdropFromProto(
+        txBody.tokenAirdrop,
+      );
+    }
+
+    if (txBody.consensusCreateTopic) {
+      result.consensusCreateTopic = HCSParser.parseConsensusCreateTopic(
+        txBody.consensusCreateTopic,
+      );
+    }
+
+    if (txBody.consensusSubmitMessage) {
+      result.consensusSubmitMessage = HCSParser.parseConsensusSubmitMessage(
+        txBody.consensusSubmitMessage,
+      );
+    }
+
+    if (txBody.consensusUpdateTopic) {
+      result.consensusUpdateTopic = HCSParser.parseConsensusUpdateTopic(
+        txBody.consensusUpdateTopic,
+      );
+    }
+
+    if (txBody.consensusDeleteTopic) {
+      result.consensusDeleteTopic = HCSParser.parseConsensusDeleteTopic(
+        txBody.consensusDeleteTopic,
+      );
+    }
+
+    if (txBody.fileCreate) {
+      result.fileCreate = FileParser.parseFileCreate(txBody.fileCreate);
+    }
+
+    if (txBody.fileAppend) {
+      result.fileAppend = FileParser.parseFileAppend(txBody.fileAppend);
+    }
+
+    if (txBody.fileUpdate) {
+      result.fileUpdate = FileParser.parseFileUpdate(txBody.fileUpdate);
+    }
+
+    if (txBody.fileDelete) {
+      result.fileDelete = FileParser.parseFileDelete(txBody.fileDelete);
+    }
+
+    if (txBody.utilPrng) {
+      result.utilPrng = UtilParser.parseUtilPrng(txBody.utilPrng);
+    }
+  }
+
+  /**
    * Parse transaction body details for all supported transaction types
-   * This is the DRY, unified approach that delegates to appropriate parsers
+   * Uses a scalable registry pattern instead of if-else chains
    */
   private static parseTransactionBodyDetails(
     txBody: proto.TransactionBody,
@@ -1464,63 +993,26 @@ export class TransactionParser {
   ): Partial<ParsedTransaction> {
     const result: Partial<ParsedTransaction> = {};
 
-    if (txBody.tokenCreation && transactionType === 'TOKENCREATE') {
-      result.tokenCreation = HTSParser.parseTokenCreate(txBody.tokenCreation);
-    } else if (txBody.tokenMint && transactionType === 'TOKENMINT') {
-      result.tokenMint = HTSParser.parseTokenMint(txBody.tokenMint);
-    } else if (txBody.tokenBurn && transactionType === 'TOKENBURN') {
-      result.tokenBurn = HTSParser.parseTokenBurn(txBody.tokenBurn);
-    } else if (txBody.tokenUpdate && transactionType === 'TOKENUPDATE') {
-      result.tokenUpdate = HTSParser.parseTokenUpdate(txBody.tokenUpdate);
-    } else if (txBody.tokenDeletion && transactionType === 'TOKENDELETE') {
-      result.tokenDelete = HTSParser.parseTokenDelete(txBody.tokenDeletion);
-    } else if (txBody.tokenAssociate && transactionType === 'TOKENASSOCIATE') {
-      result.tokenAssociate = HTSParser.parseTokenAssociate(
-        txBody.tokenAssociate,
-      );
-    } else if (
-      txBody.tokenDissociate &&
-      transactionType === 'TOKENDISSOCIATE'
-    ) {
-      result.tokenDissociate = HTSParser.parseTokenDissociate(
-        txBody.tokenDissociate,
-      );
-    } else if (txBody.tokenFreeze && transactionType === 'TOKENFREEZE') {
-      result.tokenFreeze = HTSParser.parseTokenFreeze(txBody.tokenFreeze);
-    } else if (txBody.tokenUnfreeze && transactionType === 'TOKENUNFREEZE') {
-      result.tokenUnfreeze = HTSParser.parseTokenUnfreeze(txBody.tokenUnfreeze);
-    } else if (txBody.tokenGrantKyc && transactionType === 'TOKENGRANTKYC') {
-      result.tokenGrantKyc = HTSParser.parseTokenGrantKyc(txBody.tokenGrantKyc);
-    } else if (txBody.tokenRevokeKyc && transactionType === 'TOKENREVOKEKYC') {
-      result.tokenRevokeKyc = HTSParser.parseTokenRevokeKyc(
-        txBody.tokenRevokeKyc,
-      );
-    } else if (txBody.tokenPause && transactionType === 'TOKENPAUSE') {
-      result.tokenPause = HTSParser.parseTokenPause(txBody.tokenPause);
-    } else if (txBody.tokenUnpause && transactionType === 'TOKENUNPAUSE') {
-      result.tokenUnpause = HTSParser.parseTokenUnpause(txBody.tokenUnpause);
-    } else if (txBody.tokenWipe && transactionType === 'TOKENWIPEACCOUNT') {
-      result.tokenWipeAccount = HTSParser.parseTokenWipeAccount(
-        txBody.tokenWipe,
-      );
-    } else if (
-      txBody.tokenFeeScheduleUpdate &&
-      transactionType === 'TOKENFEESCHEDULEUPDATE'
-    ) {
-      result.tokenFeeScheduleUpdate = HTSParser.parseTokenFeeScheduleUpdate(
-        txBody.tokenFeeScheduleUpdate,
-      );
-    } else if (txBody.tokenAirdrop && transactionType === 'TOKENAIRDROP') {
-      result.tokenAirdrop = HTSParser.parseTokenAirdropFromProto(
-        txBody.tokenAirdrop,
-      );
+    const parserConfig = transactionParserRegistry[transactionType];
+    if (parserConfig) {
+      const bodyData = txBody[parserConfig.bodyField];
+      if (bodyData) {
+        const parserResult = parserConfig.parser(bodyData);
+
+        if (parserConfig.spreadResult) {
+          Object.assign(result, parserResult);
+        } else {
+          result[parserConfig.resultField] = parserResult;
+        }
+      }
     }
 
     return result;
   }
 
   /**
-   * Merge protobuf parsing results with parser results using unified prioritization
+   * Merge protobuf parsing results with parser results using registry pattern
+   * Eliminates transactionFields array and forEach logic
    */
   private static mergeProtoParsingResults(
     result: ParsedTransaction,
@@ -1529,67 +1021,45 @@ export class TransactionParser {
     transaction: Transaction,
     originalBytes?: Uint8Array,
   ): void {
-    const transactionFields: Array<
-      keyof Pick<
-        ParsedTransaction,
-        | 'tokenCreation'
-        | 'tokenMint'
-        | 'tokenBurn'
-        | 'tokenUpdate'
-        | 'tokenDelete'
-        | 'tokenAssociate'
-        | 'tokenDissociate'
-        | 'tokenFreeze'
-        | 'tokenUnfreeze'
-        | 'tokenGrantKyc'
-        | 'tokenRevokeKyc'
-        | 'tokenPause'
-        | 'tokenUnpause'
-        | 'tokenWipeAccount'
-        | 'tokenFeeScheduleUpdate'
-        | 'tokenAirdrop'
-      >
-    > = [
-      'tokenCreation',
-      'tokenMint',
-      'tokenBurn',
-      'tokenUpdate',
-      'tokenDelete',
-      'tokenAssociate',
-      'tokenDissociate',
-      'tokenFreeze',
-      'tokenUnfreeze',
-      'tokenGrantKyc',
-      'tokenRevokeKyc',
-      'tokenPause',
-      'tokenUnpause',
-      'tokenWipeAccount',
-      'tokenFeeScheduleUpdate',
-      'tokenAirdrop',
-    ];
+    const fieldsToMerge = Object.values(transactionParserRegistry).map(
+      config => config.resultField as string,
+    );
 
-    transactionFields.forEach(field => {
-      const protoValue = protoResult[field];
-      const htsValue = (htsResult as Partial<ParsedTransaction>)[field];
+    for (const field of fieldsToMerge) {
+      const protoValue = protoResult[field as keyof ParsedTransaction];
+      const htsValue = htsResult[field];
 
       if (protoValue !== undefined) {
-        (result as Partial<ParsedTransaction>)[field] = protoValue as any;
+        (result as any)[field] = protoValue;
       } else if (htsValue !== undefined) {
-        (result as Partial<ParsedTransaction>)[field] = htsValue as any;
-      } else if (field === 'tokenCreation' && result.type === 'TOKENCREATE') {
-        const extracted =
-          HTSParser.extractTokenCreationFromTransaction(transaction);
-        if (extracted) {
-          (result as Partial<ParsedTransaction>)[field] = extracted as any;
-        }
-      } else if (field === 'tokenAirdrop' && result.type === 'TOKENAIRDROP') {
-        const extracted =
-          HTSParser.extractTokenAirdropFromTransaction(transaction);
-        if (extracted) {
-          (result as Partial<ParsedTransaction>)[field] = extracted as any;
-        }
+        (result as any)[field] = htsValue;
+      } else {
+        this.handleSpecialFieldExtraction(result, field, transaction);
       }
-    });
+    }
+  }
+
+  /**
+   * Handle special field extraction cases using registry pattern
+   */
+  private static handleSpecialFieldExtraction(
+    result: ParsedTransaction,
+    field: string,
+    transaction: Transaction,
+  ): void {
+    if (field === 'tokenCreation' && result.type === 'TOKENCREATE') {
+      const extracted =
+        HTSParser.extractTokenCreationFromTransaction(transaction);
+      if (extracted) {
+        (result as any)[field] = extracted;
+      }
+    } else if (field === 'tokenAirdrop' && result.type === 'TOKENAIRDROP') {
+      const extracted =
+        HTSParser.extractTokenAirdropFromTransaction(transaction);
+      if (extracted) {
+        (result as any)[field] = extracted;
+      }
+    }
   }
 
   /**

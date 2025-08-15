@@ -23,6 +23,7 @@ import {
   QueryRegistryOptions,
 } from './types';
 import { isBrowser } from '../utils/is-browser';
+import { KeyTypeDetector } from '../utils/key-type-detector';
 
 /**
  * Browser client configuration for HCS-2
@@ -89,27 +90,48 @@ export class BrowserHCS2Client extends HCS2BaseClient {
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
-      // Add admin key if requested (using connected wallet)
       if (options.adminKey) {
         let adminPublicKey: PublicKey;
         if (typeof options.adminKey === 'string') {
-          adminPublicKey = PublicKey.fromString(options.adminKey);
+          try {
+            adminPublicKey = PublicKey.fromString(options.adminKey);
+          } catch {
+            const keyInfo = KeyTypeDetector.detect(options.adminKey);
+            if (keyInfo.rawBytes) {
+              adminPublicKey =
+                keyInfo.type === 'ed25519'
+                  ? PublicKey.fromBytesED25519(keyInfo.rawBytes)
+                  : PublicKey.fromBytesECDSA(keyInfo.rawBytes);
+            } else {
+              throw new Error('Failed to parse admin public key');
+            }
+          }
         } else if (typeof options.adminKey === 'boolean') {
           adminPublicKey = await this.mirrorNode.getPublicKey(
             this.getOperatorId(),
           );
         } else {
-          // Provided as PrivateKey instance
           adminPublicKey = options.adminKey.publicKey;
         }
         transaction = transaction.setAdminKey(adminPublicKey);
       }
 
-      // Add submit key if requested (using connected wallet)
       if (options.submitKey) {
         let submitPublicKey: PublicKey;
         if (typeof options.submitKey === 'string') {
-          submitPublicKey = PublicKey.fromString(options.submitKey);
+          try {
+            submitPublicKey = PublicKey.fromString(options.submitKey);
+          } catch {
+            const keyInfo = KeyTypeDetector.detect(options.submitKey);
+            if (keyInfo.rawBytes) {
+              submitPublicKey =
+                keyInfo.type === 'ed25519'
+                  ? PublicKey.fromBytesED25519(keyInfo.rawBytes)
+                  : PublicKey.fromBytesECDSA(keyInfo.rawBytes);
+            } else {
+              throw new Error('Failed to parse submit public key');
+            }
+          }
         } else if (typeof options.submitKey === 'boolean') {
           submitPublicKey = await this.mirrorNode.getPublicKey(
             this.getOperatorId(),

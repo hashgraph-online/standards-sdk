@@ -143,28 +143,47 @@ export class HCS2Client extends HCS2BaseClient {
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
-      // Add admin key if requested
       let adminKeyPrivate: PrivateKey | undefined;
       if (options.adminKey) {
         let adminPublicKey: PublicKey;
         if (typeof options.adminKey === 'string') {
-          adminPublicKey = PublicKey.fromString(options.adminKey);
+          try {
+            adminPublicKey = PublicKey.fromString(options.adminKey);
+          } catch {
+            const keyBytes = Buffer.from(
+              options.adminKey.replace(/^0x/i, ''),
+              'hex',
+            );
+            adminPublicKey =
+              this.keyType === 'ed25519'
+                ? PublicKey.fromBytesED25519(keyBytes)
+                : PublicKey.fromBytesECDSA(keyBytes);
+          }
         } else if (typeof options.adminKey === 'boolean') {
           adminPublicKey = this.operatorKey.publicKey;
         } else {
-          // Provided as PrivateKey instance
           adminPublicKey = options.adminKey.publicKey;
           adminKeyPrivate = options.adminKey;
         }
         transaction = transaction.setAdminKey(adminPublicKey);
       }
 
-      // Add submit key if requested
       let submitKeyPrivate: PrivateKey | undefined;
       if (options.submitKey) {
         let submitPublicKey: PublicKey;
         if (typeof options.submitKey === 'string') {
-          submitPublicKey = PublicKey.fromString(options.submitKey);
+          try {
+            submitPublicKey = PublicKey.fromString(options.submitKey);
+          } catch {
+            const keyBytes = Buffer.from(
+              options.submitKey.replace(/^0x/i, ''),
+              'hex',
+            );
+            submitPublicKey =
+              this.keyType === 'ed25519'
+                ? PublicKey.fromBytesED25519(keyBytes)
+                : PublicKey.fromBytesECDSA(keyBytes);
+          }
         } else if (typeof options.submitKey === 'boolean') {
           submitPublicKey = this.operatorKey.publicKey;
         } else {
