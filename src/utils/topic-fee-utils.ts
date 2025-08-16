@@ -1,5 +1,5 @@
 import { PublicKey } from '@hashgraph/sdk';
-import { Logger } from './logger';
+import { ILogger } from './logger';
 import { HederaMirrorNode } from '../services/mirror-node';
 
 /**
@@ -13,7 +13,7 @@ import { HederaMirrorNode } from '../services/mirror-node';
 export async function accountIdsToExemptKeys(
   accountIds: string[],
   network: string,
-  logger?: Logger,
+  logger?: ILogger,
 ): Promise<PublicKey[]> {
   const mirrorNode = new HederaMirrorNode(
     network as 'mainnet' | 'testnet',

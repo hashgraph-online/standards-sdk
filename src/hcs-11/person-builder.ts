@@ -1,5 +1,5 @@
 import { HCS11Profile, SocialLink, SocialPlatform } from './types';
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 
 export class PersonBuilder {
   private config: Partial<
@@ -8,7 +8,7 @@ export class PersonBuilder {
     version: '1.0',
     type: 0,
   };
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor() {
     this.logger = Logger.getInstance({

@@ -1,5 +1,5 @@
 import { proto } from '@hashgraph/proto';
-import { ContractId } from '@hashgraph/sdk';
+import { ContractId, Transaction } from '@hashgraph/sdk';
 import { Buffer } from 'buffer';
 
 export function parseKey(
@@ -48,4 +48,55 @@ export function parseKey(
   }
 
   return 'Unknown or Unset Key Type';
+}
+
+/**
+ * Extract TransactionBody from Transaction object using protobuf parsing
+ * This replaces fragile constructor name checking with reliable protobuf data
+ */
+export function extractTransactionBody(
+  transaction: Transaction,
+): proto.ITransactionBody | null {
+  try {
+    const bytes = transaction.toBytes ? transaction.toBytes() : undefined;
+    if (!bytes) {
+      return null;
+    }
+
+    const decoded = proto.TransactionList.decode(bytes);
+    if (!decoded.transactionList || decoded.transactionList.length === 0) {
+      return null;
+    }
+
+    const tx = decoded.transactionList[0];
+
+    if (tx.bodyBytes && tx.bodyBytes.length > 0) {
+      return proto.TransactionBody.decode(tx.bodyBytes);
+    }
+
+    if (tx.signedTransactionBytes && tx.signedTransactionBytes.length > 0) {
+      const signedTx = proto.SignedTransaction.decode(
+        tx.signedTransactionBytes,
+      );
+      if (signedTx.bodyBytes) {
+        return proto.TransactionBody.decode(signedTx.bodyBytes);
+      }
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Check if transaction has specific transaction type using protobuf data
+ * This replaces constructor name checking with reliable protobuf field detection
+ */
+export function hasTransactionType(
+  transaction: Transaction,
+  transactionField: keyof proto.ITransactionBody,
+): boolean {
+  const txBody = extractTransactionBody(transaction);
+  return !!(txBody && txBody[transactionField]);
 }

@@ -1,6 +1,6 @@
 // TextEncoder and TextDecoder are available globally in modern browsers
 // and in Node.js without explicit import
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 
 export interface BaseMessage {
   p: string;
@@ -61,7 +61,7 @@ export class WasmBridge {
   private cachedDataViewMemory: DataView | null = null;
   private readonly textEncoder: TextEncoder;
   private readonly textDecoder: TextDecoder;
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor() {
     this.textEncoder = new TextEncoder();

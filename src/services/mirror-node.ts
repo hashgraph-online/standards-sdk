@@ -1,6 +1,6 @@
 import { PublicKey, Timestamp, AccountId } from '@hashgraph/sdk';
 import axios, { AxiosRequestConfig } from 'axios';
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { proto } from '@hashgraph/proto';
 import {
   AccountResponse,
@@ -83,7 +83,7 @@ export interface MirrorNodeConfig {
 export class HederaMirrorNode {
   private network: NetworkType;
   private baseUrl: string;
-  private logger: Logger;
+  private logger: ILogger;
   private isServerEnvironment: boolean;
   private apiKey?: string;
   private customHeaders: Record<string, string>;
@@ -95,7 +95,7 @@ export class HederaMirrorNode {
 
   constructor(
     network: NetworkType,
-    logger?: Logger,
+    logger?: ILogger,
     config?: MirrorNodeConfig,
   ) {
     this.network = network;

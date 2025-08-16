@@ -1,6 +1,7 @@
 # Hashgraph Online Standards SDK
 
-A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online.
+| ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online.<br><br>This SDK is built and maintained by [Hashgraph Online](https://hashgraphonline.com), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hashgraphonline.com/docs/standards) |
+| :-------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 
 ## Quick Start
 
@@ -16,10 +17,13 @@ For complete documentation, examples, and API references, visit:
 
 ## Supported Standards
 
-- **HCS-3**: Recursion for Inscribed Files
-- **HCS-7**: Dynamic, Programmable, and 100% on-graph assets
-- **HCS-10**: Trustless, peer to peer communication for AI Agents
-- **HCS-11**: Profile Standard
+- **HCS-1**: File Storage
+- **HCS-2**: Registry and Indexing Standard
+- **HCS-3**: Recursive File Loading
+- **HCS-7**: Smart Hashinals
+- **HCS-10**: Trustless Peer-to-Peer Communication for Agents and AI
+- **HCS-11**: Decentralized Profile and Identity Standard
+- **HCS-20**: Auditable Points
 
 ## Running Demos
 
@@ -130,7 +134,7 @@ See [MAINTAINERS.md](MAINTAINERS.md) for a list of project maintainers.
 
 ## Resources
 
-- [HCS Standards Documentation](https://hcs-improvement-proposals.pages.dev/docs/standards)
+- [HCS Standards Documentation](https://hashgraphonline.com/docs/standards)
 - [Hedera Documentation](https://docs.hedera.com)
 - [Telegram Community](https://t.me/hashinals)
 

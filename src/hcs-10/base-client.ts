@@ -1,7 +1,11 @@
-import { Logger, LogLevel } from '../utils/logger';
+import { Logger, LogLevel, ILogger } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
-import { AccountResponse, TopicResponse } from '../services/types';
+import {
+  AccountResponse,
+  HCSMessageWithCommonFields,
+  TopicResponse,
+} from '../services/types';
 import { TopicInfo } from '../services/types';
 import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
@@ -9,7 +13,6 @@ import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import {
   WaitForConnectionConfirmationResponse,
   TransactMessage,
-  HCSMessage,
 } from './types';
 import { HRLResolver } from '../utils/hrl-resolver';
 
@@ -80,7 +83,7 @@ export interface ProfileResponse {
 
 export abstract class HCS10BaseClient extends Registration {
   protected network: string;
-  protected logger: Logger;
+  protected logger: ILogger;
   protected feeAmount: number;
   public mirrorNode: HederaMirrorNode;
 
@@ -156,7 +159,7 @@ export abstract class HCS10BaseClient extends Registration {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<{ messages: HCSMessage[] }> {
+  ): Promise<{ messages: HCSMessageWithCommonFields[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
       const validOps = ['message', 'close_connection', 'transaction'];
@@ -315,7 +318,7 @@ export abstract class HCS10BaseClient extends Registration {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<{ messages: HCSMessage[] }> {
+  ): Promise<{ messages: HCSMessageWithCommonFields[] }> {
     try {
       const messages = await this.mirrorNode.getTopicMessages(topicId, options);
 
@@ -380,83 +383,122 @@ export abstract class HCS10BaseClient extends Registration {
    * Retrieves the profile for an account
    * @param accountId The account ID to retrieve the profile for
    * @param disableCache Whether to disable caching of the result
+   * @param retryOptions Optional retry configuration
    * @returns The profile
    */
   public async retrieveProfile(
     accountId: string,
     disableCache?: boolean,
+    retryOptions?: {
+      maxRetries?: number;
+      retryDelay?: number;
+    },
   ): Promise<ProfileResponse> {
-    this.logger.debug(`Retrieving profile for account: ${accountId}`);
+    const maxRetries = retryOptions?.maxRetries ?? 0;
+    const retryDelay = retryOptions?.retryDelay ?? 3000;
+    let retryCount = 0;
 
-    const cacheKey = `${accountId}-${this.network}`;
-
-    if (!disableCache) {
-      const cachedProfileResponse = HCS10Cache.getInstance().get(cacheKey);
-      if (cachedProfileResponse) {
-        this.logger.debug(`Cache hit for profile: ${accountId}`);
-        return cachedProfileResponse;
-      }
-    }
-    try {
-      const hcs11Client = new HCS11Client({
-        network: this.network as 'mainnet' | 'testnet',
-        auth: {
-          operatorId: '0.0.0',
-        },
-        logLevel: 'info',
-      });
-
-      const profileResult = await hcs11Client.fetchProfileByAccountId(
-        accountId,
-        this.network,
+    while (retryCount <= maxRetries) {
+      this.logger.debug(
+        `Retrieving profile for account: ${accountId}${retryCount > 0 ? ` (attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`,
       );
 
-      if (!profileResult?.success) {
-        this.logger.error(
-          `Failed to retrieve profile for account ID: ${accountId}`,
-          profileResult?.error,
+      const cacheKey = `${accountId}-${this.network}`;
+
+      if (!disableCache && retryCount === 0) {
+        const cachedProfileResponse = HCS10Cache.getInstance().get(cacheKey);
+        if (cachedProfileResponse) {
+          this.logger.debug(`Cache hit for profile: ${accountId}`);
+          return cachedProfileResponse;
+        }
+      }
+
+      try {
+        const hcs11Client = new HCS11Client({
+          network: this.network as 'mainnet' | 'testnet',
+          auth: {
+            operatorId: '0.0.0',
+          },
+          logLevel: 'info',
+        });
+
+        const profileResult = await hcs11Client.fetchProfileByAccountId(
+          accountId,
+          this.network,
         );
+
+        if (!profileResult?.success) {
+          if (retryCount < maxRetries) {
+            this.logger.info(
+              `Profile not found for account ${accountId}, retrying in ${retryDelay}ms... (${profileResult?.error})`,
+            );
+            retryCount++;
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            continue;
+          }
+
+          this.logger.error(
+            `Failed to retrieve profile for account ID: ${accountId}`,
+            profileResult?.error,
+          );
+          return {
+            profile: null,
+            success: false,
+            error:
+              profileResult?.error ||
+              `Failed to retrieve profile for account ID: ${accountId}`,
+          };
+        }
+
+        const profile = profileResult?.profile;
+        let topicInfo: TopicInfo | null = null;
+
+        if (
+          profileResult?.topicInfo?.inboundTopic &&
+          profileResult?.topicInfo?.outboundTopic &&
+          profileResult?.topicInfo?.profileTopicId
+        ) {
+          topicInfo = {
+            inboundTopic: profileResult.topicInfo.inboundTopic,
+            outboundTopic: profileResult.topicInfo.outboundTopic,
+            profileTopicId: profileResult.topicInfo.profileTopicId,
+          };
+        }
+
+        const responseToCache: ProfileResponse = {
+          profile,
+          topicInfo,
+          success: true,
+        };
+        HCS10Cache.getInstance().set(cacheKey, responseToCache);
+        return responseToCache;
+      } catch (e: any) {
+        if (retryCount < maxRetries) {
+          this.logger.info(
+            `Error retrieving profile for account ${accountId}, retrying in ${retryDelay}ms... (${e.message})`,
+          );
+          retryCount++;
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        const error = e as Error;
+        const logMessage = `Failed to retrieve profile: ${error.message}`;
+        this.logger.error(logMessage);
         return {
           profile: null,
           success: false,
-          error:
-            profileResult?.error ||
-            `Failed to retrieve profile for account ID: ${accountId}`,
+          error: logMessage,
         };
       }
-
-      const profile = profileResult.profile;
-      let topicInfo: TopicInfo | null = null;
-
-      if (
-        profileResult.topicInfo?.inboundTopic &&
-        profileResult.topicInfo?.outboundTopic &&
-        profileResult.topicInfo?.profileTopicId
-      ) {
-        topicInfo = {
-          inboundTopic: profileResult.topicInfo.inboundTopic,
-          outboundTopic: profileResult.topicInfo.outboundTopic,
-          profileTopicId: profileResult.topicInfo.profileTopicId,
-        };
-      }
-
-      const responseToCache: ProfileResponse = {
-        profile,
-        topicInfo,
-        success: true,
-      };
-      HCS10Cache.getInstance().set(cacheKey, responseToCache);
-      return responseToCache;
-    } catch (e: any) {
-      const error = e as Error;
-      const logMessage = `Failed to retrieve profile: ${error.message}`;
-      this.logger.error(logMessage);
-      return {
-        profile: null,
-        success: false,
-        error: logMessage,
-      };
     }
+
+    // This should never be reached, but TypeScript needs a return
+    return {
+      profile: null,
+      success: false,
+      error: 'Unexpected error in profile retrieval',
+    };
   }
 
   /**
@@ -474,16 +516,22 @@ export abstract class HCS10BaseClient extends Registration {
    * Retrieves the communication topics for an account
    * @param accountId The account ID to retrieve the communication topics for
    * @param disableCache Whether to disable caching of the result
+   * @param retryOptions Optional retry configuration
    * @returns {TopicInfo} Topic Info from target profile.
    */
   public async retrieveCommunicationTopics(
     accountId: string,
     disableCache?: boolean,
+    retryOptions?: {
+      maxRetries?: number;
+      retryDelay?: number;
+    },
   ): Promise<TopicInfo> {
     try {
       const profileResponse = await this.retrieveProfile(
         accountId,
         disableCache,
+        retryOptions,
       );
 
       if (!profileResponse?.success) {
@@ -491,6 +539,12 @@ export abstract class HCS10BaseClient extends Registration {
       }
 
       const profile = profileResponse.profile;
+
+      if (!profile) {
+        throw new Error(
+          `Profile is null or undefined for account ${accountId}`,
+        );
+      }
 
       if (!profile.inboundTopicId || !profile.outboundTopicId) {
         throw new Error(
@@ -526,7 +580,7 @@ export abstract class HCS10BaseClient extends Registration {
       limit?: number;
       order?: 'asc' | 'desc';
     },
-  ): Promise<HCSMessage[]> {
+  ): Promise<HCSMessageWithCommonFields[]> {
     try {
       const topicInfo = await this.retrieveCommunicationTopics(agentAccountId);
       if (!topicInfo) {
@@ -873,14 +927,18 @@ export abstract class HCS10BaseClient extends Registration {
 
     const accountResponse = this.getAccountAndSigner();
 
-    if (!accountResponse.accountId) {
+    if (!accountResponse?.accountId) {
       throw new Error('Operator ID not found');
     }
 
     const profile = await this.retrieveProfile(accountResponse.accountId);
 
-    if (!profile.success) {
+    if (!profile?.success) {
       throw new Error('Failed to retrieve profile');
+    }
+
+    if (!profile?.topicInfo?.inboundTopic) {
+      throw new Error('Failed to retrieve inbound topic');
     }
 
     const operatorId = `${profile.topicInfo?.inboundTopic}@${accountResponse.accountId}`;
@@ -1135,7 +1193,7 @@ export abstract class HCS10BaseClient extends Registration {
       return null;
     }
 
-    const typedPayload = payload as HCSMessage;
+    const typedPayload = payload as HCSMessageWithCommonFields;
     const operation = typedPayload.op;
     let operationEnum: string;
     let topicTypeEnum: string;

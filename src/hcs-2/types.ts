@@ -32,7 +32,7 @@ export enum HCS2RegistryType {
  * Base HCS-2 message format
  */
 export interface HCS2Message {
-  p: string; // Protocol (always "hcs-2")
+  p: string; // Protocol (e.g., "hcs-2", "hcs-6", etc.)
   op: HCS2Operation; // Operation
   t_id?: string; // Target Topic ID (for register, update, migrate)
   uid?: string; // Unique ID/Sequence number (for update, delete)
@@ -196,7 +196,9 @@ export const topicIdSchema = z.string().regex(/^\d+\.\d+\.\d+$/, {
 
 // Base HCS-2 message schema
 export const baseMessageSchema = z.object({
-  p: z.literal('hcs-2'),
+  p: z.string().regex(/^hcs-\d+$/, {
+    message: "Protocol must be in format 'hcs-N' where N is a number",
+  }),
   op: z.enum([
     HCS2Operation.REGISTER,
     HCS2Operation.UPDATE,

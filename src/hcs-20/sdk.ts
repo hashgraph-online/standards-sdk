@@ -64,11 +64,14 @@ export class HCS20Client extends HCS20BaseClient {
       this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
 
     try {
-      const { privateKey, detectedType } = detectKeyTypeFromString(
-        config.operatorKey,
-      );
-      this.operatorKey = privateKey;
-      this.keyType = detectedType;
+      const keyDetection = detectKeyTypeFromString(config.operatorKey);
+      this.operatorKey = keyDetection.privateKey;
+      this.keyType = keyDetection.detectedType;
+
+      if (keyDetection.warning) {
+        this.logger.warn(keyDetection.warning);
+      }
+
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
     } catch (error) {
@@ -95,7 +98,7 @@ export class HCS20Client extends HCS20BaseClient {
       } else if (keyType?.includes('ED25519')) {
         this.keyType = 'ed25519';
       } else {
-        this.keyType = 'ed25519';
+        this.keyType = 'ecdsa'; // Default to ECDSA
       }
 
       this.operatorKey =
@@ -109,10 +112,10 @@ export class HCS20Client extends HCS20BaseClient {
       this.logger.debug(`Initialized operator with key type: ${this.keyType}`);
     } catch (error) {
       this.logger.warn(
-        'Failed to query mirror node for key type, using ED25519',
+        'Failed to query mirror node for key type, using ECDSA as default',
       );
-      this.keyType = 'ed25519';
-      this.operatorKey = PrivateKey.fromStringED25519(this.operatorKeyString);
+      this.keyType = 'ecdsa'; // Default to ECDSA
+      this.operatorKey = PrivateKey.fromStringECDSA(this.operatorKeyString);
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
     }

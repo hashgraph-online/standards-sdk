@@ -3,7 +3,7 @@
  */
 
 import { AccountId, TopicId } from '@hashgraph/sdk';
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { HederaMirrorNode } from '../services/mirror-node';
 import type { NetworkType } from '../utils/types';
 import {
@@ -24,7 +24,7 @@ import { InvalidAccountFormatError } from './errors';
  * Abstract base class for HCS-20 clients
  */
 export abstract class HCS20BaseClient {
-  protected logger: Logger;
+  protected logger: ILogger;
   protected mirrorNode: HederaMirrorNode;
   protected network: NetworkType;
   protected registryTopicId: string;

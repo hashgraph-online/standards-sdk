@@ -11,7 +11,7 @@ import {
   VerificationType,
   SocialLink,
 } from './types';
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 
 /**
@@ -36,7 +36,7 @@ export class MCPServerBuilder {
     mcpServer: {} as MCPServerDetails,
   };
   private socials: SocialLink[] = [];
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor() {
     this.logger = Logger.getInstance({

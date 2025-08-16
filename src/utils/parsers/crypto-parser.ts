@@ -1,5 +1,12 @@
 import { proto } from '@hashgraph/proto';
-import { AccountId, TokenId, Hbar, HbarUnit, Long } from '@hashgraph/sdk';
+import {
+  AccountId,
+  TokenId,
+  Hbar,
+  HbarUnit,
+  Long,
+  Transaction,
+} from '@hashgraph/sdk';
 import {
   AccountAmount,
   TokenAmount,
@@ -287,5 +294,149 @@ export class CryptoParser {
       }));
     }
     return data;
+  }
+
+  /**
+   * Extract HBAR transfers from Transaction object
+   */
+  static extractHbarTransfersFromTransaction(
+    transaction: Transaction,
+  ): Array<{ accountId: string; amount: number }> {
+    const transfers: Array<{ accountId: string; amount: number }> = [];
+
+    try {
+      const hbarTransfers = (
+        transaction as unknown as {
+          _hbarTransfers?: Array<{
+            accountId?: AccountId;
+            amount?: Hbar;
+          }>;
+        }
+      )._hbarTransfers;
+
+      if (Array.isArray(hbarTransfers)) {
+        hbarTransfers.forEach(transfer => {
+          if (transfer.accountId && transfer.amount) {
+            const amountInTinybars = transfer.amount.toTinybars();
+            const amountInHbar = Number(amountInTinybars) / 100000000;
+
+            transfers.push({
+              accountId: transfer.accountId.toString(),
+              amount: amountInHbar,
+            });
+          }
+        });
+      }
+    } catch (error) {}
+
+    return transfers;
+  }
+
+  /**
+   * Extract token transfers from Transaction object
+   */
+  static extractTokenTransfersFromTransaction(transaction: Transaction): Array<{
+    tokenId: string;
+    transfers: Array<{ accountId: string; amount: number }>;
+  }> {
+    const tokenTransfers: Array<{
+      tokenId: string;
+      transfers: Array<{ accountId: string; amount: number }>;
+    }> = [];
+
+    try {
+      const tokenTransfersList = (
+        transaction as unknown as {
+          _tokenTransfers?: Array<{
+            tokenId?: { toString(): string };
+            transfers?: Array<{
+              accountId?: AccountId;
+              amount?: number | Long;
+            }>;
+          }>;
+        }
+      )._tokenTransfers;
+
+      if (Array.isArray(tokenTransfersList)) {
+        tokenTransfersList.forEach(tokenTransfer => {
+          if (tokenTransfer.tokenId && Array.isArray(tokenTransfer.transfers)) {
+            const transfers = tokenTransfer.transfers.map(transfer => ({
+              accountId: transfer.accountId?.toString() || 'Unknown',
+              amount: Number(transfer.amount || 0),
+            }));
+
+            tokenTransfers.push({
+              tokenId: tokenTransfer.tokenId.toString(),
+              transfers: transfers,
+            });
+          }
+        });
+      }
+    } catch (error) {}
+
+    return tokenTransfers;
+  }
+
+  /**
+   * Parse crypto transaction from Transaction object with comprehensive extraction
+   * This is the unified entry point that handles both protobuf and internal field extraction
+   */
+  static parseFromTransactionObject(transaction: Transaction): {
+    type?: string;
+    humanReadableType?: string;
+    transfers?: Array<{
+      accountId: string;
+      amount: string;
+      isDecimal?: boolean;
+    }>;
+    tokenTransfers?: Array<{
+      tokenId: string;
+      accountId: string;
+      amount: number;
+    }>;
+    [key: string]: unknown;
+  } {
+    try {
+      const hbarTransfers =
+        this.extractHbarTransfersFromTransaction(transaction);
+      const tokenTransfers =
+        this.extractTokenTransfersFromTransaction(transaction);
+
+      if (hbarTransfers.length > 0 || tokenTransfers.length > 0) {
+        const convertedTransfers = hbarTransfers.map(transfer => ({
+          accountId: transfer.accountId,
+          amount: transfer.amount.toString() + ' ℏ',
+          isDecimal: true,
+        }));
+
+        const convertedTokenTransfers = tokenTransfers.flatMap(tokenGroup =>
+          tokenGroup.transfers.map(transfer => ({
+            tokenId: tokenGroup.tokenId,
+            accountId: transfer.accountId,
+            amount: transfer.amount,
+          })),
+        );
+
+        if (hbarTransfers.length > 0) {
+          return {
+            type: 'CRYPTOTRANSFER',
+            humanReadableType: 'Crypto Transfer',
+            transfers: convertedTransfers,
+            tokenTransfers: convertedTokenTransfers,
+          };
+        } else if (tokenTransfers.length > 0) {
+          return {
+            type: 'TOKENTRANSFER',
+            humanReadableType: 'Token Transfer',
+            transfers: convertedTransfers,
+            tokenTransfers: convertedTokenTransfers,
+          };
+        }
+      }
+
+      return {};
+    } catch (error) {
+      return {};
+    }
   }
 }

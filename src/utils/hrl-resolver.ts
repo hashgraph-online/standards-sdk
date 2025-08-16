@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Logger, LogLevel } from './logger';
+import { Logger, LogLevel, ILogger } from './logger';
 import { NetworkType } from './types';
 import { HederaMirrorNode } from '../services';
 
@@ -32,7 +32,7 @@ export interface ContentWithType {
  * Utility class for resolving Hedera Resource Locators across the SDK
  */
 export class HRLResolver {
-  private logger: Logger;
+  private logger: ILogger;
   private defaultEndpoint = 'https://kiloscribe.com/api/inscription-cdn';
 
   constructor(logLevel: LogLevel = 'info') {

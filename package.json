@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.143",
+  "version": "0.0.181",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -42,7 +42,7 @@
     "build:es": "BUILD_FORMAT=es vite build",
     "build:umd": "BUILD_FORMAT=umd vite build",
     "build:cjs": "BUILD_FORMAT=cjs vite build",
-    "build": "npm run clean && npm run build:es && npm run build:umd && npm run build:cjs",
+    "build": "npm run clean && npm run build:es && npm run build:cjs",
     "prepublishOnly": "npm run build",
     "release": "npm publish --access public",
     "release:canary": "npm run prepublishOnly && npm publish --tag canary --access public",
@@ -56,9 +56,12 @@
     "demo:polling-agent": "tsx demo/hcs-10/polling-agent.ts",
     "demo:connection-manager": "tsx demo/hcs-10/connection-manager.ts",
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
-    "demo:mcp-chat": "tsx demo/hcs-10/create-mcp-server.ts",
     "demo:hcs12": "tsx demo/hcs-12/hcs12-demo.ts",
+    "demo:mcp-chat": "tsx demo/hcs-10/create-mcp.ts",
     "demo:hcs-2:create": "tsx demo/hcs-2/create-registry.ts",
+    "demo:hcs-6": "tsx demo/hcs-6/dynamic-hashinal-demo.ts",
+    "demo:hcs-6:create-registry": "tsx demo/hcs-6/create-registry.ts",
+    "demo:hcs-6:query-registry": "tsx demo/hcs-6/query-registry.ts",
     "demo:hcs-10:create-registry": "tsx demo/hcs-10/create-registry.ts",
     "demo:hcs-20:deploy-and-mint": "tsx demo/hcs-20/deploy-and-mint.ts",
     "demo:hcs-20:deploy-points": "tsx demo/hcs-20/deploy-points.ts",
@@ -71,6 +74,7 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
+    "@hashgraphonline/conversational-agent": "0.1.209",
     "@swc/jest": "^0.2.37",
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.16",
@@ -90,15 +94,18 @@
     "typescript": "^5.8.2",
     "vite": "^6.2.2",
     "vite-plugin-dts": "^4.0.2",
-    "vite-plugin-node-polyfills": "^0.23.0"
+    "vite-plugin-node-polyfills": "^0.24.0"
   },
   "dependencies": {
     "@hashgraph/hedera-wallet-connect": "^1.5.1-0",
-    "@hashgraph/proto": "^2.19.0",
-    "@hashgraph/sdk": "2.66.0",
-    "@hashgraphonline/hashinal-wc": "^1.0.100",
-    "@hashgraphonline/hedera-agent-kit": "0.0.40",
-    "@kiloscribe/inscription-sdk": "^1.0.38",
+    "@hashgraph/proto": "^2.20.0",
+    "@hashgraph/sdk": "2.69.0",
+    "@hashgraphonline/hashinal-wc": "^1.0.102",
+    "@kiloscribe/inscription-sdk": "^1.0.59",
+    "axios": "^1.10.0",
+    "bignumber.js": "^9.3.1",
+    "buffer": "^6.0.3",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
     "file-type": "^20.4.1",
@@ -107,5 +114,6 @@
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.24.2"
-  }
+  },
+  "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
 }
