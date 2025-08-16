@@ -77,8 +77,10 @@ export type TokenCreationData = {
   supplyKey?: string;
   feeScheduleKey?: string;
   pauseKey?: string;
+  metadataKey?: string;
   autoRenewAccount?: string;
   autoRenewPeriod?: string;
+  expiry?: string;
   customFees?: CustomFeeData[];
 };
 
@@ -110,11 +112,14 @@ export type FileCreateData = {
   contents?: string;
   memo?: string;
   maxSize?: string;
+  contentType?: string;
+  contentSize?: number;
 };
 
 export type FileAppendData = {
   fileId?: string;
   contents?: string;
+  contentSize?: number;
 };
 
 export type FileUpdateData = {
@@ -123,6 +128,7 @@ export type FileUpdateData = {
   keys?: string;
   contents?: string;
   memo?: string;
+  contentSize?: number;
 };
 
 export type FileDeleteData = {
@@ -170,6 +176,163 @@ export type TokenFeeScheduleUpdateData = {
 export type UtilPrngData = {
   range?: number;
   prngBytes?: string;
+};
+
+/**
+ * System and Network Operation Data Types
+ */
+export type NetworkFreezeData = {
+  startTime?: string;
+  endTime?: string;
+  updateFile?: string;
+  fileHash?: string;
+  freezeType?:
+    | 'FREEZE_ONLY'
+    | 'PREPARE_UPGRADE'
+    | 'FREEZE_UPGRADE'
+    | 'FREEZE_ABORT';
+};
+
+export type SystemDeleteData = {
+  fileId?: string;
+  contractId?: string;
+  expirationTime?: string;
+};
+
+export type SystemUndeleteData = {
+  fileId?: string;
+  contractId?: string;
+};
+
+export type NodeCreateData = {
+  nodeId?: number;
+  accountId?: string;
+  description?: string;
+  gossipEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  serviceEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  gossipCaCertificate?: string;
+  grpcCertificateHash?: string;
+  adminKey?: string;
+};
+
+export type NodeUpdateData = {
+  nodeId?: number;
+  accountId?: string;
+  description?: string;
+  gossipEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  serviceEndpoint?: Array<{
+    ipAddressV4?: Uint8Array;
+    port?: number;
+  }>;
+  gossipCaCertificate?: string;
+  grpcCertificateHash?: string;
+  adminKey?: string;
+};
+
+export type NodeDeleteData = {
+  nodeId?: number;
+};
+
+export type NodeStakeUpdateData = {
+  nodeId?: number;
+  maxStake?: string;
+  minStake?: string;
+  rewardRate?: string;
+};
+
+export type EthereumTransactionData = {
+  contractId: string;
+  gas: number;
+  amount: number;
+  functionParameters?: string;
+  functionName?: string;
+};
+
+export type TokenCancelAirdropData = {
+  pendingAirdrops?: any[];
+};
+
+export type TokenClaimAirdropData = {
+  pendingAirdrops?: any[];
+};
+
+export type TokenRejectData = {
+  owner?: string;
+  rejections?: any[];
+};
+
+export type TokenUpdateNftsData = {
+  tokenId?: string;
+  serialNumbers?: string[];
+  metadata?: string;
+};
+
+export type CryptoAddLiveHashData = {
+  accountId?: string;
+  liveHash?: any;
+};
+
+export type CryptoDeleteLiveHashData = {
+  accountId?: string;
+  liveHashToDelete?: any;
+};
+
+export type UncheckedSubmitData = {
+  topicId?: string;
+  message?: any;
+};
+
+export type AtomicBatchData = {
+  transactions?: any[];
+};
+
+export type StateSignatureTransactionData = {
+  signature?: any;
+  round?: string;
+};
+
+export type HistoryProofSignatureData = {
+  signature?: any;
+  round?: string;
+};
+
+export type HistoryProofKeyPublicationData = {
+  publicKey?: any;
+  round?: string;
+};
+
+export type HistoryProofVoteData = {
+  vote?: any;
+  round?: string;
+};
+
+export type HintsPreprocessingVoteData = {
+  vote?: any;
+  round?: string;
+};
+
+export type HintsKeyPublicationData = {
+  publicKey?: any;
+  round?: string;
+};
+
+export type HintsPartialSignatureData = {
+  signature?: any;
+  round?: string;
+};
+
+export type CrsPublicationData = {
+  crs?: any;
+  round?: string;
 };
 
 export type TokenFreezeData = {
@@ -313,6 +476,96 @@ export type ContractDeleteData = {
   transferContractId?: string;
 };
 
+/**
+ * Token Airdrop data structure supporting both fungible tokens and NFTs
+ */
+export type TokenAirdropData = {
+  tokenTransfers: {
+    tokenId: string;
+    transfers: Array<{
+      accountId: string;
+      amount: string;
+      serialNumbers?: string[];
+    }>;
+  }[];
+};
+
+/**
+ * Schedule Create data structure
+ */
+export type ScheduleCreateData = {
+  scheduledTransactionBody?: string;
+  memo?: string;
+  adminKey?: string;
+  payerAccountId?: string;
+  expirationTime?: string;
+  waitForExpiry?: boolean;
+};
+
+/**
+ * Schedule Sign data structure
+ */
+export type ScheduleSignData = {
+  scheduleId?: string;
+};
+
+/**
+ * Schedule Delete data structure
+ */
+export type ScheduleDeleteData = {
+  scheduleId?: string;
+};
+
+/**
+ * Validation result for transaction bytes
+ */
+export type ValidationResult = {
+  isValid: boolean;
+  format?: 'base64' | 'hex';
+  error?: string;
+  length?: number;
+};
+
+/**
+ * Parse options for configuring parsing behavior
+ */
+export type ParseOptions = {
+  /** Whether to use fallback parsing when primary parsing fails */
+  enableFallback?: boolean;
+  /** Whether to enforce strict validation of transaction format */
+  strictMode?: boolean;
+  /** Whether to include raw protobuf data in the result */
+  includeRaw?: boolean;
+  /** Maximum number of retry attempts for parsing */
+  maxRetries?: number;
+};
+
+/**
+ * Custom error class for transaction parsing failures
+ */
+export class TransactionParsingError extends Error {
+  public readonly code: string;
+  public readonly originalError?: Error;
+  public readonly transactionBytes?: string;
+
+  constructor(
+    message: string,
+    code: string = 'PARSING_FAILED',
+    originalError?: Error,
+    transactionBytes?: string,
+  ) {
+    super(message);
+    this.name = 'TransactionParsingError';
+    this.code = code;
+    this.originalError = originalError;
+    this.transactionBytes = transactionBytes;
+
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, TransactionParsingError);
+    }
+  }
+}
+
 export type ParsedTransaction = {
   type: string;
   humanReadableType: string;
@@ -353,5 +606,54 @@ export type ParsedTransaction = {
   contractCreate?: ContractCreateData;
   contractUpdate?: ContractUpdateData;
   contractDelete?: ContractDeleteData;
-  raw: proto.SchedulableTransactionBody;
+  /** New fields for unified parser */
+  tokenAirdrop?: TokenAirdropData;
+  scheduleCreate?: ScheduleCreateData;
+  scheduleSign?: ScheduleSignData;
+  scheduleDelete?: ScheduleDeleteData;
+  /** System operation fields */
+  ethereumTransaction?: EthereumTransactionData;
+  freeze?: NetworkFreezeData;
+  systemDelete?: SystemDeleteData;
+  systemUndelete?: SystemUndeleteData;
+  /** Token operation fields */
+  tokenCancelAirdrop?: TokenCancelAirdropData;
+  tokenClaimAirdrop?: TokenClaimAirdropData;
+  tokenReject?: TokenRejectData;
+  tokenUpdateNfts?: TokenUpdateNftsData;
+  /** Crypto operation fields */
+  cryptoAddLiveHash?: CryptoAddLiveHashData;
+  cryptoDeleteLiveHash?: CryptoDeleteLiveHashData;
+  /** Node operation fields */
+  nodeCreate?: NodeCreateData;
+  nodeUpdate?: NodeUpdateData;
+  nodeDelete?: NodeDeleteData;
+  nodeStakeUpdate?: NodeStakeUpdateData;
+  /** Consensus operation fields */
+  uncheckedSubmit?: UncheckedSubmitData;
+  /** Advanced operation fields */
+  atomicBatch?: AtomicBatchData;
+  stateSignatureTransaction?: StateSignatureTransactionData;
+  historyProofSignature?: HistoryProofSignatureData;
+  historyProofKeyPublication?: HistoryProofKeyPublicationData;
+  historyProofVote?: HistoryProofVoteData;
+  hintsPreprocessingVote?: HintsPreprocessingVoteData;
+  hintsKeyPublication?: HintsKeyPublicationData;
+  hintsPartialSignature?: HintsPartialSignatureData;
+  crsPublication?: CrsPublicationData;
+  /** Metadata fields */
+  transactionId?: string;
+  nodeAccountIds?: string[];
+  maxTransactionFee?: string;
+  validStart?: string;
+  validDuration?: string;
+  /** Transaction details and debugging info */
+  details?: Record<string, any>;
+  /** Format detection metadata */
+  formatDetection?: {
+    originalFormat: 'base64' | 'hex';
+    wasConverted: boolean;
+    length: number;
+  };
+  raw?: proto.SchedulableTransactionBody;
 };

@@ -77,16 +77,20 @@ export class HCS2Client extends HCS2BaseClient {
         const keyDetection = detectKeyTypeFromString(config.operatorKey);
         this.operatorKey = keyDetection.privateKey;
         this.keyType = keyDetection.detectedType;
+
+        if (keyDetection.warning) {
+          this.logger.warn(keyDetection.warning);
+        }
       } catch (error) {
         this.logger.warn(
-          'Failed to detect key type from private key format, defaulting to ED25519',
+          'Failed to detect key type from private key format, defaulting to ECDSA',
         );
-        this.keyType = 'ed25519';
-        this.operatorKey = PrivateKey.fromString(config.operatorKey);
+        this.keyType = 'ecdsa';
+        this.operatorKey = PrivateKey.fromStringECDSA(config.operatorKey);
       }
     } else {
       this.operatorKey = config.operatorKey;
-      this.keyType = 'ed25519'; // Default if we can't detect
+      this.keyType = 'ecdsa'; // Default to ECDSA if we can't detect
     }
 
     this.client = this.createClient(config.network);
@@ -139,28 +143,47 @@ export class HCS2Client extends HCS2BaseClient {
 
       let transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
-      // Add admin key if requested
       let adminKeyPrivate: PrivateKey | undefined;
       if (options.adminKey) {
         let adminPublicKey: PublicKey;
         if (typeof options.adminKey === 'string') {
-          adminPublicKey = PublicKey.fromString(options.adminKey);
+          try {
+            adminPublicKey = PublicKey.fromString(options.adminKey);
+          } catch {
+            const keyBytes = Buffer.from(
+              options.adminKey.replace(/^0x/i, ''),
+              'hex',
+            );
+            adminPublicKey =
+              this.keyType === 'ed25519'
+                ? PublicKey.fromBytesED25519(keyBytes)
+                : PublicKey.fromBytesECDSA(keyBytes);
+          }
         } else if (typeof options.adminKey === 'boolean') {
           adminPublicKey = this.operatorKey.publicKey;
         } else {
-          // Provided as PrivateKey instance
           adminPublicKey = options.adminKey.publicKey;
           adminKeyPrivate = options.adminKey;
         }
         transaction = transaction.setAdminKey(adminPublicKey);
       }
 
-      // Add submit key if requested
       let submitKeyPrivate: PrivateKey | undefined;
       if (options.submitKey) {
         let submitPublicKey: PublicKey;
         if (typeof options.submitKey === 'string') {
-          submitPublicKey = PublicKey.fromString(options.submitKey);
+          try {
+            submitPublicKey = PublicKey.fromString(options.submitKey);
+          } catch {
+            const keyBytes = Buffer.from(
+              options.submitKey.replace(/^0x/i, ''),
+              'hex',
+            );
+            submitPublicKey =
+              this.keyType === 'ed25519'
+                ? PublicKey.fromBytesED25519(keyBytes)
+                : PublicKey.fromBytesECDSA(keyBytes);
+          }
         } else if (typeof options.submitKey === 'boolean') {
           submitPublicKey = this.operatorKey.publicKey;
         } else {
@@ -213,11 +236,13 @@ export class HCS2Client extends HCS2BaseClient {
    * Register a new entry in the registry
    * @param registryTopicId The topic ID of the registry
    * @param options Registration options
+   * @param protocol Optional protocol version (defaults to 'hcs-2')
    * @returns Promise resolving to the operation result
    */
   async registerEntry(
     registryTopicId: string,
     options: RegisterEntryOptions,
+    protocol: string = 'hcs-2',
   ): Promise<RegistryOperationResponse> {
     try {
       // Create register message
@@ -225,12 +250,13 @@ export class HCS2Client extends HCS2BaseClient {
         options.targetTopicId,
         options.metadata,
         options.memo,
+        protocol,
       );
 
       const receipt = await this.submitMessage(registryTopicId, message);
 
       this.logger.info(
-        `Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId}`,
+        `Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId} using protocol ${protocol}`,
       );
 
       return {

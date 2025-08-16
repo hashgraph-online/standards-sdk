@@ -11,8 +11,9 @@ import {
   inscribeWithSigner,
   InscriptionInput,
   InscriptionOptions,
+  InscriptionResult,
 } from '../inscribe';
-import { Logger, detectKeyTypeFromString } from '../utils';
+import { Logger, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
@@ -42,45 +43,45 @@ import {
   VerificationType,
 } from './types';
 
-const SocialLinkSchema = z.object({
+export const SocialLinkSchema = z.object({
   platform: z.string().min(1),
   handle: z.string().min(1),
 });
 
-const AIAgentDetailsSchema = z.object({
+export const AIAgentDetailsSchema = z.object({
   type: z.nativeEnum(AIAgentType),
   capabilities: z.array(z.nativeEnum(AIAgentCapability)).min(1),
   model: z.string().min(1),
   creator: z.string().optional(),
 });
 
-const MCPServerConnectionInfoSchema = z.object({
+export const MCPServerConnectionInfoSchema = z.object({
   url: z.string().min(1),
   transport: z.enum(['stdio', 'sse']),
 });
 
-const MCPServerVerificationSchema = z.object({
+export const MCPServerVerificationSchema = z.object({
   type: z.nativeEnum(VerificationType),
   value: z.string(),
   dns_field: z.string().optional(),
   challenge_path: z.string().optional(),
 });
 
-const MCPServerHostSchema = z.object({
+export const MCPServerHostSchema = z.object({
   minVersion: z.string().optional(),
 });
 
-const MCPServerResourceSchema = z.object({
+export const MCPServerResourceSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
 });
 
-const MCPServerToolSchema = z.object({
+export const MCPServerToolSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
 });
 
-const MCPServerDetailsSchema = z.object({
+export const MCPServerDetailsSchema = z.object({
   version: z.string().min(1),
   connectionInfo: MCPServerConnectionInfoSchema,
   services: z.array(z.nativeEnum(MCPServerCapability)).min(1),
@@ -95,7 +96,7 @@ const MCPServerDetailsSchema = z.object({
   docs: z.string().optional(),
 });
 
-const BaseProfileSchema = z.object({
+export const BaseProfileSchema = z.object({
   version: z.string().min(1),
   type: z.nativeEnum(ProfileType),
   display_name: z.string().min(1),
@@ -108,23 +109,23 @@ const BaseProfileSchema = z.object({
   outboundTopicId: z.string().optional(),
 });
 
-const PersonalProfileSchema = BaseProfileSchema.extend({
+export const PersonalProfileSchema = BaseProfileSchema.extend({
   type: z.literal(ProfileType.PERSONAL),
   language: z.string().optional(),
   timezone: z.string().optional(),
 });
 
-const AIAgentProfileSchema = BaseProfileSchema.extend({
+export const AIAgentProfileSchema = BaseProfileSchema.extend({
   type: z.literal(ProfileType.AI_AGENT),
   aiAgent: AIAgentDetailsSchema,
 });
 
-const MCPServerProfileSchema = BaseProfileSchema.extend({
+export const MCPServerProfileSchema = BaseProfileSchema.extend({
   type: z.literal(ProfileType.MCP_SERVER),
   mcpServer: MCPServerDetailsSchema,
 });
 
-const HCS11ProfileSchema = z.union([
+export const HCS11ProfileSchema = z.union([
   PersonalProfileSchema,
   AIAgentProfileSchema,
   MCPServerProfileSchema,
@@ -134,7 +135,7 @@ export class HCS11Client {
   private client: Client;
   private auth: HCS11Auth;
   private network: string;
-  private logger: Logger;
+  private logger: ILogger;
   private mirrorNode: HederaMirrorNode;
   private keyType: 'ed25519' | 'ecdsa';
   private operatorId: string;
@@ -165,12 +166,17 @@ export class HCS11Client {
         try {
           const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
           this.keyType = keyDetection.detectedType;
+
+          if (keyDetection.warning) {
+            this.logger.warn(keyDetection.warning);
+          }
+
           this.client.setOperator(this.operatorId, keyDetection.privateKey);
         } catch (error) {
           this.logger.warn(
             'Failed to detect key type from private key format, will query mirror node',
           );
-          this.keyType = 'ed25519';
+          this.keyType = 'ecdsa'; // Default to ECDSA
         }
 
         this.initializeOperator();
@@ -195,7 +201,7 @@ export class HCS11Client {
     } else if (keyType && keyType.includes('ED25519')) {
       this.keyType = 'ed25519';
     } else {
-      this.keyType = 'ed25519';
+      this.keyType = 'ecdsa'; // Default to ECDSA
     }
 
     this.initializeOperatorWithKeyType();
@@ -533,6 +539,11 @@ export class HCS11Client {
 
         progressReporter.preparing('Using private key for inscription', 10);
 
+        const PK =
+          this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(this.auth.privateKey)
+            : PrivateKey.fromStringED25519(this.auth.privateKey);
+
         inscriptionResponse = await inscribe(
           {
             type: 'buffer',
@@ -542,7 +553,8 @@ export class HCS11Client {
           },
           {
             accountId: this.auth.operatorId,
-            privateKey: this.auth.privateKey,
+            // @ts-ignore
+            privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
           {
@@ -567,20 +579,23 @@ export class HCS11Client {
 
       if (inscriptionResponse.confirmed) {
         progressReporter.completed('Image inscription completed', {
-          topic_id: inscriptionResponse.inscription.topic_id,
+          topicId: getTopicId(inscriptionResponse.inscription),
         });
         return {
-          imageTopicId: inscriptionResponse.inscription.topic_id || '',
-          transactionId: inscriptionResponse.result.jobId,
+          imageTopicId: getTopicId(inscriptionResponse.inscription) || '',
+          transactionId: (inscriptionResponse.result as InscriptionResult).jobId,
           success: true,
         };
       } else {
+        const jobId = inscriptionResponse.quote
+          ? 'quote-only'
+          : (inscriptionResponse.result as InscriptionResult).jobId;
         progressReporter.verifying('Waiting for inscription confirmation', 50, {
-          jobId: inscriptionResponse.result.jobId,
+          jobId,
         });
         return {
           imageTopicId: '',
-          transactionId: inscriptionResponse.result.jobId,
+          transactionId: jobId,
           success: false,
           error: 'Inscription not confirmed',
         };
@@ -667,11 +682,17 @@ export class HCS11Client {
       let inscriptionResponse;
 
       if (this.auth.privateKey) {
+        const PK =
+          this.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(this.auth.privateKey)
+            : PrivateKey.fromStringED25519(this.auth.privateKey);
+
         inscriptionResponse = await inscribe(
           input,
           {
             accountId: this.auth.operatorId,
-            privateKey: this.auth.privateKey, //this breaks when using privateKey Object
+            // @ts-ignore
+            privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
           inscriptionOptions,
@@ -690,7 +711,7 @@ export class HCS11Client {
 
       if (
         !inscriptionResponse.confirmed ||
-        !inscriptionResponse.inscription.topic_id
+        !getTopicId(inscriptionResponse.inscription)
       ) {
         progressReporter.failed('Failed to inscribe profile content');
         return {
@@ -700,17 +721,16 @@ export class HCS11Client {
           error: 'Failed to inscribe profile content',
         };
       }
-
-      const topicId = inscriptionResponse.inscription.topic_id;
+      const topicId = getTopicId(inscriptionResponse.inscription);
 
       progressReporter.completed('Profile inscription completed', {
         topicId,
-        transactionId: inscriptionResponse.result.transactionId,
+        transactionId: (inscriptionResponse.result as InscriptionResult).transactionId,
       });
 
       return {
         profileTopicId: topicId,
-        transactionId: inscriptionResponse.result.transactionId,
+        transactionId: (inscriptionResponse.result as InscriptionResult).transactionId,
         success: true,
       };
     } catch (error: any) {
@@ -906,7 +926,7 @@ export class HCS11Client {
       if (!memo?.startsWith('hcs-11:')) {
         return {
           success: false,
-          error: `Account ${accountId.toString()} does not have a valid HCS-11 memo`,
+          error: `Account ${accountId.toString()} does not have a valid HCS-11 memo. Current memo: ${memo || 'empty'}`,
         };
       }
 

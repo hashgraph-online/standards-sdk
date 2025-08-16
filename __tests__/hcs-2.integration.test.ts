@@ -489,7 +489,7 @@ describe('HCS-2 Integration Tests', () => {
       );
       expect(wrongProtocolResult.valid).toBe(false);
       expect(wrongProtocolResult.errors).toContain(
-        'p: Invalid literal value, expected "hcs-2"',
+        "p: Protocol must be in format 'hcs-N' where N is a number",
       );
 
       // Missing t_id in register

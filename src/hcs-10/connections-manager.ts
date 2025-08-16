@@ -1,7 +1,8 @@
 import { Logger, LoggerOptions } from '../utils/logger';
 import { HCS10BaseClient } from './base-client';
 import { AIAgentProfile } from '../hcs-11';
-import { TransactMessage, HCSMessage } from './types';
+import { TransactMessage } from './types';
+import { HCSMessageWithCommonFields } from '..';
 
 /**
  * Represents a connection request between agents
@@ -75,7 +76,7 @@ export interface IConnectionsManager {
    * @returns Array of connections after processing
    */
   processOutboundMessages(
-    messages: HCSMessage[],
+    messages: HCSMessageWithCommonFields[],
     accountId: string,
   ): Connection[];
 
@@ -84,7 +85,7 @@ export interface IConnectionsManager {
    * @param messages - The messages to process
    * @returns Array of connections after processing
    */
-  processInboundMessages(messages: HCSMessage[]): Connection[];
+  processInboundMessages(messages: HCSMessageWithCommonFields[]): Connection[];
 
   /**
    * Process connection topic messages to update last activity time
@@ -94,7 +95,7 @@ export interface IConnectionsManager {
    */
   processConnectionMessages(
     connectionTopicId: string,
-    messages: HCSMessage[],
+    messages: HCSMessageWithCommonFields[],
   ): Connection | undefined;
 
   /**
@@ -274,8 +275,8 @@ export class ConnectionsManager implements IConnectionsManager {
       };
 
       if (
-        !isValidTopicId(topicInfo.inboundTopic) ||
-        !isValidTopicId(topicInfo.outboundTopic)
+        !isValidTopicId(topicInfo?.inboundTopic) ||
+        !isValidTopicId(topicInfo?.outboundTopic)
       ) {
         this.logger.warn(
           'Invalid topic IDs detected in retrieved communication topics',
@@ -285,8 +286,8 @@ export class ConnectionsManager implements IConnectionsManager {
 
       const [outboundMessagesResult, inboundMessagesResult] = await Promise.all(
         [
-          this.baseClient.getMessages(topicInfo.outboundTopic),
-          this.baseClient.getMessages(topicInfo.inboundTopic),
+          this.baseClient.getMessages(topicInfo?.outboundTopic),
+          this.baseClient.getMessages(topicInfo?.inboundTopic),
         ],
       );
 
@@ -550,15 +551,35 @@ export class ConnectionsManager implements IConnectionsManager {
             `Found confirmation for request #${requestId} to ${conn.targetAccountId} on their inbound topic`,
           );
 
-          this.connections.set(conn.connectionTopicId, {
-            ...conn,
+          const newConnection: Connection = {
             connectionTopicId,
+            targetAccountId: conn.targetAccountId,
+            targetAgentName: conn.targetAgentName,
+            targetInboundTopicId: conn.targetInboundTopicId,
+            targetOutboundTopicId: conn.targetOutboundTopicId,
             status: 'established',
             isPending: false,
             needsConfirmation: false,
             created: new Date(confirmationMsg.created || conn.created),
             lastActivity: new Date(confirmationMsg.created || conn.created),
-          });
+            profileInfo: conn.profileInfo,
+            connectionRequestId: conn.connectionRequestId,
+            confirmedRequestId: conn.confirmedRequestId,
+            requesterOutboundTopicId: conn.requesterOutboundTopicId,
+            inboundRequestId: conn.inboundRequestId,
+            closedReason: conn.closedReason,
+            closeMethod: conn.closeMethod,
+            uniqueRequestKey: conn.uniqueRequestKey,
+            originTopicId: conn.originTopicId,
+            processed: conn.processed,
+            memo: conn.memo,
+          };
+
+          this.connections.set(connectionTopicId, newConnection);
+
+          if (conn.connectionTopicId) {
+            this.connections.delete(conn.connectionTopicId);
+          }
         } else {
           this.logger.debug(
             `No confirmation found for request ID ${requestId} on topic ${targetInboundTopicId}`,
@@ -700,7 +721,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * @returns Array of connections after processing
    */
   processOutboundMessages(
-    messages: HCSMessage[],
+    messages: HCSMessageWithCommonFields[],
     accountId: string,
   ): Connection[] {
     if (!Boolean(messages?.length)) {
@@ -894,7 +915,7 @@ export class ConnectionsManager implements IConnectionsManager {
    * @param messages - The messages to process
    * @returns Array of connections after processing
    */
-  processInboundMessages(messages: HCSMessage[]): Connection[] {
+  processInboundMessages(messages: HCSMessageWithCommonFields[]): Connection[] {
     if (!Boolean(messages?.length)) {
       return Array.from(this.connections.values());
     }
@@ -1021,7 +1042,7 @@ export class ConnectionsManager implements IConnectionsManager {
    */
   processConnectionMessages(
     connectionTopicId: string,
-    messages: HCSMessage[],
+    messages: HCSMessageWithCommonFields[],
   ): Connection | undefined {
     if (
       !messages ||

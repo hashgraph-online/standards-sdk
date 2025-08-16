@@ -8,12 +8,41 @@ export interface LoggerOptions {
   prettyPrint?: boolean;
   silent?: boolean;
 }
-export class Logger {
-  private static instances: Map<string, Logger> = new Map();
+
+export interface ILogger {
+  debug(...args: any[]): void;
+  info(...args: any[]): void;
+  warn(...args: any[]): void;
+  error(...args: any[]): void;
+  trace(...args: any[]): void;
+  setLogLevel(level: LogLevel): void;
+  getLevel(): LogLevel;
+  setSilent(silent: boolean): void;
+  setModule(module: string): void;
+}
+
+export type LoggerFactory = (options: LoggerOptions) => ILogger;
+
+let loggerFactory: LoggerFactory | null = null;
+
+/**
+ * Set a custom logger factory to override the default Pino-based implementation
+ */
+export function setLoggerFactory(factory: LoggerFactory): void {
+  loggerFactory = factory;
+  Logger.clearInstances();
+}
+
+export class Logger implements ILogger {
+  private static instances: Map<string, ILogger> = new Map();
   private logger: pino.Logger;
   private moduleContext: string;
 
   constructor(options: LoggerOptions = {}) {
+    if (loggerFactory) {
+      return loggerFactory(options) as any;
+    }
+
     const globalDisable = process.env.DISABLE_LOGS === 'true';
 
     const shouldSilence = options.silent || globalDisable;
@@ -40,7 +69,7 @@ export class Logger {
     this.logger = pino(pinoOptions);
   }
 
-  static getInstance(options: LoggerOptions = {}): Logger {
+  static getInstance(options: LoggerOptions = {}): ILogger {
     const moduleKey = options.module || 'default';
 
     const globalDisable = process.env.DISABLE_LOGS === 'true';
@@ -53,7 +82,10 @@ export class Logger {
     }
 
     if (!Logger.instances.has(moduleKey)) {
-      Logger.instances.set(moduleKey, new Logger(options));
+      const logger = loggerFactory
+        ? loggerFactory(options)
+        : new Logger(options);
+      Logger.instances.set(moduleKey, logger);
     }
 
     return Logger.instances.get(moduleKey)!;
@@ -77,23 +109,72 @@ export class Logger {
     this.moduleContext = module;
   }
 
+  private formatArgs(args: any[]): { msg: string; data?: any } {
+    if (args.length === 0) {
+      return { msg: '' };
+    }
+
+    if (args.length === 1) {
+      if (typeof args[0] === 'string') {
+        return { msg: args[0] };
+      }
+      return { msg: '', data: args[0] };
+    }
+
+    const stringArgs: string[] = [];
+    const objectArgs: any[] = [];
+
+    args.forEach(arg => {
+      if (
+        typeof arg === 'string' ||
+        typeof arg === 'number' ||
+        typeof arg === 'boolean'
+      ) {
+        stringArgs.push(String(arg));
+      } else {
+        objectArgs.push(arg);
+      }
+    });
+
+    const msg = stringArgs.join(' ');
+    return objectArgs.length > 0 ? { msg, data: objectArgs } : { msg };
+  }
+
   debug(...args: any[]): void {
-    this.logger.debug({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.debug(logObj, msg);
   }
 
   info(...args: any[]): void {
-    this.logger.info({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.info(logObj, msg);
   }
 
   warn(...args: any[]): void {
-    this.logger.warn({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.warn(logObj, msg);
   }
 
   error(...args: any[]): void {
-    this.logger.error({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.error(logObj, msg);
   }
 
   trace(...args: any[]): void {
-    this.logger.trace({ module: this.moduleContext }, ...args);
+    const { msg, data } = this.formatArgs(args);
+    const logObj = { module: this.moduleContext, ...(data && { data }) };
+    this.logger.trace(logObj, msg);
+  }
+
+  /**
+   * Clear all logger instances
+   * Used when switching logger implementations
+   */
+  static clearInstances(): void {
+    Logger.instances.clear();
   }
 }
