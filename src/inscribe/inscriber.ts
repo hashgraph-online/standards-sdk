@@ -12,8 +12,7 @@ import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { Logger, ILogger } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
-import * as fs from 'fs';
-import * as path from 'path';
+import { isBrowser } from '../utils/is-browser';
 import { fileTypeFromBuffer } from 'file-type';
 import {
   getOrCreateSDK,
@@ -21,6 +20,38 @@ import {
   cacheQuote,
   validateQuoteParameters,
 } from './quote-cache';
+
+let nodeModules: {
+  readFileSync?: any;
+  basename?: any;
+  extname?: any;
+} = {};
+
+async function loadNodeModules(): Promise<void> {
+  if (isBrowser || nodeModules.readFileSync) {
+    return;
+  }
+
+  try {
+    const globalObj = typeof global !== 'undefined' ? global : globalThis;
+    const req = globalObj.process?.mainModule?.require || globalObj.require;
+
+    if (typeof req === 'function') {
+      const fs = req('fs');
+      const path = req('path');
+
+      nodeModules.readFileSync = fs.readFileSync;
+      nodeModules.basename = path.basename;
+      nodeModules.extname = path.extname;
+    } else {
+      throw new Error('require function not available');
+    }
+  } catch (error) {
+    console.warn(
+      'Node.js modules not available, file path operations will be disabled',
+    );
+  }
+}
 
 export type InscriptionInput =
   | { type: 'url'; url: string }
@@ -34,16 +65,35 @@ export type InscriptionInput =
 
 /**
  * Convert file path to base64 with mime type detection
+ * Note: This function only works in Node.js environment
  */
 async function convertFileToBase64(filePath: string): Promise<{
   base64: string;
   fileName: string;
   mimeType: string;
 }> {
+  if (isBrowser) {
+    throw new Error(
+      'File path operations are not supported in browser environment. Use buffer input type instead.',
+    );
+  }
+
+  await loadNodeModules();
+
+  if (
+    !nodeModules.readFileSync ||
+    !nodeModules.basename ||
+    !nodeModules.extname
+  ) {
+    throw new Error(
+      'Node.js file system modules are not available. Cannot read file from path.',
+    );
+  }
+
   try {
-    const buffer = fs.readFileSync(filePath);
+    const buffer = nodeModules.readFileSync(filePath);
     const base64 = buffer.toString('base64');
-    const fileName = path.basename(filePath);
+    const fileName = nodeModules.basename(filePath);
 
     // Try to detect mime type
     let mimeType = 'application/octet-stream';
@@ -54,7 +104,7 @@ async function convertFileToBase64(filePath: string): Promise<{
       }
     } catch (error) {
       // Fallback to basic mime type detection based on extension
-      const ext = path.extname(filePath).toLowerCase();
+      const ext = nodeModules.extname(filePath).toLowerCase();
       const mimeMap: Record<string, string> = {
         '.txt': 'text/plain',
         '.json': 'application/json',
@@ -73,7 +123,9 @@ async function convertFileToBase64(filePath: string): Promise<{
 
     return { base64, fileName, mimeType };
   } catch (error) {
-    throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+    throw new Error(
+      `Failed to read file ${filePath}: ${(error as Error).message}`,
+    );
   }
 }
 
