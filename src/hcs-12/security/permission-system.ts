@@ -94,7 +94,7 @@ export interface Action {
   sideEffects?: string[];
 }
 
-export interface ValidationResult {
+export interface PermissionValidationResult {
   allowed: boolean;
   reason?: string;
   missingCapabilities?: string[];
@@ -283,7 +283,7 @@ export class PermissionSystem {
   async validateActionPermissions(
     action: Action,
     context: UserContext,
-  ): Promise<ValidationResult> {
+  ): Promise<PermissionValidationResult> {
     try {
       if (action.sideEffects) {
         const escalation = this.detectPrivilegeEscalation(action, context);
@@ -352,7 +352,7 @@ export class PermissionSystem {
     resource: Resource,
     operation: string,
     context: UserContext,
-  ): Promise<ValidationResult> {
+  ): Promise<PermissionValidationResult> {
     try {
       if (resource.owner === context.userId) {
         return { allowed: true };
@@ -402,7 +402,7 @@ export class PermissionSystem {
   async evaluatePolicy(
     policy: Policy,
     context: UserContext,
-  ): Promise<ValidationResult> {
+  ): Promise<PermissionValidationResult> {
     switch (policy.type) {
       case 'time-based':
         return this.evaluateTimeBasedPolicy(policy, context);
@@ -451,7 +451,7 @@ export class PermissionSystem {
   async validateDelegatedPermissions(
     capability: string,
     context: UserContext,
-  ): Promise<ValidationResult> {
+  ): Promise<PermissionValidationResult> {
     const delegation = context.delegationId
       ? this.delegations.get(context.delegationId)
       : Array.from(this.delegations.values()).find(
@@ -599,7 +599,7 @@ export class PermissionSystem {
   private evaluateTimeBasedPolicy(
     policy: Policy,
     context: UserContext,
-  ): ValidationResult {
+  ): PermissionValidationResult {
     if (policy.conditions.type !== 'time-based') {
       return { allowed: false, reason: 'Invalid policy type' };
     }
@@ -630,7 +630,7 @@ export class PermissionSystem {
   private evaluateRateLimitPolicy(
     policy: Policy,
     context: UserContext,
-  ): ValidationResult {
+  ): PermissionValidationResult {
     if (policy.conditions.type !== 'rate-limit') {
       return { allowed: false, reason: 'Invalid policy type' };
     }
@@ -662,7 +662,7 @@ export class PermissionSystem {
   private evaluateConditionalPolicy(
     policy: Policy,
     context: UserContext,
-  ): ValidationResult {
+  ): PermissionValidationResult {
     if (policy.conditions.type !== 'conditional') {
       return { allowed: false, reason: 'Invalid policy type' };
     }
@@ -713,7 +713,7 @@ export class PermissionSystem {
   private checkPermissionBoundary(
     action: Action,
     context: UserContext,
-  ): ValidationResult {
+  ): PermissionValidationResult {
     if (!this.permissionBoundary) return { allowed: true };
 
     const { deniedCapabilities } = this.permissionBoundary;

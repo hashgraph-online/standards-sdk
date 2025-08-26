@@ -1,7 +1,7 @@
-import { Logger, LogLevel } from '../utils/logger';
+import { ILogger, Logger, LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode, MirrorNodeConfig } from '../services';
-import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
+import { PrivateKey, PublicKey } from '@hashgraph/sdk';
 import {
   ActionRegistry,
   BlockLoader,
@@ -25,7 +25,7 @@ export interface HCS12Config {
   /** The Hedera network to connect to */
   network: NetworkType;
   /** Custom logger instance (if not provided, one will be created) */
-  logger?: Logger;
+  logger?: ILogger;
   /** Log level for the client (ignored if logger is provided) */
   logLevel?: LogLevel;
   /** Whether to pretty print logs (ignored if logger is provided) */
@@ -43,7 +43,7 @@ export interface HCS12Config {
  */
 export abstract class HCS12BaseClient {
   protected network: NetworkType;
-  protected logger: Logger;
+  protected logger: ILogger;
   public mirrorNode: HederaMirrorNode;
 
   protected _actionRegistry?: ActionRegistry;
@@ -105,7 +105,6 @@ export abstract class HCS12BaseClient {
     message: string,
     submitKey?: PrivateKey,
   ): Promise<{ transactionId: string; sequenceNumber?: number }>;
-
 
   /**
    * Register a new assembly in the assembly registry

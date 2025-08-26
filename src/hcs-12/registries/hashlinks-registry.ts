@@ -5,9 +5,13 @@
  * This registry provides discovery and cataloging of available HashLinks.
  */
 
-import { Logger } from '../../utils/logger';
+import { ILogger } from '../../utils/logger';
 import { BaseRegistry } from './base-registry';
-import { RegistryType, HashLinksRegistration, AssemblyRegistryEntry } from '../types';
+import {
+  RegistryType,
+  HashLinksRegistration,
+  AssemblyRegistryEntry,
+} from '../types';
 import { hashLinksRegistrationSchema } from '../validation/schemas';
 import { validateWithSchema } from '../validation';
 import type { NetworkType } from '../../utils/types';
@@ -20,7 +24,7 @@ import type { HCS12BrowserClient } from '../browser';
 export class HashLinksRegistry extends BaseRegistry {
   constructor(
     networkType: NetworkType,
-    logger: Logger,
+    logger: ILogger,
     topicId?: string,
     client?: HCS12Client | HCS12BrowserClient,
   ) {

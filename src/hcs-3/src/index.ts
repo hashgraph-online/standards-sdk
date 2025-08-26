@@ -281,7 +281,9 @@ export class HCS implements HCSSDK {
     }
 
     try {
-      return await import(/* webpackIgnore: true */ scriptSrc);
+      // Use Function constructor to avoid webpack static analysis
+      const importModule = new Function('url', 'return import(url)');
+      return await importModule(scriptSrc);
     } catch (error) {
       this.error('Failed to import module', error);
       throw error;

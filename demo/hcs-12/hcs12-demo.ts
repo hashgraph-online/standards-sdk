@@ -423,7 +423,9 @@ async function main() {
       );
     }
 
-    const simpleAssemblyTopicId = await client.createAssembly(simpleAssemblyBuilder);
+    const simpleAssemblyTopicId = await client.createAssembly(
+      simpleAssemblyBuilder,
+    );
     logger.info('Simple assembly created', { simpleAssemblyTopicId });
 
     // Create Nested Blocks Assembly
@@ -447,7 +449,9 @@ async function main() {
       );
     }
 
-    const nestedAssemblyTopicId = await client.createAssembly(nestedAssemblyBuilder);
+    const nestedAssemblyTopicId = await client.createAssembly(
+      nestedAssemblyBuilder,
+    );
     logger.info('Nested blocks assembly created', { nestedAssemblyTopicId });
 
     /**
@@ -466,7 +470,9 @@ async function main() {
     });
 
     if (!simpleAssembly || !simpleAssembly.state) {
-      throw new Error('Failed to load simple assembly or assembly state is missing');
+      throw new Error(
+        'Failed to load simple assembly or assembly state is missing',
+      );
     }
 
     logger.info('Loaded simple assembly', {
@@ -485,7 +491,9 @@ async function main() {
     });
 
     if (!nestedAssembly || !nestedAssembly.state) {
-      throw new Error('Failed to load nested assembly or assembly state is missing');
+      throw new Error(
+        'Failed to load nested assembly or assembly state is missing',
+      );
     }
 
     logger.info('Loaded nested assembly', {

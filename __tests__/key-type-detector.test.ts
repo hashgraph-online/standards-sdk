@@ -18,7 +18,6 @@ describe('Key Type Detection', () => {
   let ambiguousKey: string;
   let ambiguousKeyWithPrefix: string;
 
-
   beforeAll(() => {
     // Generate an ambiguous key that works with both algorithms
     let isAmbiguous = false;
@@ -223,7 +222,7 @@ describe('Key Type Detection', () => {
         }
 
         const result = detectKeyTypeFromString(ambiguousKey);
-        
+
         expect(result.detectedType).toBe('ecdsa');
         expect(result.warning).toBeDefined();
         expect(result.warning).toContain('Key type detection is uncertain');

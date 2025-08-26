@@ -341,7 +341,11 @@ describe('WASM Module Integration Tests', () => {
   describeOrSkip('WASM Module Performance', () => {
     it('should measure WASM upload performance', async () => {
       const sizes = [1024, 10240, 51200];
-      const performanceMetrics: Array<{ operation: string; duration: number; success: boolean }> = [];
+      const performanceMetrics: Array<{
+        operation: string;
+        duration: number;
+        success: boolean;
+      }> = [];
 
       for (const size of sizes) {
         const wasmCode = new Uint8Array(size);

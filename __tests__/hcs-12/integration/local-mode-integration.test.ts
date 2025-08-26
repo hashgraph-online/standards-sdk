@@ -84,7 +84,7 @@ describe('HCS-12 Working Integration Tests', () => {
 
       const blockBuilder = BlockBuilder.createDisplayBlock(
         'test/hello-world',
-        'Test Block'
+        'Test Block',
       )
         .setDescription('A test block')
         .setTemplate(Buffer.from(template));
@@ -188,7 +188,12 @@ describe('HCS-12 Working Integration Tests', () => {
     it('should support block messaging', () => {
       const sender = 'sender-block';
       const receiver = 'receiver-block';
-      let receivedMessages: Array<{ type: string; payload: { value: number }; fromBlock: string; toBlock: string }> = [];
+      let receivedMessages: Array<{
+        type: string;
+        payload: { value: number };
+        fromBlock: string;
+        toBlock: string;
+      }> = [];
 
       stateManager.createBlockState(sender, {});
       stateManager.createBlockState(receiver, {});
@@ -233,10 +238,10 @@ describe('HCS-12 Working Integration Tests', () => {
       });
 
       const template = '<div><h2>Count: {{count}}</h2></div>';
-      
+
       const blockBuilder = BlockBuilder.createInteractiveBlock(
         'test/interactive',
-        'Interactive Block'
+        'Interactive Block',
       )
         .setDescription('Interactive test block')
         .addAttribute('count', 'number', 0)

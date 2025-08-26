@@ -8,7 +8,9 @@ import { BlockLoader } from '../../registries/block-loader';
 import { HRLResolver } from '../../../utils/hrl-resolver';
 import { BlockDefinition } from '../../types';
 
-function createMockBlockDefinition(overrides: Partial<BlockDefinition> = {}): BlockDefinition {
+function createMockBlockDefinition(
+  overrides: Partial<BlockDefinition> = {},
+): BlockDefinition {
   return {
     apiVersion: 3,
     name: 'test/block',
@@ -35,9 +37,14 @@ describe('BlockRenderer - HashLink Support', () => {
     gutenbergBridge = new GutenbergBridge(logger);
 
     templateEngine = new TemplateEngine(logger);
-    templateEngine.render = jest
-      .fn()
-      .mockImplementation((template: string, context?: { attributes?: Record<string, unknown>; actions?: Record<string, unknown> }) => {
+    templateEngine.render = jest.fn().mockImplementation(
+      (
+        template: string,
+        context?: {
+          attributes?: Record<string, unknown>;
+          actions?: Record<string, unknown>;
+        },
+      ) => {
         let result = template;
 
         if (context?.attributes) {
@@ -55,7 +62,8 @@ describe('BlockRenderer - HashLink Support', () => {
         }
 
         return Promise.resolve(result);
-      }) as any;
+      },
+    ) as any;
 
     stateManager = new BlockStateManager(logger);
 

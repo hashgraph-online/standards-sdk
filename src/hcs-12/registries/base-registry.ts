@@ -5,7 +5,7 @@
  * action, block, assembly, and hashlinks registries.
  */
 
-import { Logger } from '../../utils/logger';
+import { ILogger, Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
@@ -23,7 +23,7 @@ import type { HCS12BrowserClient } from '../browser';
  * Abstract base class for all HCS-12 registries
  */
 export abstract class BaseRegistry {
-  protected logger: Logger;
+  protected logger: ILogger;
   protected networkType: NetworkType;
   protected topicId?: string;
   protected registryType: RegistryType;
@@ -33,7 +33,7 @@ export abstract class BaseRegistry {
 
   constructor(
     networkType: NetworkType,
-    logger: Logger,
+    logger: ILogger,
     registryType: RegistryType,
     topicId?: string,
     client?: HCS12Client | HCS12BrowserClient,

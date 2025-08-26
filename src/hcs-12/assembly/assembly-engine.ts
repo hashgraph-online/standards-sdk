@@ -5,8 +5,7 @@
  * using the new incremental assembly approach with caching and error handling.
  */
 
-import { Logger } from '../../utils/logger';
-import { NetworkType } from '../../utils/types';
+import { ILogger, Logger } from '../../utils/logger';
 import {
   AssemblyState,
   AssemblyAction,
@@ -14,13 +13,10 @@ import {
   ActionRegistration,
   BlockDefinition,
   AssemblyRegistration,
-  ParameterDefinition,
 } from '../types';
-import { BaseRegistry } from '../registries/base-registry';
 import { AssemblyRegistry } from '../registries/assembly-registry';
 import { ActionRegistry } from '../registries/action-registry';
 import { BlockLoader } from '../registries/block-loader';
-import { retrieveInscription } from '../../inscribe';
 
 export interface Assembly {
   topicId: string;
@@ -57,14 +53,14 @@ export interface ResolvedDependency {
 }
 
 export class AssemblyEngine {
-  private logger: Logger;
+  private logger: ILogger;
   private cache: Map<string, Assembly> = new Map();
   private assemblyRegistry: AssemblyRegistry;
   private actionRegistry: ActionRegistry;
   private blockLoader: BlockLoader;
 
   constructor(
-    logger: Logger,
+    logger: ILogger,
     assemblyRegistry: AssemblyRegistry,
     actionRegistry: ActionRegistry,
     blockLoader: BlockLoader,

@@ -195,7 +195,6 @@ describe('Nested Blocks E2E', () => {
     expect(html).toContain('stats-grid');
     expect(html).toContain('stat');
 
-
     expect(mockBlockLoader.loadBlock).toHaveBeenCalledTimes(2);
     expect(mockBlockLoader.loadBlock).toHaveBeenCalledWith(counterBlockId);
     expect(mockBlockLoader.loadBlock).toHaveBeenCalledWith(statsBlockId);
@@ -446,9 +445,24 @@ describe('Nested Blocks E2E', () => {
       .mockRejectedValueOnce(new Error('Network error'));
 
     mockHrlResolver.resolve
-      .mockResolvedValueOnce({ topicId: validBlockId, content: '', contentType: 'application/json', isBinary: false })
-      .mockResolvedValueOnce({ topicId: missingBlockId, content: '', contentType: 'application/json', isBinary: false })
-      .mockResolvedValueOnce({ topicId: errorBlockId, content: '', contentType: 'application/json', isBinary: false });
+      .mockResolvedValueOnce({
+        topicId: validBlockId,
+        content: '',
+        contentType: 'application/json',
+        isBinary: false,
+      })
+      .mockResolvedValueOnce({
+        topicId: missingBlockId,
+        content: '',
+        contentType: 'application/json',
+        isBinary: false,
+      })
+      .mockResolvedValueOnce({
+        topicId: errorBlockId,
+        content: '',
+        contentType: 'application/json',
+        isBinary: false,
+      });
 
     const result = await renderer.render(parentBlock, {
       network: 'testnet' as NetworkType,
@@ -542,8 +556,18 @@ describe('Nested Blocks E2E', () => {
       });
 
     mockHrlResolver.resolve
-      .mockResolvedValueOnce({ topicId: lazyBlockId, content: '', contentType: 'application/json', isBinary: false })
-      .mockResolvedValueOnce({ topicId: eagerBlockId, content: '', contentType: 'application/json', isBinary: false });
+      .mockResolvedValueOnce({
+        topicId: lazyBlockId,
+        content: '',
+        contentType: 'application/json',
+        isBinary: false,
+      })
+      .mockResolvedValueOnce({
+        topicId: eagerBlockId,
+        content: '',
+        contentType: 'application/json',
+        isBinary: false,
+      });
 
     const result = await renderer.render(parentBlock, {
       network: 'testnet' as NetworkType,

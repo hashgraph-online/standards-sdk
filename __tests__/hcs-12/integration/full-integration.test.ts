@@ -112,10 +112,10 @@ describe('HCS-12 Full Integration Tests', () => {
 
     it('should store and retrieve blocks via HCS-1', async () => {
       const template = '<div>{{attributes.content}}</div>';
-      
+
       const blockBuilder = BlockBuilder.createDisplayBlock(
         'test/hello-world-block',
-        'Hello World Block'
+        'Hello World Block',
       )
         .setDescription('A test block for integration')
         .setIcon('block-default')
@@ -333,7 +333,6 @@ describe('HCS-12 Full Integration Tests', () => {
       expect(actionConfig.indexed).toBe(false);
       expect(actionConfig.ttl).toBe(60);
 
-
       const assemblyConfig = client.assemblyRegistry!.getConfig();
       expect(assemblyConfig.type).toBe(RegistryType.ASSEMBLY);
       expect(assemblyConfig.memo).toBe('hcs-12:0:60:2');
@@ -391,7 +390,7 @@ describe('HCS-12 Full Integration Tests', () => {
 
       const blockBuilder = BlockBuilder.createDisplayBlock(
         'hashlinks/test-block',
-        'Test Block'
+        'Test Block',
       )
         .setDescription('Test block')
         .setIcon('block-default')

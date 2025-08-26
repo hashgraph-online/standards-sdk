@@ -4,12 +4,9 @@ import {
   TopicMessageSubmitTransaction,
   TopicId,
   TransactionResponse,
-  TransactionReceipt,
   PrivateKey,
   PublicKey,
   KeyList,
-  AccountId,
-  Hbar,
 } from '@hashgraph/sdk';
 import { HCS12BaseClient, HCS12Config } from './base-client';
 import { Logger, detectKeyTypeFromString } from '../utils';
@@ -270,7 +267,6 @@ export class HCS12Client extends HCS12BaseClient {
     return this._submitMessage(assemblyTopicId, JSON.stringify(update));
   }
 
-
   /**
    * Submit a message to an HCS topic
    * @deprecated Use operation-specific methods instead
@@ -419,9 +415,7 @@ export class HCS12Client extends HCS12BaseClient {
   /**
    * Register an action
    */
-  async registerAction(
-    builder: ActionBuilder,
-  ): Promise<ActionBuilder> {
+  async registerAction(builder: ActionBuilder): Promise<ActionBuilder> {
     const registration = builder.build();
 
     if (!this._actionRegistry) {

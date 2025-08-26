@@ -5,7 +5,7 @@
  * Processes operations sequentially to build assembly state.
  */
 
-import { Logger } from '../../utils/logger';
+import { ILogger, Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
@@ -33,7 +33,7 @@ export class AssemblyRegistry extends BaseRegistry {
 
   constructor(
     networkType: NetworkType,
-    logger: Logger,
+    logger: ILogger,
     topicId?: string,
     client?: HCS12Client | HCS12BrowserClient,
   ) {
@@ -358,7 +358,10 @@ export class AssemblyRegistry extends BaseRegistry {
   /**
    * Process a message for a specific assembly topic
    */
-  private processAssemblyMessage(topicId: string, entry: AssemblyRegistryEntry): void {
+  private processAssemblyMessage(
+    topicId: string,
+    entry: AssemblyRegistryEntry,
+  ): void {
     const message = entry.data as AssemblyMessage;
     let state = this.assemblyStates.get(topicId);
 

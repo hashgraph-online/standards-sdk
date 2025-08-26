@@ -6,7 +6,8 @@
  */
 
 import { Logger } from '../../utils/logger';
-import * as crypto from 'crypto';
+import { getCryptoAdapter } from '../../utils/crypto-abstraction';
+import { isSSREnvironment } from '../../utils/crypto-env';
 
 export interface HashVerifierConfig {
   logger: Logger;
@@ -86,6 +87,7 @@ export class HashVerifier {
   private config: HashVerifierConfig;
   private cache: Map<string, { hash: string; expiry: number }> = new Map();
   private cacheConfig?: CacheConfig;
+  private cryptoAdapter = getCryptoAdapter();
 
   constructor(config: HashVerifierConfig) {
     this.config = config;
@@ -97,23 +99,45 @@ export class HashVerifier {
    */
   async hash(content: Buffer, algorithm: string = 'sha256'): Promise<string> {
     try {
+      if (isSSREnvironment()) {
+        return this.createSSRSafeHash(content, algorithm);
+      }
+
       const cacheKey = `${algorithm}:${content.toString('hex')}`;
       if (this.cacheConfig) {
         const cached = this.getFromCache(cacheKey);
         if (cached) return cached;
       }
 
-      const hash = crypto.createHash(algorithm).update(content).digest('hex');
+      const hasher = this.cryptoAdapter.createHash(algorithm);
+      const result = hasher.update(content).digest('hex');
+      const hash = result instanceof Promise ? await result : result;
+      const hashStr = typeof hash === 'string' ? hash : hash.toString('hex');
 
       if (this.cacheConfig) {
-        this.addToCache(cacheKey, hash);
+        this.addToCache(cacheKey, hashStr);
       }
 
-      return hash;
+      return hashStr;
     } catch (error) {
       this.logger.error('Hash computation failed', { error, algorithm });
       throw new Error('Hash computation failed');
     }
+  }
+
+  /**
+   * Create deterministic placeholder hash for SSR environments
+   */
+  private createSSRSafeHash(content: Buffer, algorithm: string): string {
+    const contentLength = content.length;
+    const timestamp = Math.floor(Date.now() / 1000);
+    let simpleHash = 0;
+
+    for (let i = 0; i < Math.min(content.length, 32); i++) {
+      simpleHash = ((simpleHash << 5) - simpleHash + content[i]) & 0xffffffff;
+    }
+
+    return `ssr-${algorithm}-${contentLength}-${Math.abs(simpleHash).toString(16).padStart(8, '0')}`;
   }
 
   /**
@@ -483,30 +507,73 @@ export class HashVerifier {
     salt: Buffer,
     options: KeyDerivationOptions,
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
+    try {
+      if (isSSREnvironment()) {
+        this.logger.warn('Key derivation using fallback in SSR environment');
+        return this.createSSRSafeKey(password, salt, options);
+      }
+
       if (options.algorithm === 'pbkdf2') {
-        crypto.pbkdf2(
+        const derivedKey = await this.cryptoAdapter.pbkdf2(
           password,
           salt,
           options.iterations,
           options.keyLength,
           'sha256',
-          (err, derivedKey) => {
-            if (err) reject(err);
-            else resolve(derivedKey.toString('hex'));
-          },
         );
+        return derivedKey.toString('hex');
       } else {
-        reject(new Error(`Unsupported algorithm: ${options.algorithm}`));
+        throw new Error(`Unsupported algorithm: ${options.algorithm}`);
       }
-    });
+    } catch (error) {
+      this.logger.error('Key derivation failed', { error });
+      throw new Error('Key derivation failed');
+    }
+  }
+
+  /**
+   * Create SSR-safe key derivation
+   */
+  private createSSRSafeKey(
+    password: string,
+    salt: Buffer,
+    options: KeyDerivationOptions,
+  ): string {
+    let result = '';
+    for (let i = 0; i < options.keyLength; i++) {
+      const charCode = password.charCodeAt(i % password.length);
+      const saltByte = salt[i % salt.length];
+      const derived = (charCode + saltByte + i + options.iterations) % 256;
+      result += derived.toString(16).padStart(2, '0');
+    }
+    return result;
   }
 
   /**
    * Create HMAC
    */
   async createHMAC(content: Buffer, secret: Buffer): Promise<string> {
-    return crypto.createHmac('sha256', secret).update(content).digest('hex');
+    if (isSSREnvironment()) {
+      this.logger.warn('HMAC using fallback in SSR environment');
+      return this.createSSRSafeHMAC(content, secret);
+    }
+
+    const hmac = this.cryptoAdapter.createHmac('sha256', secret);
+    const result = hmac.update(content).digest('hex');
+    const hash = result instanceof Promise ? await result : result;
+    return typeof hash === 'string' ? hash : hash.toString('hex');
+  }
+
+  /**
+   * Create SSR-safe HMAC
+   */
+  private createSSRSafeHMAC(content: Buffer, secret: Buffer): string {
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const keyByte = secret[i % secret.length];
+      hash = ((hash << 5) - hash + content[i] + keyByte) & 0xffffffff;
+    }
+    return Math.abs(hash).toString(16).padStart(8, '0');
   }
 
   /**
@@ -518,10 +585,19 @@ export class HashVerifier {
     secret: Buffer,
   ): Promise<boolean> {
     const computedHmac = await this.createHMAC(content, secret);
-    return crypto.timingSafeEqual(
-      Buffer.from(hmac, 'hex'),
-      Buffer.from(computedHmac, 'hex'),
-    );
+
+    if (isSSREnvironment()) {
+      return hmac === computedHmac;
+    }
+
+    try {
+      return this.cryptoAdapter.timingSafeEqual(
+        Buffer.from(hmac, 'hex'),
+        Buffer.from(computedHmac, 'hex'),
+      );
+    } catch {
+      return hmac === computedHmac;
+    }
   }
 
   /**

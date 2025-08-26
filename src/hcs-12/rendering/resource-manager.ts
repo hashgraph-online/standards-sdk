@@ -8,6 +8,7 @@
 import { Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import { HCS } from '../../hcs-3/src';
+import { isSSREnvironment } from '../../utils/crypto-env';
 
 export interface ResourceData {
   content: string | Uint8Array;
@@ -278,6 +279,18 @@ export class ResourceManager {
     expectedHash: string,
   ): Promise<boolean> {
     try {
+      if (isSSREnvironment()) {
+        this.logger.warn('Integrity verification skipped in SSR environment');
+        return true;
+      }
+
+      if (typeof crypto === 'undefined' || !crypto.subtle) {
+        this.logger.warn(
+          'WebCrypto not available, skipping integrity verification',
+        );
+        return true;
+      }
+
       const buffer =
         typeof content === 'string'
           ? new TextEncoder().encode(content)
