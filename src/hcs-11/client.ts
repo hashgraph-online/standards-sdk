@@ -583,7 +583,8 @@ export class HCS11Client {
         });
         return {
           imageTopicId: getTopicId(inscriptionResponse.inscription) || '',
-          transactionId: (inscriptionResponse.result as InscriptionResult).jobId,
+          transactionId: (inscriptionResponse.result as InscriptionResult)
+            .jobId,
           success: true,
         };
       } else {
@@ -725,12 +726,14 @@ export class HCS11Client {
 
       progressReporter.completed('Profile inscription completed', {
         topicId,
-        transactionId: (inscriptionResponse.result as InscriptionResult).transactionId,
+        transactionId: (inscriptionResponse.result as InscriptionResult)
+          .transactionId,
       });
 
       return {
         profileTopicId: topicId,
-        transactionId: (inscriptionResponse.result as InscriptionResult).transactionId,
+        transactionId: (inscriptionResponse.result as InscriptionResult)
+          .transactionId,
         success: true,
       };
     } catch (error: any) {
