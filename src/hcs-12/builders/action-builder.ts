@@ -2,8 +2,9 @@
  * ActionBuilder utility for creating HCS-12 action registrations
  */
 
-import { createHash } from 'crypto';
 import { Logger } from '../../utils/logger';
+import { getCryptoAdapter } from '../../utils/crypto-abstraction';
+import { isSSREnvironment } from '../../utils/crypto-env';
 import {
   ActionRegistration,
   SourceVerification,
@@ -22,6 +23,7 @@ export class ActionBuilder {
   private logger: Logger;
   private registration: Partial<ActionRegistration>;
   private alias?: string;
+  private cryptoAdapter = getCryptoAdapter();
 
   constructor(logger: Logger) {
     this.logger = logger;
@@ -191,28 +193,65 @@ export class ActionBuilder {
    * Generate WASM hash from binary data
    */
   async generateWasmHash(wasmData: Uint8Array): Promise<string> {
-    const hash = createHash('sha256');
-    hash.update(wasmData);
-    return hash.digest('hex');
+    if (isSSREnvironment()) {
+      return this.createSSRSafeHash(wasmData, 'wasm');
+    }
+
+    const hasher = this.cryptoAdapter.createHash('sha256');
+    const result = hasher.update(Buffer.from(wasmData)).digest('hex');
+    const hash = result instanceof Promise ? await result : result;
+    return typeof hash === 'string' ? hash : hash.toString('hex');
   }
 
   /**
    * Generate INFO hash from module info
    */
   async generateInfoHash(info: ModuleInfo): Promise<string> {
-    const hash = createHash('sha256');
     const infoJson = JSON.stringify(info, Object.keys(info).sort());
-    hash.update(infoJson);
-    return hash.digest('hex');
+
+    if (isSSREnvironment()) {
+      return this.createSSRSafeHash(Buffer.from(infoJson), 'info');
+    }
+
+    const hasher = this.cryptoAdapter.createHash('sha256');
+    const result = hasher.update(Buffer.from(infoJson)).digest('hex');
+    const hash = result instanceof Promise ? await result : result;
+    return typeof hash === 'string' ? hash : hash.toString('hex');
   }
 
   /**
    * Calculate hash for any data
    */
   async calculateHash(data: Uint8Array | Buffer | string): Promise<string> {
-    const hash = createHash('sha256');
-    hash.update(data);
-    return hash.digest('hex');
+    const buffer =
+      typeof data === 'string'
+        ? Buffer.from(data)
+        : data instanceof Uint8Array
+          ? Buffer.from(data)
+          : data;
+
+    if (isSSREnvironment()) {
+      return this.createSSRSafeHash(buffer, 'data');
+    }
+
+    const hasher = this.cryptoAdapter.createHash('sha256');
+    const result = hasher.update(buffer).digest('hex');
+    const hash = result instanceof Promise ? await result : result;
+    return typeof hash === 'string' ? hash : hash.toString('hex');
+  }
+
+  /**
+   * Create SSR-safe hash
+   */
+  private createSSRSafeHash(data: Buffer | Uint8Array, type: string): string {
+    const buffer = data instanceof Uint8Array ? Buffer.from(data) : data;
+    let hash = 0;
+
+    for (let i = 0; i < Math.min(buffer.length, 256); i++) {
+      hash = ((hash << 5) - hash + buffer[i]) & 0xffffffff;
+    }
+
+    return `ssr-${type}-${buffer.length}-${Math.abs(hash).toString(16).padStart(8, '0')}`;
   }
 
   /**

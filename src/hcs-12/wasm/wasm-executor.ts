@@ -141,7 +141,9 @@ export class WasmExecutor {
           if (this.logger && typeof this.logger.debug === 'function') {
             this.logger.debug('Importing JavaScript module from blob URL');
           }
-          const module = await import(moduleUrl);
+          // Use Function constructor to avoid webpack static analysis
+          const importModule = new Function('url', 'return import(url)');
+          const module = await importModule(moduleUrl);
 
           if (this.logger && typeof this.logger.debug === 'function') {
             this.logger.debug('Module imported, exports:', Object.keys(module));
@@ -316,113 +318,10 @@ export class WasmExecutor {
           URL: URL,
         };
 
-        const moduleFunction = new Function(
-          'exports',
-          'module',
-          'global',
-          'globalThis',
-          'self',
-          'window',
-          'fetch',
-          'Response',
-          'WebAssembly',
-          'Promise',
-          'Function',
-          'console',
-          'queueMicrotask',
-          'TextDecoder',
-          'TextEncoder',
-          'FinalizationRegistry',
-          'URL',
-          jsResult.content,
+        // For Node.js/SSR environments, skip WASM execution as it's browser-only
+        throw new Error(
+          'WASM execution in Node.js/SSR environment is not supported. This functionality is browser-only.',
         );
-
-        moduleFunction(
-          moduleContext.exports,
-          moduleContext.module,
-          moduleContext.global,
-          moduleContext.globalThis,
-          moduleContext.self,
-          moduleContext.window,
-          moduleContext.fetch,
-          moduleContext.Response,
-          moduleContext.WebAssembly,
-          moduleContext.Promise,
-          moduleContext.Function,
-          moduleContext.console,
-          moduleContext.queueMicrotask,
-          moduleContext.TextDecoder,
-          moduleContext.TextEncoder,
-          moduleContext.FinalizationRegistry,
-          moduleContext.URL,
-        );
-
-        const initFunction =
-          (moduleContext.exports as any).default ||
-          (moduleContext.module.exports as any).default;
-        const WasmInterface =
-          (moduleContext.exports as any).WasmInterface ||
-          (moduleContext.module.exports as any).WasmInterface;
-
-        if (!initFunction) {
-          throw new Error('No init function found in JavaScript wrapper');
-        }
-
-        if (!WasmInterface) {
-          throw new Error('No WasmInterface class found in JavaScript wrapper');
-        }
-
-        await initFunction({ module_or_path: wasmResult.content });
-
-        const wasmInterface = new WasmInterface();
-
-        let result: string;
-
-        if (context.method === 'POST' && wasmInterface.POST) {
-          const actionName = context.params.operation || 'default';
-          const paramsJson = JSON.stringify({
-            ...context.params,
-            ...context.state,
-          });
-
-          result = await wasmInterface.POST(
-            actionName,
-            paramsJson,
-            this.network.toString(),
-            '',
-          );
-        } else if (context.method === 'GET' && wasmInterface.GET) {
-          const actionName = context.params.operation || 'default';
-          const paramsJson = JSON.stringify(context.params);
-
-          result = await wasmInterface.GET(
-            actionName,
-            paramsJson,
-            this.network.toString(),
-          );
-        } else if (context.method === 'INFO' && wasmInterface.INFO) {
-          result = wasmInterface.INFO();
-        } else {
-          throw new Error(
-            `Method ${context.method} not supported by WASM module`,
-          );
-        }
-
-        let parsedResult: any;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { value: result };
-        }
-
-        if (wasmInterface.free) {
-          wasmInterface.free();
-        }
-
-        return {
-          success: true,
-          data: parsedResult,
-        };
       }
     } catch (error) {
       const errorMessage =

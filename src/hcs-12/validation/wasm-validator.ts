@@ -4,11 +4,12 @@
  * Validates WebAssembly modules for security, compatibility, and HashLink requirements.
  */
 
-import { createHash } from 'crypto';
 import { Logger } from '../../utils/logger';
+import { getCryptoAdapter } from '../../utils/crypto-abstraction';
+import { isSSREnvironment } from '../../utils/crypto-env';
 import { ModuleInfo } from '../types';
 
-export interface ValidationResult {
+export interface WasmValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
@@ -42,6 +43,7 @@ export interface ExportSignature {
  */
 export class WasmValidator {
   private logger: Logger;
+  private cryptoAdapter = getCryptoAdapter();
 
   private readonly REQUIRED_EXPORTS = ['INFO', 'POST', 'GET'];
 
@@ -65,10 +67,10 @@ export class WasmValidator {
   /**
    * Validate a WASM module
    */
-  async validate(wasmData: Uint8Array): Promise<ValidationResult> {
+  async validate(wasmData: Uint8Array): Promise<WasmValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
-    const result: ValidationResult = {
+    const result: WasmValidationResult = {
       isValid: true,
       errors,
       warnings,
@@ -157,7 +159,7 @@ export class WasmValidator {
    */
   async validateInfoFunction(
     infoFunc: () => Promise<string> | string,
-  ): Promise<ValidationResult> {
+  ): Promise<WasmValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -193,7 +195,7 @@ export class WasmValidator {
   /**
    * Validate action parameter schemas
    */
-  async validateActionSchemas(moduleInfo: any): Promise<ValidationResult> {
+  async validateActionSchemas(moduleInfo: any): Promise<WasmValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -229,9 +231,25 @@ export class WasmValidator {
    * Calculate WASM hash
    */
   async calculateHash(wasmData: Uint8Array): Promise<string> {
-    const hash = createHash('sha256');
-    hash.update(wasmData);
-    return hash.digest('hex');
+    if (isSSREnvironment()) {
+      return this.createSSRSafeHash(wasmData);
+    }
+
+    const hasher = this.cryptoAdapter.createHash('sha256');
+    const result = hasher.update(Buffer.from(wasmData)).digest('hex');
+    const hash = result instanceof Promise ? await result : result;
+    return typeof hash === 'string' ? hash : hash.toString('hex');
+  }
+
+  /**
+   * Create SSR-safe hash for WASM data
+   */
+  private createSSRSafeHash(wasmData: Uint8Array): string {
+    let hash = 0;
+    for (let i = 0; i < Math.min(wasmData.length, 1024); i++) {
+      hash = ((hash << 5) - hash + wasmData[i]) & 0xffffffff;
+    }
+    return `ssr-wasm-${wasmData.length}-${Math.abs(hash).toString(16).padStart(8, '0')}`;
   }
 
   /**

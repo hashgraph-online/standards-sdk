@@ -7,7 +7,8 @@
 
 import { Logger } from '../../utils/logger';
 import { PrivateKey, PublicKey } from '@hashgraph/sdk';
-import * as crypto from 'crypto';
+import { getCryptoAdapter } from '../../utils/crypto-abstraction';
+import { isSSREnvironment } from '../../utils/crypto-env';
 import { ActionRegistration, AssemblyRegistration } from '../types';
 
 export interface SignatureVerifierConfig {
@@ -102,6 +103,7 @@ export class SignatureVerifier {
     new Map();
   private replayProtection?: ReplayProtectionConfig;
   private cacheConfig?: CacheConfig;
+  private cryptoAdapter = getCryptoAdapter();
 
   constructor(config: SignatureVerifierConfig) {
     this.config = config;
@@ -239,7 +241,25 @@ export class SignatureVerifier {
       signature: signedAction.signature,
     });
 
-    return crypto.createHash('sha256').update(data).digest('hex');
+    if (isSSREnvironment()) {
+      return this.createSSRSafeHash(data);
+    }
+
+    const hasher = this.cryptoAdapter.createHash('sha256');
+    const result = hasher.update(Buffer.from(data)).digest('hex');
+    const hash = result instanceof Promise ? await result : result;
+    return typeof hash === 'string' ? hash : hash.toString('hex');
+  }
+
+  /**
+   * Create SSR-safe hash
+   */
+  private createSSRSafeHash(data: string): string {
+    let hash = 0;
+    for (let i = 0; i < data.length; i++) {
+      hash = ((hash << 5) - hash + data.charCodeAt(i)) & 0xffffffff;
+    }
+    return `ssr-hash-${Math.abs(hash).toString(16).padStart(8, '0')}`;
   }
 
   /**
@@ -357,10 +377,19 @@ export class SignatureVerifier {
     module: { id: string; code: Uint8Array; metadata: any },
     privateKey: PrivateKey,
   ): Promise<SignedWasmModule> {
-    const codeHash = crypto
-      .createHash('sha256')
-      .update(module.code)
-      .digest('hex');
+    let codeHash: string;
+
+    if (isSSREnvironment()) {
+      codeHash = this.createSSRSafeHash(
+        Buffer.from(module.code).toString('base64'),
+      );
+    } else {
+      const hasher = this.cryptoAdapter.createHash('sha256');
+      const result = hasher.update(Buffer.from(module.code)).digest('hex');
+      const hashValue = result instanceof Promise ? await result : result;
+      codeHash =
+        typeof hashValue === 'string' ? hashValue : hashValue.toString('hex');
+    }
 
     const dataToSign = {
       id: module.id,
@@ -385,10 +414,21 @@ export class SignatureVerifier {
     publicKey: PublicKey,
   ): Promise<VerificationResult> {
     try {
-      const actualHash = crypto
-        .createHash('sha256')
-        .update(signedModule.code)
-        .digest('hex');
+      let actualHash: string;
+
+      if (isSSREnvironment()) {
+        actualHash = this.createSSRSafeHash(
+          Buffer.from(signedModule.code).toString('base64'),
+        );
+      } else {
+        const hasher = this.cryptoAdapter.createHash('sha256');
+        const result = hasher
+          .update(Buffer.from(signedModule.code))
+          .digest('hex');
+        const hashValue = result instanceof Promise ? await result : result;
+        actualHash =
+          typeof hashValue === 'string' ? hashValue : hashValue.toString('hex');
+      }
 
       const codeIntegrity = actualHash === signedModule.codeHash;
 

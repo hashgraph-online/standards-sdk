@@ -136,12 +136,12 @@ export class AssemblyBuilder {
    */
   addBlock(builder: BlockBuilder): AssemblyBuilder {
     const blockTopicId = builder.getTopicId();
-    
+
     // Validate block topic ID
     if (!this.isValidTopicId(blockTopicId)) {
       throw new Error(`Invalid block topic ID: ${blockTopicId}`);
     }
-    
+
     const definition = builder.build();
     const actions = builder.getActions();
 

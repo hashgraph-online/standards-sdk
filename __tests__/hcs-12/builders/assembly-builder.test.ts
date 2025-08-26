@@ -57,7 +57,7 @@ describe('AssemblyBuilder', () => {
       const actionBuilder1 = new ActionBuilder(logger)
         .setTopicId('0.0.12345')
         .setAlias('transfer');
-      
+
       const actionBuilder2 = new ActionBuilder(logger)
         .setTopicId('0.0.12346')
         .setAlias('approve');
@@ -127,7 +127,7 @@ describe('AssemblyBuilder', () => {
       const actionBuilder = new ActionBuilder(logger)
         .setTopicId('0.0.12345')
         .setAlias('test-action');
-      
+
       const blockBuilder = new BlockBuilder()
         .setName('test/block')
         .setTitle('Test Block')
@@ -196,9 +196,8 @@ describe('AssemblyBuilder', () => {
     });
 
     it('should validate action topic IDs', () => {
-      const invalidActionBuilder = new ActionBuilder(logger)
-        .setAlias('test');
-      
+      const invalidActionBuilder = new ActionBuilder(logger).setAlias('test');
+
       expect(() => invalidActionBuilder.setTopicId('invalid-topic')).toThrow(
         'Invalid topic ID format',
       );
@@ -206,7 +205,7 @@ describe('AssemblyBuilder', () => {
       const validActionBuilder = new ActionBuilder(logger)
         .setTopicId('0.0.12345')
         .setAlias('test');
-      
+
       expect(() => builder.addAction(validActionBuilder)).not.toThrow();
     });
 
@@ -217,7 +216,7 @@ describe('AssemblyBuilder', () => {
         .setCategory('test')
         .setTemplateTopicId('0.0.33333')
         .setTopicId('invalid-topic');
-      
+
       expect(() => builder.addBlock(invalidBlockBuilder)).toThrow(
         'Invalid block topic ID: invalid-topic',
       );
@@ -228,7 +227,7 @@ describe('AssemblyBuilder', () => {
         .setCategory('test')
         .setTemplateTopicId('0.0.33333')
         .setTopicId('0.0.12345');
-      
+
       expect(() => builder.addBlock(validBlockBuilder)).not.toThrow();
     });
   });
@@ -270,7 +269,7 @@ describe('AssemblyBuilder', () => {
       const transferAction = new ActionBuilder(logger)
         .setTopicId('0.0.12345')
         .setAlias('transfer');
-      
+
       const approveAction = new ActionBuilder(logger)
         .setTopicId('0.0.12346')
         .setAlias('approve');
@@ -302,9 +301,7 @@ describe('AssemblyBuilder', () => {
         .setTopicId('0.0.12345')
         .setAlias('complex-action');
 
-      const operation = builder
-        .addAction(actionBuilder)
-        .buildOperations()[0];
+      const operation = builder.addAction(actionBuilder).buildOperations()[0];
 
       expect(operation).toMatchObject({
         p: 'hcs-12',

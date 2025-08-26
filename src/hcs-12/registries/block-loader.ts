@@ -5,7 +5,7 @@
  * Blocks are not stored in a registry but directly via HCS-1.
  */
 
-import { Logger } from '../../utils/logger';
+import { ILogger, Logger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import { BlockDefinition } from '../types';
 import type { HCS12Client } from '../sdk';
@@ -16,7 +16,7 @@ import { HRLResolver } from '../../utils/hrl-resolver';
  * Loader for HCS-1 stored block definitions
  */
 export class BlockLoader {
-  private logger: Logger;
+  private logger: ILogger;
   private networkType: NetworkType;
   private client?: HCS12Client | HCS12BrowserClient;
   private blockCache: Map<string, BlockDefinition> = new Map();
@@ -24,7 +24,7 @@ export class BlockLoader {
 
   constructor(
     networkType: NetworkType,
-    logger: Logger,
+    logger: ILogger,
     client?: HCS12Client | HCS12BrowserClient,
   ) {
     this.networkType = networkType;

@@ -4,7 +4,7 @@
  * Manages registration and retrieval of HashLink WASM actions.
  */
 
-import { Logger } from '../../utils/logger';
+import { ILogger } from '../../utils/logger';
 import { NetworkType } from '../../utils/types';
 import {
   RegistryType,
@@ -15,7 +15,8 @@ import {
 } from '../types';
 import { BaseRegistry } from './base-registry';
 import { retrieveInscription } from '../../inscribe';
-import { createHash } from 'crypto';
+import { getCryptoAdapter } from '../../utils/crypto-abstraction';
+import { isSSREnvironment } from '../../utils/crypto-env';
 import type { HCS12Client } from '../sdk';
 import type { HCS12BrowserClient } from '../browser';
 import {
@@ -30,10 +31,11 @@ import { ZodError } from 'zod';
  */
 export class ActionRegistry extends BaseRegistry {
   private actionsByHash: Map<string, ActionRegistration> = new Map();
+  private cryptoAdapter = getCryptoAdapter();
 
   constructor(
     networkType: NetworkType,
-    logger: Logger,
+    logger: ILogger,
     topicId?: string,
     client?: HCS12Client | HCS12BrowserClient,
   ) {
@@ -48,9 +50,35 @@ export class ActionRegistry extends BaseRegistry {
     moduleInfo: ModuleInfo,
     sourceVerification?: SourceVerification,
   ): Promise<ActionRegistration> {
-    const wasmHash = createHash('sha256').update(wasmBinary).digest('hex');
-    const infoString = JSON.stringify(moduleInfo);
-    const infoHash = createHash('sha256').update(infoString).digest('hex');
+    let wasmHash: string;
+    let infoHash: string;
+
+    if (isSSREnvironment()) {
+      wasmHash = this.createSSRSafeHash(wasmBinary, 'wasm');
+      const infoString = JSON.stringify(moduleInfo);
+      infoHash = this.createSSRSafeHash(Buffer.from(infoString), 'info');
+    } else {
+      const wasmHasher = this.cryptoAdapter.createHash('sha256');
+      const wasmResult = wasmHasher.update(wasmBinary).digest('hex');
+      const wasmHashValue =
+        wasmResult instanceof Promise ? await wasmResult : wasmResult;
+      wasmHash =
+        typeof wasmHashValue === 'string'
+          ? wasmHashValue
+          : wasmHashValue.toString('hex');
+
+      const infoString = JSON.stringify(moduleInfo);
+      const infoHasher = this.cryptoAdapter.createHash('sha256');
+      const infoResult = infoHasher
+        .update(Buffer.from(infoString))
+        .digest('hex');
+      const infoHashValue =
+        infoResult instanceof Promise ? await infoResult : infoResult;
+      infoHash =
+        typeof infoHashValue === 'string'
+          ? infoHashValue
+          : infoHashValue.toString('hex');
+    }
 
     const wasmTopicId = await this.inscribeContent(
       wasmBinary,
@@ -64,6 +92,7 @@ export class ActionRegistry extends BaseRegistry {
     );
 
     let infoTopicId: string | undefined;
+    const infoString = JSON.stringify(moduleInfo);
     if (Buffer.byteLength(infoString, 'utf8') > 1024) {
       infoTopicId = await this.inscribeContent(infoString, 'application/json', {
         name: `${moduleInfo.name}-info`,
@@ -258,9 +287,17 @@ export class ActionRegistry extends BaseRegistry {
       }
 
       const moduleInfo = JSON.parse(infoString) as ModuleInfo;
-      const computedHash = createHash('sha256')
-        .update(infoString)
-        .digest('hex');
+
+      let computedHash: string;
+      if (isSSREnvironment()) {
+        computedHash = this.createSSRSafeHash(Buffer.from(infoString), 'info');
+      } else {
+        const hasher = this.cryptoAdapter.createHash('sha256');
+        const result = hasher.update(Buffer.from(infoString)).digest('hex');
+        const hashValue = result instanceof Promise ? await result : result;
+        computedHash =
+          typeof hashValue === 'string' ? hashValue : hashValue.toString('hex');
+      }
 
       if (computedHash !== action.hash) {
         this.logger.error('INFO hash mismatch', {
@@ -321,9 +358,16 @@ export class ActionRegistry extends BaseRegistry {
           ? Buffer.from(inscription.content, 'base64')
           : Buffer.from(inscription.content);
 
-      const computedHash = createHash('sha256')
-        .update(wasmBuffer)
-        .digest('hex');
+      let computedHash: string;
+      if (isSSREnvironment()) {
+        computedHash = this.createSSRSafeHash(wasmBuffer, 'wasm');
+      } else {
+        const hasher = this.cryptoAdapter.createHash('sha256');
+        const result = hasher.update(wasmBuffer).digest('hex');
+        const hashValue = result instanceof Promise ? await result : result;
+        computedHash =
+          typeof hashValue === 'string' ? hashValue : hashValue.toString('hex');
+      }
 
       if (computedHash !== action.wasm_hash) {
         this.logger.error('WASM hash mismatch', {
@@ -426,5 +470,18 @@ export class ActionRegistry extends BaseRegistry {
   clearCache(): void {
     super.clearCache();
     this.actionsByHash.clear();
+  }
+
+  /**
+   * Create SSR-safe hash
+   */
+  private createSSRSafeHash(data: Buffer, type: string): string {
+    let hash = 0;
+
+    for (let i = 0; i < Math.min(data.length, 256); i++) {
+      hash = ((hash << 5) - hash + data[i]) & 0xffffffff;
+    }
+
+    return `ssr-${type}-${data.length}-${Math.abs(hash).toString(16).padStart(8, '0')}`;
   }
 }

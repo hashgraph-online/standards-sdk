@@ -136,4 +136,3 @@ export interface InscriptionJobResponse
   message?: string;
   transactionBytes?: string | { type: string; data: number[] };
 }
-

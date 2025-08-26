@@ -3,18 +3,14 @@ import {
   TopicMessageSubmitTransaction,
   TopicId,
   TransactionId,
-  TransactionReceipt,
   PrivateKey,
   PublicKey,
   KeyList,
-  Hbar,
   AccountId,
-  Transaction,
 } from '@hashgraph/sdk';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import { HCS12BaseClient, HCS12Config } from './base-client';
-import { Logger } from '../utils/logger';
 import {
   ActionRegistry,
   BlockLoader,

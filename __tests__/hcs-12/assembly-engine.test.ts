@@ -160,7 +160,9 @@ describe('AssemblyEngine', () => {
         m: 'Transfer Action v1.0.0',
       };
 
-      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(mockActionRegistration);
+      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(
+        mockActionRegistration,
+      );
 
       const resolved =
         await assemblyEngine.resolveReferences(mockAssemblyState);
@@ -406,7 +408,9 @@ describe('AssemblyEngine', () => {
       mockAssemblyRegistry.getAssemblyState.mockResolvedValueOnce(
         mockAssemblyState,
       );
-      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(mockActionRegistration);
+      mockActionRegistry.getActionByTopicId.mockResolvedValueOnce(
+        mockActionRegistration,
+      );
       mockBlockLoader.loadBlock.mockResolvedValueOnce({
         definition: mockBlockDefinition2,
         template: mockTemplate,

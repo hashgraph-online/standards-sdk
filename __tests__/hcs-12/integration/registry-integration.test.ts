@@ -152,10 +152,10 @@ describe('Registry Integration Tests', () => {
 
     it('should store a block via HCS-1', async () => {
       const template = '<div>{{attributes.message}}</div>';
-      
+
       const blockBuilder = BlockBuilder.createWidgetBlock(
         'hashlinks/test-block',
-        'Test Block'
+        'Test Block',
       )
         .setDescription('Integration test block')
         .setIcon('block-default')
@@ -213,7 +213,6 @@ describe('Registry Integration Tests', () => {
 
       const assemblyTopicId = await client.createAssembly(assemblyBuilder);
       expect(assemblyTopicId).toBeDefined();
-
 
       logger.info('Created complete assembly', { assemblyTopicId });
     }, 60000);

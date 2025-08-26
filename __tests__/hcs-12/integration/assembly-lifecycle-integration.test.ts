@@ -8,7 +8,11 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { HCS12Client } from '../../../src/hcs-12/sdk';
 import { AssemblyEngine } from '../../../src/hcs-12/assembly';
-import { AssemblyBuilder, ActionBuilder, BlockBuilder } from '../../../src/hcs-12/builders';
+import {
+  AssemblyBuilder,
+  ActionBuilder,
+  BlockBuilder,
+} from '../../../src/hcs-12/builders';
 import { Logger } from '../../../src/utils/logger';
 import { NetworkType } from '../../../src/utils/types';
 import {
@@ -45,7 +49,6 @@ describe('Assembly Lifecycle Integration Tests', () => {
         operatorPrivateKey: process.env.HEDERA_PRIVATE_KEY!,
         logger,
       });
-
     }
   }, 30000);
 
@@ -119,10 +122,10 @@ describe('Assembly Lifecycle Integration Tests', () => {
 
     it('should register real block on testnet', async () => {
       const template = '<div>{{attributes.message}}</div>';
-      
+
       const blockBuilder = BlockBuilder.createDisplayBlock(
         'lifecycle/test-block',
-        'Lifecycle Test Block'
+        'Lifecycle Test Block',
       )
         .setDescription('Block for testing assembly lifecycle')
         .setIcon('block-default')
@@ -137,10 +140,11 @@ describe('Assembly Lifecycle Integration Tests', () => {
       logger.info('Registered real block', { blockId });
     }, 120000);
 
-
     it('should verify assembly components are retrievable', async () => {
       if (!blockId) {
-        logger.warn('Skipping component verification: blockId not set from previous test');
+        logger.warn(
+          'Skipping component verification: blockId not set from previous test',
+        );
         return;
       }
 
