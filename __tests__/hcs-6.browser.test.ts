@@ -16,6 +16,46 @@ import {
 } from '../src/hcs-6/types';
 import { Logger } from '../src/utils/logger';
 import { HederaMirrorNode } from '../src/services/mirror-node';
+import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
+import type { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
+
+jest.mock('@hashgraph/sdk', () => {
+  const mockTransaction = {
+    setTopicMemo: jest.fn().mockReturnThis(),
+    setTransactionId: jest.fn().mockReturnThis(),
+    setSubmitKey: jest.fn().mockReturnThis(),
+    setTopicId: jest.fn().mockReturnThis(),
+    setMessage: jest.fn().mockReturnThis(),
+    freezeWithSigner: jest.fn().mockResolvedValue({
+      executeWithSigner: jest.fn().mockResolvedValue({
+        transactionId: { toString: () => '0.0.123456@1234567890.123456789' },
+        getReceiptWithSigner: jest.fn().mockResolvedValue({
+          topicId: { toString: () => '0.0.999999' },
+          topicSequenceNumber: 123,
+        }),
+      }),
+    }),
+  };
+
+  return {
+    TopicCreateTransaction: jest.fn(() => mockTransaction),
+    TopicMessageSubmitTransaction: jest.fn(() => mockTransaction),
+    TopicId: { fromString: jest.fn(id => ({ toString: () => id })) },
+    TransactionId: {
+      generate: jest.fn(() => ({
+        toString: () => '0.0.123456@1234567890.123456789',
+      })),
+    },
+  };
+});
+
+jest.mock('../src/inscribe/inscriber', () => ({
+  inscribeWithSigner: jest.fn().mockResolvedValue({
+    confirmed: true,
+    result: { jobId: 'job-1' },
+    inscription: { topic_id: '0.0.333333' },
+  }),
+}));
 
 jest.mock('../src/services/mirror-node');
 jest.mock('../src/utils/logger');
@@ -29,12 +69,10 @@ describe('HCS6BrowserClient', () => {
   let client: HCS6BrowserClient;
   let mockMirrorNode: jest.Mocked<HederaMirrorNode>;
   let mockLogger: jest.Mocked<Logger>;
+  let mockHwc: jest.Mocked<HashinalsWalletConnectSDK>;
+  let mockSigner: jest.Mocked<DAppSigner>;
 
-  const testConfig = {
-    operatorId: '0.0.12345',
-    operatorKey: 'mock-key',
-    network: 'testnet' as const,
-  };
+  const testNetwork = 'testnet' as const;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -55,7 +93,21 @@ describe('HCS6BrowserClient', () => {
 
     MockedLogger.getInstance = jest.fn().mockReturnValue(mockLogger);
 
-    client = new HCS6BrowserClient(testConfig);
+    mockSigner = {
+      getAccountId: jest.fn().mockReturnValue({ toString: () => '0.0.123456' }),
+      getAccountKey: jest
+        .fn()
+        .mockResolvedValue({ toString: () => 'PUBLIC_KEY' } as any),
+    } as any;
+
+    mockHwc = {
+      getAccountInfo: jest
+        .fn()
+        .mockReturnValue({ accountId: { toString: () => '0.0.123456' } }),
+      dAppConnector: { signers: [mockSigner] },
+    } as any;
+
+    client = new HCS6BrowserClient({ network: testNetwork, hwc: mockHwc });
   });
 
   describe('Constructor', () => {
@@ -72,72 +124,69 @@ describe('HCS6BrowserClient', () => {
         undefined,
       );
     });
-
-    it('should create browser client with custom logger level', () => {
-      const configWithLogLevel = {
-        ...testConfig,
-        logLevel: 'debug' as const,
-      };
-
-      const debugClient = new HCS6BrowserClient(configWithLogLevel);
-      expect(MockedLogger.getInstance).toHaveBeenCalledWith({
-        level: 'debug',
-        module: 'HCS6Client',
-        silent: undefined,
-      });
-    });
   });
 
   describe('createRegistry', () => {
-    it('should throw error indicating wallet integration required', async () => {
+    it('should create a new registry via signer', async () => {
+      mockMirrorNode.getTopicInfo.mockResolvedValue({
+        memo: 'hcs-6:1:86400',
+      } as any);
       const options: HCS6CreateRegistryOptions = {
         ttl: 86400,
+        submitKey: true,
       };
-
-      await expect(client.createRegistry(options)).rejects.toThrow(
-        'Browser client requires wallet integration for registry creation',
-      );
+      const res = await client.createRegistry(options);
+      expect(res.success).toBe(true);
+      expect(res.topicId).toBe('0.0.999999');
     });
   });
 
   describe('registerEntry', () => {
-    it('should throw error indicating wallet integration required', async () => {
+    it('should submit register message via signer', async () => {
+      mockMirrorNode.getTopicInfo.mockResolvedValue({
+        memo: 'hcs-6:1:86400',
+      } as any);
       const options: HCS6RegisterEntryOptions = {
-        targetTopicId: '0.0.12345',
+        targetTopicId: '0.0.67890',
         memo: 'Test entry',
       };
-
-      await expect(client.registerEntry('0.0.98765', options)).rejects.toThrow(
-        'Browser client requires wallet integration for entry registration',
-      );
+      const res = await client.registerEntry('0.0.999999', options);
+      expect(res.success).toBe(true);
+      expect(res.sequenceNumber).toBe(123);
     });
   });
 
   describe('submitMessage', () => {
-    it('should throw error indicating wallet integration required', async () => {
+    it('should submit message via signer and return receipt', async () => {
       const message: HCS6RegisterMessage = {
         p: 'hcs-6',
         op: HCS6Operation.REGISTER,
         t_id: '0.0.12345',
         m: 'Test memo',
       };
-
-      await expect(client.submitMessage('0.0.98765', message)).rejects.toThrow(
-        'Browser client requires wallet integration for message submission',
-      );
+      const receipt = await client.submitMessage('0.0.999999', message);
+      expect((receipt as any).topicSequenceNumber).toBe(123);
     });
   });
 
   describe('createHashinal', () => {
-    it('should throw error indicating wallet integration required', async () => {
+    it('should inscribe with signer and register in a new registry', async () => {
+      mockMirrorNode.getTopicInfo.mockResolvedValue({
+        memo: 'hcs-6:1:86400',
+      } as any);
       const options: HCS6CreateHashinalOptions = {
-        metadata: { name: 'Test Hashinal' },
+        metadata: {
+          name: 'Test Hashinal',
+          creator: 'alice',
+          description: 'demo',
+          type: 'image',
+        },
         ttl: 86400,
-      };
-
-      await expect(client.createHashinal(options)).rejects.toThrow(
-        'Browser client requires wallet integration for hashinal creation',
-      );
+      } as any;
+      const res = await client.createHashinal(options);
+      expect(res.success).toBe(true);
+      expect(res.registryTopicId).toBe('0.0.999999');
+      expect(res.inscriptionTopicId).toBe('0.0.333333');
     });
   });
 
@@ -371,21 +420,33 @@ describe('HCS6BrowserClient', () => {
     });
 
     it('should restrict write operations without wallet', async () => {
-      const writeOperations = [
-        () => client.createRegistry({ ttl: 86400 }),
-        () => client.registerEntry('0.0.12345', { targetTopicId: '0.0.67890' }),
-        () =>
-          client.submitMessage('0.0.12345', {
-            p: 'hcs-6',
-            op: HCS6Operation.REGISTER,
-            t_id: '0.0.67890',
-          }),
-        () => client.createHashinal({ metadata: { name: 'Test' } }),
-      ];
-
-      for (const operation of writeOperations) {
-        await expect(operation()).rejects.toThrow('wallet integration');
-      }
+      const localClient = new HCS6BrowserClient({
+        network: testNetwork,
+        hwc: { dAppConnector: { signers: [] } } as any,
+      });
+      await expect(
+        localClient.createRegistry({ ttl: 86400 }),
+      ).resolves.toMatchObject({ success: false });
+      await expect(
+        localClient.registerEntry('0.0.12345', { targetTopicId: '0.0.67890' }),
+      ).resolves.toMatchObject({ success: false });
+      await expect(
+        localClient.submitMessage('0.0.12345', {
+          p: 'hcs-6',
+          op: HCS6Operation.REGISTER,
+          t_id: '0.0.67890',
+        } as any),
+      ).rejects.toThrow('wallet');
+      await expect(
+        localClient.createHashinal({
+          metadata: {
+            name: 'Test',
+            creator: 'me',
+            description: 'd',
+            type: 't',
+          },
+        } as any),
+      ).resolves.toMatchObject({ success: false });
     });
   });
 });

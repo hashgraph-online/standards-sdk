@@ -141,7 +141,6 @@ export class WasmExecutor {
           if (this.logger && typeof this.logger.debug === 'function') {
             this.logger.debug('Importing JavaScript module from blob URL');
           }
-          // Use Function constructor to avoid webpack static analysis
           const importModule = new Function('url', 'return import(url)');
           const module = await importModule(moduleUrl);
 
@@ -318,7 +317,6 @@ export class WasmExecutor {
           URL: URL,
         };
 
-        // For Node.js/SSR environments, skip WASM execution as it's browser-only
         throw new Error(
           'WASM execution in Node.js/SSR environment is not supported. This functionality is browser-only.',
         );
