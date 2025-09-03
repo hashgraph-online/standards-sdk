@@ -79,7 +79,10 @@ async function runDemo() {
     // URL inscription
     console.log('2. URL Inscription');
     const urlResponse = await inscribe(
-      { type: 'url', url: 'https://picsum.photos/id/1/50/50' },
+      {
+        type: 'url',
+        url: 'https://fastly.picsum.photos/id/866/50/50.jpg?hmac=8BpfgzuDgu2xpFYzkj90PW12YfNrbake-5BbyZPeHVI',
+      },
       clientConfig,
       {
         ...options,
@@ -87,7 +90,7 @@ async function runDemo() {
         mode: 'file',
         metadata: {
           name: 'Random Image',
-          description: 'A random image from picsum.photos',
+          description: 'A random image from .photos',
         },
       },
     );
@@ -133,7 +136,10 @@ async function runDemo() {
     // Hashinal inscription from URL
     console.log('4. Hashinal Inscription from URL');
     const hashinalUrlResponse = await inscribe(
-      { type: 'url', url: 'https://picsum.photos/50/50.jpg' },
+      {
+        type: 'url',
+        url: 'https://fastly.picsum.photos/id/866/50/50.jpg?hmac=8BpfgzuDgu2xpFYzkj90PW12YfNrbake-5BbyZPeHVI',
+      },
       clientConfig,
       {
         ...options,

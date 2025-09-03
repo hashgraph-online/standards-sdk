@@ -422,7 +422,6 @@ export class HCS12Client extends HCS12BaseClient {
       throw new Error('Action registry not initialized');
     }
 
-    // Submit the registration message directly
     const result = await this._submitMessage(
       this.actionRegistryTopicId,
       JSON.stringify(registration),
@@ -433,7 +432,6 @@ export class HCS12Client extends HCS12BaseClient {
       transactionId: result.transactionId,
     });
 
-    // The builder already has the topic ID set
     return builder;
   }
 
@@ -443,17 +441,14 @@ export class HCS12Client extends HCS12BaseClient {
   async registerBlock(builder: BlockBuilder): Promise<BlockBuilder> {
     const templateBuffer = builder.getTemplate();
 
-    // If template buffer is provided, store it via HCS-1 first
     if (templateBuffer) {
       const templateResult = await this.inscribeFile(
         templateBuffer,
         `${builder.getName() || 'block'}-template.html`,
       );
-      // Set the template topic ID on the builder before building
       builder.setTemplateTopicId(templateResult.topic_id);
     }
 
-    // Now build the definition with the template_t_id set
     const definition = builder.build();
 
     if (!definition.template_t_id) {
@@ -462,7 +457,6 @@ export class HCS12Client extends HCS12BaseClient {
       );
     }
 
-    // Store block definition via HCS-1
     const definitionResult = await this.inscribeFile(
       Buffer.from(JSON.stringify(definition, null, 2)),
       `${definition.name}-definition.json`,
@@ -474,7 +468,6 @@ export class HCS12Client extends HCS12BaseClient {
       templateTopicId: definition.template_t_id,
     });
 
-    // Set the topic ID on the builder
     builder.setTopicId(definitionResult.topic_id);
     return builder;
   }
@@ -485,13 +478,10 @@ export class HCS12Client extends HCS12BaseClient {
   async createAssembly(builder: AssemblyBuilder): Promise<string> {
     const registration = builder.build();
 
-    // Create assembly topic
     const assemblyTopicId = await this.createAssemblyTopic();
 
-    // Register assembly on its topic
     await this.registerAssemblyDirect(assemblyTopicId, registration);
 
-    // Process all operations
     const operations = builder.getOperations();
     for (const operation of operations) {
       switch (operation.op) {

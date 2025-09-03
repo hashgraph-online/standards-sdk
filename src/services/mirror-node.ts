@@ -190,7 +190,7 @@ export class HederaMirrorNode {
    * @throws An error if the account ID is invalid or the public key cannot be retrieved.
    */
   async getPublicKey(accountId: string): Promise<PublicKey> {
-    this.logger.info(`Getting public key for account ${accountId}`);
+    this.logger.debug(`Getting public key for account ${accountId}`);
 
     const accountInfo = await this.requestAccount(accountId);
 
@@ -217,7 +217,7 @@ export class HederaMirrorNode {
    * @throws An error if the account ID is invalid or the memo cannot be retrieved.
    */
   async getAccountMemo(accountId: string): Promise<string | null> {
-    this.logger.info(`Getting account memo for account ID: ${accountId}`);
+    this.logger.debug(`Getting account memo for account ID: ${accountId}`);
 
     try {
       const accountInfo = await this._requestWithRetry<AccountResponse>(

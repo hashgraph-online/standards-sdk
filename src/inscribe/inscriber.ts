@@ -22,9 +22,9 @@ import {
 } from './quote-cache';
 
 let nodeModules: {
-  readFileSync?: any;
-  basename?: any;
-  extname?: any;
+  readFileSync?: (path: string) => Buffer;
+  basename?: (path: string) => string;
+  extname?: (path: string) => string;
 } = {};
 
 async function loadNodeModules(): Promise<void> {
@@ -320,7 +320,6 @@ export async function inscribeWithSigner(
       ? { fileName: input.fileName, bufferSize: input.buffer.byteLength }
       : {}),
   });
-
   try {
     if (options.quoteOnly) {
       logger.debug('Quote-only mode requested with signer, generating quote');
@@ -348,15 +347,17 @@ export async function inscribeWithSigner(
       logger.debug('Initializing InscriptionSDK with API key');
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
-        network: options.network || 'mainnet',
+        network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
+        connectionMode: 'websocket',
       });
     } else {
-      logger.debug('Initializing InscriptionSDK with client auth');
+      logger.debug('Initializing InscriptionSDK with client auth (websocket)');
       sdk = await InscriptionSDK.createWithAuth({
         type: 'client',
         accountId,
         signer: signer,
-        network: options.network || 'mainnet',
+        network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
+        connectionMode: 'websocket',
       });
     }
 
@@ -418,47 +419,70 @@ export async function inscribeWithSigner(
       }
     }
 
-    logger.debug('Preparing to inscribe content with signer', {
+    logger.debug('Starting inscription via startInscription (websocket)', {
       type: input.type,
       mode: options.mode || 'file',
       holderId: accountId,
+      usesStartInscription: true,
     });
 
-    const result = await sdk.inscribe(
-      {
-        ...request,
-        holderId: accountId,
-      },
-      signer,
-    );
-    logger.info('Inscription started', {
+    const startResult = (await sdk.startInscription({
+      ...request,
+      holderId: accountId,
+      network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
+    })) as InscriptionJobResponse;
+
+    logger.info('about to start inscription', {
       type: input.type,
       mode: options.mode || 'file',
-      transactionId: result.jobId,
+      jobId: startResult.id || startResult.tx_id,
+      ...startResult,
     });
+    console.log('startResult', startResult);
+
+    if (typeof startResult.transactionBytes === 'string') {
+      logger.debug('Executing inscription transaction with signer from bytes');
+      await sdk.executeTransactionWithSigner(
+        startResult.transactionBytes,
+        signer,
+      );
+    } else if (startResult.transactionBytes.type === 'Buffer') {
+      logger.debug('Executing inscription transaction with signer from buffer');
+      await sdk.executeTransactionWithSigner(
+        Buffer.from(startResult.transactionBytes.data).toString('base64'),
+        signer,
+      );
+    }
 
     if (options.waitForConfirmation) {
-      logger.debug('Waiting for inscription confirmation', {
-        transactionId: result.jobId,
+      logger.debug('Waiting for inscription confirmation (websocket)', {
+        jobId: startResult.id || startResult.tx_id,
         maxAttempts: options.waitMaxAttempts,
         intervalMs: options.waitIntervalMs,
       });
 
+      const trackingId = startResult.tx_id || startResult.id;
       const inscription = await waitForInscriptionConfirmation(
         sdk,
-        result.jobId,
+        trackingId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
         options.progressCallback,
       );
 
       logger.info('Inscription confirmation received', {
-        transactionId: result.jobId,
+        jobId: trackingId,
       });
 
       return {
         confirmed: true,
-        result,
+        result: {
+          jobId: startResult.id || startResult.tx_id,
+          transactionId: startResult.tx_id || '',
+          topic_id: startResult.topic_id,
+          status: startResult.status,
+          completed: startResult.completed,
+        },
         inscription,
         sdk,
       };
@@ -466,7 +490,13 @@ export async function inscribeWithSigner(
 
     return {
       confirmed: false,
-      result,
+      result: {
+        jobId: startResult.id || startResult.tx_id,
+        transactionId: startResult.tx_id || '',
+        topic_id: startResult.topic_id,
+        status: startResult.status,
+        completed: startResult.completed,
+      },
       sdk,
     };
   } catch (error) {
@@ -543,6 +573,8 @@ export async function retrieveInscription(
     throw error;
   }
 }
+
+export type { InscriptionOptions } from './types';
 
 function validateHashinalMetadata(
   metadata: Record<string, unknown>,
@@ -884,19 +916,43 @@ export async function waitForInscriptionConfirmation(
         maxAttempts: number,
         intervalMs: number,
         checkCompletion: boolean,
-        progressCallback?: Function,
+        progressCallback?: (data: {
+          stage?: string;
+          message?: string;
+          progressPercent?: number;
+          details?: unknown;
+        }) => void,
       ) => Promise<RetrievedInscriptionResult>;
 
-      const wrappedCallback = (data: any) => {
-        const stage = data.stage || 'confirming';
+      const wrappedCallback = (data: {
+        stage?: string;
+        message?: string;
+        progressPercent?: number;
+        details?: unknown;
+      }) => {
+        const stageRaw = data.stage || 'confirming';
+        const allowedStages = [
+          'preparing',
+          'submitting',
+          'confirming',
+          'verifying',
+          'completed',
+          'failed',
+        ] as const;
+        const stage = (
+          allowedStages.includes(stageRaw as (typeof allowedStages)[number])
+            ? stageRaw
+            : 'confirming'
+        ) as (typeof allowedStages)[number];
+
         const message = data.message || 'Processing inscription';
         const percent = data.progressPercent || 50;
 
         progressReporter.report({
-          stage: stage,
-          message: message,
+          stage,
+          message,
           progressPercent: percent,
-          details: {},
+          details: data.details as Record<string, unknown> | undefined,
         });
       };
 
