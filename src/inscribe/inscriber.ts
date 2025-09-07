@@ -436,15 +436,14 @@ export async function inscribeWithSigner(
       jobId: startResult.id || startResult.tx_id,
       ...startResult,
     });
-    console.log('startResult', startResult);
 
-    if (typeof startResult.transactionBytes === 'string') {
+    if (typeof startResult?.transactionBytes === 'string') {
       logger.debug('Executing inscription transaction with signer from bytes');
       await sdk.executeTransactionWithSigner(
         startResult.transactionBytes,
         signer,
       );
-    } else if (startResult.transactionBytes.type === 'Buffer') {
+    } else if (startResult?.transactionBytes?.type === 'Buffer') {
       logger.debug('Executing inscription transaction with signer from buffer');
       await sdk.executeTransactionWithSigner(
         Buffer.from(startResult.transactionBytes.data).toString('base64'),
