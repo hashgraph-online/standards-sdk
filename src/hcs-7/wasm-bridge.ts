@@ -1,5 +1,3 @@
-// TextEncoder and TextDecoder are available globally in modern browsers
-// and in Node.js without explicit import
 import { Logger, ILogger } from '../utils/logger';
 
 export interface BaseMessage {
@@ -244,14 +242,12 @@ export class WasmBridge {
     let dynamicStateData: Record<string, any> = {};
 
     if (wasmConfig?.c?.inputType?.stateData) {
-      // Special case: if we have latestRoundData with all the fields we need
       if (
         stateData.latestRoundData &&
         Object.keys(wasmConfig.c.inputType.stateData).every(
           key => key in stateData.latestRoundData,
         )
       ) {
-        // Return the nested structure for Chainlink
         dynamicStateData.latestRoundData = {};
         Object.entries(wasmConfig.c.inputType.stateData).forEach(([key, _]) => {
           dynamicStateData.latestRoundData[key] = String(
@@ -259,7 +255,6 @@ export class WasmBridge {
           );
         });
       } else {
-        // Handle flat structure (launchpage case)
         Object.entries(wasmConfig.c.inputType.stateData).forEach(
           ([key, type]) => {
             const result = stateData[key];

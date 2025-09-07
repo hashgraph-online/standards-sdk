@@ -182,7 +182,7 @@ describe('TransactionParser', () => {
       };
 
       const type = (TransactionParser as any).getTransactionType(mockTxBody);
-      expect(type).toBe('tokenCreate');
+      expect(type).toBe('TOKENCREATE');
     });
 
     test('detects crypto transfer transaction', () => {
@@ -193,7 +193,7 @@ describe('TransactionParser', () => {
       };
 
       const type = (TransactionParser as any).getTransactionType(mockTxBody);
-      expect(type).toBe('cryptoTransfer');
+      expect(type).toBe('CRYPTOTRANSFER');
     });
 
     test('detects token airdrop transaction', () => {
@@ -204,14 +204,14 @@ describe('TransactionParser', () => {
       };
 
       const type = (TransactionParser as any).getTransactionType(mockTxBody);
-      expect(type).toBe('tokenAirdrop');
+      expect(type).toBe('TOKENAIRDROP');
     });
 
     test('detects unknown transaction', () => {
       const mockTxBody = {};
 
       const type = (TransactionParser as any).getTransactionType(mockTxBody);
-      expect(type).toBe('unknown');
+      expect(type).toBe('UNKNOWN');
     });
   });
 
@@ -248,7 +248,7 @@ describe('TransactionParser', () => {
   describe('Transaction Summary Generation', () => {
     test('generates summary for token creation', () => {
       const parsedTx = {
-        type: 'tokenCreate',
+        type: 'TOKENCREATE',
         humanReadableType: 'Create Token',
         tokenCreation: {
           tokenName: 'Test Token',

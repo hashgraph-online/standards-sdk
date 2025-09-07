@@ -8,6 +8,19 @@
   "testPathIgnorePatterns": ["/node_modules/"],
   "testMatch": ["**/__tests__/**/*.test.ts"],
   "moduleNameMapper": {
+    "^file-type$": "<rootDir>/__mocks__/file-type.js",
     "^../src$": "<rootDir>/src"
+  },
+  "collectCoverage": true,
+  "collectCoverageFrom": ["src/**/*.{ts,tsx}", "!src/**/*.d.ts"],
+  "coverageDirectory": "coverage",
+  "coverageReporters": ["text", "lcov", "html", "json"],
+  "coverageThreshold": {
+    "global": {
+      "branches": 100,
+      "functions": 100,
+      "lines": 100,
+      "statements": 100
+    }
   }
 }

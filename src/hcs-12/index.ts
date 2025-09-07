@@ -21,3 +21,4 @@ export * from './assembly';
 export * from './rendering';
 export * from './wasm';
 export * from './constants';
+export * from './tx';

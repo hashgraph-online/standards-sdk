@@ -26,6 +26,11 @@ import {
   AssemblyUpdate,
   BlockDefinition,
 } from './types';
+import { ActionBuilder, AssemblyBuilder, BlockBuilder } from './builders';
+import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
+import type { RetrievedInscriptionResult } from '../inscribe/types';
+import * as mime from 'mime-types';
+import { inscribeWithSigner } from '../inscribe/inscriber';
 
 /**
  * Configuration for HCS-12 browser client
@@ -227,7 +232,7 @@ export class HCS12BrowserClient extends HCS12BaseClient {
   /**
    * Create a new assembly topic
    */
-  async createAssembly(): Promise<string> {
+  async createAssemblyTopic(): Promise<string> {
     this.logger.info('Creating new assembly topic');
     const topicId = await this.createRegistryTopic(RegistryType.ASSEMBLY);
     return topicId;
@@ -393,5 +398,163 @@ export class HCS12BrowserClient extends HCS12BaseClient {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Inscribe a file using HCS-1 via wallet signer (browser)
+   */
+  async inscribeFile(
+    buffer: Buffer,
+    fileName: string,
+    options?: {
+      progressCallback?: (progress: unknown) => void;
+      waitMaxAttempts?: number;
+      waitIntervalMs?: number;
+    },
+  ): Promise<RetrievedInscriptionResult> {
+    const { accountId, signer } = await this.getAccountAndSigner();
+
+    this.logger.info('Inscribing file via HCS-1 (browser)', { fileName });
+
+    const mimeType = mime.lookup(fileName) || 'application/octet-stream';
+
+    const sdk = await InscriptionSDK.createWithAuth({
+      type: 'client',
+      accountId,
+      signer,
+      network: this.network as 'testnet' | 'mainnet',
+    });
+
+    const inscriptionOptions = {
+      mode: 'file' as const,
+      waitForConfirmation: true,
+      waitMaxAttempts: options?.waitMaxAttempts || 30,
+      waitIntervalMs: options?.waitIntervalMs || 4000,
+      progressCallback: options?.progressCallback,
+      logging: {
+        level: this.logger.getLevel ? this.logger.getLevel() : 'info',
+      },
+      network: this.network as 'testnet' | 'mainnet',
+    };
+
+    const response = await inscribeWithSigner(
+      {
+        type: 'buffer',
+        buffer,
+        fileName,
+        mimeType,
+      },
+      signer,
+      inscriptionOptions,
+      sdk,
+    );
+
+    if (!response.confirmed || !response.inscription) {
+      throw new Error('Inscription failed to confirm');
+    }
+
+    return response.inscription;
+  }
+
+  /**
+   * Register an action built with ActionBuilder
+   */
+  async registerAction(builder: ActionBuilder): Promise<ActionBuilder> {
+    const registration = builder.build();
+
+    if (!this._actionRegistry) {
+      throw new Error('Action registry not initialized');
+    }
+
+    const result = await this._submitMessage(
+      this.actionRegistryTopicId,
+      JSON.stringify(registration),
+    );
+
+    this.logger.info('Action registered (browser)', {
+      topicId: registration.t_id,
+      transactionId: result.transactionId,
+    });
+
+    return builder;
+  }
+
+  /**
+   * Register a block built with BlockBuilder
+   */
+  async registerBlock(builder: BlockBuilder): Promise<BlockBuilder> {
+    const templateBuffer = builder.getTemplate();
+
+    if (templateBuffer) {
+      const templateResult = await this.inscribeFile(
+        templateBuffer,
+        `${builder.getName() || 'block'}-template.html`,
+      );
+      builder.setTemplateTopicId(templateResult.topic_id);
+    }
+
+    const definition = builder.build();
+
+    if (!definition.template_t_id) {
+      throw new Error(
+        'Block must have either a template buffer (via setTemplate) or template_t_id',
+      );
+    }
+
+    const definitionResult = await this.inscribeFile(
+      Buffer.from(JSON.stringify(definition, null, 2)),
+      `${definition.name}-definition.json`,
+    );
+
+    this.logger.info('Block registered (browser)', {
+      name: definition.name,
+      definitionTopicId: definitionResult.topic_id,
+      templateTopicId: definition.template_t_id,
+    });
+
+    builder.setTopicId(definitionResult.topic_id);
+    return builder;
+  }
+
+  async createAssembly(): Promise<string>;
+  async createAssembly(builder: AssemblyBuilder): Promise<string>;
+
+  /**
+   * Create an assembly using AssemblyBuilder and wallet signer
+   */
+  async createAssembly(builder?: AssemblyBuilder): Promise<string> {
+    if (!builder) {
+      return this.createAssemblyTopic();
+    }
+
+    const registration = builder.build();
+
+    const assemblyTopicId = await this.createAssemblyTopic();
+
+    await this.registerAssemblyDirect(assemblyTopicId, registration);
+
+    const operations = builder.getOperations();
+    for (const operation of operations) {
+      switch (operation.op) {
+        case 'add-block':
+          await this.addBlockToAssembly(assemblyTopicId, operation);
+          break;
+        case 'add-action':
+          await this.addActionToAssembly(assemblyTopicId, operation);
+          break;
+        case 'update':
+          await this.updateAssembly(assemblyTopicId, operation);
+          break;
+      }
+    }
+
+    this.logger.info('Assembly created (browser)', {
+      topicId: assemblyTopicId,
+      name: registration.name,
+      version: registration.version,
+      operations: operations.length,
+    });
+
+    return assemblyTopicId;
   }
 }

@@ -553,7 +553,6 @@ export class HCS11Client {
           },
           {
             accountId: this.auth.operatorId,
-            // @ts-ignore
             privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
@@ -692,7 +691,6 @@ export class HCS11Client {
           input,
           {
             accountId: this.auth.operatorId,
-            // @ts-ignore
             privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
@@ -916,15 +914,13 @@ export class HCS11Client {
     topicInfo?: TopicInfo;
   }> {
     try {
-      this.logger.info(
-        `Fetching profile for account ${accountId.toString()} on ${
-          this.network
-        }`,
+      this.logger.debug(
+        `Fetching profile for account ${accountId.toString()} on ${this.network}`,
       );
 
       const memo = await this.mirrorNode.getAccountMemo(accountId.toString());
 
-      this.logger.info(`Got account memo: ${memo}`);
+      this.logger.debug(`Got account memo: ${memo}`);
 
       if (!memo?.startsWith('hcs-11:')) {
         return {
@@ -933,7 +929,7 @@ export class HCS11Client {
         };
       }
 
-      this.logger.info(`Found HCS-11 memo: ${memo}`);
+      this.logger.debug(`Found HCS-11 memo: ${memo}`);
 
       const protocolReference = memo.substring(7);
 
@@ -950,7 +946,7 @@ export class HCS11Client {
         const [_, protocolId, profileTopicId] = hcsFormat;
         const networkParam = network || this.network || 'mainnet';
 
-        this.logger.info(
+        this.logger.debug(
           `Retrieving profile from Kiloscribe CDN: ${profileTopicId}`,
         );
         const cdnUrl = `https://kiloscribe.com/api/inscription-cdn/${profileTopicId}?network=${networkParam}`;

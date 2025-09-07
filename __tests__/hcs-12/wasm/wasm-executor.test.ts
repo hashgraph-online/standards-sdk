@@ -1,0 +1,436 @@
+import {
+  WasmExecutor,
+  WasmExecutionContext,
+  WasmExecutionResult,
+} from '../../../src/hcs-12/wasm/wasm-executor';
+import { Logger } from '../../../src/utils/logger';
+import { HRLResolver } from '../../../src/utils/hrl-resolver';
+import { NetworkType } from '../../../src/utils/types';
+import { ActionRegistration } from '../../../src/hcs-12/types';
+
+jest.mock('../../../src/utils/logger', () => ({
+  Logger: jest.fn().mockImplementation(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    trace: jest.fn(),
+  })),
+}));
+jest.mock('../../../src/utils/hrl-resolver', () => ({
+  HRLResolver: jest.fn().mockImplementation(() => ({
+    resolve: jest.fn(),
+  })),
+}));
+
+describe('WasmExecutor', () => {
+  let mockLogger: jest.Mocked<Logger>;
+  let mockHrlResolver: jest.Mocked<HRLResolver>;
+  let wasmExecutor: WasmExecutor;
+
+  beforeEach(() => {
+    mockLogger = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      trace: jest.fn(),
+    } as any;
+
+    mockHrlResolver = {
+      resolve: jest.fn(),
+    } as any;
+
+    (Logger as jest.MockedClass<typeof Logger>).mockImplementation(
+      () => mockLogger,
+    );
+    (HRLResolver as jest.MockedClass<typeof HRLResolver>).mockImplementation(
+      () => mockHrlResolver,
+    );
+
+    wasmExecutor = new WasmExecutor(mockLogger, 'testnet' as NetworkType);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('constructor', () => {
+    test('should initialize with logger and network', () => {
+      expect(wasmExecutor).toBeDefined();
+      expect(HRLResolver).toHaveBeenCalledWith();
+    });
+  });
+
+  describe('execute', () => {
+    const mockAction: ActionRegistration = {
+      t_id: '0.0.12345',
+      js_t_id: '0.0.67890',
+      name: 'test-action',
+      description: 'Test action',
+      schema: {},
+    };
+
+    const mockContext: WasmExecutionContext = {
+      method: 'POST',
+      params: { operation: 'test-op', value: 42 },
+      state: { counter: 1 },
+    };
+
+    test('should execute JavaScript wrapper when js_t_id is present', async () => {
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export class WasmInterface {
+            async POST(actionName, paramsJson, network, state) {
+              return '{"result": "success"}';
+            }
+          }
+          export default function init() {
+            return Promise.resolve();
+          }
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(100),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ result: 'success' });
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Executing WASM action',
+        expect.any(Object),
+      );
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Loading JavaScript wrapper',
+        expect.any(Object),
+      );
+    });
+
+    test('should handle JavaScript wrapper in browser environment', async () => {
+      const originalWindow = global.window;
+      global.window = {} as any;
+
+      const mockBlob = {
+        constructor: jest.fn(),
+      };
+      const mockUrl = 'blob:test-url';
+
+      global.Blob = jest.fn().mockImplementation(() => mockBlob);
+      global.URL.createObjectURL = jest.fn().mockReturnValue(mockUrl);
+      global.URL.revokeObjectURL = jest.fn();
+
+      const mockModule = {
+        WasmInterface: jest.fn().mockImplementation(() => ({
+          POST: jest.fn().mockResolvedValue('{"success": true}'),
+          free: jest.fn(),
+        })),
+        init: jest.fn().mockResolvedValue(undefined),
+      };
+
+      global.Function = jest.fn().mockImplementation(() => ({
+        call: jest.fn().mockResolvedValue(mockModule),
+      }));
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content:
+          'console.log("test"); export default () => {}; export class WasmInterface {}',
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(100),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Module imported, exports:',
+        expect.any(Array),
+      );
+      expect(global.URL.revokeObjectURL).toHaveBeenCalledWith(mockUrl);
+
+      global.window = originalWindow;
+    });
+
+    test('should handle GET method calls', async () => {
+      const getContext: WasmExecutionContext = {
+        method: 'GET',
+        params: { operation: 'read-op' },
+      };
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export class WasmInterface {
+            async GET(actionName, paramsJson, network) {
+              return '{"data": "read-result"}';
+            }
+          }
+          export default function init() {
+            return Promise.resolve();
+          }
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(100),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, getContext);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ data: 'read-result' });
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Calling GET method',
+        expect.any(Object),
+      );
+    });
+
+    test('should handle INFO method calls', async () => {
+      const infoContext: WasmExecutionContext = {
+        method: 'INFO',
+        params: {},
+      };
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export class WasmInterface {
+            INFO() {
+              return '{"version": "1.0.0"}';
+            }
+          }
+          export default function init() {
+            return Promise.resolve();
+          }
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(100),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, infoContext);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ version: '1.0.0' });
+      expect(mockLogger.debug).toHaveBeenCalledWith('Calling INFO method');
+    });
+
+    test('should throw error for unsupported methods', async () => {
+      const unsupportedContext: WasmExecutionContext = {
+        method: 'UNSUPPORTED',
+        params: {},
+      };
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export class WasmInterface {
+            async GET() { return '{}'; }
+          }
+          export default function init() {
+            return Promise.resolve();
+          }
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(100),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, unsupportedContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Method UNSUPPORTED not supported');
+    });
+
+    test('should throw error when JavaScript module fails to load', async () => {
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: null,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Failed to load JavaScript module');
+    });
+
+    test('should throw error when no init function found', async () => {
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export const someExport = 'value';
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No init function found');
+    });
+
+    test('should throw error when WasmInterface not found', async () => {
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export default function init() {
+            return Promise.resolve();
+          }
+          export const otherExport = 'value';
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('WasmInterface not found');
+    });
+
+    test('should handle raw WASM execution error', async () => {
+      const actionWithoutJs: ActionRegistration = {
+        ...mockAction,
+        js_t_id: undefined,
+      };
+
+      const result = await wasmExecutor.execute(actionWithoutJs, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Raw WASM execution is not supported');
+    });
+
+    test('should handle Node.js/SSR environment', async () => {
+      const originalWindow = global.window;
+      delete global.window;
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: 'console.log("test");',
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(
+        'WASM execution in Node.js/SSR environment is not supported',
+      );
+
+      global.window = originalWindow;
+    });
+
+    test('should handle JSON parsing errors gracefully', async () => {
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: `
+          export class WasmInterface {
+            async POST(actionName, paramsJson, network, state) {
+              return 'invalid json';
+            }
+          }
+          export default function init() {
+            return Promise.resolve();
+          }
+        `,
+        contentType: 'application/javascript',
+        hash: 'mock-hash',
+      });
+
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(100),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ value: 'invalid json' });
+    });
+
+    test('should log errors when logger is available', async () => {
+      mockHrlResolver.resolve.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'JavaScript execution failed',
+        expect.any(Object),
+      );
+    });
+
+    test('should fallback to console when logger methods are not available', async () => {
+      const originalConsoleError = console.error;
+      console.error = jest.fn();
+
+      mockLogger.error = undefined as any;
+
+      mockHrlResolver.resolve.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await wasmExecutor.execute(mockAction, mockContext);
+
+      expect(result.success).toBe(false);
+      expect(console.error).toHaveBeenCalledWith(
+        'JavaScript execution failed',
+        expect.any(Object),
+      );
+
+      console.error = originalConsoleError;
+    });
+  });
+
+  describe('readWasmString', () => {
+    test('should read null-terminated string from WASM memory', () => {
+      const memory = new WebAssembly.Memory({ initial: 1 });
+      const mem = new Uint8Array(memory.buffer);
+      const testString = 'hello';
+      const ptr = 10;
+
+      for (let i = 0; i < testString.length; i++) {
+        mem[ptr + i] = testString.charCodeAt(i);
+      }
+      mem[ptr + testString.length] = 0;
+
+      const result = (wasmExecutor as any).readWasmString(memory, ptr);
+
+      expect(result).toBe('hello');
+    });
+  });
+
+  describe('clearCache', () => {
+    test('should clear the WASM cache', () => {
+      const cache = (wasmExecutor as any).wasmCache;
+      cache.set('test-key', {} as any);
+
+      expect(cache.size).toBe(1);
+
+      wasmExecutor.clearCache();
+
+      expect(cache.size).toBe(0);
+    });
+  });
+});

@@ -1,7 +1,4 @@
 import { EVMCache } from './evm-bridge';
-// NOTE: This module requires 'ioredis' to be installed:
-// npm install ioredis
-// npm install @types/ioredis --save-dev
 import Redis from 'ioredis';
 import { Logger, ILogger } from '../utils/logger';
 
@@ -77,7 +74,7 @@ export class RedisCache implements EVMCache {
       return value || undefined;
     } catch (error: unknown) {
       this.logger.error('Redis get error:', error);
-      return undefined;
+      throw error;
     }
   }
 
@@ -91,6 +88,7 @@ export class RedisCache implements EVMCache {
       }
     } catch (error: unknown) {
       this.logger.error('Redis set error:', error);
+      throw error;
     }
   }
 
@@ -99,6 +97,7 @@ export class RedisCache implements EVMCache {
       await this.client.del(this.getKey(key));
     } catch (error: unknown) {
       this.logger.error('Redis delete error:', error);
+      throw error;
     }
   }
 
@@ -110,6 +109,7 @@ export class RedisCache implements EVMCache {
       }
     } catch (error: unknown) {
       this.logger.error('Redis clear error:', error);
+      throw error;
     }
   }
 
