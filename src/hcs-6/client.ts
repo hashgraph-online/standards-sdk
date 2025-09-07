@@ -26,6 +26,7 @@ import {
 } from './types';
 import { NetworkType } from '../utils/types';
 import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { buildHcs6CreateRegistryTx } from './tx';
 import {
   inscribe,
   InscriptionInput,
@@ -177,11 +178,9 @@ export class HCS6Client extends HCS6BaseClient {
 
       const memo = this.generateRegistryMemo(ttl);
 
-      let transaction = new TopicCreateTransaction().setTopicMemo(memo);
-
       let submitKeyPrivate: PrivateKey | undefined;
+      let submitPublicKey: PublicKey | undefined;
       if (options.submitKey) {
-        let submitPublicKey: PublicKey;
         if (typeof options.submitKey === 'string') {
           try {
             submitPublicKey = PublicKey.fromString(options.submitKey);
@@ -201,8 +200,13 @@ export class HCS6Client extends HCS6BaseClient {
           submitPublicKey = options.submitKey.publicKey;
           submitKeyPrivate = options.submitKey;
         }
-        transaction = transaction.setSubmitKey(submitPublicKey);
       }
+
+      const transaction = buildHcs6CreateRegistryTx({
+        ttl,
+        submitKey: submitPublicKey,
+        operatorPublicKey: this.operatorKey.publicKey,
+      });
 
       const frozenTx = await transaction.freezeWith(this.client);
 

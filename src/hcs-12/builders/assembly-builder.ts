@@ -137,7 +137,6 @@ export class AssemblyBuilder {
   addBlock(builder: BlockBuilder): AssemblyBuilder {
     const blockTopicId = builder.getTopicId();
 
-    // Validate block topic ID
     if (!this.isValidTopicId(blockTopicId)) {
       throw new Error(`Invalid block topic ID: ${blockTopicId}`);
     }
@@ -145,10 +144,8 @@ export class AssemblyBuilder {
     const definition = builder.build();
     const actions = builder.getActions();
 
-    // Extract default attributes from builder
     const attributes = this.extractDefaultAttributes(definition.attributes);
 
-    // Validate action topic IDs if provided
     if (actions && Object.keys(actions).length > 0) {
       for (const [name, topicId] of Object.entries(actions)) {
         if (!this.isValidTopicId(topicId)) {

@@ -1,0 +1,453 @@
+import { detectCryptoEnvironment } from '../../src/utils/crypto-env';
+
+jest.mock('../../src/utils/crypto-env');
+
+const mockRequire = jest.fn();
+(global as any).require = mockRequire;
+
+import {
+  getCryptoAdapter,
+  NodeCryptoAdapter,
+  WebCryptoAdapter,
+  FallbackCryptoAdapter,
+  NodeHmacAdapter,
+  WebHmacAdapter,
+  FallbackHmacAdapter,
+  hash,
+} from '../../src/utils/crypto-abstraction';
+
+describe('Crypto Abstraction Layer', () => {
+  const mockDetectCryptoEnvironment = detectCryptoEnvironment as jest.MockedFunction<typeof detectCryptoEnvironment>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('NodeCryptoAdapter', () => {
+    let mockCrypto: any;
+
+    beforeEach(() => {
+      mockCrypto = {
+        createHash: jest.fn(),
+        createHmac: jest.fn(),
+        pbkdf2: jest.fn(),
+        timingSafeEqual: jest.fn(),
+      };
+
+      mockRequire.mockReturnValue(mockCrypto);
+    });
+
+    test('should create NodeCryptoAdapter successfully', () => {
+      const adapter = new NodeCryptoAdapter();
+      expect(adapter).toBeInstanceOf(NodeCryptoAdapter);
+    });
+
+    test('should throw error when crypto module not available', () => {
+      mockRequire.mockImplementation(() => {
+        throw new Error('Module not found');
+      });
+
+      expect(() => new NodeCryptoAdapter()).toThrow('Node.js crypto module not available');
+
+      mockRequire.mockReturnValue(mockCrypto);
+    });
+
+    test('should create hash adapter', () => {
+      const mockHash = {};
+      mockCrypto.createHash.mockReturnValue(mockHash);
+
+      const adapter = new NodeCryptoAdapter();
+      const result = adapter.createHash('sha256');
+
+      expect(mockCrypto.createHash).toHaveBeenCalledWith('sha256');
+      expect(result).toBeDefined();
+    });
+
+    test('should create HMAC adapter', () => {
+      const mockHmac = {};
+      mockCrypto.createHmac.mockReturnValue(mockHmac);
+      const key = Buffer.from('test-key');
+
+      const adapter = new NodeCryptoAdapter();
+      const result = adapter.createHmac('sha256', key);
+
+      expect(mockCrypto.createHmac).toHaveBeenCalledWith('sha256', key);
+      expect(result).toBeDefined();
+    });
+
+    test('should perform PBKDF2', async () => {
+      const expectedResult = Buffer.from('derived-key');
+      mockCrypto.pbkdf2.mockImplementation((password, salt, iterations, keylen, digest, callback) => {
+        callback(null, expectedResult);
+      });
+
+      const adapter = new NodeCryptoAdapter();
+      const result = await adapter.pbkdf2('password', Buffer.from('salt'), 1000, 32, 'sha256');
+
+      expect(mockCrypto.pbkdf2).toHaveBeenCalledWith(
+        'password',
+        Buffer.from('salt'),
+        1000,
+        32,
+        'sha256',
+        expect.any(Function)
+      );
+      expect(result).toBe(expectedResult);
+    });
+
+    test('should perform timing safe equal', () => {
+      mockCrypto.timingSafeEqual.mockReturnValue(true);
+
+      const adapter = new NodeCryptoAdapter();
+      const result = adapter.timingSafeEqual(Buffer.from('a'), Buffer.from('a'));
+
+      expect(mockCrypto.timingSafeEqual).toHaveBeenCalledWith(Buffer.from('a'), Buffer.from('a'));
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('WebCryptoAdapter', () => {
+    let originalCrypto: any;
+
+    beforeEach(() => {
+      originalCrypto = global.crypto;
+      global.crypto = {
+        subtle: {
+          importKey: jest.fn(),
+          sign: jest.fn(),
+          deriveBits: jest.fn(),
+        },
+      } as any;
+    });
+
+    afterEach(() => {
+      global.crypto = originalCrypto;
+    });
+
+    test('should create WebCryptoAdapter successfully', () => {
+      const adapter = new WebCryptoAdapter();
+      expect(adapter).toBeInstanceOf(WebCryptoAdapter);
+    });
+
+    test('should create hash adapter', () => {
+      const adapter = new WebCryptoAdapter();
+      const result = adapter.createHash('sha256');
+
+      expect(result).toBeDefined();
+    });
+
+    test('should create HMAC adapter', () => {
+      const adapter = new WebCryptoAdapter();
+      const result = adapter.createHmac('sha256', Buffer.from('key'));
+
+      expect(result).toBeDefined();
+    });
+
+    test('should perform PBKDF2', async () => {
+      const mockKeyMaterial = {};
+      const mockDerivedBits = new ArrayBuffer(32);
+
+      (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(mockKeyMaterial);
+      (global.crypto.subtle.deriveBits as jest.Mock).mockResolvedValue(mockDerivedBits);
+
+      const adapter = new WebCryptoAdapter();
+      const result = await adapter.pbkdf2('password', Buffer.from('salt'), 1000, 32, 'sha256');
+
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result.length).toBe(32);
+    });
+
+    test('should perform timing safe equal', () => {
+      const adapter = new WebCryptoAdapter();
+
+      const a = Buffer.from('test');
+      const b = Buffer.from('test');
+      const result = adapter.timingSafeEqual(a, b);
+
+      expect(result).toBe(true);
+    });
+
+    test('should return false for timing safe equal with different lengths', () => {
+      const adapter = new WebCryptoAdapter();
+
+      const a = Buffer.from('test');
+      const b = Buffer.from('different');
+      const result = adapter.timingSafeEqual(a, b);
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('FallbackCryptoAdapter', () => {
+    test('should create FallbackCryptoAdapter successfully', () => {
+      const adapter = new FallbackCryptoAdapter();
+      expect(adapter).toBeInstanceOf(FallbackCryptoAdapter);
+    });
+
+    test('should create hash adapter', () => {
+      const adapter = new FallbackCryptoAdapter();
+      const result = adapter.createHash('sha256');
+
+      expect(result).toBeDefined();
+    });
+
+    test('should create HMAC adapter', () => {
+      const adapter = new FallbackCryptoAdapter();
+      const result = adapter.createHmac('sha256', Buffer.from('key'));
+
+      expect(result).toBeDefined();
+    });
+
+    test('should perform PBKDF2', async () => {
+      const adapter = new FallbackCryptoAdapter();
+      const result = await adapter.pbkdf2('password', Buffer.from('salt'), 100, 32, 'sha256');
+
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result.length).toBe(32);
+    });
+
+    test('should perform timing safe equal', () => {
+      const adapter = new FallbackCryptoAdapter();
+
+      const a = Buffer.from('test');
+      const b = Buffer.from('test');
+      const result = adapter.timingSafeEqual(a, b);
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('HMAC Adapters', () => {
+    describe('NodeHmacAdapter', () => {
+      test('should create NodeHmacAdapter successfully', () => {
+        const mockHmac = {
+          update: jest.fn().mockReturnThis(),
+          digest: jest.fn().mockReturnValue('hash'),
+        };
+
+        const adapter = new NodeHmacAdapter(mockHmac);
+        expect(adapter).toBeInstanceOf(NodeHmacAdapter);
+      });
+
+      test('should update and digest', () => {
+        const mockHmac = {
+          update: jest.fn().mockReturnThis(),
+          digest: jest.fn().mockReturnValue('hash'),
+        };
+
+        const adapter = new NodeHmacAdapter(mockHmac);
+        const data = Buffer.from('test data');
+
+        const result = adapter.update(data).digest();
+
+        expect(mockHmac.update).toHaveBeenCalledWith(data);
+        expect(mockHmac.digest).toHaveBeenCalledWith(undefined);
+        expect(result).toBe('hash');
+      });
+
+      test('should digest with encoding', () => {
+        const mockHmac = {
+          update: jest.fn().mockReturnThis(),
+          digest: jest.fn().mockReturnValue('hash-hex'),
+        };
+
+        const adapter = new NodeHmacAdapter(mockHmac);
+
+        const result = adapter.digest('hex');
+
+        expect(mockHmac.digest).toHaveBeenCalledWith('hex');
+        expect(result).toBe('hash-hex');
+      });
+    });
+
+    describe('WebHmacAdapter', () => {
+      let originalCrypto: any;
+
+      beforeEach(() => {
+        originalCrypto = global.crypto;
+        global.crypto = {
+          subtle: {
+            importKey: jest.fn(),
+            sign: jest.fn(),
+          },
+        } as any;
+      });
+
+      afterEach(() => {
+        global.crypto = originalCrypto;
+      });
+
+      test('should create WebHmacAdapter successfully', () => {
+        const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha256');
+        expect(adapter).toBeInstanceOf(WebHmacAdapter);
+      });
+
+      test('should update data', () => {
+        const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha256');
+        const data = Buffer.from('test data');
+
+        const result = adapter.update(data);
+
+        expect(result).toBe(adapter);
+      });
+
+      test('should digest data', async () => {
+        const mockKey = {};
+        const mockSignature = new ArrayBuffer(32);
+
+        (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(mockKey);
+        (global.crypto.subtle.sign as jest.Mock).mockResolvedValue(mockSignature);
+
+        const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha256');
+        adapter.update(Buffer.from('test data'));
+
+        const result = await adapter.digest();
+
+        expect(result).toBeInstanceOf(Buffer);
+      });
+
+      test('should digest with hex encoding', async () => {
+        const mockKey = {};
+        const mockSignature = new ArrayBuffer(4);
+        new Uint8Array(mockSignature).set([0xab, 0xcd, 0xef, 0x12]);
+
+        (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(mockKey);
+        (global.crypto.subtle.sign as jest.Mock).mockResolvedValue(mockSignature);
+
+        const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha256');
+
+        const result = await adapter.digest('hex');
+
+        expect(result).toBe('abcdef12');
+      });
+
+      test('should map algorithms correctly', () => {
+        const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha512');
+        expect(adapter).toBeDefined();
+      });
+    });
+
+    describe('FallbackHmacAdapter', () => {
+      test('should create FallbackHmacAdapter successfully', () => {
+        const adapter = new FallbackHmacAdapter(Buffer.from('key'), 'sha256');
+        expect(adapter).toBeInstanceOf(FallbackHmacAdapter);
+      });
+
+      test('should update data', () => {
+        const adapter = new FallbackHmacAdapter(Buffer.from('key'), 'sha256');
+        const data = Buffer.from('test data');
+
+        const result = adapter.update(data);
+
+        expect(result).toBe(adapter);
+      });
+
+      test('should digest data', () => {
+        const adapter = new FallbackHmacAdapter(Buffer.from('key'), 'sha256');
+        adapter.update(Buffer.from('test data'));
+
+        const result = adapter.digest();
+
+        expect(typeof result).toBe('string');
+      });
+
+      test('should digest with hex encoding', () => {
+        const adapter = new FallbackHmacAdapter(Buffer.from('key'), 'sha256');
+        adapter.update(Buffer.from('test data'));
+
+        const result = adapter.digest('hex');
+
+        expect(typeof result).toBe('string');
+        expect(result).toMatch(/^[0-9a-f]+$/);
+      });
+    });
+  });
+
+  describe('getCryptoAdapter', () => {
+    test('should return NodeCryptoAdapter for node environment', () => {
+      mockDetectCryptoEnvironment.mockReturnValue({
+        preferredAPI: 'node',
+        hasNodeCrypto: true,
+        hasWebCrypto: false,
+      });
+
+      const adapter = getCryptoAdapter();
+
+      expect(adapter).toBeInstanceOf(NodeCryptoAdapter);
+    });
+
+    test('should return WebCryptoAdapter for web environment', () => {
+      mockDetectCryptoEnvironment.mockReturnValue({
+        preferredAPI: 'web',
+        hasNodeCrypto: false,
+        hasWebCrypto: true,
+      });
+
+      const adapter = getCryptoAdapter();
+
+      expect(adapter).toBeInstanceOf(WebCryptoAdapter);
+    });
+
+    test('should return FallbackCryptoAdapter for none environment', () => {
+      mockDetectCryptoEnvironment.mockReturnValue({
+        preferredAPI: 'none',
+        hasNodeCrypto: false,
+        hasWebCrypto: false,
+      });
+
+      const adapter = getCryptoAdapter();
+
+      expect(adapter).toBeInstanceOf(FallbackCryptoAdapter);
+    });
+
+    test('should fallback to FallbackCryptoAdapter when NodeCryptoAdapter fails', () => {
+      mockDetectCryptoEnvironment.mockReturnValue({
+        preferredAPI: 'node',
+        hasNodeCrypto: true,
+        hasWebCrypto: false,
+      });
+
+      mockRequire.mockImplementation(() => {
+        throw new Error('Module not found');
+      });
+
+      const adapter = getCryptoAdapter();
+
+      expect(adapter).toBeInstanceOf(FallbackCryptoAdapter);
+
+      mockRequire.mockReturnValue(mockCrypto);
+    });
+  });
+
+  describe('hash function', () => {
+    beforeEach(() => {
+      mockDetectCryptoEnvironment.mockReturnValue({
+        preferredAPI: 'web',
+        hasNodeCrypto: false,
+        hasWebCrypto: true,
+      });
+    });
+
+    test('should hash string content', async () => {
+      const result = await hash('test content', 'sha256');
+
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    test('should hash buffer content', async () => {
+      const buffer = Buffer.from('test content');
+      const result = await hash(buffer, 'sha256');
+
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    test('should use default algorithm', async () => {
+      const result = await hash('test content');
+
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+});

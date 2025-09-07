@@ -101,7 +101,6 @@ class QuoteCache {
   ): void {
     const cacheKey = this.generateKey(key);
 
-    // Evict oldest entries if cache is full
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
@@ -165,7 +164,6 @@ class SDKCache {
   set(config: Record<string, unknown>, sdk: InscriptionSDK): void {
     const configKey = this.generateConfigKey(config);
 
-    // Evict oldest entries if cache is full
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
@@ -188,7 +186,6 @@ class SDKCache {
   }
 }
 
-// Global cache instances
 const quoteCache = new QuoteCache();
 const sdkCache = new SDKCache();
 

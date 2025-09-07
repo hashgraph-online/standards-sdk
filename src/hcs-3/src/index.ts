@@ -127,7 +127,6 @@ export class HCS implements HCSSDK {
         }
       });
 
-      // Update logger level based on debug setting
       this.logger.setLogLevel(this.config.debug ? 'debug' : 'error');
     }
     this.log('Loaded config:', this.config);
@@ -232,7 +231,6 @@ export class HCS implements HCSSDK {
         const script = document.createElement('script');
         script.textContent = content;
         script.className = 'hcs-inline-script';
-        // Copy over the script ID to the inlined script
         if (scriptId) {
           script.setAttribute('data-loaded-script-id', scriptId);
         }
@@ -281,7 +279,6 @@ export class HCS implements HCSSDK {
     }
 
     try {
-      // Use Function constructor to avoid webpack static analysis
       const importModule = new Function('url', 'return import(url)');
       return await importModule(scriptSrc);
     } catch (error) {
@@ -590,7 +587,6 @@ export class HCS implements HCSSDK {
           'link[data-src^="hcs://"]',
         );
 
-        // Convert src to data-src for HCS URLs
         document.querySelectorAll('[src^="hcs://"]').forEach(element => {
           const src = element.getAttribute('src');
           if (src) {
@@ -644,13 +640,11 @@ export class HCS implements HCSSDK {
                   this.processInlineStyles();
                 }
 
-                // Handle both src and data-src attributes
                 if (element.getAttribute('src')?.startsWith('hcs://')) {
                   const src = element.getAttribute('src')!;
                   element.setAttribute('data-src', src);
                   element.removeAttribute('src');
 
-                  // Immediately process the element based on its type
                   const tagName = element.tagName.toLowerCase();
                   switch (tagName) {
                     case 'img':
@@ -668,7 +662,6 @@ export class HCS implements HCSSDK {
                   }
                 }
 
-                // Also check data-src in case it was set directly
                 if (element.matches('script[data-src^="hcs://"]')) {
                   this.loadResource(element, 'script', Infinity);
                 } else if (element.matches('img[data-src^="hcs://"]')) {
@@ -685,7 +678,6 @@ export class HCS implements HCSSDK {
                   this.loadResource(element, 'css', Infinity);
                 }
 
-                // Check children of added nodes for HCS URLs
                 const childrenWithHCS = element.querySelectorAll(
                   '[data-src^="hcs://"], [src^="hcs://"]',
                 );
@@ -693,14 +685,12 @@ export class HCS implements HCSSDK {
                   const childElement = child as HTMLElement;
                   const tagName = childElement.tagName.toLowerCase();
 
-                  // Convert src to data-src if needed
                   const src = childElement.getAttribute('src');
                   if (src?.startsWith('hcs://')) {
                     childElement.setAttribute('data-src', src);
                     childElement.removeAttribute('src');
                   }
 
-                  // Process based on tag type
                   switch (tagName) {
                     case 'script':
                       this.loadResource(childElement, 'script', Infinity);
@@ -725,7 +715,6 @@ export class HCS implements HCSSDK {
               }
             });
 
-            // Handle attribute changes
             if (mutation.type === 'attributes') {
               const element = mutation.target as HTMLElement;
               if (

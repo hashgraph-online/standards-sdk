@@ -419,7 +419,7 @@ export abstract class HCS10BaseClient extends Registration {
           auth: {
             operatorId: '0.0.0',
           },
-          logLevel: 'info',
+          logLevel: this.logger.getLevel(),
         });
 
         const profileResult = await hcs11Client.fetchProfileByAccountId(
@@ -493,7 +493,6 @@ export abstract class HCS10BaseClient extends Registration {
       }
     }
 
-    // This should never be reached, but TypeScript needs a return
     return {
       profile: null,
       success: false,
