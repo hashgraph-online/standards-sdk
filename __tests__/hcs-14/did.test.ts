@@ -369,3 +369,4 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
   });
 });
+
