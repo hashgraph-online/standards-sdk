@@ -182,20 +182,17 @@ export abstract class HCS2BaseClient {
     errors: string[];
   } {
     try {
-      // Use Zod schema for validation
       hcs2MessageSchema.parse(message);
       return { valid: true, errors: [] };
     } catch (error) {
       const errors: string[] = [];
 
       if (error instanceof ZodError) {
-        // Format Zod errors for better readability
         error.errors.forEach(err => {
           const path = err.path.join('.');
           errors.push(`${path ? path + ': ' : ''}${err.message}`);
         });
       } else {
-        // Handle non-Zod errors
         errors.push(`Unexpected error: ${error}`);
       }
 
@@ -335,7 +332,6 @@ export abstract class HCS2BaseClient {
           `Successfully parsed message: ${JSON.stringify(message)}`,
         );
 
-        // Validate message
         const { valid, errors } = this.validateMessage(message);
         if (!valid) {
           this.logger.warn(`Invalid HCS-2 message: ${errors.join(', ')}`);
@@ -354,7 +350,6 @@ export abstract class HCS2BaseClient {
 
         entries.push(entry);
 
-        // For non-indexed registries, we only care about the latest message
         if (
           registryType === HCS2RegistryType.NON_INDEXED ||
           !latestEntry ||

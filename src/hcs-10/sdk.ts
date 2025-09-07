@@ -74,6 +74,7 @@ import { TokenFeeConfig } from '../fees/types';
 import { addSeconds } from 'date-fns';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { InscribeProfileResponse } from '../hcs-11/types';
+import { buildTopicCreateTx, buildMessageTx } from '../common/tx/tx-utils';
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
@@ -287,6 +288,10 @@ export class HCS10Client extends HCS10BaseClient {
         });
 
         finalFeeConfig = feeConfigBuilder.build();
+        finalFeeConfig.customFees = finalFeeConfig.customFees.map(f => ({
+          ...f,
+          feeCollectorAccountId: f.feeCollectorAccountId || accountId,
+        }));
         break;
       default:
         throw new Error(`Unsupported inbound topic type: ${topicType}`);
@@ -418,7 +423,15 @@ export class HCS10Client extends HCS10BaseClient {
     const progressReporter = new ProgressReporter({
       module: 'ProfileCreate',
       logger: this.logger,
-      callback: progressCallback as any,
+      callback: progressCallback
+        ? d =>
+            progressCallback({
+              stage: d.stage,
+              message: d.message,
+              progressPercent: d.progressPercent,
+              details: d.details,
+            })
+        : undefined,
     });
 
     try {
@@ -505,7 +518,7 @@ export class HCS10Client extends HCS10BaseClient {
 
       await this.createAndInscribeProfile(
         isAgentBuilder,
-        builder as any,
+        builder,
         pfpTopicId,
         state,
         inboundTopicId,
@@ -555,7 +568,7 @@ export class HCS10Client extends HCS10BaseClient {
         success: true,
         state,
       } as CreateAgentResponse | InscribeProfileResponse;
-    } catch (error: any) {
+    } catch (error) {
       progressReporter.failed('Error during profile creation', {
         error: error.message,
       });
@@ -716,7 +729,7 @@ export class HCS10Client extends HCS10BaseClient {
         transactionId: profileResult.transactionId,
         success: true,
       };
-    } catch (e: any) {
+    } catch (e) {
       const error = e as Error;
       const logMessage = `Error storing HCS-11 profile: ${error.message}`;
       this.logger.error(logMessage);
@@ -1044,8 +1057,9 @@ export class HCS10Client extends HCS10BaseClient {
         } else {
           throw new Error('Failed to inscribe large message content');
         }
-      } catch (error: any) {
-        const logMessage = `Error inscribing large message: ${error.message}`;
+      } catch (error) {
+        const err = error as Error;
+        const logMessage = `Error inscribing large message: ${err.message}`;
         this.logger.error(logMessage);
         throw new Error(logMessage);
       }
@@ -1067,38 +1081,13 @@ export class HCS10Client extends HCS10BaseClient {
     feeConfig?: TopicFeeConfig,
   ): Promise<string> {
     this.logger.info('Creating topic');
-    const transaction = new TopicCreateTransaction().setTopicMemo(memo);
 
-    if (adminKey) {
-      if (
-        typeof adminKey === 'boolean' &&
-        adminKey &&
-        this.client.operatorPublicKey
-      ) {
-        transaction.setAdminKey(this.client.operatorPublicKey);
-        transaction.setAutoRenewAccountId(this.client.operatorAccountId!);
-      } else if (adminKey instanceof PublicKey || adminKey instanceof KeyList) {
-        transaction.setAdminKey(adminKey);
-        if (this.client.operatorAccountId) {
-          transaction.setAutoRenewAccountId(this.client.operatorAccountId);
-        }
-      }
-    }
-
-    if (submitKey) {
-      if (
-        typeof submitKey === 'boolean' &&
-        submitKey &&
-        this.client.operatorPublicKey
-      ) {
-        transaction.setSubmitKey(this.client.operatorPublicKey);
-      } else if (
-        submitKey instanceof PublicKey ||
-        submitKey instanceof KeyList
-      ) {
-        transaction.setSubmitKey(submitKey);
-      }
-    }
+    const transaction = buildTopicCreateTx({
+      memo,
+      adminKey: adminKey,
+      submitKey: submitKey,
+      operatorPublicKey: this.client.operatorPublicKey || undefined,
+    });
 
     if (feeConfig) {
       await this.setupFees(transaction, feeConfig);
@@ -1134,14 +1123,12 @@ export class HCS10Client extends HCS10BaseClient {
       );
     }
 
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
-      .setMessage(message);
-
     const transactionMemo = this.getHcs10TransactionMemo(payload);
-    if (transactionMemo) {
-      transaction.setTransactionMemo(transactionMemo);
-    }
+    const transaction = buildMessageTx({
+      topicId,
+      message,
+      transactionMemo: transactionMemo || undefined,
+    });
 
     if (requiresFee) {
       this.logger.info(

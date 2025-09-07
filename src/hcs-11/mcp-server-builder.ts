@@ -512,7 +512,6 @@ export class MCPServerBuilder {
       this.logger.warn('No profile picture provided or referenced');
     }
 
-    // Include social links in the final configuration
     if (this.socials.length > 0) {
       return {
         ...(this.config as MCPServerConfig),

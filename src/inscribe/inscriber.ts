@@ -95,7 +95,6 @@ async function convertFileToBase64(filePath: string): Promise<{
     const base64 = buffer.toString('base64');
     const fileName = nodeModules.basename(filePath);
 
-    // Try to detect mime type
     let mimeType = 'application/octet-stream';
     try {
       const fileTypeResult = await fileTypeFromBuffer(buffer);
@@ -103,7 +102,6 @@ async function convertFileToBase64(filePath: string): Promise<{
         mimeType = fileTypeResult.mime;
       }
     } catch (error) {
-      // Fallback to basic mime type detection based on extension
       const ext = nodeModules.extname(filePath).toLowerCase();
       const mimeMap: Record<string, string> = {
         '.txt': 'text/plain',

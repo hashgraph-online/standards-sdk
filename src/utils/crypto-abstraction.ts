@@ -138,7 +138,6 @@ export interface CryptoAdapter {
   timingSafeEqual(a: Buffer, b: Buffer): boolean;
 }
 
-// @ts-ignore - Declare crypto module to avoid bundler processing
 declare const require: any;
 
 /**
@@ -149,7 +148,6 @@ export class NodeCryptoAdapter implements CryptoAdapter {
 
   constructor() {
     try {
-      // Use string concatenation to avoid static analysis by bundlers
       const moduleName = 'cry' + 'pto';
       this.crypto = require(moduleName);
     } catch (error) {

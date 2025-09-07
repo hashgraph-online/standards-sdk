@@ -15,7 +15,7 @@ export const REFERENCE_THRESHOLD = 50 * 1024;
 /**
  * Content store service for managing large content
  */
-class ContentStoreServiceImpl {
+export class ContentStoreServiceImpl {
   private static _instance: ContentStoreServiceImpl;
   private contentStore: ContentStoreInterface | null = null;
   private logger = Logger.getInstance({ module: 'ContentStoreService' });

@@ -30,6 +30,7 @@ import { inscribe } from '../inscribe/inscriber';
 import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 import type { RetrievedInscriptionResult } from '../inscribe/types';
 import * as mime from 'mime-types';
+import { buildTopicCreateTx, buildMessageTx } from '../common/tx/tx-utils';
 
 /**
  * Configuration for HCS-12 SDK client
@@ -145,38 +146,12 @@ export class HCS12Client extends HCS12BaseClient {
       memo,
     });
 
-    const transaction = new TopicCreateTransaction().setTopicMemo(memo);
-
-    if (adminKey) {
-      if (
-        typeof adminKey === 'boolean' &&
-        adminKey &&
-        this.client.operatorPublicKey
-      ) {
-        transaction.setAdminKey(this.client.operatorPublicKey);
-        transaction.setAutoRenewAccountId(this.client.operatorAccountId!);
-      } else if (adminKey instanceof PublicKey || adminKey instanceof KeyList) {
-        transaction.setAdminKey(adminKey);
-        if (this.client.operatorAccountId) {
-          transaction.setAutoRenewAccountId(this.client.operatorAccountId);
-        }
-      }
-    }
-
-    if (submitKey) {
-      if (
-        typeof submitKey === 'boolean' &&
-        submitKey &&
-        this.client.operatorPublicKey
-      ) {
-        transaction.setSubmitKey(this.client.operatorPublicKey);
-      } else if (
-        submitKey instanceof PublicKey ||
-        submitKey instanceof KeyList
-      ) {
-        transaction.setSubmitKey(submitKey);
-      }
-    }
+    const transaction = buildTopicCreateTx({
+      memo,
+      adminKey: adminKey as any,
+      submitKey: submitKey as any,
+      operatorPublicKey: this.client.operatorPublicKey || undefined,
+    });
 
     const txResponse = await transaction.execute(this.client);
     const receipt = await txResponse.getReceipt(this.client);
@@ -295,9 +270,7 @@ export class HCS12Client extends HCS12BaseClient {
       messageLength: message.length,
     });
 
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
-      .setMessage(message);
+    const transaction = buildMessageTx({ topicId, message });
 
     let transactionResponse: TransactionResponse;
     if (submitKey) {

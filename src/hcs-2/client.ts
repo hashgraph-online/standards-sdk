@@ -26,6 +26,8 @@ import {
 } from './types';
 import { NetworkType } from '../utils/types';
 import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { buildMessageTx } from '../common/tx/tx-utils';
+import { buildHcs2CreateRegistryTx } from './tx';
 
 /**
  * SDK client configuration for HCS-2
@@ -141,11 +143,9 @@ export class HCS2Client extends HCS2BaseClient {
 
       const memo = this.generateRegistryMemo(registryType, ttl);
 
-      let transaction = new TopicCreateTransaction().setTopicMemo(memo);
-
       let adminKeyPrivate: PrivateKey | undefined;
+      let adminPublicKey: PublicKey | undefined;
       if (options.adminKey) {
-        let adminPublicKey: PublicKey;
         if (typeof options.adminKey === 'string') {
           try {
             adminPublicKey = PublicKey.fromString(options.adminKey);
@@ -165,12 +165,11 @@ export class HCS2Client extends HCS2BaseClient {
           adminPublicKey = options.adminKey.publicKey;
           adminKeyPrivate = options.adminKey;
         }
-        transaction = transaction.setAdminKey(adminPublicKey);
       }
 
       let submitKeyPrivate: PrivateKey | undefined;
+      let submitPublicKey: PublicKey | undefined;
       if (options.submitKey) {
-        let submitPublicKey: PublicKey;
         if (typeof options.submitKey === 'string') {
           try {
             submitPublicKey = PublicKey.fromString(options.submitKey);
@@ -190,8 +189,15 @@ export class HCS2Client extends HCS2BaseClient {
           submitPublicKey = options.submitKey.publicKey;
           submitKeyPrivate = options.submitKey;
         }
-        transaction = transaction.setSubmitKey(submitPublicKey);
       }
+
+      const transaction = buildHcs2CreateRegistryTx({
+        registryType,
+        ttl,
+        adminKey: adminPublicKey,
+        submitKey: submitPublicKey,
+        operatorPublicKey: this.operatorKey.publicKey,
+      });
 
       const frozenTx = await transaction.freezeWith(this.client);
 
@@ -245,7 +251,6 @@ export class HCS2Client extends HCS2BaseClient {
     protocol: string = 'hcs-2',
   ): Promise<RegistryOperationResponse> {
     try {
-      // Create register message
       const message = this.createRegisterMessage(
         options.targetTopicId,
         options.metadata,
@@ -284,7 +289,6 @@ export class HCS2Client extends HCS2BaseClient {
     options: UpdateEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
-      // Verify registry type (only indexed registries support updates)
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
 
@@ -329,7 +333,6 @@ export class HCS2Client extends HCS2BaseClient {
     options: DeleteEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
-      // Verify registry type (only indexed registries support deletions)
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
 
@@ -437,13 +440,11 @@ export class HCS2Client extends HCS2BaseClient {
         `Retrieved ${rawMessagesResult.length} messages, using ${rawMessages.length} after applying limit.`,
       );
 
-      // Convert messages to the format expected by parseRegistryEntries
       const entries: RegistryEntry[] = [];
       let latestEntry: RegistryEntry | undefined;
 
       for (const msg of rawMessages) {
         try {
-          // The mirror node service already parsed the JSON, so we can use it directly
           const message: HCS2Message = {
             p: 'hcs-2',
             op: msg.op,
@@ -453,7 +454,6 @@ export class HCS2Client extends HCS2BaseClient {
             m: msg.m,
           } as HCS2Message;
 
-          // Validate message
           const { valid, errors } = this.validateMessage(message);
           if (!valid) {
             this.logger.warn(`Invalid HCS-2 message: ${errors.join(', ')}`);
@@ -472,7 +472,6 @@ export class HCS2Client extends HCS2BaseClient {
 
           entries.push(entry);
 
-          // For non-indexed registries, we only care about the latest message
           if (
             memoInfo.registryType === HCS2RegistryType.NON_INDEXED ||
             !latestEntry ||
@@ -520,15 +519,15 @@ export class HCS2Client extends HCS2BaseClient {
     payload: HCS2Message,
   ): Promise<TransactionReceipt> {
     try {
-      // Validate message
       const { valid, errors } = this.validateMessage(payload);
       if (!valid) {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
       }
 
-      const transaction = new TopicMessageSubmitTransaction()
-        .setTopicId(TopicId.fromString(topicId))
-        .setMessage(JSON.stringify(payload));
+      const transaction = buildMessageTx({
+        topicId,
+        message: JSON.stringify(payload),
+      });
 
       const txResponse = await transaction.execute(this.client);
 

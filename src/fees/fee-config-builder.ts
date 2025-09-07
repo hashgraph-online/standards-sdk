@@ -156,7 +156,8 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
         amount: hbarAmount * 100_000_000,
         decimals: 0,
       },
-      feeCollectorAccountId: collectorAccountId || '',
+      feeCollectorAccountId:
+        collectorAccountId || this.defaultCollectorAccountId,
       feeTokenId: undefined,
       exemptAccounts: [...exemptAccountIds],
       type: CustomFeeType.FIXED_FEE,
@@ -218,7 +219,8 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
         amount: tokenAmount * 10 ** finalDecimals,
         decimals: finalDecimals,
       },
-      feeCollectorAccountId: collectorAccountId || '',
+      feeCollectorAccountId:
+        collectorAccountId || this.defaultCollectorAccountId,
       feeTokenId: feeTokenId,
       exemptAccounts: [...exemptAccountIds],
       type: CustomFeeType.FIXED_FEE,
@@ -249,8 +251,15 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
       fee.exemptAccounts.forEach(account => allExemptAccounts.add(account));
     });
 
+    // Ensure any fees without explicit collectors use the default if provided
+    const resolvedCustomFees = this.customFees.map(fee => ({
+      ...fee,
+      feeCollectorAccountId:
+        fee.feeCollectorAccountId || this.defaultCollectorAccountId,
+    }));
+
     return {
-      customFees: this.customFees,
+      customFees: resolvedCustomFees,
       exemptAccounts: Array.from(allExemptAccounts),
     };
   }
