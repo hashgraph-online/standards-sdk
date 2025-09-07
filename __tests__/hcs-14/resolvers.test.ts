@@ -12,9 +12,17 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
   });
   it('resolves UAID via src parameter using Hiero resolver (mocked)', async () => {
     jest.resetModules();
-    jest.doMock('@hiero-did-sdk/resolver', () => ({
-      resolveDID: async ({ did }: any) => ({ didDocument: { id: did } }),
-    }), { virtual: true });
+    jest.doMock(
+      '@hiero-did-sdk/resolver',
+      () => ({
+        resolveDID: async (arg: unknown) => {
+          if (typeof arg === 'string') return { id: arg };
+          const did = (arg as { did?: string }).did;
+          return { id: did as string };
+        },
+      }),
+      { virtual: true },
+    );
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
@@ -41,9 +49,17 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
 
   it('resolves UAID by reconstructing did:hedera from id (mocked)', async () => {
     jest.resetModules();
-    jest.doMock('@hiero-did-sdk/resolver', () => ({
-      resolveDID: async ({ did }: any) => ({ didDocument: { id: did } }),
-    }), { virtual: true });
+    jest.doMock(
+      '@hiero-did-sdk/resolver',
+      () => ({
+        resolveDID: async (arg: unknown) => {
+          if (typeof arg === 'string') return { id: arg };
+          const did = (arg as { did?: string }).did;
+          return { id: did as string };
+        },
+      }),
+      { virtual: true },
+    );
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
@@ -60,9 +76,17 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
 
   it('handles default loader path when Hiero module is present', async () => {
     jest.resetModules();
-    jest.doMock('@hiero-did-sdk/resolver', () => ({
-      resolveDID: async ({ did }: any) => ({ didDocument: { id: did } }),
-    }), { virtual: true });
+    jest.doMock(
+      '@hiero-did-sdk/resolver',
+      () => ({
+        resolveDID: async (arg: unknown) => {
+          if (typeof arg === 'string') return { id: arg };
+          const did = (arg as { did?: string }).did;
+          return { id: did as string };
+        },
+      }),
+      { virtual: true },
+    );
     const { HieroDidResolver } = await import('../../src/hcs-14/resolvers/hiero');
     const resolver = new HieroDidResolver();
     const doc = await resolver.resolve('did:hedera:previewnet:zX');
@@ -86,7 +110,13 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
     jest.resetModules();
     jest.doMock(
       '@hiero-did-sdk/resolver',
-      () => ({ resolveDID: async ({ did }: any) => ({ didDocument: { id: did } }) }),
+      () => ({
+        resolveDID: async (arg: unknown) => {
+          if (typeof arg === 'string') return { id: arg };
+          const did = (arg as { did?: string }).did;
+          return { id: did as string };
+        },
+      }),
       { virtual: true },
     );
     const { HieroDidResolver } = await import('../../src/hcs-14/resolvers/hiero');

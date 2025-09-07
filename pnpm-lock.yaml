@@ -20,12 +20,6 @@ importers:
       '@hashgraphonline/hashinal-wc':
         specifier: ^1.0.103
         version: 1.0.103(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(ioredis@5.6.1)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(zod@3.25.76)
-      '@hiero-did-sdk/registrar':
-        specifier: ^0.1.2
-        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
-      '@hsuite/did-sdk-js':
-        specifier: ^1.0.4
-        version: 1.0.4(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
       '@kiloscribe/inscription-sdk':
         specifier: ^1.0.60
         version: 1.0.60(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(typescript@5.8.3)
@@ -69,6 +63,12 @@ importers:
       '@hashgraphonline/conversational-agent':
         specifier: 0.2.104
         version: 0.2.104(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.840.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.53.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@4.104.0(ws@8.18.2)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.8)(@smithy/util-utf8@2.3.0)(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(cohere-ai@7.17.1)(crypto-js@4.2.0)(fast-xml-parser@4.4.1)(ibm-cloud-sdk-core@5.4.0)(ioredis@5.6.1)(jsdom@20.0.3)(jsonwebtoken@9.0.2)(lodash@4.17.21)(playwright@1.53.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(weaviate-client@3.6.2)(ws@8.18.2)
+      '@hiero-did-sdk/registrar':
+        specifier: ^0.1.2
+        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
+      '@hiero-did-sdk/resolver':
+        specifier: ^0.1.2
+        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
       '@swc/jest':
         specifier: ^0.2.37
         version: 0.2.38(@swc/core@1.12.11)
@@ -844,10 +844,6 @@ packages:
   '@hiero-did-sdk/zstd@0.1.2':
     resolution: {integrity: sha512-IaqgqRLBrn3wTOUsYMo55OG1uU8gSLIWNnimbxLpZs6ZUvL2ri36HUmpjLT1ZypgupAcPscM+BLPIRMUFWjwZQ==}
     engines: {node: '>=20'}
-
-  '@hsuite/did-sdk-js@1.0.4':
-    resolution: {integrity: sha512-dkJ0mtUo1SAo6+4cAY0AE6CaKrZzNZz2rHviUL6UENQLYU3S5IDRoNSo/X9RNNDyyl79YB4PwkB6ksUufCQcmA==}
-    engines: {node: '>=16.13.1', npm: '>=8.1.2'}
 
   '@huggingface/jinja@0.1.3':
     resolution: {integrity: sha512-9KsiorsdIK8+7VmlamAT7Uh90zxAhC/SeKaKc80v58JhtPYuwaJpmR/ST7XAUxrHAFqHTCoTH5aJnJDwSL6xIQ==}
@@ -2665,10 +2661,6 @@ packages:
   base-x@5.0.1:
     resolution: {integrity: sha512-M7uio8Zt++eg3jPj+rHMfCC+IuygQHHCOU+IYsVtik6FWjuYpVt/+MRKcgsAMHh8mMFAwnB+Bs+mTrFiXjMzKg==}
 
-  base58-js@1.0.5:
-    resolution: {integrity: sha512-LkkAPP8Zu+c0SVNRTRVDyMfKVORThX+rCViget00xdgLRrKkClCTz1T7cIrpr69ShwV5XJuuoZvMvJ43yURwkA==}
-    engines: {node: '>= 8'}
-
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
@@ -3207,9 +3199,6 @@ packages:
   detect-newline@3.1.0:
     resolution: {integrity: sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==}
     engines: {node: '>=8'}
-
-  did-resolver@3.2.2:
-    resolution: {integrity: sha512-Eeo2F524VM5N3W4GwglZrnul2y6TLTwMQP3In62JdG34NZoqihYyOZLk+5wUW8sSgvIYIcJM8Dlt3xsdKZZ3tg==}
 
   diff-sequences@29.6.3:
     resolution: {integrity: sha512-EjePK1srD3P08o2j4f0ExnylqRs5B9tJjcp9t1krH2qRi8CCdsYfwe9JgSLurFBWwq4uOlipzfk5fHNvwFKr8Q==}
@@ -4574,9 +4563,6 @@ packages:
   mlly@1.7.4:
     resolution: {integrity: sha512-qmdSIPC4bDJXgZTCR7XosJiNKySV7O215tsPtDN9iEO/7q/76b/ijtgRu/+epFXSJhijtTCCGp3DWS549P3xKw==}
 
-  moment@2.30.1:
-    resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
-
   motion@10.16.2:
     resolution: {integrity: sha512-p+PurYqfUdcJZvtnmAqu5fJgV2kR0uLFQuBKtLeFVTrYEVllI99tiOTSefVNYuip9ELTEkepIIDftNdze76NAQ==}
 
@@ -5939,9 +5925,6 @@ packages:
         optional: true
       react:
         optional: true
-
-  varint@6.0.0:
-    resolution: {integrity: sha512-cXEIW6cfr15lFv563k4GuVuW/fiwjknytD37jIOLSdSWuOI6WnO/oKwmP2FQTU2l01LP8/M5TSAJpzUaGe3uWg==}
 
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
@@ -7898,22 +7881,6 @@ snapshots:
       - react-native
 
   '@hiero-did-sdk/zstd@0.1.2': {}
-
-  '@hsuite/did-sdk-js@1.0.4(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))':
-    dependencies:
-      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
-      base58-js: 1.0.5
-      did-resolver: 3.2.2
-      js-base64: 3.7.7
-      moment: 2.30.1
-      multiformats: 9.9.0
-      node-fetch: 2.7.0
-      varint: 6.0.0
-    transitivePeerDependencies:
-      - bn.js
-      - encoding
-      - expo-crypto
-      - react-native
 
   '@huggingface/jinja@0.1.3': {}
 
@@ -10160,8 +10127,6 @@ snapshots:
 
   base-x@5.0.1: {}
 
-  base58-js@1.0.5: {}
-
   base64-js@1.5.1: {}
 
   before-after-hook@3.0.2: {}
@@ -10785,8 +10750,6 @@ snapshots:
   detect-libc@2.0.4: {}
 
   detect-newline@3.1.0: {}
-
-  did-resolver@3.2.2: {}
 
   diff-sequences@29.6.3: {}
 
@@ -12556,8 +12519,6 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.1
 
-  moment@2.30.1: {}
-
   motion@10.16.2:
     dependencies:
       '@motionone/animation': 10.18.0
@@ -14046,8 +14007,6 @@ snapshots:
       use-sync-external-store: 1.2.0(react@18.3.1)
     optionalDependencies:
       react: 18.3.1
-
-  varint@6.0.0: {}
 
   vary@1.1.2: {}
 

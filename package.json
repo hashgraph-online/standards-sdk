@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.0.192",
+  "version": "0.0.193",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -57,6 +57,7 @@
     "demo:polling-agent": "tsx demo/hcs-10/polling-agent.ts",
     "demo:connection-manager": "tsx demo/hcs-10/connection-manager.ts",
     "demo:hrl-content": "tsx demo/hrl-content-demo.ts",
+    "demo:hcs-14:issue-resolve": "tsx demo/hcs-14/issue-and-resolve-did.ts",
     "demo:hcs12": "tsx demo/hcs-12/hcs12-demo.ts",
     "demo:mcp-chat": "tsx demo/hcs-10/create-mcp.ts",
     "demo:hcs-2:create": "tsx demo/hcs-2/create-registry.ts",
@@ -76,6 +77,8 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
+    "@hiero-did-sdk/registrar": "^0.1.2",
+    "@hiero-did-sdk/resolver": "^0.1.2",
     "@hashgraphonline/conversational-agent": "0.2.104",
     "@swc/jest": "^0.2.37",
     "@types/jest": "^29.5.14",
@@ -103,8 +106,6 @@
     "@hashgraph/proto": "^2.22.0",
     "@hashgraph/sdk": "2.72.0",
     "@hashgraphonline/hashinal-wc": "^1.0.103",
-    "@hiero-did-sdk/registrar": "^0.1.2",
-    "@hsuite/did-sdk-js": "^1.0.4",
     "@kiloscribe/inscription-sdk": "^1.0.60",
     "axios": "^1.10.0",
     "bignumber.js": "^9.3.1",
@@ -119,5 +120,7 @@
     "pino-pretty": "^13.0.0",
     "zod": "^3.24.2"
   },
+  "peerDependencies": {},
+  "peerDependenciesMeta": {},
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
 }
