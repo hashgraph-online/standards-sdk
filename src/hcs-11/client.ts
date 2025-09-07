@@ -553,7 +553,6 @@ export class HCS11Client {
           },
           {
             accountId: this.auth.operatorId,
-            // @ts-ignore
             privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },
@@ -692,7 +691,6 @@ export class HCS11Client {
           input,
           {
             accountId: this.auth.operatorId,
-            // @ts-ignore
             privateKey: PK,
             network: this.network as 'mainnet' | 'testnet',
           },

@@ -493,7 +493,6 @@ export abstract class HCS10BaseClient extends Registration {
       }
     }
 
-    // This should never be reached, but TypeScript needs a return
     return {
       profile: null,
       success: false,

@@ -29,4 +29,3 @@ export class ConnectionConfirmationError extends Error {
   }
 }
 
-// Add more custom error classes as needed

@@ -10,7 +10,7 @@ export interface EVMCache {
   clear(): Promise<void> | void;
 }
 
-class MapCache implements EVMCache {
+export class MapCache implements EVMCache {
   private cache: Map<string, string>;
 
   constructor() {
@@ -64,7 +64,6 @@ export class EVMBridge {
     for (const config of evmConfigs) {
       const cacheKey = `${config.c.contractAddress}-${config.c.abi.name}`;
 
-      // Check cache first
       const cachedResult = await this.cache.get(cacheKey);
       if (cachedResult) {
         results[config.c.abi.name] = JSON.parse(cachedResult);
@@ -111,15 +110,11 @@ export class EVMBridge {
           values: [], // Initialize array for values
         };
 
-        // Handle tuple returns and array-like results
         if (decodedResult) {
-          // For tuples, ethers.js provides both array-like and named properties
-          // We want to use the array-like access to ensure we get each value in order
           config.c.abi.outputs?.forEach((output, idx) => {
             const value = decodedResult[idx];
             const formattedValue = formatValue(value, output.type);
 
-            // Add to values array
             processedResult.values.push(formattedValue);
 
             if (output.name) {
@@ -200,12 +195,10 @@ export class EVMBridge {
     }
   }
 
-  // Add method to clear cache if needed
   public async clearCache(): Promise<void> {
     await this.cache.clear();
   }
 
-  // Add method to remove specific cache entry
   public async clearCacheForContract(
     contractAddress: string,
     functionName: string,
@@ -213,7 +206,6 @@ export class EVMBridge {
     await this.cache.delete(`${contractAddress}-${functionName}`);
   }
 
-  // Method to set log level for this bridge instance
   public setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
     this.logger.setLogLevel(level);
   }
@@ -224,7 +216,6 @@ function formatValue(value: any, type: string): string {
     return '0';
   }
 
-  // Handle BigNumber objects from ethers.js
   if (value._isBigNumber) {
     return value.toString();
   }
@@ -238,11 +229,8 @@ function formatValue(value: any, type: string): string {
   } else if (type === 'address') {
     return String(value).toLowerCase();
   } else if (type.endsWith('[]')) {
-    // Handle arrays
-    // @ts-ignore
     return Array.isArray(value) ? value.map(v => String(v)) : [];
   } else {
-    // Default to string conversion for unknown types
     return String(value);
   }
 }

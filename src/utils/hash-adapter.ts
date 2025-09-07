@@ -78,6 +78,7 @@ export class WebHashAdapter implements HashAdapter {
   private mapAlgorithm(algorithm: string): string {
     const algorithmMap: Record<string, string> = {
       sha256: 'SHA-256',
+      sha384: 'SHA-384',
       sha1: 'SHA-1',
       sha512: 'SHA-512',
     };

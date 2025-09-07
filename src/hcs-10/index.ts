@@ -5,3 +5,4 @@ export * from './types';
 export * from './browser';
 export * from './registrations';
 export * from './connections-manager';
+export * from './tx';

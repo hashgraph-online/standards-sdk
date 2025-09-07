@@ -24,6 +24,21 @@ import {
 } from './types';
 import { isBrowser } from '../utils/is-browser';
 import { KeyTypeDetector } from '../utils/key-type-detector';
+import { buildMessageTx } from '../common/tx/tx-utils';
+
+// Narrowly-typed wallet execution helper to avoid any-casts
+interface WalletExecuteResult {
+  result?: TransactionReceipt;
+  transactionId?: string;
+  error?: string;
+}
+
+interface WalletExecuteSupport<Tx> {
+  executeTransactionWithErrorHandling?: (
+    tx: Tx,
+    returnBytes?: boolean,
+  ) => Promise<WalletExecuteResult>;
+}
 
 /**
  * Browser client configuration for HCS-2
@@ -142,9 +157,7 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         transaction = transaction.setSubmitKey(submitPublicKey);
       }
 
-      const txResponse = await (
-        this.hwc as any
-      ).executeTransactionWithErrorHandling(transaction, false);
+      const txResponse = await this.executeWithWallet(transaction);
 
       if (txResponse?.error) {
         throw new Error(txResponse.error);
@@ -186,14 +199,12 @@ export class BrowserHCS2Client extends HCS2BaseClient {
     options: RegisterEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
-      // Create register message
       const message = this.createRegisterMessage(
         options.targetTopicId,
         options.metadata,
         options.memo,
       );
 
-      // Ensure operation type is correctly set
       if (message.op !== HCS2Operation.REGISTER) {
         throw new Error(
           `Invalid operation type: ${message.op}, expected ${HCS2Operation.REGISTER}`,
@@ -231,7 +242,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
     options: UpdateEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
-      // Verify registry type (only indexed registries support updates)
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
 
@@ -279,7 +289,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
     options: DeleteEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
-      // Verify registry type (only indexed registries support deletions)
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
 
@@ -289,7 +298,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         );
       }
 
-      // Create delete message
       const message = this.createDeleteMessage(options.uid, options.memo);
 
       const receipt = await this.submitMessage(registryTopicId, message);
@@ -360,7 +368,6 @@ export class BrowserHCS2Client extends HCS2BaseClient {
     options: QueryRegistryOptions = {},
   ): Promise<TopicRegistry> {
     try {
-      // Get topic info to determine registry type
       const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
       const memoInfo = this.parseRegistryTypeFromMemo(topicInfo.memo);
 
@@ -377,12 +384,10 @@ export class BrowserHCS2Client extends HCS2BaseClient {
         order: options.order ?? 'asc',
       });
 
-      // Since getTopicMessages fetches all pages, we must manually truncate if a limit was set.
       const messages = options.limit
         ? messagesResult.slice(0, options.limit)
         : messagesResult;
 
-      // Parse messages into registry entries
       return this.parseRegistryEntries(
         topicId,
         messages,
@@ -406,19 +411,17 @@ export class BrowserHCS2Client extends HCS2BaseClient {
     payload: HCS2Message,
   ): Promise<TransactionReceipt> {
     try {
-      // Validate message
       const { valid, errors } = this.validateMessage(payload);
       if (!valid) {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
       }
 
-      const transaction = new TopicMessageSubmitTransaction()
-        .setTopicId(TopicId.fromString(topicId))
-        .setMessage(JSON.stringify(payload));
+      const transaction = buildMessageTx({
+        topicId,
+        message: JSON.stringify(payload),
+      });
 
-      const txResponse = await (
-        this.hwc as any
-      ).executeTransactionWithErrorHandling(transaction, false);
+      const txResponse = await this.executeWithWallet(transaction);
 
       if (txResponse?.error) {
         throw new Error(txResponse.error);
@@ -429,5 +432,22 @@ export class BrowserHCS2Client extends HCS2BaseClient {
       this.logger.error(`Failed to submit message: ${error}`);
       throw error;
     }
+  }
+  private async executeWithWallet<T extends TopicCreateTransaction | TopicMessageSubmitTransaction>(
+    transaction: T,
+  ): Promise<WalletExecuteResult> {
+    const maybeExec = (
+      this.hwc as unknown as WalletExecuteSupport<
+        TopicCreateTransaction | TopicMessageSubmitTransaction
+      >
+    ).executeTransactionWithErrorHandling;
+
+    if (!maybeExec) {
+      throw new Error(
+        'Wallet SDK does not support executeTransactionWithErrorHandling',
+      );
+    }
+
+    return await maybeExec.call(this.hwc, transaction, false);
   }
 }

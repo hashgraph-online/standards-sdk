@@ -1,20 +1,37 @@
 import { ScheduleParser } from '../parsers/schedule-parser';
 import { Transaction } from '@hashgraph/sdk';
+import * as parserUtils from '../parsers/parser-utils';
+
+jest.mock('../parsers/parser-utils');
 
 describe('ScheduleParser', () => {
+  const mockHasTransactionType =
+    parserUtils.hasTransactionType as jest.MockedFunction<
+      typeof parserUtils.hasTransactionType
+    >;
+  const mockParseKey = parserUtils.parseKey as jest.MockedFunction<
+    typeof parserUtils.parseKey
+  >;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockHasTransactionType.mockReturnValue(false);
+    mockParseKey.mockImplementation(
+      (key: any) => key?.toString() || 'parsed_key',
+    );
+  });
+
   describe('Schedule Create Parsing', () => {
-    test('parseScheduleCreate - parses from transaction body', () => {
+    test('parseScheduleCreate - parses from transaction internals', () => {
       const mockTransaction = {
-        _transactionBody: {
-          scheduleCreate: {
-            scheduledTransactionBody: new Uint8Array([1, 2, 3, 4]),
-            memo: 'Test schedule',
-            adminKey: { toString: () => 'admin_key_string' },
-            payerAccountId: { toString: () => '0.0.123' },
-            expirationTime: { toString: () => '1234567890' },
-            waitForExpiry: true,
-          },
-        },
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
+        _scheduledTransaction: new Uint8Array([1, 2, 3, 4]),
+        _scheduleMemo: 'Test schedule',
+        _adminKey: { toString: () => 'admin_key_string' },
+        _payerAccountId: { toString: () => '0.0.123' },
+        _expirationTime: { toString: () => '1234567890' },
+        _waitForExpiry: true,
+        constructor: { name: 'ScheduleCreateTransaction' },
       };
 
       const result = ScheduleParser.parseScheduleCreate(mockTransaction as any);
@@ -30,6 +47,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleCreate - parses from ScheduleCreateTransaction instance', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         constructor: { name: 'ScheduleCreateTransaction' },
         _scheduledTransaction: new Uint8Array([5, 6, 7, 8]),
         _scheduleMemo: 'Instance memo',
@@ -52,6 +70,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleCreate - returns null for non-schedule transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           cryptoTransfer: {},
         },
@@ -64,6 +83,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleCreate - handles parsing errors gracefully', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: null,
         constructor: { name: 'SomeOtherTransaction' },
       };
@@ -76,6 +96,7 @@ describe('ScheduleParser', () => {
   describe('Schedule Sign Parsing', () => {
     test('parseScheduleSign - parses from transaction body', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           scheduleSign: {
             scheduleID: { toString: () => '0.0.789' },
@@ -91,6 +112,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleSign - parses from ScheduleSignTransaction instance', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         constructor: { name: 'ScheduleSignTransaction' },
         _scheduleId: { toString: () => '0.0.987' },
       };
@@ -103,6 +125,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleSign - returns null for non-schedule transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           cryptoTransfer: {},
         },
@@ -115,6 +138,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleSign - handles parsing errors gracefully', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: null,
         constructor: { name: 'SomeOtherTransaction' },
       };
@@ -127,6 +151,7 @@ describe('ScheduleParser', () => {
   describe('Schedule Delete Parsing', () => {
     test('parseScheduleDelete - parses from transaction body', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           scheduleDelete: {
             scheduleID: { toString: () => '0.0.321' },
@@ -142,6 +167,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleDelete - parses from ScheduleDeleteTransaction instance', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         constructor: { name: 'ScheduleDeleteTransaction' },
         _scheduleId: { toString: () => '0.0.654' },
       };
@@ -154,6 +180,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleDelete - returns null for non-schedule transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           cryptoTransfer: {},
         },
@@ -166,6 +193,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleDelete - handles parsing errors gracefully', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: null,
         constructor: { name: 'SomeOtherTransaction' },
       };
@@ -178,6 +206,7 @@ describe('ScheduleParser', () => {
   describe('Schedule Info Extraction', () => {
     test('extractScheduleInfo - detects scheduled transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           scheduleRef: { toString: () => '0.0.111' },
         },
@@ -191,6 +220,7 @@ describe('ScheduleParser', () => {
 
     test('extractScheduleInfo - detects schedule from transaction properties', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {},
         _scheduleId: { toString: () => '0.0.222' },
       };
@@ -203,6 +233,7 @@ describe('ScheduleParser', () => {
 
     test('extractScheduleInfo - returns not scheduled for regular transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           cryptoTransfer: {},
         },
@@ -226,6 +257,7 @@ describe('ScheduleParser', () => {
   describe('Schedule Transaction Main Parser', () => {
     test('parseScheduleTransaction - identifies schedule create', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           scheduleCreate: {
             scheduledTransactionBody: new Uint8Array([1, 2, 3]),
@@ -234,12 +266,6 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const originalParseScheduleCreate = ScheduleParser.parseScheduleCreate;
-      ScheduleParser.parseScheduleCreate = jest.fn().mockReturnValue({
-        scheduledTransactionBody: 'AQID',
-        memo: 'Create test',
-      });
-
       const result = ScheduleParser.parseScheduleTransaction(
         mockTransaction as any,
       );
@@ -247,23 +273,17 @@ describe('ScheduleParser', () => {
       expect(result.type).toBe('SCHEDULECREATE');
       expect(result.humanReadableType).toBe('Schedule Create');
       expect(result.scheduleCreate).toBeDefined();
-
-      ScheduleParser.parseScheduleCreate = originalParseScheduleCreate;
     });
 
     test('parseScheduleTransaction - identifies schedule sign', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           scheduleSign: {
             scheduleID: { toString: () => '0.0.333' },
           },
         },
       };
-
-      const originalParseScheduleSign = ScheduleParser.parseScheduleSign;
-      ScheduleParser.parseScheduleSign = jest.fn().mockReturnValue({
-        scheduleId: '0.0.333',
-      });
 
       const result = ScheduleParser.parseScheduleTransaction(
         mockTransaction as any,
@@ -272,23 +292,17 @@ describe('ScheduleParser', () => {
       expect(result.type).toBe('SCHEDULESIGN');
       expect(result.humanReadableType).toBe('Schedule Sign');
       expect(result.scheduleSign).toBeDefined();
-
-      ScheduleParser.parseScheduleSign = originalParseScheduleSign;
     });
 
     test('parseScheduleTransaction - identifies schedule delete', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           scheduleDelete: {
             scheduleID: { toString: () => '0.0.444' },
           },
         },
       };
-
-      const originalParseScheduleDelete = ScheduleParser.parseScheduleDelete;
-      ScheduleParser.parseScheduleDelete = jest.fn().mockReturnValue({
-        scheduleId: '0.0.444',
-      });
 
       const result = ScheduleParser.parseScheduleTransaction(
         mockTransaction as any,
@@ -297,12 +311,11 @@ describe('ScheduleParser', () => {
       expect(result.type).toBe('SCHEDULEDELETE');
       expect(result.humanReadableType).toBe('Schedule Delete');
       expect(result.scheduleDelete).toBeDefined();
-
-      ScheduleParser.parseScheduleDelete = originalParseScheduleDelete;
     });
 
     test('parseScheduleTransaction - detects scheduled transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           cryptoTransfer: {},
           scheduleRef: { toString: () => '0.0.555' },
@@ -319,6 +332,7 @@ describe('ScheduleParser', () => {
 
     test('parseScheduleTransaction - returns empty for non-schedule transaction', () => {
       const mockTransaction = {
+        toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
           cryptoTransfer: {},
         },
@@ -335,20 +349,6 @@ describe('ScheduleParser', () => {
   describe('Scheduled Transaction Body Parsing', () => {
     test('parseScheduledTransactionBody - parses hex format', () => {
       const testBytes = '0x010203040506';
-
-      const mockSchedulableBody = {
-        tokenCreation: { name: 'Test' },
-        memo: 'Test memo',
-        transactionFee: 100000,
-      };
-
-      jest.mock('@hashgraph/proto', () => ({
-        proto: {
-          SchedulableTransactionBody: {
-            decode: jest.fn().mockReturnValue(mockSchedulableBody),
-          },
-        },
-      }));
 
       const result = ScheduleParser.parseScheduledTransactionBody(testBytes);
 

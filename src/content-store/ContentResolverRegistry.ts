@@ -8,7 +8,7 @@
 import type { ContentResolverInterface } from './types';
 import { Logger } from '../utils/logger';
 
-class ContentResolverRegistryImpl {
+export class ContentResolverRegistryImpl {
   private static _instance: ContentResolverRegistryImpl;
   private resolver: ContentResolverInterface | null = null;
   private onUnavailableCallbacks: (() => void)[] = [];
@@ -103,4 +103,3 @@ class ContentResolverRegistryImpl {
 
 export const ContentResolverRegistry =
   ContentResolverRegistryImpl.getInstance();
-export { ContentResolverRegistryImpl };

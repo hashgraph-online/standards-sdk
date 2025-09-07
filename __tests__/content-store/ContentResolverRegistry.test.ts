@@ -1,173 +1,285 @@
 import {
   ContentResolverRegistry,
   ContentResolverRegistryImpl,
-} from '../../src/content-store';
+} from '../../src/content-store/ContentResolverRegistry';
 import type {
   ContentResolverInterface,
   ReferenceResolutionResult,
-} from '../../src/content-store';
+} from '../../src/content-store/types';
+import { Logger } from '../../src/utils/logger';
 
-class MockResolver implements ContentResolverInterface {
-  async resolveReference(
-    referenceId: string,
-  ): Promise<ReferenceResolutionResult> {
-    const content = Buffer.from(`resolved:${referenceId}`);
-    return { content };
-  }
-
-  shouldUseReference(content: string | Buffer): boolean {
-    if (typeof content === 'string') {
-      return content.length > 0;
-    }
-    return content.length > 0;
-  }
-
-  extractReferenceId(input: string): string | null {
-    const match = input.match(/^content-ref:([a-f0-9]+)$/);
-    if (match) {
-      return match[1];
-    }
-    return null;
-  }
-}
+jest.mock('../../src/utils/logger');
 
 describe('ContentResolverRegistryImpl (isolated instance)', () => {
   let registry: ContentResolverRegistryImpl;
-  let warnSpy: jest.SpyInstance;
-  let logSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
+  let mockResolver: jest.Mocked<ContentResolverInterface>;
+  let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
-    registry = new (ContentResolverRegistryImpl as unknown as {
-      new (): ContentResolverRegistryImpl;
-    })();
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    warnSpy.mockRestore();
-    logSpy.mockRestore();
-    errorSpy.mockRestore();
-  });
-
-  it('registers and retrieves resolver', () => {
-    const resolver = new MockResolver();
-    registry.register(resolver);
-    expect(registry.isAvailable()).toBe(true);
-    expect(registry.getResolver()).toBe(resolver);
-  });
-
-  it('replaces existing resolver and warns', () => {
-    const first = new MockResolver();
-    const second = new MockResolver();
-    registry.register(first);
-    registry.register(second);
-    expect(warnSpy).toHaveBeenCalled();
-    expect(registry.getResolver()).toBe(second);
-  });
-
-  it('unregisters resolver and triggers callbacks', () => {
-    const resolver = new MockResolver();
-    registry.register(resolver);
-
-    const called: { value: boolean } = { value: false };
-    const cb = () => {
-      called.value = true;
+    jest.clearAllMocks();
+    registry = new ContentResolverRegistryImpl();
+    mockResolver = {
+      resolveReference: jest.fn(),
+      shouldUseReference: jest.fn(),
+      extractReferenceId: jest.fn(),
     };
-    registry.onUnavailable(cb);
-    registry.unregister();
-    expect(registry.isAvailable()).toBe(false);
-    expect(called.value).toBe(true);
+    mockLogger = {
+      warn: jest.fn(),
+      info: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      trace: jest.fn(),
+    } as any;
+
+    (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
   });
 
-  it('offUnavailable removes callback', () => {
-    const resolver = new MockResolver();
-    registry.register(resolver);
+  describe('constructor and instance management', () => {
+    test('should create a new instance', () => {
+      expect(registry).toBeDefined();
+      expect(registry).toBeInstanceOf(ContentResolverRegistryImpl);
+    });
 
-    const called: { value: number } = { value: 0 };
-    const cb = () => {
-      called.value = called.value + 1;
+    test('getInstance should return singleton instance', () => {
+      const instance1 = ContentResolverRegistryImpl.getInstance();
+      const instance2 = ContentResolverRegistryImpl.getInstance();
+      expect(instance1).toBe(instance2);
+    });
+  });
+
+  describe('register', () => {
+    test('should register a resolver successfully', () => {
+      registry.register(mockResolver);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Content resolver registered',
+      );
+      expect(registry.getResolver()).toBe(mockResolver);
+    });
+
+    test('should warn when replacing existing resolver', () => {
+      const newResolver = { ...mockResolver };
+
+      registry.register(mockResolver);
+      registry.register(newResolver);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Resolver already registered, replacing existing',
+      );
+      expect(mockLogger.info).toHaveBeenCalledTimes(2);
+      expect(registry.getResolver()).toBe(newResolver);
+    });
+  });
+
+  describe('getResolver', () => {
+    test('should return null when no resolver is registered', () => {
+      expect(registry.getResolver()).toBeNull();
+    });
+
+    test('should return registered resolver', () => {
+      registry.register(mockResolver);
+      expect(registry.getResolver()).toBe(mockResolver);
+    });
+  });
+
+  describe('isAvailable', () => {
+    test('should return false when no resolver is registered', () => {
+      expect(registry.isAvailable()).toBe(false);
+    });
+
+    test('should return true when resolver is registered', () => {
+      registry.register(mockResolver);
+      expect(registry.isAvailable()).toBe(true);
+    });
+  });
+
+  describe('unregister', () => {
+    test('should do nothing when no resolver is registered', () => {
+      registry.unregister();
+      expect(mockLogger.info).not.toHaveBeenCalled();
+    });
+
+    test('should unregister resolver successfully', () => {
+      registry.register(mockResolver);
+      registry.unregister();
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Content resolver unregistered',
+      );
+      expect(registry.getResolver()).toBeNull();
+      expect(registry.isAvailable()).toBe(false);
+    });
+
+    test('should execute unavailable callbacks when unregistering', () => {
+      const callback1 = jest.fn();
+      const callback2 = jest.fn();
+
+      registry.register(mockResolver);
+      registry.onUnavailable(callback1);
+      registry.onUnavailable(callback2);
+
+      registry.unregister();
+
+      expect(callback1).toHaveBeenCalled();
+      expect(callback2).toHaveBeenCalled();
+    });
+
+    test('should handle callback errors gracefully', () => {
+      const errorCallback = jest.fn().mockImplementation(() => {
+        throw new Error('Callback error');
+      });
+      const goodCallback = jest.fn();
+
+      registry.register(mockResolver);
+      registry.onUnavailable(errorCallback);
+      registry.onUnavailable(goodCallback);
+
+      registry.unregister();
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Error in unavailable callback:',
+        expect.any(Error),
+      );
+      expect(goodCallback).toHaveBeenCalled();
+    });
+  });
+
+  describe('onUnavailable and offUnavailable', () => {
+    test('should register and remove unavailable callbacks', () => {
+      const callback = jest.fn();
+
+      registry.onUnavailable(callback);
+      expect(registry['onUnavailableCallbacks']).toContain(callback);
+
+      registry.offUnavailable(callback);
+      expect(registry['onUnavailableCallbacks']).not.toContain(callback);
+    });
+
+    test('should handle removing non-existent callback', () => {
+      const callback = jest.fn();
+      registry.offUnavailable(callback);
+      expect(registry['onUnavailableCallbacks']).toHaveLength(0);
+    });
+  });
+
+  describe('withResolver', () => {
+    const mockResult: ReferenceResolutionResult = {
+      content: Buffer.from('test content'),
+      metadata: { mimeType: 'text/plain' },
     };
-    registry.onUnavailable(cb);
-    registry.offUnavailable(cb);
-    registry.unregister();
-    expect(called.value).toBe(0);
-  });
 
-  it('withResolver uses resolver when available', async () => {
-    const resolver = new MockResolver();
-    registry.register(resolver);
-    const result = await registry.withResolver(
-      async r => {
-        const resolved = await r.resolveReference('abc');
-        return resolved.content.toString('utf8');
-      },
-      async () => 'fallback',
-    );
-    expect(result).toBe('resolved:abc');
-  });
+    test('should execute operation with resolver when available', async () => {
+      const operation = jest.fn().mockResolvedValue(mockResult);
+      const fallback = jest.fn();
 
-  it('withResolver falls back when operation throws', async () => {
-    const resolver = new MockResolver();
-    registry.register(resolver);
-    const result = await registry.withResolver(
-      async () => {
-        throw new Error('boom');
-      },
-      async () => 'fallback',
-    );
-    expect(result).toBe('fallback');
-    expect(warnSpy).toHaveBeenCalled();
-  });
+      registry.register(mockResolver);
 
-  it('withResolver falls back when resolver unavailable', async () => {
-    const result = await registry.withResolver(
-      async () => 'primary',
-      async () => 'fallback',
-    );
-    expect(result).toBe('fallback');
-    expect(warnSpy).toHaveBeenCalled();
+      const result = await registry.withResolver(operation, fallback);
+
+      expect(operation).toHaveBeenCalledWith(mockResolver);
+      expect(fallback).not.toHaveBeenCalled();
+      expect(result).toBe(mockResult);
+    });
+
+    test('should use fallback when resolver is not available', async () => {
+      const operation = jest.fn();
+      const fallback = jest.fn().mockResolvedValue(mockResult);
+
+      const result = await registry.withResolver(operation, fallback);
+
+      expect(operation).not.toHaveBeenCalled();
+      expect(fallback).toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'No resolver available, using fallback',
+      );
+      expect(result).toBe(mockResult);
+    });
+
+    test('should use fallback when resolver operation fails', async () => {
+      const operation = jest
+        .fn()
+        .mockRejectedValue(new Error('Operation failed'));
+      const fallback = jest.fn().mockResolvedValue(mockResult);
+
+      registry.register(mockResolver);
+
+      const result = await registry.withResolver(operation, fallback);
+
+      expect(operation).toHaveBeenCalledWith(mockResolver);
+      expect(fallback).toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Resolver operation failed, using fallback:',
+        expect.any(Error),
+      );
+      expect(result).toBe(mockResult);
+    });
   });
 });
 
 describe('ContentResolverRegistry (singleton)', () => {
-  let warnSpy: jest.SpyInstance;
-  let logSpy: jest.SpyInstance;
+  let mockResolver: jest.Mocked<ContentResolverInterface>;
+  let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    const current = ContentResolverRegistry.getResolver();
-    if (current) {
-      ContentResolverRegistry.unregister();
-    }
+    jest.clearAllMocks();
+    mockResolver = {
+      resolveReference: jest.fn(),
+      shouldUseReference: jest.fn(),
+      extractReferenceId: jest.fn(),
+    };
+    mockLogger = {
+      warn: jest.fn(),
+      info: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      trace: jest.fn(),
+    } as any;
+
+    (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
   });
 
-  afterEach(() => {
-    warnSpy.mockRestore();
-    logSpy.mockRestore();
-    const current = ContentResolverRegistry.getResolver();
-    if (current) {
-      ContentResolverRegistry.unregister();
-    }
+  test('should be a singleton instance', () => {
+    const instance1 = ContentResolverRegistryImpl.getInstance();
+    const instance2 = ContentResolverRegistryImpl.getInstance();
+    expect(instance1).toBe(instance2);
+    expect(ContentResolverRegistry).toBe(instance1);
   });
 
-  it('manages resolver lifecycle end-to-end', async () => {
-    const resolver = new MockResolver();
-    ContentResolverRegistry.register(resolver);
+  test('should maintain state across imports', () => {
+    ContentResolverRegistry.register(mockResolver);
+    expect(ContentResolverRegistry.getResolver()).toBe(mockResolver);
     expect(ContentResolverRegistry.isAvailable()).toBe(true);
-    const value = await ContentResolverRegistry.withResolver(
-      async r => {
-        const res = await r.resolveReference('xyz');
-        return res.content.toString('utf8');
-      },
-      async () => 'fallback',
-    );
-    expect(value).toBe('resolved:xyz');
+
     ContentResolverRegistry.unregister();
+    expect(ContentResolverRegistry.getResolver()).toBeNull();
     expect(ContentResolverRegistry.isAvailable()).toBe(false);
-    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('should handle concurrent access', async () => {
+    const promises = [
+      ContentResolverRegistry.withResolver(
+        async () => 'result1',
+        async () => 'fallback1',
+      ),
+      ContentResolverRegistry.withResolver(
+        async () => 'result2',
+        async () => 'fallback2',
+      ),
+    ];
+
+    ContentResolverRegistry.register(mockResolver);
+    const results = await Promise.all(promises);
+
+    expect(results).toEqual(['result1', 'result2']);
+  });
+
+  test('should clear callbacks on unregister', () => {
+    const callback = jest.fn();
+
+    ContentResolverRegistry.onUnavailable(callback);
+    ContentResolverRegistry.register(mockResolver);
+    ContentResolverRegistry.unregister();
+
+    expect(callback).toHaveBeenCalled();
   });
 });
