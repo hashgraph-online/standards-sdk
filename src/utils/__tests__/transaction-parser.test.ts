@@ -35,7 +35,7 @@ describe('TransactionParser', () => {
 
     test('validateTransactionBytes - invalid null', () => {
       const validation = TransactionParser.validateTransactionBytes(
-        null as any,
+        null,
       );
       expect(validation.isValid).toBe(false);
       expect(validation.error).toBe(
@@ -86,7 +86,7 @@ describe('TransactionParser', () => {
       mockTransaction.setTokenSymbol('TEST');
 
       const result = TransactionParser.parseTransactionObject(
-        mockTransaction as any,
+        mockTransaction as Transaction,
       );
 
       expect(result.type).toBeDefined();
@@ -101,7 +101,7 @@ describe('TransactionParser', () => {
       mockTransaction.setTokenSymbol('TEST');
 
       const result = TransactionParser.parseTransactionObject(
-        mockTransaction as any,
+        mockTransaction as Transaction,
         { includeRaw: true },
       );
 
@@ -188,7 +188,7 @@ describe('TransactionParser', () => {
     test('detects crypto transfer transaction', () => {
       const mockTxBody = {
         cryptoTransfer: {
-          transfers: [],
+          transfers: [] as any[],
         },
       };
 
@@ -199,7 +199,7 @@ describe('TransactionParser', () => {
     test('detects token airdrop transaction', () => {
       const mockTxBody = {
         tokenAirdrop: {
-          tokenTransfers: [],
+          tokenTransfers: [] as any[],
         },
       };
 
@@ -254,14 +254,14 @@ describe('TransactionParser', () => {
           tokenName: 'Test Token',
           tokenSymbol: 'TEST',
           initialSupply: '1000',
-          customFees: [],
+          customFees: [] as any[],
         },
-        transfers: [],
-        tokenTransfers: [],
-        raw: {},
+        transfers: [] as any[],
+        tokenTransfers: [] as any[],
+        raw: {} as any,
       };
 
-      const summary = TransactionParser.getTransactionSummary(parsedTx as any);
+      const summary = TransactionParser.getTransactionSummary(parsedTx);
       expect(summary).toContain('Create token Test Token (TEST)');
       expect(summary).toContain('with initial supply 1000');
     });
@@ -274,11 +274,11 @@ describe('TransactionParser', () => {
           { accountId: '0.0.123', amount: '-10 ℏ' },
           { accountId: '0.0.456', amount: '10 ℏ' },
         ],
-        tokenTransfers: [],
-        raw: {},
+        tokenTransfers: [] as any[],
+        raw: {} as any,
       };
 
-      const summary = TransactionParser.getTransactionSummary(parsedTx as any);
+      const summary = TransactionParser.getTransactionSummary(parsedTx);
       expect(summary).toContain('Transfer of HBAR from');
       expect(summary).toContain('0.0.123');
       expect(summary).toContain('0.0.456');
@@ -288,7 +288,7 @@ describe('TransactionParser', () => {
       const parsedTx = {
         type: 'tokenTransfer',
         humanReadableType: 'Token Transfer',
-        transfers: [],
+        transfers: [] as any[],
         tokenTransfers: [
           {
             tokenId: '0.0.789',
@@ -301,10 +301,10 @@ describe('TransactionParser', () => {
             amount: 100,
           },
         ],
-        raw: {},
+        raw: {} as any,
       };
 
-      const summary = TransactionParser.getTransactionSummary(parsedTx as any);
+      const summary = TransactionParser.getTransactionSummary(parsedTx);
       expect(summary).toContain('Transfer of token 0.0.789');
       expect(summary).toContain('0.0.123');
       expect(summary).toContain('0.0.456');
@@ -320,12 +320,12 @@ describe('TransactionParser', () => {
           amount: 5,
           functionName: 'transfer',
         },
-        transfers: [],
-        tokenTransfers: [],
-        raw: {},
+        transfers: [] as any[],
+        tokenTransfers: [] as any[],
+        raw: {} as any,
       };
 
-      const summary = TransactionParser.getTransactionSummary(parsedTx as any);
+      const summary = TransactionParser.getTransactionSummary(parsedTx);
       expect(summary).toContain('Contract call to 0.0.999');
       expect(summary).toContain('100000 gas');
       expect(summary).toContain('5 HBAR');
@@ -336,12 +336,12 @@ describe('TransactionParser', () => {
       const parsedTx = {
         type: 'unknown',
         humanReadableType: 'Unknown Transaction',
-        transfers: [],
-        tokenTransfers: [],
-        raw: {},
+        transfers: [] as any[],
+        tokenTransfers: [] as any[],
+        raw: {} as any,
       };
 
-      const summary = TransactionParser.getTransactionSummary(parsedTx as any);
+      const summary = TransactionParser.getTransactionSummary(parsedTx);
       expect(summary).toBe('Unknown Transaction');
     });
   });

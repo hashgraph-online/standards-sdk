@@ -5,6 +5,60 @@ import {
   TokenAirdropTransaction,
 } from '@hashgraph/sdk';
 
+interface MockAccountId {
+  shardNum: number;
+  realmNum: number;
+  accountNum: number;
+  toString(): string;
+}
+
+interface MockTokenId {
+  shardNum: number;
+  realmNum: number;
+  tokenNum: number;
+  toString(): string;
+}
+
+interface MockTokenAirdrop {
+  tokenTransfers: Array<{
+    token: MockTokenId;
+    transfers: Array<{
+      accountID: MockAccountId;
+      amount: { toString(): string };
+      serialNumbers: number[];
+    }>;
+  }>;
+}
+
+interface MockTokenCreation {
+  name: string;
+  symbol: string;
+  treasury: MockAccountId;
+  initialSupply: number;
+  decimals: number;
+  customFees: unknown[];
+}
+
+interface MockTokenMint {
+  token: MockTokenId;
+  amount: number;
+}
+
+interface MockTokenBurn {
+  token: MockTokenId;
+  amount: number;
+}
+
+interface MockTokenAssociate {
+  account: MockAccountId;
+  tokens: MockTokenId[];
+}
+
+interface MockTokenDissociate {
+  account: MockAccountId;
+  tokens: MockTokenId[];
+}
+
 describe('HTSParser', () => {
   describe('Token Airdrop Parsing', () => {
     test('parseTokenAirdrop - parses airdrop from transaction body', () => {
@@ -13,21 +67,21 @@ describe('HTSParser', () => {
           tokenAirdrop: {
             tokenTransfers: [
               {
-                token: { toString: () => '0.0.123' },
+                token: { toString: () => '0.0.123', shardNum: 0, realmNum: 0, tokenNum: 123 },
                 transfers: [
                   {
-                    accountID: { toString: () => '0.0.456' },
+                    accountID: { toString: () => '0.0.456', shardNum: 0, realmNum: 0, accountNum: 456 },
                     amount: { toString: () => '100' },
-                    serialNumbers: [],
+                    serialNumbers: [] as number[],
                   },
                 ],
               },
             ],
-          },
+          } satisfies MockTokenAirdrop,
         },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as any);
+      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.tokenTransfers).toHaveLength(1);
@@ -53,7 +107,7 @@ describe('HTSParser', () => {
         ],
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as any);
+      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.tokenTransfers).toHaveLength(1);
@@ -66,24 +120,24 @@ describe('HTSParser', () => {
       const mockTransaction = {
         _transactionBody: {
           cryptoTransfer: {
-            transfers: [],
+            transfers: [] as unknown[],
           },
         },
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as any);
+      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
 
     test('parseTokenAirdrop - handles parsing errors gracefully', () => {
       const mockTransaction = {
         _transactionBody: {
-          tokenAirdrop: null,
+          tokenAirdrop: null as unknown,
         },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as any);
+      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
 
@@ -110,7 +164,7 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as any);
+      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.tokenTransfers[0].transfers[0].serialNumbers).toEqual([
@@ -125,10 +179,10 @@ describe('HTSParser', () => {
       const mockAirdrop = {
         tokenTransfers: [
           {
-            token: null,
+            token: null as unknown,
             transfers: [
               {
-                accountID: null,
+                accountID: null as unknown,
                 amount: 250,
                 serialNumbers: [1, 2, 3],
               },
@@ -148,7 +202,7 @@ describe('HTSParser', () => {
 
     test('parseTokenAirdropFromProto - handles empty data', () => {
       const mockAirdrop = {
-        tokenTransfers: [],
+        tokenTransfers: [] as unknown[],
       };
 
       const result = HTSParser.parseTokenAirdropFromProto(mockAirdrop);
@@ -198,11 +252,11 @@ describe('HTSParser', () => {
         ],
       });
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as any);
+      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
 
       expect(result.type).toBe('TOKENAIRDROP');
       expect(result.humanReadableType).toBe('Token Airdrop');
-      expect((result as any).tokenAirdrop).toBeDefined();
+      expect(result.tokenAirdrop).toBeDefined();
 
       HTSParser.parseTokenAirdrop = originalParseTokenAirdrop;
     });
@@ -222,7 +276,7 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as any);
+      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
 
       expect(result.type).toBe('TOKENCREATE');
       expect(result.humanReadableType).toBe('Token Creation');
@@ -232,21 +286,21 @@ describe('HTSParser', () => {
       const mockTransaction = {
         _transactionBody: {
           cryptoTransfer: {
-            transfers: [],
+            transfers: [] as unknown[],
           },
         },
       };
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as any);
+      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
       expect(result).toEqual({});
     });
 
     test('parseHTSTransaction - handles parsing errors gracefully', () => {
       const mockTransaction = {
-        _transactionBody: null,
+        _transactionBody: null as unknown,
       };
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as any);
+      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
       expect(result).toEqual({});
     });
   });
@@ -257,13 +311,14 @@ describe('HTSParser', () => {
         name: 'My Token',
         symbol: 'MTK',
         treasury: {
-          shardNum: 0,
-          realmNum: 0,
-          accountNum: 456,
+          shardNum: 0 as any,
+          realmNum: 0 as any,
+          accountNum: 456 as any,
+          toString: () => '0.0.456',
         },
-        initialSupply: 1000000,
+        initialSupply: 1000000 as any,
         decimals: 18,
-        customFees: [],
+        customFees: [] as unknown[],
       };
 
       const result = HTSParser.parseTokenCreate(mockTokenCreation);
@@ -286,11 +341,12 @@ describe('HTSParser', () => {
     test('parseTokenMint - parses mint data', () => {
       const mockMint = {
         token: {
-          shardNum: 0,
-          realmNum: 0,
-          tokenNum: 789,
+          shardNum: 0 as any,
+          realmNum: 0 as any,
+          tokenNum: 789 as any,
+          toString: () => '0.0.789',
         },
-        amount: 5000,
+        amount: 5000 as any,
       };
 
       const result = HTSParser.parseTokenMint(mockMint);
@@ -303,11 +359,12 @@ describe('HTSParser', () => {
     test('parseTokenBurn - parses burn data', () => {
       const mockBurn = {
         token: {
-          shardNum: 0,
-          realmNum: 0,
-          tokenNum: 321,
+          shardNum: 0 as any,
+          realmNum: 0 as any,
+          tokenNum: 321 as any,
+          toString: () => '0.0.321',
         },
-        amount: 2500,
+        amount: 2500 as any,
       };
 
       const result = HTSParser.parseTokenBurn(mockBurn);
@@ -320,20 +377,23 @@ describe('HTSParser', () => {
     test('parseTokenAssociate - parses association data', () => {
       const mockAssociate = {
         account: {
-          shardNum: 0,
-          realmNum: 0,
-          accountNum: 111,
+          shardNum: 0 as any,
+          realmNum: 0 as any,
+          accountNum: 111 as any,
+          toString: () => '0.0.111',
         },
         tokens: [
           {
-            shardNum: 0,
-            realmNum: 0,
-            tokenNum: 222,
+            shardNum: 0 as any,
+            realmNum: 0 as any,
+            tokenNum: 222 as any,
+            toString: () => '0.0.222',
           },
           {
-            shardNum: 0,
-            realmNum: 0,
-            tokenNum: 333,
+            shardNum: 0 as any,
+            realmNum: 0 as any,
+            tokenNum: 333 as any,
+            toString: () => '0.0.333',
           },
         ],
       };
@@ -348,15 +408,17 @@ describe('HTSParser', () => {
     test('parseTokenDissociate - parses dissociation data', () => {
       const mockDissociate = {
         account: {
-          shardNum: 0,
-          realmNum: 0,
-          accountNum: 444,
+          shardNum: 0 as any,
+          realmNum: 0 as any,
+          accountNum: 444 as any,
+          toString: () => '0.0.444',
         },
         tokens: [
           {
-            shardNum: 0,
-            realmNum: 0,
-            tokenNum: 555,
+            shardNum: 0 as any,
+            realmNum: 0 as any,
+            tokenNum: 555 as any,
+            toString: () => '0.0.555',
           },
         ],
       };
