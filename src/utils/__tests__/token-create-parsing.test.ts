@@ -15,8 +15,8 @@ describe('TransactionParser - Token Creation Bug Fix', () => {
     expect(result.type).toBe('TOKENCREATE');
     expect(result.humanReadableType).toBe('Token Creation');
     expect(result.tokenCreation).toBeDefined();
-    expect(result.tokenCreation?.name).toBe('SUPPL');
-    expect(result.tokenCreation?.symbol).toBe('SUPPF');
+    expect(result.tokenCreation?.tokenName).toBe('SUPPL');
+    expect(result.tokenCreation?.tokenSymbol).toBe('SUPPF');
     expect(result.tokenCreation?.initialSupply).toBe('100000');
     expect(result.tokenCreation?.decimals).toBe(2);
     expect(result.tokenCreation?.treasuryAccountId).toBe('0.0.2659396');
@@ -39,8 +39,8 @@ describe('TransactionParser - Token Creation Bug Fix', () => {
     );
 
     expect(result.tokenCreation).toBeDefined();
-    expect(result.tokenCreation?.name).toBeTruthy();
-    expect(result.tokenCreation?.symbol).toBeTruthy();
+    expect(result.tokenCreation?.tokenName).toBeTruthy();
+    expect(result.tokenCreation?.tokenSymbol).toBeTruthy();
   });
 
   test('should include format detection metadata', async () => {
@@ -66,8 +66,8 @@ describe('TransactionParser - Token Creation Bug Fix', () => {
     expect(result.type).not.toBe('UNKNOWN');
 
     expect(result.tokenCreation).toBeDefined();
-    expect(result.tokenCreation?.name).toBe('SUPPLY');
-    expect(result.tokenCreation?.symbol).toBe('SUPPL');
+    expect(result.tokenCreation?.tokenName).toBe('SUPPLY');
+    expect(result.tokenCreation?.tokenSymbol).toBe('SUPPL');
     expect(result.tokenCreation?.decimals).toBe(2);
     expect(result.tokenCreation?.initialSupply).toBeTruthy();
     expect(result.tokenCreation?.tokenType).toBeTruthy();

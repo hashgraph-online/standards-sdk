@@ -64,7 +64,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
       expect(mockCanonicalizeAgentData).toHaveBeenCalledWith(input);
       expect(mockGetCryptoAdapter).toHaveBeenCalled();
       expect(result).toBe(
-        'did:aid:mock-encoded-id;registry=test-registry;nativeId=0.0.12345;uid=0',
+        'uaid:aid:mock-encoded-id;uid=0;registry=test-registry;nativeId=0.0.12345',
       );
     });
 
@@ -86,7 +86,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
       const result = await generateAidDid(input, params);
 
       expect(result).toBe(
-        'did:aid:mock-encoded-id;registry=custom-registry;proto=custom-proto;nativeId=0.0.12345;uid=custom-uid',
+        'uaid:aid:mock-encoded-id;uid=custom-uid;registry=custom-registry;proto=custom-proto;nativeId=0.0.12345',
       );
     });
 
@@ -102,7 +102,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
 
       const result = await generateAidDid(input, {}, { includeParams: false });
 
-      expect(result).toBe('did:aid:mock-encoded-id');
+      expect(result).toBe('uaid:aid:mock-encoded-id');
     });
 
     test('should merge params with defaults', async () => {
@@ -122,7 +122,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
       const result = await generateAidDid(input, params);
 
       expect(result).toBe(
-        'did:aid:mock-encoded-id;registry=custom-registry;proto=custom-proto;nativeId=0.0.12345;uid=0',
+        'uaid:aid:mock-encoded-id;uid=0;registry=custom-registry;proto=custom-proto;nativeId=0.0.12345',
       );
     });
 
@@ -139,7 +139,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
       const result = await generateAidDid(input, {});
 
       expect(result).toBe(
-        'did:aid:mock-encoded-id;registry=test-registry;nativeId=0.0.12345;uid=0',
+        'uaid:aid:mock-encoded-id;uid=0;registry=test-registry;nativeId=0.0.12345',
       );
     });
 
@@ -171,7 +171,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
 
   describe('generateUaidDid', () => {
     test('should generate UAID DID from AID DID', () => {
-      const existingDid = 'did:aid:abc123;registry=test;nativeId=0.0.123';
+      const existingDid = 'uaid:aid:abc123;registry=test;nativeId=0.0.123';
       const params = {
         registry: 'new-registry',
         proto: 'new-proto',
@@ -180,24 +180,24 @@ describe('HCS-14 DID Generation and Parsing', () => {
       const result = generateUaidDid(existingDid, params);
 
       expect(result).toBe(
-        'did:uaid:abc123;registry=new-registry;proto=new-proto;src=zmock-encoded-id',
+        'uaid:did:abc123;registry=new-registry;proto=new-proto;src=zmock-encoded-id',
       );
     });
 
     test('should generate UAID DID without additional params', () => {
-      const existingDid = 'did:aid:abc123;registry=test;nativeId=0.0.123';
+      const existingDid = 'uaid:aid:abc123;registry=test;nativeId=0.0.123';
 
       const result = generateUaidDid(existingDid);
 
-      expect(result).toBe('did:uaid:abc123;src=zmock-encoded-id');
+      expect(result).toBe('uaid:did:abc123;src=zmock-encoded-id');
     });
 
     test('should generate UAID DID from AID DID without params', () => {
-      const existingDid = 'did:aid:simple-id';
+      const existingDid = 'uaid:aid:simple-id';
 
       const result = generateUaidDid(existingDid);
 
-      expect(result).toBe('did:uaid:simple-id');
+      expect(result).toBe('uaid:did:simple-id');
     });
 
     test('should throw error for invalid DID format', () => {
@@ -211,16 +211,16 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should handle empty params', () => {
-      const existingDid = 'did:aid:abc123;registry=test';
+      const existingDid = 'uaid:aid:abc123;registry=test';
       const params = {};
 
       const result = generateUaidDid(existingDid, params);
 
-      expect(result).toBe('did:uaid:abc123;src=zmock-encoded-id');
+      expect(result).toBe('uaid:did:abc123;src=zmock-encoded-id');
     });
 
     test('should preserve existing params when adding new ones', () => {
-      const existingDid = 'did:aid:abc123;registry=old;domain=test.com';
+      const existingDid = 'uaid:aid:abc123;registry=old;domain=test.com';
       const params = {
         proto: 'new-proto',
         uid: 'new-uid',
@@ -229,14 +229,14 @@ describe('HCS-14 DID Generation and Parsing', () => {
       const result = generateUaidDid(existingDid, params);
 
       expect(result).toBe(
-        'did:uaid:abc123;proto=new-proto;uid=new-uid;src=zmock-encoded-id',
+        'uaid:did:abc123;uid=new-uid;proto=new-proto;src=zmock-encoded-id',
       );
     });
   });
 
   describe('parseHcs14Did', () => {
     test('should parse AID DID without params', () => {
-      const did = 'did:aid:abc123';
+      const did = 'uaid:aid:abc123';
 
       const result = parseHcs14Did(did);
 
@@ -248,7 +248,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should parse UAID DID without params', () => {
-      const did = 'did:uaid:def456';
+      const did = 'uaid:did:def456';
 
       const result = parseHcs14Did(did);
 
@@ -260,7 +260,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should parse AID DID with params', () => {
-      const did = 'did:aid:abc123;registry=test;nativeId=0.0.123;uid=1';
+      const did = 'uaid:aid:abc123;uid=1;registry=test;nativeId=0.0.123';
 
       const result = parseHcs14Did(did);
 
@@ -276,7 +276,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should parse UAID DID with params', () => {
-      const did = 'did:uaid:def456;proto=hcs-14;domain=test.com';
+      const did = 'uaid:did:def456;proto=hcs-14;domain=test.com';
 
       const result = parseHcs14Did(did);
 
@@ -291,7 +291,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should parse DID with single param', () => {
-      const did = 'did:aid:abc123;registry=test';
+      const did = 'uaid:aid:abc123;registry=test';
 
       const result = parseHcs14Did(did);
 
@@ -316,15 +316,13 @@ describe('HCS-14 DID Generation and Parsing', () => {
 
     test('should throw error for unsupported method', () => {
       expect(() => parseHcs14Did('did:unsupported:abc123')).toThrow(
-        'Unsupported method',
+        'Invalid DID',
       );
-      expect(() => parseHcs14Did('did:invalid:abc123')).toThrow(
-        'Unsupported method',
-      );
+      expect(() => parseHcs14Did('did:invalid:abc123')).toThrow('Invalid DID');
     });
 
     test('should handle malformed param pairs', () => {
-      const did = 'did:aid:abc123;invalid;registry=test;malformed=';
+      const did = 'uaid:aid:abc123;invalid;registry=test;malformed=';
 
       const result = parseHcs14Did(did);
 
@@ -339,7 +337,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should handle DID with empty param values', () => {
-      const did = 'did:aid:abc123;registry=;proto=test';
+      const did = 'uaid:aid:abc123;registry=;proto=test';
 
       const result = parseHcs14Did(did);
 
@@ -354,7 +352,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should handle complex param values', () => {
-      const did = 'did:aid:abc123;domain=test.example.com;nativeId=0.0.12345';
+      const did = 'uaid:aid:abc123;domain=test.example.com;nativeId=0.0.12345';
 
       const result = parseHcs14Did(did);
 
@@ -369,3 +367,5 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
   });
 });
+
+

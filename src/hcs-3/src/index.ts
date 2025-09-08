@@ -6,10 +6,7 @@ import {
   LoadType,
 } from './types';
 import { Logger, ILogger } from '../../utils/logger';
-
-export const sleep = (ms: number) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
-};
+import { sleep } from '../../utils/sleep';
 
 export class HCS implements HCSSDK {
   config: HCSConfig;
@@ -175,7 +172,7 @@ export class HCS implements HCSSDK {
   }
 
   sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return sleep(ms);
   }
 
   isDuplicate(topicId: string): boolean {

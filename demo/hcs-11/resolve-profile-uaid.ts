@@ -1,0 +1,34 @@
+import 'dotenv/config';
+import { HCS11Client, HCS11Profile } from '../../src/hcs-11';
+import { defaultResolverRegistry, HieroDidResolver } from '../../src/hcs-14';
+
+function assertNetwork(value: string | undefined): 'mainnet' | 'testnet' {
+  return value === 'mainnet' ? 'mainnet' : 'testnet';
+}
+
+async function main(): Promise<void> {
+  const network = assertNetwork(process.env.HEDERA_NETWORK);
+  const accountId = process.env.HEDERA_ACCOUNT_ID || '';
+  const privateKey = process.env.HEDERA_PRIVATE_KEY || '';
+  if (!accountId || !privateKey) throw new Error('Missing Hedera credentials');
+
+  const client = new HCS11Client({ network, auth: { operatorId: accountId, privateKey } });
+  const fetched = await client.fetchProfileByAccountId(accountId, network);
+  if (!fetched.success || !fetched.profile) {
+    throw new Error(`Fetch failed: ${fetched.error || 'unknown'}`);
+  }
+  const profile = fetched.profile as HCS11Profile;
+  const uaid = profile.uaid;
+  if (!uaid) throw new Error('Profile does not contain uaid');
+  defaultResolverRegistry.register(new HieroDidResolver());
+  const doc = await defaultResolverRegistry.resolveUaid(uaid);
+  const output = { uaid, resolved: doc };
+  process.stdout.write(JSON.stringify(output, null, 2) + '\n');
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(1);
+  });
