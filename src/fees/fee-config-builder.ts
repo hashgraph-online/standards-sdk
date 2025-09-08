@@ -251,7 +251,6 @@ export class FeeConfigBuilder implements FeeConfigBuilderInterface {
       fee.exemptAccounts.forEach(account => allExemptAccounts.add(account));
     });
 
-    // Ensure any fees without explicit collectors use the default if provided
     const resolvedCustomFees = this.customFees.map(fee => ({
       ...fee,
       feeCollectorAccountId:

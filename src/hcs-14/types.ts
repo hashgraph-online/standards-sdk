@@ -36,3 +36,8 @@ export interface ParsedHcs14Did {
   id: string;
   params: Record<string, string>;
 }
+
+export interface CanonicalizationResult {
+  normalized: CanonicalAgentData;
+  canonicalJson: string;
+}

@@ -229,7 +229,7 @@ function formatValue(value: any, type: string): string {
   } else if (type === 'address') {
     return String(value).toLowerCase();
   } else if (type.endsWith('[]')) {
-    return Array.isArray(value) ? value.map(v => String(v)) : [];
+    return Array.isArray(value) ? value.map(v => String(v)).join(',') : '';
   } else {
     return String(value);
   }

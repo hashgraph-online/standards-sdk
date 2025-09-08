@@ -37,7 +37,7 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
 
     const { base58Encode } = await import('../../src/hcs-14/base58');
     const uaid =
-      'did:uaid:testnet:zRoot;src=z' +
+      'uaid:did:zRoot;src=z' +
       base58Encode(Buffer.from('did:hedera:testnet:zRoot'));
 
     const doc = await registry.resolveUaid(uaid);
@@ -68,7 +68,7 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
     const registry = new ResolverRegistry();
     registry.register(new HieroDidResolver());
 
-    const uaid = 'did:uaid:testnet:zRoot;proto=hcs-10';
+    const uaid = 'uaid:did:zRoot;proto=hcs-10;nativeId=hedera:testnet:0.0.1';
     const doc = await registry.resolveUaid(uaid);
     expect(doc).not.toBeNull();
     expect(doc!.id).toBe('did:hedera:testnet:zRoot');
@@ -100,9 +100,9 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
     const reg = new ResolverRegistry();
     const a = await reg.resolveDid('did:unknown:abc');
     expect(a).toBeNull();
-    const b = await reg.resolveUaid('did:uaid:unknown:id');
+    const b = await reg.resolveUaid('uaid:did:unknown:id');
     expect(b).toBeNull();
-    const c = await reg.resolveUaid('did:aid:abc');
+    const c = await reg.resolveUaid('uaid:aid:abc');
     expect(c).toBeNull();
   });
 

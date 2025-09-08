@@ -48,7 +48,6 @@ export function parseHederaCaip10(value: string): {
   return { network: net as HederaNetwork, accountId: account };
 }
 
-// Accepts common EIP-55 address shapes. Some inputs in tests use 39 hex chars; allow 39-40.
 const EIP155_REGEX = /^eip155:(\d+):(0x[0-9a-fA-F]{39,40})$/;
 
 export function isEip155Caip10(value: string): boolean {

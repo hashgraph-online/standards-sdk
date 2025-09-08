@@ -28,10 +28,10 @@ function sanitizeDidSpecificId(idPart: string): {
 
 function buildParamString(params: DidRoutingParams): string {
   const entries: Array<[string, string]> = [];
+  if (params.uid) entries.push(['uid', params.uid]);
   if (params.registry) entries.push(['registry', params.registry]);
   if (params.proto) entries.push(['proto', params.proto]);
   if (params.nativeId) entries.push(['nativeId', params.nativeId]);
-  if (params.uid) entries.push(['uid', params.uid]);
   if (params.domain) entries.push(['domain', params.domain]);
   if (params.src) entries.push(['src', params.src]);
   if (entries.length === 0) return '';
@@ -72,20 +72,38 @@ export async function generateAidDid(
     ? defaultAidParams(normalized, params || {})
     : {};
   const paramString = includeParams ? buildParamString(finalParams) : '';
-  return paramString ? `did:aid:${id};${paramString}` : `did:aid:${id}`;
+  return paramString
+    ? `uaid:aid:${id};${paramString}`
+    : `uaid:aid:${id}`;
 }
 
 export function generateUaidDid(
   existingDid: string,
   params?: DidRoutingParams,
 ): string {
-  const idx = existingDid.indexOf(':');
-  const second = idx >= 0 ? existingDid.indexOf(':', idx + 1) : -1;
-  if (!existingDid.startsWith('did:') || second < 0) {
+  let method: string;
+  let idPart: string;
+  if (existingDid.startsWith('uaid:aid:')) {
+    method = 'aid';
+    idPart = existingDid.slice('uaid:aid:'.length);
+  } else if (existingDid.startsWith('did:')) {
+    const idx = existingDid.indexOf(':');
+    const second = existingDid.indexOf(':', idx + 1);
+    if (second < 0) throw new Error('Invalid DID format');
+    method = existingDid.slice(idx + 1, second);
+    idPart = existingDid.slice(second + 1);
+  } else {
     throw new Error('Invalid DID format');
   }
-  const idPart = existingDid.slice(second + 1);
   const { sanitized, hadSuffix } = sanitizeDidSpecificId(idPart);
+
+  let finalId = sanitized;
+  if (method === 'hedera') {
+    const networkPrefixMatch = sanitized.match(/^(mainnet|testnet|previewnet|devnet):(.+)$/);
+    if (networkPrefixMatch) {
+      finalId = networkPrefixMatch[2];
+    }
+  }
 
   const finalParams: DidRoutingParams = { ...(params || {}) };
   if (hadSuffix && !finalParams.src) {
@@ -93,28 +111,14 @@ export function generateUaidDid(
   }
   const paramString = buildParamString(finalParams);
   return paramString
-    ? `did:uaid:${sanitized};${paramString}`
-    : `did:uaid:${sanitized}`;
+    ? `uaid:did:${finalId};${paramString}`
+    : `uaid:did:${finalId}`;
 }
 
 export function parseHcs14Did(did: string): ParsedHcs14Did {
-  if (!did.startsWith('did:')) {
-    throw new Error('Invalid DID');
-  }
-  const parts = did.split(':');
-  if (parts.length < 3) {
-    throw new Error('Invalid DID');
-  }
-  const method = parts[1] as Hcs14Method;
-  if (method !== 'aid' && method !== 'uaid') {
-    throw new Error('Unsupported method');
-  }
-  const afterMethod = did.slice(`did:${method}:`.length);
-  const semi = afterMethod.indexOf(';');
-  const id = semi >= 0 ? afterMethod.slice(0, semi) : afterMethod;
-  const paramStr = semi >= 0 ? afterMethod.slice(semi + 1) : '';
-  const params: Record<string, string> = {};
-  if (paramStr) {
+  const parseParams = (paramStr: string): Record<string, string> => {
+    const params: Record<string, string> = {};
+    if (!paramStr) return params;
     const pairs = paramStr.split(';');
     for (const p of pairs) {
       const eq = p.indexOf('=');
@@ -124,6 +128,28 @@ export function parseHcs14Did(did: string): ParsedHcs14Did {
         params[k] = v;
       }
     }
+    return params;
+  };
+
+  if (did.startsWith('uaid:')) {
+    const afterUaid = did.slice('uaid:'.length);
+    let inner: 'did' | 'aid';
+    let afterInner: string;
+    if (afterUaid.startsWith('did:')) {
+      inner = 'did';
+      afterInner = afterUaid.slice('did:'.length);
+    } else if (afterUaid.startsWith('aid:')) {
+      inner = 'aid';
+      afterInner = afterUaid.slice('aid:'.length);
+    } else {
+      throw new Error('Invalid UAID');
+    }
+    const semi = afterInner.indexOf(';');
+    const id = semi >= 0 ? afterInner.slice(0, semi) : afterInner;
+    const paramStr = semi >= 0 ? afterInner.slice(semi + 1) : '';
+    const params = parseParams(paramStr);
+    return { method: inner === 'did' ? 'uaid' : 'aid', id, params };
   }
-  return { method, id, params };
+
+  throw new Error('Invalid DID');
 }

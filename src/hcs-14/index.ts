@@ -5,3 +5,4 @@ export * from './caip';
 export * from './resolvers/types';
 export * from './resolvers/registry';
 export * from './resolvers/hiero';
+export * from './sdk';

@@ -26,7 +26,6 @@ import { isBrowser } from '../utils/is-browser';
 import { KeyTypeDetector } from '../utils/key-type-detector';
 import { buildMessageTx } from '../common/tx/tx-utils';
 
-// Narrowly-typed wallet execution helper to avoid any-casts
 interface WalletExecuteResult {
   result?: TransactionReceipt;
   transactionId?: string;
