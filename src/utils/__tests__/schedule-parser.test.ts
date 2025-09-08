@@ -34,7 +34,7 @@ describe('ScheduleParser', () => {
         constructor: { name: 'ScheduleCreateTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.scheduledTransactionBody).toBeDefined();
@@ -57,7 +57,7 @@ describe('ScheduleParser', () => {
         _waitForExpiry: false,
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.scheduledTransactionBody).toBeDefined();
@@ -77,18 +77,18 @@ describe('ScheduleParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
 
     test('parseScheduleCreate - handles parsing errors gracefully', () => {
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
-        _transactionBody: null,
+        _transactionBody: null as unknown,
         constructor: { name: 'SomeOtherTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
   });
@@ -104,7 +104,7 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.789');
@@ -117,7 +117,7 @@ describe('ScheduleParser', () => {
         _scheduleId: { toString: () => '0.0.987' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.987');
@@ -132,18 +132,18 @@ describe('ScheduleParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
 
     test('parseScheduleSign - handles parsing errors gracefully', () => {
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
-        _transactionBody: null,
+        _transactionBody: null as unknown,
         constructor: { name: 'SomeOtherTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
   });
@@ -159,7 +159,7 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.321');
@@ -172,7 +172,7 @@ describe('ScheduleParser', () => {
         _scheduleId: { toString: () => '0.0.654' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.654');
@@ -187,18 +187,18 @@ describe('ScheduleParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
 
     test('parseScheduleDelete - handles parsing errors gracefully', () => {
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
-        _transactionBody: null,
+        _transactionBody: null as unknown,
         constructor: { name: 'SomeOtherTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as any);
+      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
       expect(result).toBeNull();
     });
   });
@@ -212,7 +212,7 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as any);
+      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
 
       expect(result.isScheduled).toBe(true);
       expect(result.scheduleRef).toBe('0.0.111');
@@ -225,7 +225,7 @@ describe('ScheduleParser', () => {
         _scheduleId: { toString: () => '0.0.222' },
       };
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as any);
+      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
 
       expect(result.isScheduled).toBe(true);
       expect(result.scheduleRef).toBe('0.0.222');
@@ -239,16 +239,16 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as any);
+      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
 
       expect(result.isScheduled).toBe(false);
       expect(result.scheduleRef).toBeUndefined();
     });
 
     test('extractScheduleInfo - handles errors gracefully', () => {
-      const mockTransaction = null;
+      const mockTransaction = null as unknown;
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as any);
+      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
 
       expect(result.isScheduled).toBe(false);
     });
@@ -267,7 +267,7 @@ describe('ScheduleParser', () => {
       };
 
       const result = ScheduleParser.parseScheduleTransaction(
-        mockTransaction as any,
+        mockTransaction as unknown as Transaction,
       );
 
       expect(result.type).toBe('SCHEDULECREATE');
@@ -286,7 +286,7 @@ describe('ScheduleParser', () => {
       };
 
       const result = ScheduleParser.parseScheduleTransaction(
-        mockTransaction as any,
+        mockTransaction as unknown as Transaction,
       );
 
       expect(result.type).toBe('SCHEDULESIGN');
@@ -305,7 +305,7 @@ describe('ScheduleParser', () => {
       };
 
       const result = ScheduleParser.parseScheduleTransaction(
-        mockTransaction as any,
+        mockTransaction as unknown as Transaction,
       );
 
       expect(result.type).toBe('SCHEDULEDELETE');
@@ -323,11 +323,11 @@ describe('ScheduleParser', () => {
       };
 
       const result = ScheduleParser.parseScheduleTransaction(
-        mockTransaction as any,
+        mockTransaction as unknown as Transaction,
       );
 
-      expect(result.details?.isScheduled).toBe(true);
-      expect(result.details?.scheduleRef).toBe('0.0.555');
+      expect((result.details as any)?.isScheduled).toBe(true);
+      expect((result.details as any)?.scheduleRef).toBe('0.0.555');
     });
 
     test('parseScheduleTransaction - returns empty for non-schedule transaction', () => {
@@ -339,7 +339,7 @@ describe('ScheduleParser', () => {
       };
 
       const result = ScheduleParser.parseScheduleTransaction(
-        mockTransaction as any,
+        mockTransaction as unknown as Transaction,
       );
 
       expect(result).toEqual({});

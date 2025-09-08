@@ -42,6 +42,19 @@ export class ResolverRegistry {
       return this.resolveDid(did);
     }
 
+    const proto = parsed.params['proto'];
+    const nativeId = parsed.params['nativeId'];
+    if (proto === 'hcs-10' && nativeId) {
+      const match = nativeId.match(
+        /^hedera:(mainnet|testnet|previewnet|devnet):/,
+      );
+      if (match) {
+        const network = match[1];
+        const did = `did:hedera:${network}:${id}`;
+        return this.resolveDid(did);
+      }
+    }
+
     return null;
   }
 }

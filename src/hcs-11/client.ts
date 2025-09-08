@@ -19,6 +19,9 @@ import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';
+import { isHederaNetwork, toHederaCaip10 } from '../hcs-14/caip';
+import { generateUaidDid } from '../hcs-14/did';
+import { createDID } from '@hiero-did-sdk/registrar';
 import { TopicInfo } from '../services/types';
 import {
   ProfileType,
@@ -104,6 +107,7 @@ export const BaseProfileSchema = z.object({
   bio: z.string().optional(),
   socials: z.array(SocialLinkSchema).optional(),
   profileImage: z.string().optional(),
+  uaid: z.string().optional(),
   properties: z.record(z.any()).optional(),
   inboundTopicId: z.string().optional(),
   outboundTopicId: z.string().optional(),
@@ -382,7 +386,7 @@ export class HCS11Client {
       if (err.code === 'invalid_type') {
         message = `Expected ${err.expected}, got ${err.received}`;
       } else if (err.code === 'invalid_enum_value') {
-        const validOptions = (err as any).options?.join(', ');
+        const validOptions = err.options?.join(', ');
         message = `Invalid value. Valid options are: ${validOptions}`;
       } else if (err.code === 'too_small' && err.type === 'string') {
         message = 'Cannot be empty';
@@ -513,7 +517,7 @@ export class HCS11Client {
               logging: {
                 level: 'debug',
               },
-              progressCallback: (data: any) => {
+              progressCallback: data => {
                 const adjustedPercent = 10 + (data.progressPercent || 0) * 0.8;
                 progressReporter.report({
                   stage: data.stage,
@@ -563,7 +567,7 @@ export class HCS11Client {
             logging: {
               level: 'debug',
             },
-            progressCallback: (data: any) => {
+            progressCallback: data => {
               const adjustedPercent = 10 + (data.progressPercent || 0) * 0.8;
               progressReporter.report({
                 stage: data.stage,
@@ -600,13 +604,14 @@ export class HCS11Client {
           error: 'Inscription not confirmed',
         };
       }
-    } catch (error: any) {
+    } catch (error) {
       this.logger.error('Error inscribing image:', error);
       return {
         imageTopicId: '',
         transactionId: '',
         success: false,
-        error: error.message || 'Error inscribing image',
+        error:
+          error instanceof Error ? error.message : 'Error inscribing image',
       };
     }
   }
@@ -621,8 +626,10 @@ export class HCS11Client {
     const progressReporter = new ProgressReporter({
       module: 'HCS11-Profile',
       logger: this.logger,
-      callback: progressCallback as any,
+      callback: progressCallback,
     });
+
+    await this.attachUaidIfMissing(profile);
 
     progressReporter.preparing('Validating profile data', 5);
 
@@ -665,7 +672,7 @@ export class HCS11Client {
         network: this.network as 'mainnet' | 'testnet',
         waitMaxAttempts: 100,
         waitIntervalMs: 2000,
-        progressCallback: (data: any) => {
+        progressCallback: data => {
           const adjustedPercent =
             20 + Number(data?.progressPercent || 0) * 0.75;
           progressReporter?.report({
@@ -734,7 +741,7 @@ export class HCS11Client {
           .transactionId,
         success: true,
       };
-    } catch (error: any) {
+    } catch (error) {
       progressReporter.failed(
         `Error inscribing profile: ${error.message || 'Unknown error'}`,
       );
@@ -744,6 +751,41 @@ export class HCS11Client {
         success: false,
         error: error.message || 'Unknown error during inscription',
       };
+    }
+  }
+
+  private async attachUaidIfMissing(profile: HCS11Profile): Promise<void> {
+    if ((profile as { uaid?: string }).uaid) {
+      return;
+    }
+    if (!isHederaNetwork(this.network)) return;
+    try {
+      const created = await createDID({ client: this.client });
+      const did = created.did;
+      const nativeId = toHederaCaip10(this.network, this.auth.operatorId);
+      let uid = this.auth.operatorId;
+      const inboundFromProfile = profile.inboundTopicId;
+      if (inboundFromProfile && inboundFromProfile.trim().length > 0) {
+        uid = `${inboundFromProfile}@${this.auth.operatorId}`;
+      } else {
+        try {
+          const fetched = await this.fetchProfileByAccountId(
+            this.auth.operatorId,
+            this.network as 'mainnet' | 'testnet',
+          );
+          const inbound = fetched?.topicInfo?.inboundTopic;
+          if (inbound && inbound.trim().length > 0) {
+            uid = `${inbound}@${this.auth.operatorId}`;
+          }
+        } catch {}
+      }
+
+      const uaid = generateUaidDid(did, { proto: 'hcs-10', nativeId, uid });
+      (profile as { uaid?: string }).uaid = uaid;
+    } catch {
+      this.logger.warn(
+        'Hiero registrar not available; skipping UAID generation for profile',
+      );
     }
   }
 
@@ -795,7 +837,7 @@ export class HCS11Client {
     const progressReporter = new ProgressReporter({
       module: 'HCS11-ProfileCreation',
       logger: this.logger,
-      callback: progressCallback as any,
+      callback: progressCallback,
     });
 
     progressReporter.preparing('Starting profile creation process', 0);
@@ -808,7 +850,7 @@ export class HCS11Client {
 
     const inscriptionResult = await this.inscribeProfile(profile, {
       ...options,
-      progressCallback: (data: any) => {
+      progressCallback: data => {
         inscriptionProgress.report({
           stage: data.stage,
           message: data.message,
@@ -970,16 +1012,24 @@ export class HCS11Client {
             };
           }
 
+          const parsed = HCS11ProfileSchema.safeParse(profileData);
+          if (!parsed.success) {
+            return {
+              success: false,
+              error: `Invalid HCS-11 profile data for topic ${profileTopicId}`,
+            };
+          }
+
           return {
             success: true,
-            profile: profileData,
+            profile: parsed.data,
             topicInfo: {
-              inboundTopic: profileData.inboundTopicId,
-              outboundTopic: profileData.outboundTopicId,
+              inboundTopic: parsed.data.inboundTopicId || '',
+              outboundTopic: parsed.data.outboundTopicId || '',
               profileTopicId,
             },
           };
-        } catch (cdnError: any) {
+        } catch (cdnError) {
           this.logger.error(
             `Error retrieving from Kiloscribe CDN: ${cdnError.message}`,
           );
@@ -994,13 +1044,20 @@ export class HCS11Client {
           `https://ipfs.io/ipfs/${protocolReference.replace('ipfs://', '')}`,
         );
         const profileData = await response.json();
+        const parsed = HCS11ProfileSchema.safeParse(profileData);
+        if (!parsed.success) {
+          return {
+            success: false,
+            error: `Invalid HCS-11 profile data from IPFS reference ${protocolReference}`,
+          };
+        }
         return {
           success: true,
-          profile: profileData,
+          profile: parsed.data,
           topicInfo: {
-            inboundTopic: profileData.inboundTopicId,
-            outboundTopic: profileData.outboundTopicId,
-            profileTopicId: profileData.profileTopicId,
+            inboundTopic: parsed.data.inboundTopicId || '',
+            outboundTopic: parsed.data.outboundTopicId || '',
+            profileTopicId: '',
           },
         };
       } else if (protocolReference.startsWith('ar://')) {
@@ -1015,14 +1072,20 @@ export class HCS11Client {
         }
 
         const profileData = await response.json();
-
+        const parsed = HCS11ProfileSchema.safeParse(profileData);
+        if (!parsed.success) {
+          return {
+            success: false,
+            error: `Invalid HCS-11 profile data from Arweave reference ${arTxId}`,
+          };
+        }
         return {
           success: true,
-          profile: profileData,
+          profile: parsed.data,
           topicInfo: {
-            inboundTopic: profileData.inboundTopicId,
-            outboundTopic: profileData.outboundTopicId,
-            profileTopicId: profileData.profileTopicId,
+            inboundTopic: parsed.data.inboundTopicId || '',
+            outboundTopic: parsed.data.outboundTopicId || '',
+            profileTopicId: '',
           },
         };
       } else {
@@ -1031,7 +1094,7 @@ export class HCS11Client {
           error: `Invalid protocol reference format: ${protocolReference}`,
         };
       }
-    } catch (error: any) {
+    } catch (error) {
       this.logger.error(`Error fetching profile: ${error.message}`);
       return {
         success: false,

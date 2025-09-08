@@ -140,6 +140,7 @@ export interface BaseProfile {
   bio?: string;
   socials?: SocialLink[];
   profileImage?: string;
+  uaid?: string;
   properties?: Record<string, any>;
   inboundTopicId?: string;
   outboundTopicId?: string;

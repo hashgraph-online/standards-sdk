@@ -20,6 +20,12 @@ importers:
       '@hashgraphonline/hashinal-wc':
         specifier: ^1.0.103
         version: 1.0.103(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(ioredis@5.6.1)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(zod@3.25.76)
+      '@hiero-did-sdk/registrar':
+        specifier: ^0.1.2
+        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
+      '@hiero-did-sdk/resolver':
+        specifier: ^0.1.2
+        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
       '@kiloscribe/inscription-sdk':
         specifier: ^1.0.60
         version: 1.0.60(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(typescript@5.8.3)
@@ -62,13 +68,7 @@ importers:
     devDependencies:
       '@hashgraphonline/conversational-agent':
         specifier: 0.2.104
-        version: 0.2.104(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.840.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.53.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@4.104.0(ws@8.18.2)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.8)(@smithy/util-utf8@2.3.0)(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(cohere-ai@7.17.1)(crypto-js@4.2.0)(fast-xml-parser@4.4.1)(ibm-cloud-sdk-core@5.4.0)(ioredis@5.6.1)(jsdom@20.0.3)(jsonwebtoken@9.0.2)(lodash@4.17.21)(playwright@1.53.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(weaviate-client@3.6.2)(ws@8.18.2)
-      '@hiero-did-sdk/registrar':
-        specifier: ^0.1.2
-        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
-      '@hiero-did-sdk/resolver':
-        specifier: ^0.1.2
-        version: 0.1.2(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
+        version: 0.2.104(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.840.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.53.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@4.104.0(ws@8.18.2)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.8)(@smithy/util-utf8@2.3.0)(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(cohere-ai@7.17.1)(crypto-js@4.2.0)(fast-xml-parser@4.4.1)(ibm-cloud-sdk-core@5.4.0)(ioredis@5.6.1)(jsdom@20.0.3)(jsonwebtoken@9.0.2)(lodash@4.17.21)(playwright@1.53.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(weaviate-client@3.6.2)(ws@8.18.2)
       '@swc/jest':
         specifier: ^0.2.37
         version: 0.2.38(@swc/core@1.12.11)
@@ -7271,7 +7271,7 @@ snapshots:
       - expo-crypto
       - react-native
 
-  '@hashgraphonline/conversational-agent@0.2.104(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.840.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.53.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@4.104.0(ws@8.18.2)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.8)(@smithy/util-utf8@2.3.0)(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(cohere-ai@7.17.1)(crypto-js@4.2.0)(fast-xml-parser@4.4.1)(ibm-cloud-sdk-core@5.4.0)(ioredis@5.6.1)(jsdom@20.0.3)(jsonwebtoken@9.0.2)(lodash@4.17.21)(playwright@1.53.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(weaviate-client@3.6.2)(ws@8.18.2)':
+  '@hashgraphonline/conversational-agent@0.2.104(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.840.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.53.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@4.104.0(ws@8.18.2)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.8)(@smithy/util-utf8@2.3.0)(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(cohere-ai@7.17.1)(crypto-js@4.2.0)(fast-xml-parser@4.4.1)(ibm-cloud-sdk-core@5.4.0)(ioredis@5.6.1)(jsdom@20.0.3)(jsonwebtoken@9.0.2)(lodash@4.17.21)(playwright@1.53.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(weaviate-client@3.6.2)(ws@8.18.2)':
     dependencies:
       '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))
       '@hashgraphonline/standards-agent-kit': 0.2.136(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.840.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.53.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@4.104.0(ws@8.18.2)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.8)(@langchain/anthropic@0.3.26(@langchain/core@0.3.73(openai@5.18.1(ws@8.18.2)(zod@3.25.76))))(@smithy/util-utf8@2.3.0)(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.4(ioredis@5.6.1))(@walletconnect/utils@2.21.4(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.6.1)(typescript@5.8.3)(zod@3.25.76))(bn.js@5.2.2)(cohere-ai@7.17.1)(crypto-js@4.2.0)(fast-xml-parser@4.4.1)(ibm-cloud-sdk-core@5.4.0)(ioredis@5.6.1)(jsdom@20.0.3)(jsonwebtoken@9.0.2)(lodash@4.17.21)(playwright@1.53.2)(react-native@0.80.1(@babel/core@7.28.0)(react@18.3.1))(react@18.3.1)(weaviate-client@3.6.2)(ws@8.18.2)(zod-to-json-schema@3.24.6(zod@3.25.76))
@@ -7452,6 +7452,7 @@ snapshots:
       - srt-parser-2
       - supports-color
       - typeorm
+      - typescript
       - typesense
       - uploadthing
       - usearch

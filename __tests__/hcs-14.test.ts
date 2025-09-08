@@ -30,7 +30,7 @@ describe('HCS-14 AID/UAID', () => {
       .update(Buffer.from(canonicalJson, 'utf8'))
       .digest();
     const expectedId = base58Encode(hash as any);
-    const expectedDid = `did:aid:${expectedId};registry=hol;nativeId=hedera:testnet:0.0.123456;uid=0`;
+    const expectedDid = `uaid:aid:${expectedId};uid=0;registry=hol;nativeId=hedera:testnet:0.0.123456`;
     expect(did).toBe(expectedDid);
   });
 
@@ -69,7 +69,7 @@ describe('HCS-14 AID/UAID', () => {
       uid: '0',
     });
     expect(uaid).toBe(
-      'did:uaid:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK;proto=hcs-10;nativeId=hedera:testnet:0.0.999;uid=0',
+      'uaid:did:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK;uid=0;proto=hcs-10;nativeId=hedera:testnet:0.0.999',
     );
     const parsed = parseHcs14Did(uaid);
     expect(parsed.method).toBe('uaid');
@@ -81,7 +81,7 @@ describe('HCS-14 AID/UAID', () => {
     const { generateUaidDid, parseHcs14Did } = await import('../src/hcs-14');
     const existingDid = 'did:web:example.com:agents:alice';
     const uaid = generateUaidDid(existingDid);
-    expect(uaid).toBe('did:uaid:example.com:agents:alice');
+    expect(uaid).toBe('uaid:did:example.com:agents:alice');
     const parsed = parseHcs14Did(uaid);
     expect(Object.keys(parsed.params).length).toBe(0);
   });
@@ -168,7 +168,7 @@ describe('HCS-14 AID/UAID', () => {
     const did =
       'did:hedera:testnet:zABC123;hedera:testnet:fid=0.0.1;tid=0.0.2#frag';
     const uaid = generateUaidDid(did, { proto: 'hcs-10', uid: '0' });
-    expect(uaid.startsWith('did:uaid:testnet:zABC123;')).toBe(true);
+    expect(uaid.startsWith('uaid:did:zABC123;')).toBe(true);
     const parsed = parseHcs14Did(uaid);
     expect(parsed.params.src?.startsWith('z')).toBe(true);
   });
@@ -177,7 +177,7 @@ describe('HCS-14 AID/UAID', () => {
     const { generateUaidDid, parseHcs14Did } = await import('../src/hcs-14');
     const did = 'did:hedera:testnet:zK3Y_0.0.12345';
     const uaid = generateUaidDid(did, { proto: 'hcs-10' });
-    expect(uaid).toBe('did:uaid:testnet:zK3Y_0.0.12345;proto=hcs-10');
+    expect(uaid).toBe('uaid:did:zK3Y_0.0.12345;proto=hcs-10');
     const parsed = parseHcs14Did(uaid);
     expect(parsed.params.src).toBeUndefined();
   });
@@ -247,7 +247,7 @@ describe('HCS-14 AID/UAID', () => {
       undefined,
       { includeParams: false },
     );
-    expect(did.startsWith('did:aid:')).toBe(true);
+    expect(did.startsWith('uaid:aid:')).toBe(true);
     expect(did.includes(';')).toBe(false);
     jest.dontMock(cryptoPath);
   });
@@ -280,7 +280,7 @@ describe('HCS-14 AID/UAID', () => {
       undefined,
       { includeParams: false },
     );
-    expect(did.startsWith('did:aid:')).toBe(true);
+    expect(did.startsWith('uaid:aid:')).toBe(true);
     jest.dontMock(cryptoPath);
   });
 
