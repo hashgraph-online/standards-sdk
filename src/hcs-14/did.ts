@@ -5,12 +5,7 @@
 import { getCryptoAdapter } from '../utils/crypto-abstraction';
 import { base58Encode } from './base58';
 import { canonicalizeAgentData } from './canonical';
-import {
-  CanonicalAgentData,
-  DidRoutingParams,
-  Hcs14Method,
-  ParsedHcs14Did,
-} from './types';
+import { CanonicalAgentData, DidRoutingParams, ParsedHcs14Did } from './types';
 
 function encodeMultibaseB58btc(input: string): string {
   const bytes = Buffer.from(input, 'utf8');
@@ -72,9 +67,7 @@ async function createUaidAidImpl(
     ? defaultAidParams(normalized, params || {})
     : {};
   const paramString = includeParams ? buildParamString(finalParams) : '';
-  return paramString
-    ? `uaid:aid:${id};${paramString}`
-    : `uaid:aid:${id}`;
+  return paramString ? `uaid:aid:${id};${paramString}` : `uaid:aid:${id}`;
 }
 
 function createUaidFromDidImpl(
@@ -99,7 +92,9 @@ function createUaidFromDidImpl(
 
   let finalId = sanitized;
   if (method === 'hedera') {
-    const networkPrefixMatch = sanitized.match(/^(mainnet|testnet|previewnet|devnet):(.+)$/);
+    const networkPrefixMatch = sanitized.match(
+      /^(mainnet|testnet|previewnet|devnet):(.+)$/,
+    );
     if (networkPrefixMatch) {
       finalId = networkPrefixMatch[2];
     }

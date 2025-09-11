@@ -20,8 +20,7 @@ import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';
 import { isHederaNetwork, toHederaCaip10 } from '../hcs-14/caip';
-import { createUaid } from '../hcs-14/did';
-import { createDID } from '@hiero-did-sdk/registrar';
+import { HCS14Client } from '../hcs-14';
 import { TopicInfo } from '../services/types';
 import {
   ProfileType,
@@ -760,8 +759,11 @@ export class HCS11Client {
     }
     if (!isHederaNetwork(this.network)) return;
     try {
-      const created = await createDID({ client: this.client });
-      const did = created.did;
+      const hcs14 = new HCS14Client({ client: this.client });
+      const did = await hcs14.createDid({
+        method: 'hedera',
+        client: this.client,
+      });
       const nativeId = toHederaCaip10(this.network, this.auth.operatorId);
       let uid = this.auth.operatorId;
       const inboundFromProfile = profile.inboundTopicId;
@@ -780,8 +782,8 @@ export class HCS11Client {
         } catch {}
       }
 
-      const uaid = createUaid(did, { proto: 'hcs-10', nativeId, uid });
-      (profile as { uaid?: string }).uaid = uaid;
+      const uaid = hcs14.createUaid(did, { proto: 'hcs-10', nativeId, uid });
+      profile.uaid = uaid;
     } catch {
       this.logger.warn(
         'Hiero registrar not available; skipping UAID generation for profile',
