@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { HCS14Client } from '../../src/hcs-14';
+import { Client } from '@hashgraph/sdk';
 
 function required(name: string, value: string | undefined): string {
   if (!value || !value.trim()) throw new Error(`${name} is required in environment`);
@@ -15,7 +16,9 @@ async function main() {
   const hcs14 = new HCS14Client({ network, operatorId: accountId, privateKey: privateKeyStr });
   hcs14.registerHederaResolver();
 
-  const { did, uaid, parsed } = await hcs14.createDidAndUaid({ proto: 'hcs-10' });
+  const client = Client.forName(network);
+  client.setOperator(accountId, privateKeyStr);
+  const { did, uaid, parsed } = await hcs14.createDidWithUaid({ issue: { method: 'hedera', client }, proto: 'hcs-10' });
   const resolved = await hcs14.getResolverRegistry().resolveUaid(uaid);
 
   const output = {

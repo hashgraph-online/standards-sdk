@@ -14,6 +14,14 @@ export class ResolverRegistry {
     this.resolvers.push(resolver);
   }
 
+  list(): DidResolver[] {
+    return [...this.resolvers];
+  }
+
+  filterByDidMethod(method: string): DidResolver[] {
+    return this.resolvers.filter(r => r.meta?.didMethods?.includes(method));
+  }
+
   async resolveDid(did: string): Promise<DidDocumentMinimal | null> {
     for (const r of this.resolvers) {
       if (r.supports(did)) return r.resolve(did);

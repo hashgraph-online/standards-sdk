@@ -1,8 +1,4 @@
-import {
-  generateAidDid,
-  generateUaidDid,
-  parseHcs14Did,
-} from '../../src/hcs-14/did';
+import { createUaid, parseHcs14Did } from '../../src/hcs-14/did';
 import { canonicalizeAgentData } from '../../src/hcs-14/canonical';
 import { base58Encode } from '../../src/hcs-14/base58';
 import { getCryptoAdapter } from '../../src/utils/crypto-abstraction';
@@ -48,7 +44,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     mockGetCryptoAdapter.mockReturnValue(mockAdapter);
   });
 
-  describe('generateAidDid', () => {
+  describe('createUaid (AID path)', () => {
     test('should generate AID DID without params', async () => {
       const input = {
         registry: 'test-registry',
@@ -59,7 +55,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         skills: [1, 2, 3],
       };
 
-      const result = await generateAidDid(input);
+      const result = await createUaid(input);
 
       expect(mockCanonicalizeAgentData).toHaveBeenCalledWith(input);
       expect(mockGetCryptoAdapter).toHaveBeenCalled();
@@ -83,7 +79,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         uid: 'custom-uid',
       };
 
-      const result = await generateAidDid(input, params);
+      const result = await createUaid(input, params);
 
       expect(result).toBe(
         'uaid:aid:mock-encoded-id;uid=custom-uid;registry=custom-registry;proto=custom-proto;nativeId=0.0.12345',
@@ -100,7 +96,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         skills: [1, 2, 3],
       };
 
-      const result = await generateAidDid(input, {}, { includeParams: false });
+      const result = await createUaid(input, {}, { includeParams: false });
 
       expect(result).toBe('uaid:aid:mock-encoded-id');
     });
@@ -119,7 +115,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         proto: 'custom-proto', // New param
       };
 
-      const result = await generateAidDid(input, params);
+      const result = await createUaid(input, params);
 
       expect(result).toBe(
         'uaid:aid:mock-encoded-id;uid=0;registry=custom-registry;proto=custom-proto;nativeId=0.0.12345',
@@ -136,7 +132,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         skills: [1, 2, 3],
       };
 
-      const result = await generateAidDid(input, {});
+      const result = await createUaid(input, {});
 
       expect(result).toBe(
         'uaid:aid:mock-encoded-id;uid=0;registry=test-registry;nativeId=0.0.12345',
@@ -153,7 +149,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         skills: [1, 2, 3],
       };
 
-      await generateAidDid(input);
+      await createUaid(input);
 
       const mockAdapter = mockGetCryptoAdapter.mock.results[0].value;
       expect(mockAdapter.createHash).toHaveBeenCalledWith('sha384');
@@ -169,7 +165,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
   });
 
-  describe('generateUaidDid', () => {
+  describe('createUaid (DID path)', () => {
     test('should generate UAID DID from AID DID', () => {
       const existingDid = 'uaid:aid:abc123;registry=test;nativeId=0.0.123';
       const params = {
@@ -177,7 +173,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         proto: 'new-proto',
       };
 
-      const result = generateUaidDid(existingDid, params);
+      const result = createUaid(existingDid, params);
 
       expect(result).toBe(
         'uaid:did:abc123;registry=new-registry;proto=new-proto;src=zmock-encoded-id',
@@ -187,7 +183,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
     test('should generate UAID DID without additional params', () => {
       const existingDid = 'uaid:aid:abc123;registry=test;nativeId=0.0.123';
 
-      const result = generateUaidDid(existingDid);
+      const result = createUaid(existingDid);
 
       expect(result).toBe('uaid:did:abc123;src=zmock-encoded-id');
     });
@@ -195,26 +191,26 @@ describe('HCS-14 DID Generation and Parsing', () => {
     test('should generate UAID DID from AID DID without params', () => {
       const existingDid = 'uaid:aid:simple-id';
 
-      const result = generateUaidDid(existingDid);
+      const result = createUaid(existingDid);
 
       expect(result).toBe('uaid:did:simple-id');
     });
 
     test('should throw error for invalid DID format', () => {
-      expect(() => generateUaidDid('invalid-did')).toThrow(
+      expect(() => createUaid('invalid-did')).toThrow(
         'Invalid DID format',
       );
-      expect(() => generateUaidDid('did:invalid')).toThrow(
+      expect(() => createUaid('did:invalid')).toThrow(
         'Invalid DID format',
       );
-      expect(() => generateUaidDid('not-a-did')).toThrow('Invalid DID format');
+      expect(() => createUaid('not-a-did')).toThrow('Invalid DID format');
     });
 
     test('should handle empty params', () => {
       const existingDid = 'uaid:aid:abc123;registry=test';
       const params = {};
 
-      const result = generateUaidDid(existingDid, params);
+      const result = createUaid(existingDid, params);
 
       expect(result).toBe('uaid:did:abc123;src=zmock-encoded-id');
     });
@@ -226,7 +222,7 @@ describe('HCS-14 DID Generation and Parsing', () => {
         uid: 'new-uid',
       };
 
-      const result = generateUaidDid(existingDid, params);
+      const result = createUaid(existingDid, params);
 
       expect(result).toBe(
         'uaid:did:abc123;uid=new-uid;proto=new-proto;src=zmock-encoded-id',
@@ -367,5 +363,4 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
   });
 });
-
 
