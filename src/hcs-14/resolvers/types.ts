@@ -9,4 +9,6 @@ export interface DidDocumentMinimal {
 export interface DidResolver {
   supports(did: string): boolean;
   resolve(did: string): Promise<DidDocumentMinimal | null>;
+  /** Optional adapter metadata for discovery/UI purposes. */
+  meta?: import('../adapters/types').AdapterMeta;
 }
