@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { HCS11Client, HCS11Profile } from '../../src/hcs-11';
-import { defaultResolverRegistry, HieroDidResolver } from '../../src/hcs-14';
+import { HCS14Client } from '../../src/hcs-14';
 import { resolveDID } from '@hiero-did-sdk/resolver';
 
 function assertNetwork(value: string | undefined): 'mainnet' | 'testnet' {
@@ -24,8 +24,8 @@ async function main(): Promise<void> {
   const profile = fetched.profile as HCS11Profile;
   const uaid = profile.uaid;
   if (!uaid) throw new Error('Profile does not contain uaid');
-  defaultResolverRegistry.register(new HieroDidResolver());
-  const doc = await defaultResolverRegistry.resolveUaid(uaid);
+  const hcs14 = new HCS14Client();
+  const doc = await hcs14.getResolverRegistry().resolveUaid(uaid);
   const did = doc?.id || '';
   const resolved = did ? await resolveDID(did) : null;
   const output = { uaid, did, resolved };

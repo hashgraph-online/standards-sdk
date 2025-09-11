@@ -98,7 +98,6 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
       hederaIssuers.some(i => i.meta.didMethods.includes('hedera')),
     ).toBe(true);
 
-    client.registerHederaResolver();
     const resolvers = client.listResolvers();
     expect(resolvers.length).toBeGreaterThan(0);
     const hederaResolvers = client.filterResolversByMethod('hedera');
