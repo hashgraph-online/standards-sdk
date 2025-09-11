@@ -20,7 +20,7 @@ import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';
 import { isHederaNetwork, toHederaCaip10 } from '../hcs-14/caip';
-import { generateUaidDid } from '../hcs-14/did';
+import { createUaid } from '../hcs-14/did';
 import { createDID } from '@hiero-did-sdk/registrar';
 import { TopicInfo } from '../services/types';
 import {
@@ -780,7 +780,7 @@ export class HCS11Client {
         } catch {}
       }
 
-      const uaid = generateUaidDid(did, { proto: 'hcs-10', nativeId, uid });
+      const uaid = createUaid(did, { proto: 'hcs-10', nativeId, uid });
       (profile as { uaid?: string }).uaid = uaid;
     } catch {
       this.logger.warn(
@@ -1022,7 +1022,7 @@ export class HCS11Client {
 
           return {
             success: true,
-            profile: parsed.data,
+            profile: parsed.data as HCS11Profile,
             topicInfo: {
               inboundTopic: parsed.data.inboundTopicId || '',
               outboundTopic: parsed.data.outboundTopicId || '',
@@ -1053,7 +1053,7 @@ export class HCS11Client {
         }
         return {
           success: true,
-          profile: parsed.data,
+          profile: parsed.data as HCS11Profile,
           topicInfo: {
             inboundTopic: parsed.data.inboundTopicId || '',
             outboundTopic: parsed.data.outboundTopicId || '',
@@ -1081,7 +1081,7 @@ export class HCS11Client {
         }
         return {
           success: true,
-          profile: parsed.data,
+          profile: parsed.data as HCS11Profile,
           topicInfo: {
             inboundTopic: parsed.data.inboundTopicId || '',
             outboundTopic: parsed.data.outboundTopicId || '',

@@ -49,7 +49,7 @@ function defaultAidParams(
   return merged;
 }
 
-export async function generateAidDid(
+async function createUaidAidImpl(
   input: CanonicalAgentData,
   params?: DidRoutingParams,
   options?: { includeParams?: boolean },
@@ -77,7 +77,7 @@ export async function generateAidDid(
     : `uaid:aid:${id}`;
 }
 
-export function generateUaidDid(
+function createUaidFromDidImpl(
   existingDid: string,
   params?: DidRoutingParams,
 ): string {
@@ -113,6 +113,26 @@ export function generateUaidDid(
   return paramString
     ? `uaid:did:${finalId};${paramString}`
     : `uaid:did:${finalId}`;
+}
+
+export function createUaid(
+  existingDid: string,
+  params?: DidRoutingParams,
+): string;
+export function createUaid(
+  input: CanonicalAgentData,
+  params?: DidRoutingParams,
+  options?: { includeParams?: boolean },
+): Promise<string>;
+export function createUaid(
+  input: string | CanonicalAgentData,
+  params?: DidRoutingParams,
+  options?: { includeParams?: boolean },
+): Promise<string> | string {
+  if (typeof input === 'string') {
+    return createUaidFromDidImpl(input, params);
+  }
+  return createUaidAidImpl(input, params, options);
 }
 
 export function parseHcs14Did(did: string): ParsedHcs14Did {
