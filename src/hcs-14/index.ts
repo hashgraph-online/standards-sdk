@@ -6,3 +6,6 @@ export * from './resolvers/types';
 export * from './resolvers/registry';
 export * from './resolvers/hiero';
 export * from './sdk';
+export * from './issuers/types';
+export * from './issuers/registry';
+export * from './issuers/hiero';
