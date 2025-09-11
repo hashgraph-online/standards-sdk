@@ -15,7 +15,7 @@ export class HederaHieroIssuer implements DidIssuer {
     caip10Namespaces: ['hedera'],
     displayName: 'Hedera (Hiero Registrar)',
     description: 'Issues did:hedera identifiers using the Hiero DID registrar.',
-    homepage: 'https://github.com/hashgraph-devrel/hiero-did-sdk',
+    homepage: 'https://github.com/hiero-ledger/hiero-did-sdk-js',
   };
 
   supports(method: string): boolean {

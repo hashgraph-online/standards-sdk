@@ -10,7 +10,7 @@ export class HieroDidResolver implements DidResolver {
     caip10Namespaces: ['hedera'],
     displayName: 'Hedera (Hiero Resolver)',
     description: 'Resolves did:hedera identifiers via Hiero DID resolver.',
-    homepage: 'https://github.com/hashgraph-devrel/hiero-did-sdk',
+    homepage: 'https://github.com/hiero-ledger/hiero-did-sdk-js',
   };
   supports(did: string): boolean {
     return did.startsWith('did:hedera:');
