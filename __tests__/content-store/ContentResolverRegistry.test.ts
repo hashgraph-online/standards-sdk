@@ -269,10 +269,19 @@ describe('ContentResolverRegistry (singleton)', () => {
       ),
     ];
 
-    singleton.register(mockResolver);
-    const results = await Promise.all(promises);
+    const initialResults = await Promise.all(promises);
+    expect(initialResults).toEqual(['fallback1', 'fallback2']);
 
-    expect(results).toEqual(['result1', 'result2']);
+    ContentResolverRegistry.register(mockResolver);
+    const op1 = await ContentResolverRegistry.withResolver(
+      async () => 'result1',
+      async () => 'fallback1',
+    );
+    const op2 = await ContentResolverRegistry.withResolver(
+      async () => 'result2',
+      async () => 'fallback2',
+    );
+    expect([op1, op2]).toEqual(['result1', 'result2']);
   });
 
   test('should clear callbacks on unregister', () => {
