@@ -28,8 +28,12 @@ describe('Crypto Abstraction Layer', () => {
     });
 
     test('should create NodeCryptoAdapter successfully', () => {
-      const adapter = new NodeCryptoAdapter();
-      expect(adapter).toBeInstanceOf(NodeCryptoAdapter);
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => mockCrypto, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = new NCA();
+        expect(adapter).toBeInstanceOf(NCA);
+      });
     });
 
     test('constructs without error when crypto module is available', () => {
