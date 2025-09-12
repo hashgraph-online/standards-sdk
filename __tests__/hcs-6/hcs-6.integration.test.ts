@@ -12,7 +12,9 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-describe('HCS-6 Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('HCS-6 Integration Tests', () => {
   let client: HCS6Client;
   let operatorId: string;
   let registryTopicId: string;

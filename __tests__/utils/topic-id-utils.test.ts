@@ -69,7 +69,31 @@ describe('getTopicId', () => {
     expect(getTopicId({})).toBeUndefined();
   });
 
-  // Proxy-based tests are not applicable: bracket and dot access both trigger the same Proxy get trap
+  test('returns undefined if both direct and bracket access return undefined', () => {
+    const target = { topicId: '0.0.123' };
+    const inscription = new Proxy(target, {
+      get(target, prop) {
+        if (prop === 'topicId' || prop === 'topic_id') {
+          return undefined;
+        }
+        return target[prop as keyof typeof target];
+      },
+    });
+    expect(getTopicId(inscription)).toBeUndefined();
+  });
+
+  test('returns undefined for topic_id when both accessors return undefined', () => {
+    const target = { topic_id: '0.0.456' };
+    const inscription = new Proxy(target, {
+      get(target, prop) {
+        if (prop === 'topicId' || prop === 'topic_id') {
+          return undefined;
+        }
+        return target[prop as keyof typeof target];
+      },
+    });
+    expect(getTopicId(inscription)).toBeUndefined();
+  });
 
   test('should handle prototype-less objects', () => {
     const inscription = Object.create(null);

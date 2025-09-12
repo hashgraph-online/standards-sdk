@@ -1,6 +1,6 @@
 import { DidDocumentMinimal, DidResolver } from './types';
-import { resolveDID } from '@hiero-did-sdk/resolver';
 import type { AdapterMeta } from '../adapters/types';
+type ResolveDID = typeof import('@hiero-did-sdk/resolver').resolveDID;
 
 export class HieroDidResolver implements DidResolver {
   readonly meta: AdapterMeta = {
@@ -17,12 +17,9 @@ export class HieroDidResolver implements DidResolver {
   }
 
   async resolve(did: string): Promise<DidDocumentMinimal | null> {
-    type MinimalResolution = {
-      id?: string;
-      didDocument?: { id?: string };
-    };
-    const res = (await resolveDID(did)) as MinimalResolution;
-    const id = res.id ?? res.didDocument?.id;
-    return id ? { id } : null;
+    const mod = await import('@hiero-did-sdk/resolver');
+    const resolveDID: ResolveDID = mod.resolveDID;
+    const res = await resolveDID(did as Parameters<ResolveDID>[0]);
+    return res && typeof res.id === 'string' ? { id: res.id } : null;
   }
 }

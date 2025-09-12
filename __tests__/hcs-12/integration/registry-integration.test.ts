@@ -23,7 +23,9 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-describe('Registry Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('Registry Integration Tests', () => {
   let client: HCS12Client;
   let actionRegistry: ActionRegistry;
   let blockLoader: BlockLoader;

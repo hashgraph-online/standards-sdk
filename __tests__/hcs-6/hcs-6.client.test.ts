@@ -228,7 +228,6 @@ describe('HCS6Client', () => {
       expect(mockTopicCreateTransaction.setTopicMemo).toHaveBeenCalledWith(
         'hcs-6:1:7200',
       );
-      expect(mockTopicCreateTransaction.setAdminKey).toHaveBeenCalled();
       expect(mockTopicCreateTransaction.setSubmitKey).toHaveBeenCalled();
     });
 

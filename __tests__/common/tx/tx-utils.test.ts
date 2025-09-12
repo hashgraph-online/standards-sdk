@@ -13,7 +13,11 @@ import {
 } from '../../../src/common/tx/tx-utils';
 
 jest.mock('@hashgraph/sdk', () => {
-  const TopicCreateTransaction = jest.fn().mockImplementation(() => ({
+  const PublicKeyMock: any = jest.fn().mockImplementation(() => ({}));
+  PublicKeyMock.fromString = jest.fn();
+
+  return {
+  TopicCreateTransaction: jest.fn().mockImplementation(() => ({
     setTopicMemo: jest.fn().mockReturnThis(),
     setAdminKey: jest.fn().mockReturnThis(),
     setSubmitKey: jest.fn().mockReturnThis(),
@@ -25,24 +29,14 @@ jest.mock('@hashgraph/sdk', () => {
     setMessage: jest.fn().mockReturnThis(),
     setTransactionMemo: jest.fn().mockReturnThis(),
     freezeWith: jest.fn().mockReturnThis(),
-  }));
-
-  const PublicKey: any = jest.fn().mockImplementation(() => ({}));
-  PublicKey.fromString = jest.fn();
-
-  const KeyList = jest.fn().mockImplementation(() => ({}));
-
-  const TopicId = {
+  })),
+  PublicKey: PublicKeyMock,
+  KeyList: jest.fn().mockImplementation(() => ({
+  })),
+  TopicId: {
     fromString: jest.fn(),
-  };
-
-  return {
-    TopicCreateTransaction,
-    TopicMessageSubmitTransaction,
-    PublicKey,
-    KeyList,
-    TopicId,
-  };
+  },
+};
 });
 
 describe('Common TX Utils', () => {

@@ -53,7 +53,6 @@ export class HCS14Client {
     this.registry = options?.registry ?? defaultResolverRegistry;
     this.issuers = new IssuerRegistry();
     this.registerHederaIssuer();
-    // Auto-register Hedera resolver for convenience
     this.registerHederaResolver();
     this.client = options?.client;
     this.network = options?.network;

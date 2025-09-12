@@ -149,6 +149,7 @@ describe('ContentStoreService (singleton)', () => {
     const instance1 = ContentStoreServiceImpl.getInstance();
     const instance2 = ContentStoreServiceImpl.getInstance();
     expect(instance1).toBe(instance2);
+    expect(ContentStoreService).toStrictEqual(instance1);
   });
 
   test('should maintain state across imports', async () => {
