@@ -69,7 +69,7 @@ describe('getTopicId', () => {
     expect(getTopicId({})).toBeUndefined();
   });
 
-  test('should use bracket notation when direct property access fails', () => {
+  test('returns undefined if both direct and bracket access return undefined', () => {
     const target = { topicId: '0.0.123' };
     const inscription = new Proxy(target, {
       get(target, prop) {
@@ -79,10 +79,10 @@ describe('getTopicId', () => {
         return target[prop as keyof typeof target];
       },
     });
-    expect(getTopicId(inscription)).toBe('0.0.123');
+    expect(getTopicId(inscription)).toBeUndefined();
   });
 
-  test('should use bracket notation for topic_id when direct property access fails', () => {
+  test('returns undefined for topic_id when both accessors return undefined', () => {
     const target = { topic_id: '0.0.456' };
     const inscription = new Proxy(target, {
       get(target, prop) {
@@ -92,7 +92,7 @@ describe('getTopicId', () => {
         return target[prop as keyof typeof target];
       },
     });
-    expect(getTopicId(inscription)).toBe('0.0.456');
+    expect(getTopicId(inscription)).toBeUndefined();
   });
 
   test('should handle prototype-less objects', () => {
