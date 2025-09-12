@@ -27,7 +27,9 @@ dotenv.config();
 const hasCredentials =
   process.env.HEDERA_ACCOUNT_ID && process.env.HEDERA_PRIVATE_KEY;
 
-describe('HCS-12 Working Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('HCS-12 Working Integration Tests', () => {
   let logger: Logger;
 
   beforeEach(() => {

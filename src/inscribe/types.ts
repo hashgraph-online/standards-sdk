@@ -45,6 +45,7 @@ export interface InscriptionSDKOptions {
 
 export interface InscriptionOptions {
   mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection';
+  websocket?: boolean;
   waitForConfirmation?: boolean;
   waitMaxAttempts?: number;
   waitIntervalMs?: number;

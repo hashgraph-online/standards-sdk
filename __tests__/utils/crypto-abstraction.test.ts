@@ -2,8 +2,6 @@ import { detectCryptoEnvironment } from '../../src/utils/crypto-env';
 
 jest.mock('../../src/utils/crypto-env');
 
-const mockRequire = jest.fn();
-(global as any).require = mockRequire;
 
 import {
   getCryptoAdapter,
@@ -33,34 +31,38 @@ describe('Crypto Abstraction Layer', () => {
         pbkdf2: jest.fn(),
         timingSafeEqual: jest.fn(),
       };
-
-      mockRequire.mockReturnValue(mockCrypto);
     });
 
     test('should create NodeCryptoAdapter successfully', () => {
-      const adapter = new NodeCryptoAdapter();
-      expect(adapter).toBeInstanceOf(NodeCryptoAdapter);
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => mockCrypto, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = new NCA();
+        expect(adapter).toBeInstanceOf(NCA);
+      });
     });
 
     test('should throw error when crypto module not available', () => {
-      mockRequire.mockImplementation(() => {
-        throw new Error('Module not found');
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => { throw new Error('Module not found'); }, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        expect(() => new NCA()).toThrow('Node.js crypto module not available');
       });
-
-      expect(() => new NodeCryptoAdapter()).toThrow('Node.js crypto module not available');
-
-      mockRequire.mockReturnValue(mockCrypto);
     });
 
     test('should create hash adapter', () => {
       const mockHash = {};
       mockCrypto.createHash.mockReturnValue(mockHash);
 
-      const adapter = new NodeCryptoAdapter();
-      const result = adapter.createHash('sha256');
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => mockCrypto, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = new NCA();
+        const result = adapter.createHash('sha256');
 
-      expect(mockCrypto.createHash).toHaveBeenCalledWith('sha256');
-      expect(result).toBeDefined();
+        expect(mockCrypto.createHash).toHaveBeenCalledWith('sha256');
+        expect(result).toBeDefined();
+      });
     });
 
     test('should create HMAC adapter', () => {
@@ -68,11 +70,15 @@ describe('Crypto Abstraction Layer', () => {
       mockCrypto.createHmac.mockReturnValue(mockHmac);
       const key = Buffer.from('test-key');
 
-      const adapter = new NodeCryptoAdapter();
-      const result = adapter.createHmac('sha256', key);
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => mockCrypto, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = new NCA();
+        const result = adapter.createHmac('sha256', key);
 
-      expect(mockCrypto.createHmac).toHaveBeenCalledWith('sha256', key);
-      expect(result).toBeDefined();
+        expect(mockCrypto.createHmac).toHaveBeenCalledWith('sha256', key);
+        expect(result).toBeDefined();
+      });
     });
 
     test('should perform PBKDF2', async () => {
@@ -81,28 +87,36 @@ describe('Crypto Abstraction Layer', () => {
         callback(null, expectedResult);
       });
 
-      const adapter = new NodeCryptoAdapter();
-      const result = await adapter.pbkdf2('password', Buffer.from('salt'), 1000, 32, 'sha256');
+      jest.isolateModules(async () => {
+        jest.doMock('crypto', () => mockCrypto, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = new NCA();
+        const result = await adapter.pbkdf2('password', Buffer.from('salt'), 1000, 32, 'sha256');
 
-      expect(mockCrypto.pbkdf2).toHaveBeenCalledWith(
-        'password',
-        Buffer.from('salt'),
-        1000,
-        32,
-        'sha256',
-        expect.any(Function)
-      );
-      expect(result).toBe(expectedResult);
+        expect(mockCrypto.pbkdf2).toHaveBeenCalledWith(
+          'password',
+          Buffer.from('salt'),
+          1000,
+          32,
+          'sha256',
+          expect.any(Function)
+        );
+        expect(result).toBe(expectedResult);
+      });
     });
 
     test('should perform timing safe equal', () => {
       mockCrypto.timingSafeEqual.mockReturnValue(true);
 
-      const adapter = new NodeCryptoAdapter();
-      const result = adapter.timingSafeEqual(Buffer.from('a'), Buffer.from('a'));
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => mockCrypto, { virtual: true });
+        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = new NCA();
+        const result = adapter.timingSafeEqual(Buffer.from('a'), Buffer.from('a'));
 
-      expect(mockCrypto.timingSafeEqual).toHaveBeenCalledWith(Buffer.from('a'), Buffer.from('a'));
-      expect(result).toBe(true);
+        expect(mockCrypto.timingSafeEqual).toHaveBeenCalledWith(Buffer.from('a'), Buffer.from('a'));
+        expect(result).toBe(true);
+      });
     });
   });
 
@@ -406,16 +420,12 @@ describe('Crypto Abstraction Layer', () => {
         hasNodeCrypto: true,
         hasWebCrypto: false,
       });
-
-      mockRequire.mockImplementation(() => {
-        throw new Error('Module not found');
+      jest.isolateModules(() => {
+        jest.doMock('crypto', () => { throw new Error('Module not found'); }, { virtual: true });
+        const { getCryptoAdapter: gca, FallbackCryptoAdapter: FCA } = require('../../src/utils/crypto-abstraction');
+        const adapter = gca();
+        expect(adapter).toBeInstanceOf(FCA);
       });
-
-      const adapter = getCryptoAdapter();
-
-      expect(adapter).toBeInstanceOf(FallbackCryptoAdapter);
-
-      mockRequire.mockReturnValue(mockCrypto);
     });
   });
 
