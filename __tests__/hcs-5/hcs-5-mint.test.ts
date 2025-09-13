@@ -1,7 +1,6 @@
 import { HCS5Client } from '../../src/hcs-5/sdk';
 import { buildHcs1Hrl } from '../../src/hcs-5/types';
 
-// Avoid real mirror node calls in unit tests
 jest.mock('../../src/services/mirror-node', () => ({
   HederaMirrorNode: jest.fn().mockImplementation(() => ({
     requestAccount: jest
@@ -135,7 +134,7 @@ describe('HCS-5: mint()', () => {
   });
 });
 
-describe('HCS-5: inscribeAndMint()', () => {
+describe('HCS-5: createHashinal()', () => {
   it('inscribes then mints using jsonTopicId', async () => {
     const client = new HCS5Client({
       network: 'testnet',
@@ -143,7 +142,7 @@ describe('HCS-5: inscribeAndMint()', () => {
       operatorKey: 'operator-key',
     });
 
-    const res = await client.inscribeAndMint({
+    const res = await client.createHashinal({
       tokenId: '0.0.7',
       inscriptionInput: {
         type: 'buffer',
@@ -178,7 +177,7 @@ describe('HCS-5: inscribeAndMint()', () => {
       operatorKey: 'operator-key',
     });
 
-    const res = await client.inscribeAndMint({
+    const res = await client.createHashinal({
       tokenId: '0.0.7',
       inscriptionInput: {
         type: 'buffer',
@@ -212,7 +211,7 @@ describe('HCS-5: inscribeAndMint()', () => {
       operatorKey: 'operator-key',
     });
 
-    const res = await client.inscribeAndMint({
+    const res = await client.createHashinal({
       tokenId: '0.0.7',
       inscriptionInput: {
         type: 'buffer',

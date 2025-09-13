@@ -8,6 +8,7 @@ import {
   ImageJobResponse,
 } from '@kiloscribe/inscription-sdk';
 import { LoggerOptions, LogLevel } from '../utils/logger';
+import type { PrivateKey } from '@hashgraph/sdk';
 import { RegistrationProgressCallback } from '../hcs-10/types';
 
 export type {
@@ -26,6 +27,10 @@ export interface RetrievedInscriptionResult
 }
 
 export type { HederaClientConfig };
+
+export type NodeHederaClientConfig = Omit<HederaClientConfig, 'privateKey'> & {
+  privateKey: string | PrivateKey;
+};
 
 export interface AuthConfig {
   accountId: string;

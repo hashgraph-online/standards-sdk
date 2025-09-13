@@ -6,7 +6,6 @@ import {
   MCPServerProfile,
 } from '../../src/hcs-11/types';
 
-// Ensure PrivateKey helpers exist regardless of SDK version
 jest.mock('@hashgraph/sdk', () => {
   const actual = jest.requireActual('@hashgraph/sdk');
   const basePK = actual.PrivateKey || {};

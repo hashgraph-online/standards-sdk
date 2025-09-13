@@ -1,4 +1,5 @@
-import { Logger, HCS10Client } from '../../src';
+import { Logger } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import { createMCPServer } from './utils';
 
 export const main = async () => {

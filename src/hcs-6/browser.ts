@@ -60,13 +60,17 @@ export class HCS6BrowserClient extends HCS6BaseClient {
     return accountId;
   }
 
-  private getSigner(): DAppSigner {
+  public getSigner(): DAppSigner {
     const explicit = this.signer;
-    if (explicit) return explicit;
+    if (explicit) {
+      return explicit;
+    }
     this.ensureConnected();
     const dc = this.hwc.dAppConnector;
     const signer = dc?.signers?.[0];
-    if (!signer) throw new Error('No active wallet signer');
+    if (!signer) {
+      throw new Error('No active wallet signer');
+    }
     return signer;
   }
 
@@ -393,12 +397,4 @@ export class HCS6BrowserClient extends HCS6BaseClient {
       return false;
     }
   }
-}
-
-function getTopicSequenceNumber(
-  receipt: TransactionReceipt & { topicSequenceNumber?: number | Long },
-): number | undefined {
-  const v = receipt.topicSequenceNumber;
-  if (typeof v === 'number') return v;
-  return v ? (v as Long).toInt() : undefined;
 }

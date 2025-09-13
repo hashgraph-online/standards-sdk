@@ -101,7 +101,6 @@ describe('ContentStoreServiceImpl (isolated instance)', () => {
 
     test('should handle dispose when no instance is set', () => {
       service.dispose();
-      // logger still logs dispose even when no instance; accept either
       expect(mockLogger.info).toHaveBeenCalledWith('Content store disposed');
     });
   });

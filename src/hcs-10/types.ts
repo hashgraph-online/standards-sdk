@@ -68,7 +68,7 @@ export interface HCSClientConfig {
   /** The operator account ID */
   operatorId: string;
   /** The operator private key */
-  operatorPrivateKey: string;
+  operatorPrivateKey: string | PrivateKey;
   /** The operator public key (optional) */
   operatorPublicKey?: string;
   /** Log level for the client */

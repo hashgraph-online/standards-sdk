@@ -1,7 +1,7 @@
 import { HCS5BaseClient } from './base-client';
 import {
   HCS5ClientConfig,
-  HCS5InscribeAndMintOptions,
+  HCS5CreateHashinalOptions,
   HCS5MintOptions,
   HCS5MintResponse,
   buildHcs1Hrl,
@@ -15,60 +15,29 @@ import {
 } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
 import { inscribe } from '../inscribe/inscriber';
+import { NodeOperatorResolver, createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
 
 export class HCS5Client extends HCS5BaseClient {
   private client: Client;
   private operatorId: AccountId;
-  private operatorKey!: PrivateKey;
-  private keyType: 'ed25519' | 'ecdsa' = 'ecdsa';
-  private initPromise: Promise<void>;
+  private operatorCtx: NodeOperatorContext;
 
   constructor(config: HCS5ClientConfig) {
     super(config);
 
     this.operatorId = AccountId.fromString(config.operatorId);
-    this.client = this.createClient(config.network);
-    this.initPromise = this.initializeOperator(config.operatorKey);
-  }
-
-  private async initializeOperator(
-    operatorKeyInput: string | PrivateKey,
-  ): Promise<void> {
-    try {
-      const account = await this.mirrorNode.requestAccount(
-        this.operatorId.toString(),
-      );
-      const typeField = account?.key?._type || '';
-      if (typeField.includes('ECDSA')) {
-        this.keyType = 'ecdsa';
-      } else if (typeField.includes('ED25519')) {
-        this.keyType = 'ed25519';
-      } else {
-        this.keyType = 'ecdsa';
-      }
-
-      this.operatorKey =
-        typeof operatorKeyInput === 'string'
-          ? this.keyType === 'ecdsa'
-            ? PrivateKey.fromStringECDSA(operatorKeyInput)
-            : PrivateKey.fromStringED25519(operatorKeyInput)
-          : operatorKeyInput;
-
-      this.client.setOperator(this.operatorId, this.operatorKey);
-    } catch {
-      this.logger.warn(
-        'Failed to determine operator key type from mirror node; defaulting to ECDSA',
-      );
-      this.operatorKey =
-        typeof operatorKeyInput === 'string'
-          ? PrivateKey.fromStringECDSA(operatorKeyInput)
-          : operatorKeyInput;
-      this.client.setOperator(this.operatorId, this.operatorKey);
-    }
+    this.operatorCtx = createNodeOperatorContext({
+      network: this.network,
+      operatorId: this.operatorId,
+      operatorKey: config.operatorKey,
+      mirrorNode: this.mirrorNode,
+      logger: this.logger,
+    });
+    this.client = this.operatorCtx.client;
   }
 
   private async ensureInitialized(): Promise<void> {
-    await this.initPromise;
+    await this.operatorCtx.ensureInitialized();
   }
 
   async mint(options: HCS5MintOptions): Promise<HCS5MintResponse> {
@@ -88,11 +57,16 @@ export class HCS5Client extends HCS5BaseClient {
       const frozen = await tx.freezeWith(this.client);
 
       if (options.supplyKey) {
+        const resolver = new NodeOperatorResolver({
+          mirrorNode: this.mirrorNode,
+          logger: this.logger,
+        });
         const privKey =
           typeof options.supplyKey === 'string'
-            ? await this.parseSupplyKeyForToken(
-                options.supplyKey,
+            ? await resolver.resolveSupplyKey(
                 options.tokenId,
+                options.supplyKey,
+                this.operatorCtx.keyType,
               )
             : options.supplyKey;
         await frozen.sign(privKey);
@@ -118,8 +92,8 @@ export class HCS5Client extends HCS5BaseClient {
     }
   }
 
-  async inscribeAndMint(
-    options: HCS5InscribeAndMintOptions,
+  async createHashinal(
+    options: HCS5CreateHashinalOptions,
   ): Promise<HCS5MintResponse> {
     try {
       await this.ensureInitialized();
@@ -127,7 +101,7 @@ export class HCS5Client extends HCS5BaseClient {
         options.inscriptionInput,
         {
           accountId: this.operatorId.toString(),
-          privateKey: this.operatorKey.toString(),
+          privateKey: this.operatorCtx.operatorKey,
           network: this.network,
         },
         {
@@ -159,33 +133,6 @@ export class HCS5Client extends HCS5BaseClient {
         `Failed to inscribe and mint HCS-5 Hashinal: ${error.message}`,
       );
       return { success: false, error: error.message };
-    }
-  }
-
-  private createClient(network: NetworkType): Client {
-    return network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
-  }
-
-  private async parseSupplyKeyForToken(
-    key: string,
-    tokenId: string,
-  ): Promise<PrivateKey> {
-    try {
-      const info = await this.mirrorNode.getTokenInfo(tokenId);
-      const typeField = info?.supply_key?._type || '';
-      if (typeField.includes('ECDSA')) {
-        return PrivateKey.fromStringECDSA(key);
-      }
-      if (typeField.includes('ED25519')) {
-        return PrivateKey.fromStringED25519(key);
-      }
-      return this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(key)
-        : PrivateKey.fromStringED25519(key);
-    } catch {
-      return this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(key)
-        : PrivateKey.fromStringED25519(key);
     }
   }
 }

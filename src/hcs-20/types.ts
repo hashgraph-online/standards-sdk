@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { AccountId, TopicId } from '@hashgraph/sdk';
+import { AccountId, TopicId, PrivateKey } from '@hashgraph/sdk';
 
 /**
  * HCS-20 Constants
@@ -211,7 +211,7 @@ export interface BrowserHCS20ClientConfig extends HCS20ClientConfig {
  */
 export interface SDKHCS20ClientConfig extends HCS20ClientConfig {
   operatorId: string | AccountId;
-  operatorKey: string;
+  operatorKey: string | PrivateKey;
 }
 
 /**
