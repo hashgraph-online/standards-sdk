@@ -97,9 +97,12 @@ async function main() {
       usePrivateTopic: false,
       progressCallback: progress => {
         console.log(`  ${progress.stage}: ${progress.percentage}%`);
-        if (progress.topicId) console.log(`  Topic ID: ${progress.topicId}`);
-        if (progress.deployTxId)
+        if (progress.topicId) {
+          console.log(`  Topic ID: ${progress.topicId}`);
+        }
+        if (progress.deployTxId) {
           console.log(`  Deploy Tx: ${progress.deployTxId}`);
+        }
       },
     });
 
@@ -138,8 +141,9 @@ async function main() {
         memo: 'Demo transfer',
         progressCallback: progress => {
           console.log(`  ${progress.stage}: ${progress.percentage}%`);
-          if (progress.transferTxId)
+          if (progress.transferTxId) {
             console.log(`  Transfer Tx: ${progress.transferTxId}`);
+          }
         },
       });
 
@@ -158,7 +162,9 @@ async function main() {
       memo: 'Demo burn',
       progressCallback: progress => {
         console.log(`  ${progress.stage}: ${progress.percentage}%`);
-        if (progress.burnTxId) console.log(`  Burn Tx: ${progress.burnTxId}`);
+        if (progress.burnTxId) {
+          console.log(`  Burn Tx: ${progress.burnTxId}`);
+        }
       },
     });
 
@@ -221,5 +227,10 @@ async function main() {
   }
 }
 
-// Run the demo
-main().catch(console.error);
+// Run the demo and exit cleanly
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error(err);
+    process.exit(1);
+  });

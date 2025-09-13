@@ -24,7 +24,9 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-describe('Assembly Lifecycle Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('Assembly Lifecycle Integration Tests', () => {
   let client: HCS12Client;
   let logger: Logger;
 

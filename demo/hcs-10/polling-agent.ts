@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { OpenAI } from 'openai';
-import { HCS10Client, HCSMessage, Logger, ConnectionsManager } from '../../src';
+import { HCSMessage, Logger, ConnectionsManager } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import {
   extractAllText,
   getOrCreateBob,
