@@ -69,31 +69,7 @@ describe('getTopicId', () => {
     expect(getTopicId({})).toBeUndefined();
   });
 
-  test('should use bracket notation when direct property access fails', () => {
-    const target = { topicId: '0.0.123' };
-    const inscription = new Proxy(target, {
-      get(target, prop) {
-        if (prop === 'topicId' || prop === 'topic_id') {
-          return undefined;
-        }
-        return target[prop as keyof typeof target];
-      },
-    });
-    expect(getTopicId(inscription)).toBe('0.0.123');
-  });
-
-  test('should use bracket notation for topic_id when direct property access fails', () => {
-    const target = { topic_id: '0.0.456' };
-    const inscription = new Proxy(target, {
-      get(target, prop) {
-        if (prop === 'topicId' || prop === 'topic_id') {
-          return undefined;
-        }
-        return target[prop as keyof typeof target];
-      },
-    });
-    expect(getTopicId(inscription)).toBe('0.0.456');
-  });
+  // Proxy-based tests are not applicable: bracket and dot access both trigger the same Proxy get trap
 
   test('should handle prototype-less objects', () => {
     const inscription = Object.create(null);
