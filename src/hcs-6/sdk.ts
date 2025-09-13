@@ -254,7 +254,6 @@ export class HCS6Client extends HCS6BaseClient {
     const entries = messages
       .map(m => {
         try {
-          // mirrorNode.getTopicMessages already parses JSON into an object with common fields
           const decoded = m as unknown as HCS6Message & {
             consensus_timestamp?: string;
             sequence_number: number;

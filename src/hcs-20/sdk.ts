@@ -36,7 +36,6 @@ import {
   PointsValidationError,
 } from './errors';
 import { sleep } from '../utils/sleep';
-import { detectKeyTypeFromString } from '../utils/key-type-detector';
 import { NodeOperatorResolver } from '../common/node-operator-resolver';
 import { HCS2Client } from '../hcs-2/client';
 
@@ -47,7 +46,11 @@ export class HCS20Client extends HCS20BaseClient {
   private client: Client;
   private operatorId: AccountId;
   private operatorKey: PrivateKey;
-  private operatorKeyString: string;
+  /**
+   * Original operator key string, when provided by config. Optional because
+   * callers may pass a parsed PrivateKey instead of a string.
+   */
+  private operatorKeyString?: string;
   private keyType?: 'ed25519' | 'ecdsa';
   private initialized = false;
 
@@ -71,6 +74,7 @@ export class HCS20Client extends HCS20BaseClient {
       this.keyType = this.keyType || 'ecdsa';
       this.client.setOperator(this.operatorId, this.operatorKey);
     } else {
+      this.operatorKeyString = config.operatorKey;
       const guess = resolver.bestGuessOperatorKey(config.operatorKey);
       this.keyType = guess.keyType;
       this.operatorKey = guess.privateKey;
@@ -91,7 +95,8 @@ export class HCS20Client extends HCS20BaseClient {
       });
       const resolved = await resolver.resolveOperatorKey(
         this.operatorId,
-        this.operatorKeyString,
+        this.operatorKeyString ?? this.operatorKey,
+        this.keyType,
       );
       this.keyType = resolved.keyType;
       this.operatorKey = resolved.privateKey;
@@ -101,10 +106,12 @@ export class HCS20Client extends HCS20BaseClient {
       this.logger.debug(`Initialized operator with key type: ${this.keyType}`);
     } catch (error) {
       this.logger.warn(
-        'Failed to query mirror node for key type, using ECDSA as default',
+        'Failed to query mirror node for key type, defaulting to existing key (ECDSA if unknown)',
       );
-      this.keyType = 'ecdsa'; // Default to ECDSA
-      this.operatorKey = PrivateKey.fromStringECDSA(this.operatorKeyString);
+      this.keyType = this.keyType || 'ecdsa';
+      if (this.operatorKeyString) {
+        this.operatorKey = PrivateKey.fromStringECDSA(this.operatorKeyString);
+      }
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
     }
