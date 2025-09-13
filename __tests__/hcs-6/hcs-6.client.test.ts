@@ -263,7 +263,6 @@ describe('HCS6Client', () => {
   describe('registerEntry', () => {
     beforeEach(() => {
       mockMirrorNode.getTopicInfo.mockResolvedValue({ memo: 'hcs-6:1:86400' });
-      // Mock message tx execute chain
       mockTopicMessageSubmitTransaction = {
         setTopicId: jest.fn().mockReturnThis(),
         setMessage: jest.fn().mockReturnThis(),
@@ -608,7 +607,6 @@ describe('HCS6Client', () => {
   });
 
   describe('Utility Methods', () => {
-    // getTopicInfo/getOperatorKey helpers are not part of SDK client; covered by mirror node
 
     it('should get key type', () => {
       expect(client.getKeyType()).toBeDefined();

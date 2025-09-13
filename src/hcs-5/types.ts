@@ -29,7 +29,7 @@ export interface HCS5MintOptions {
 /**
  * Options for inscribing content (HCS-1) then minting as a HCS-5 Hashinal
  */
-export interface HCS5InscribeAndMintOptions {
+export interface HCS5CreateHashinalOptions {
   tokenId: string;
   inscriptionInput: InscriptionInput;
   inscriptionOptions: InscriptionOptions & { waitForConfirmation?: boolean };

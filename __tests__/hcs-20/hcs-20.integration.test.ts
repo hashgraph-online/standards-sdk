@@ -22,7 +22,6 @@ describeBlock('HCS-20 Integration Tests', () => {
   let deployedTopicId: string;
 
   beforeAll(async () => {
-    // Dynamically import heavy modules to avoid evaluating when skipped
     ;({ HCS20Client } = await import('../../src/hcs-20/sdk'));
     ;({ HCS20PointsIndexer } = await import('../../src/hcs-20/points-indexer'));
     ({ HederaMirrorNode } = await import('../../src/services/mirror-node'));

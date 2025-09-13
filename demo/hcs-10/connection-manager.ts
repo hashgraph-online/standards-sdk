@@ -1,4 +1,5 @@
-import { ConnectionsManager, HCS10Client } from '../../src';
+import { ConnectionsManager } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import dotenv from 'dotenv';
 
 dotenv.config();

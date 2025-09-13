@@ -1,11 +1,11 @@
 import dotenv from 'dotenv';
-import { FeeConfigBuilder, HCS10Client, Logger } from '../../src';
+import { FeeConfigBuilder, Logger } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
   getOrCreateBob,
   getOrCreateAlice,
-  getOrCreateAliceUsingCreate,
   monitorIncomingRequests,
 } from './utils';
 import { fileURLToPath } from 'url';
@@ -82,7 +82,7 @@ async function main() {
     let alice;
     try {
       logger.info('Attempting to create Alice using new create() method...');
-      alice = await getOrCreateAliceUsingCreate(logger, baseClient);
+      alice = await getOrCreateAlice(logger, baseClient);
     } catch (error) {
       logger.warn(
         'Failed to create Alice using create() method, falling back to legacy method:',
