@@ -18,7 +18,7 @@ describe('Utils Index', () => {
     });
 
     expect(utils).toHaveProperty('isBrowser');
-    expect(typeof (utils as any).isBrowser === 'boolean').toBe(true);
+    expect(typeof (utils as any).isBrowser).toBe('boolean');
   });
 
   test('should export utility classes', () => {

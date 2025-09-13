@@ -13,11 +13,7 @@ import {
 } from '../../../src/common/tx/tx-utils';
 
 jest.mock('@hashgraph/sdk', () => {
-  const PublicKeyMock: any = jest.fn().mockImplementation(() => ({}));
-  PublicKeyMock.fromString = jest.fn();
-
-  return {
-  TopicCreateTransaction: jest.fn().mockImplementation(() => ({
+  const TopicCreateTransaction = jest.fn().mockImplementation(() => ({
     setTopicMemo: jest.fn().mockReturnThis(),
     setAdminKey: jest.fn().mockReturnThis(),
     setSubmitKey: jest.fn().mockReturnThis(),
@@ -29,14 +25,24 @@ jest.mock('@hashgraph/sdk', () => {
     setMessage: jest.fn().mockReturnThis(),
     setTransactionMemo: jest.fn().mockReturnThis(),
     freezeWith: jest.fn().mockReturnThis(),
-  })),
-  PublicKey: PublicKeyMock,
-  KeyList: jest.fn().mockImplementation(() => ({
-  })),
-  TopicId: {
+  }));
+
+  const PublicKey: any = jest.fn().mockImplementation(() => ({}));
+  PublicKey.fromString = jest.fn();
+
+  const KeyList = jest.fn().mockImplementation(() => ({}));
+
+  const TopicId = {
     fromString: jest.fn(),
-  },
-};
+  };
+
+  return {
+    TopicCreateTransaction,
+    TopicMessageSubmitTransaction,
+    PublicKey,
+    KeyList,
+    TopicId,
+  };
 });
 
 describe('Common TX Utils', () => {
@@ -151,17 +157,29 @@ describe('Common TX Utils', () => {
       expect(result.setAdminKey).not.toHaveBeenCalled();
     });
 
-    test('should create topic with operator public key when boolean true', () => {
-      const operatorPublicKey = {} as any;
+    test('should create topic with PublicKey string treated as instance path', () => {
+      const mockPublicKeyInstance = {};
+      mockPublicKey.fromString.mockReturnValue(mockPublicKeyInstance);
+
       const params = {
         memo: 'test-topic-memo',
-        adminKey: true,
-        operatorPublicKey,
-      };
+        adminKey: '302a3005...',
+      } as any;
 
       const result = buildTopicCreateTx(params);
 
-      expect(result.setAdminKey).toHaveBeenCalledWith(operatorPublicKey);
+      expect(result.setAdminKey).toHaveBeenCalledWith(mockPublicKeyInstance);
+    });
+
+    test('should create topic with submit key string', () => {
+      const mockSubmitKey = {};
+      mockPublicKey.fromString.mockReturnValue(mockSubmitKey);
+      const params = {
+        memo: 'test-topic-memo',
+        submitKey: '302a3005...',
+      } as any;
+      const result = buildTopicCreateTx(params);
+      expect(result.setSubmitKey).toHaveBeenCalledWith(mockSubmitKey);
     });
 
     test('should handle invalid string key gracefully', () => {

@@ -6,23 +6,30 @@
  */
 
 import { webcrypto } from 'crypto';
-import { HCS11Client } from '../../../src/hcs-11/client';
-import {
-  ProfileType,
-  PersonalProfile,
-  AIAgentType,
-  AIAgentCapability,
-} from '../../../src/hcs-11/types';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-describe('HCS11Client - inscribeProfile Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('HCS11Client - inscribeProfile Integration Tests', () => {
+  let HCS11Client: any;
+  let ProfileType: any;
+  let PersonalProfile: any;
+  let AIAgentType: any;
+  let AIAgentCapability: any;
   let client: HCS11Client;
   let operatorId: string;
   let operatorKey: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    ;({ HCS11Client } = await import('../../../src/hcs-11/client'));
+    ({
+      ProfileType,
+      PersonalProfile,
+      AIAgentType,
+      AIAgentCapability,
+    } = await import('../../../src/hcs-11/types'));
     operatorId = process.env.HEDERA_ACCOUNT_ID!;
     operatorKey = process.env.HEDERA_PRIVATE_KEY!;
 

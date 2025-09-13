@@ -1,4 +1,4 @@
-import { HRLResolver } from '../../src/index';
+import { HRLResolver } from '../../src/utils/hrl-resolver';
 import axios from 'axios';
 import { HederaMirrorNode } from '../../src/services/mirror-node';
 import type { Mock } from 'jest-mock';

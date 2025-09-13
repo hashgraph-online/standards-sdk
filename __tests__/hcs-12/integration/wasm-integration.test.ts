@@ -16,9 +16,10 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+const RUN_INTEGRATION = process.env.RUN_INTEGRATION_TESTS === 'true';
+const describeIntegration = RUN_INTEGRATION ? describe : describe.skip;
 
-describeBlock('WASM Module Integration Tests', () => {
+describeIntegration('WASM Module Integration Tests', () => {
   let client: HCS12Client;
   let signatureVerifier: SignatureVerifier;
   let hashVerifier: HashVerifier;
