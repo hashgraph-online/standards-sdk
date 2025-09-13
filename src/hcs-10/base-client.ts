@@ -82,10 +82,10 @@ export interface ProfileResponse {
 }
 
 export abstract class HCS10BaseClient extends Registration {
-  protected network: string;
   protected logger: ILogger;
   protected feeAmount: number;
   public mirrorNode: HederaMirrorNode;
+  public network: string;
 
   protected operatorId: string;
 

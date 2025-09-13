@@ -39,7 +39,6 @@ describe('HederaMirrorNode', () => {
 
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
-    // Make retries fast to avoid Jest timeouts in failure scenarios
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
     axiosGet = axios.get as jest.MockedFunction<typeof axios.get>;
@@ -199,7 +198,13 @@ describe('HederaMirrorNode', () => {
         'https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.12345/messages',
         expect.any(Object),
       );
-      expect(result).toEqual([]);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(2);
+      expect(result[0]).toMatchObject({
+        p: 'hcs-20',
+        op: 'register',
+        sequence_number: '1',
+      });
     });
 
     test('applies query parameters correctly', async () => {

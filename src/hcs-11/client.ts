@@ -109,6 +109,7 @@ export const BaseProfileSchema = z.object({
   properties: z.record(z.any()).optional(),
   inboundTopicId: z.string().optional(),
   outboundTopicId: z.string().optional(),
+  base_account: z.string().optional(),
 });
 
 export const PersonalProfileSchema = BaseProfileSchema.extend({
@@ -127,10 +128,35 @@ export const MCPServerProfileSchema = BaseProfileSchema.extend({
   mcpServer: MCPServerDetailsSchema,
 });
 
+const FloraProfileSchema = z.object({
+  version: z.string(),
+  type: z.literal(ProfileType.FLORA),
+  display_name: z.string().min(1),
+  members: z.array(
+    z.object({
+      accountId: z.string(),
+      publicKey: z.string().optional(),
+      weight: z.number().optional(),
+    }),
+  ),
+  threshold: z.number().min(1),
+  topics: z.object({
+    communication: z.string(),
+    transaction: z.string(),
+    state: z.string(),
+  }),
+  inboundTopicId: z.string(),
+  outboundTopicId: z.string(),
+  bio: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  policies: z.record(z.any()).optional(),
+});
+
 export const HCS11ProfileSchema = z.union([
   PersonalProfileSchema,
   AIAgentProfileSchema,
   MCPServerProfileSchema,
+  FloraProfileSchema,
 ]);
 
 export class HCS11Client {
@@ -178,7 +204,7 @@ export class HCS11Client {
           this.logger.warn(
             'Failed to detect key type from private key format, will query mirror node',
           );
-          this.keyType = 'ecdsa'; // Default to ECDSA
+          this.keyType = 'ecdsa';
         }
 
         this.initializeOperator();
@@ -203,7 +229,7 @@ export class HCS11Client {
     } else if (keyType && keyType.includes('ED25519')) {
       this.keyType = 'ed25519';
     } else {
-      this.keyType = 'ecdsa'; // Default to ECDSA
+      this.keyType = 'ecdsa';
     }
 
     this.initializeOperatorWithKeyType();
@@ -234,6 +260,7 @@ export class HCS11Client {
       properties?: Record<string, any>;
       inboundTopicId?: string;
       outboundTopicId?: string;
+      baseAccount?: string;
     },
   ): PersonalProfile {
     return {
@@ -247,6 +274,7 @@ export class HCS11Client {
       properties: options?.properties,
       inboundTopicId: options?.inboundTopicId,
       outboundTopicId: options?.outboundTopicId,
+      base_account: options?.baseAccount,
     };
   }
 
@@ -264,6 +292,7 @@ export class HCS11Client {
       inboundTopicId?: string;
       outboundTopicId?: string;
       creator?: string;
+      baseAccount?: string;
     },
   ): AIAgentProfile {
     const validation = this.validateProfile({
@@ -277,6 +306,7 @@ export class HCS11Client {
       properties: options?.properties,
       inboundTopicId: options?.inboundTopicId,
       outboundTopicId: options?.outboundTopicId,
+      base_account: options?.baseAccount,
       aiAgent: {
         type: agentType,
         capabilities,
@@ -302,6 +332,7 @@ export class HCS11Client {
       properties: options?.properties,
       inboundTopicId: options?.inboundTopicId,
       outboundTopicId: options?.outboundTopicId,
+      base_account: options?.baseAccount,
       aiAgent: {
         type: agentType,
         capabilities,
@@ -753,7 +784,7 @@ export class HCS11Client {
   }
 
   private async attachUaidIfMissing(profile: HCS11Profile): Promise<void> {
-    if ((profile as { uaid?: string }).uaid) {
+    if (profile.uaid) {
       return;
     }
     if (!isHederaNetwork(this.network)) return;

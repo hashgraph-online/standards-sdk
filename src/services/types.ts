@@ -638,7 +638,14 @@ type HCSProtocol =
   | 'hcs-10'
   | 'hcs-11'
   | 'hcs-12'
-  | 'hcs-13';
+  | 'hcs-13'
+  | 'hcs-14'
+  | 'hcs-15'
+  | 'hcs-16'
+  | 'hcs-17'
+  | 'hcs-18'
+  | 'hcs-19'
+  | 'hcs-20';
 
 export interface HCSMessageWithCommonFields {
   p: HCSProtocol;

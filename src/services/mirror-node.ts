@@ -431,6 +431,10 @@ export class HederaMirrorNode {
                 ...messageJson,
                 consensus_timestamp: message.consensus_timestamp,
                 sequence_number: message.sequence_number,
+                running_hash: message.running_hash,
+                running_hash_version: message.running_hash_version,
+                topic_id: message.topic_id,
+                payer: message.payer_account_id,
                 created: new Date(Number(message.consensus_timestamp) * 1000),
               });
             } catch (error: any) {

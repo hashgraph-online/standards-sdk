@@ -240,6 +240,36 @@ packages:
   '@borewit/text-codec@0.1.1':
     resolution: {integrity: sha512-5L/uBxmjaCIX5h8Z+uu+kA9BQLkc/Wl06UGR5ajNRxu+/XjonB5i8JpgFMrPj3LXTCPA0pv8yxUvbUi+QthGGA==}
 
+  '@cbor-extract/cbor-extract-darwin-arm64@2.2.0':
+    resolution: {integrity: sha512-P7swiOAdF7aSi0H+tHtHtr6zrpF3aAq/W9FXx5HektRvLTM2O89xCyXF3pk7pLc7QpaY7AoaE8UowVf9QBdh3w==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@cbor-extract/cbor-extract-darwin-x64@2.2.0':
+    resolution: {integrity: sha512-1liF6fgowph0JxBbYnAS7ZlqNYLf000Qnj4KjqPNW4GViKrEql2MgZnAsExhY9LSy8dnvA4C0qHEBgPrll0z0w==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@cbor-extract/cbor-extract-linux-arm64@2.2.0':
+    resolution: {integrity: sha512-rQvhNmDuhjTVXSPFLolmQ47/ydGOFXtbR7+wgkSY0bdOxCFept1hvg59uiLPT2fVDuJFuEy16EImo5tE2x3RsQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@cbor-extract/cbor-extract-linux-arm@2.2.0':
+    resolution: {integrity: sha512-QeBcBXk964zOytiedMPQNZr7sg0TNavZeuUCD6ON4vEOU/25+pLhNN6EDIKJ9VLTKaZ7K7EaAriyYQ1NQ05s/Q==}
+    cpu: [arm]
+    os: [linux]
+
+  '@cbor-extract/cbor-extract-linux-x64@2.2.0':
+    resolution: {integrity: sha512-cWLAWtT3kNLHSvP4RKDzSTX9o0wvQEEAj4SKvhWuOVZxiDAeQazr9A+PSiRILK1VYMLeDml89ohxCnUNQNQNCw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@cbor-extract/cbor-extract-win32-x64@2.2.0':
+    resolution: {integrity: sha512-l2M+Z8DO2vbvADOBNLbbh9y5ST1RY5sqkWOg/58GkUPBYou/cuNZ68SGQ644f1CvZ8kcOxyZtw06+dxWHIoN/w==}
+    cpu: [x64]
+    os: [win32]
+
   '@esbuild/aix-ppc64@0.25.9':
     resolution: {integrity: sha512-OaGtL73Jck6pBKjNIe24BnFE6agGl+6KxDtTfHhy1HmhthfKouEcOhqpSL64K4/0WCtbKFLOdzD/44cJ4k9opA==}
     engines: {node: '>=18'}
@@ -515,6 +545,58 @@ packages:
   '@hashgraphonline/standards-sdk@file:../../..':
     resolution: {directory: ../../.., type: directory}
 
+  '@hiero-did-sdk/cache@0.1.3':
+    resolution: {integrity: sha512-ucmuFhZNZwI3BRzxUU+x7T50n4O7t6Y9dRTxNM7cQOYajwyGTNDuR/2Mp87DqvlGXKEj8Yj5JYE/1hX+fdZViQ==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/client@0.1.3':
+    resolution: {integrity: sha512-DE/xiQCz83zlxO1pmouy+wSvxbMBsKPgfCRTW0Kr7FuVqnBP6ihCbNfdPU9Sj9jgVyGQIey+UPNRiY5lzYYvrA==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/core@0.1.3':
+    resolution: {integrity: sha512-v0O2ssemyBVZuduwjojdHL66YCo322Z+xGIt7cd2UCNu8beztGF5eRJxY+W+mCX/H3m8lcxqL2hAcF04KmhEjQ==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/crypto@0.1.3':
+    resolution: {integrity: sha512-xQnJXHPSFVT56kz2EHqBRVPUqrqNPDmRRYHaeqctvm+62cjKhYv+ja/w7CWamoMlobLe1bzU1KZqVQDWqBDUbQ==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/hcs@0.1.3':
+    resolution: {integrity: sha512-Gm43RLGDUpGfc/olCMQEMgZXP11ZZt8WMsb/7VaN5fNhxf6qE2y2k7V9thcJSqrSvJ2nvZeWDzGnCcb4VIj+pg==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/lifecycle@0.1.3':
+    resolution: {integrity: sha512-A2Mlsxtx8XZAUxpcNBnHvNENdlC0vNaSDU8eFXpxpA9B7LP/Bx/WaH0RYOW1nZBiXMaApBGLbZoJPTTbWRE5Mg==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/messages@0.1.3':
+    resolution: {integrity: sha512-5WNmNbxNDRTTsfjObE09Su7ERBAVjQNcKFgPC0oBvDhyEE3cknYcBkc9P+G8Uoee/+zxebfZR9KTISqbvdQ9lw==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/publisher-internal@0.1.3':
+    resolution: {integrity: sha512-qGsV3no4jUo/R0VzcDar3hZ+IiaHJVnhdM6fmrUPNikbnVhTTNmJ5g2ci0Ed6NkXhPCuaJtcCK4SgGdEB6jOrQ==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/registrar@0.1.3':
+    resolution: {integrity: sha512-EDuuNRzkgLbWXacqaF59q7Do3U1p1w11g33FaJNWJ0gCd0S6imrxwUfDE/6THQjhSOVtfkqzo8Ge2Vm/pLQUQg==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/resolver@0.1.3':
+    resolution: {integrity: sha512-TfSCcC0gGU/jgiJK5qr6cwW1Mpmj9vYwIo24YygUxXP47+wPQ4suk/K5FlAsPOq8oga47RwLWVFX+ys66Y2r1w==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/signer-internal@0.1.3':
+    resolution: {integrity: sha512-W5yMxz5VSnJA6B5M02YggbhcSDgQnTK50lBv5koTF534gR0vRSuX49i02EqxUrBB3NTahZ7vWNhr+YrP6t6Akw==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/verifier-internal@0.1.3':
+    resolution: {integrity: sha512-ybGwSU+9rA9pIOeGkCCiFIcbgG/WvW85igBj2wWQPCwH9G9c6qW/alHX5Az/9C7O//f2/CzVaHeVVFQ1CTcLBg==}
+    engines: {node: '>=20'}
+
+  '@hiero-did-sdk/zstd@0.1.3':
+    resolution: {integrity: sha512-s+kqRhNbtMhGA7X6CtiTgGpLGqVAflxdPAJ5PqblgSGosa6m23SIe9rTC5mRkOziJ4NeoYvx2/NuosT2faSJKw==}
+    engines: {node: '>=20'}
+
   '@ioredis/commands@1.3.1':
     resolution: {integrity: sha512-bYtU8avhGIcje3IhvF9aSjsa5URMZBHnwKtOvXsT4sfYy9gppW11gLPT/9oNqlJZD47yPKveQFTAFWpHjKvUoQ==}
 
@@ -579,6 +661,9 @@ packages:
 
   '@kiloscribe/inscription-sdk@1.0.59':
     resolution: {integrity: sha512-hnIFpNPP83EtV99MIkTVyD+tVRCIH8HJM8DKIsmwM/vAX4hVVkkghurjyDLouzubAswQ/brSY7Ju4qJTKcX7fw==}
+
+  '@kiloscribe/inscription-sdk@1.0.60':
+    resolution: {integrity: sha512-rE/tp3ZLXC5xj9Cj8vNb6/b5EgTNP8ozKuJhC7dc1icUTPVkqi8Cv7YBQRa20i9DhsXzFLqD7xvw9HFnf5YPrw==}
 
   '@lit-labs/ssr-dom-shim@1.4.0':
     resolution: {integrity: sha512-ficsEARKnmmW5njugNYKipTm4SFnbik7CXtoencDZzmzo/dQ+2Q0bgkzJuoJP20Aj0F+izzJjOqsnkd6F/o1bw==}
@@ -1404,6 +1489,13 @@ packages:
   caniuse-lite@1.0.30001739:
     resolution: {integrity: sha512-y+j60d6ulelrNSwpPyrHdl+9mJnQzHBr08xm48Qno0nSk4h3Qojh+ziv2qE6rXf4k3tadF4o1J/1tAbVm1NtnA==}
 
+  cbor-extract@2.2.0:
+    resolution: {integrity: sha512-Ig1zM66BjLfTXpNgKpvBePq271BPOvu8MR0Jl080yG7Jsl+wAZunfrwiwA+9ruzm/WEdIV5QF/bjDZTqyAIVHA==}
+    hasBin: true
+
+  cbor-x@1.6.0:
+    resolution: {integrity: sha512-0kareyRwHSkL6ws5VXHEf8uY1liitysCVJjlmhaLG+IXLqhSaOO+t63coaso7yjwEzWZzLy8fJo06gZDVQM9Qg==}
+
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
@@ -1629,6 +1721,10 @@ packages:
   detect-browser@5.3.0:
     resolution: {integrity: sha512-53rsFbGdwMwlF7qvCt0ypLM5V5/Mbl0szB7GPN8y9NCcbknYOeVVXdrXEq+90IwAfrrzt6Hd+u2E2ntakICU8w==}
 
+  detect-libc@2.0.4:
+    resolution: {integrity: sha512-3UDv+G9CsCKO1WKMGw9fwq/SWJYbI0c5Y7LU1AXYoDdbhE2AHQ6N6Nb34sG8Fj7T5APy8qXDCKuuIHd1BR0tVA==}
+    engines: {node: '>=8'}
+
   didyoumean@1.2.2:
     resolution: {integrity: sha512-gxtyfqMg7GKyhQmb056K7M3xszy/myH8w+B4RT+QXBQsvAOdc3XymqDDPHx1BgPgsdAA5SIifona89YtRATDzw==}
 
@@ -1827,6 +1923,10 @@ packages:
   file-type@20.5.0:
     resolution: {integrity: sha512-BfHZtG/l9iMm4Ecianu7P8HRD2tBHLtjXinm4X62XBOYzi7CYA7jyqfJzOvXHqzVrVPYqBo2/GvbARMaaJkKVg==}
     engines: {node: '>=18'}
+
+  file-type@21.0.0:
+    resolution: {integrity: sha512-ek5xNX2YBYlXhiUXui3D/BXa3LdqPmoLJ7rqEx2bKJ7EAUEfmXgW0Das7Dc6Nr9MvqaOnIqiPV0mZk/r/UpNAg==}
+    engines: {node: '>=20'}
 
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
@@ -2371,8 +2471,16 @@ packages:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
     engines: {node: '>= 0.6'}
 
+  mime-db@1.54.0:
+    resolution: {integrity: sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ==}
+    engines: {node: '>= 0.6'}
+
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
+    engines: {node: '>= 0.6'}
+
+  mime-types@3.0.1:
+    resolution: {integrity: sha512-xRc4oEhT6eaBpU1XF7AjpOFD+xQmXNB5OVKwp4tqCuBpHLS/ZbBDrc07mYTDqVMg6PfxUjjNp85O6Cd2Z/5HWA==}
     engines: {node: '>= 0.6'}
 
   mime@1.6.0:
@@ -2440,6 +2548,10 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
+
+  node-gyp-build-optional-packages@5.1.1:
+    resolution: {integrity: sha512-+P72GAjVAbTxjjwUmwjVrqrdZROD4nf8KgpBoDxqXXTiYZZt/ud60dE5yvCSr9lRO8e8yv6kgJIC0K0PfZFVQw==}
+    hasBin: true
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
@@ -3402,6 +3514,9 @@ packages:
       react:
         optional: true
 
+  varint@6.0.0:
+    resolution: {integrity: sha512-cXEIW6cfr15lFv563k4GuVuW/fiwjknytD37jIOLSdSWuOI6WnO/oKwmP2FQTU2l01LP8/M5TSAJpzUaGe3uWg==}
+
   viem@2.31.0:
     resolution: {integrity: sha512-U7OMQ6yqK+bRbEIarf2vqxL7unSEQvNxvML/1zG7suAmKuJmipqdVTVJGKBCJiYsm/EremyO2FS4dHIPpGv+eA==}
     peerDependencies:
@@ -3810,6 +3925,24 @@ snapshots:
       '@babel/helper-validator-identifier': 7.27.1
 
   '@borewit/text-codec@0.1.1': {}
+
+  '@cbor-extract/cbor-extract-darwin-arm64@2.2.0':
+    optional: true
+
+  '@cbor-extract/cbor-extract-darwin-x64@2.2.0':
+    optional: true
+
+  '@cbor-extract/cbor-extract-linux-arm64@2.2.0':
+    optional: true
+
+  '@cbor-extract/cbor-extract-linux-arm@2.2.0':
+    optional: true
+
+  '@cbor-extract/cbor-extract-linux-x64@2.2.0':
+    optional: true
+
+  '@cbor-extract/cbor-extract-win32-x64@2.2.0':
+    optional: true
 
   '@esbuild/aix-ppc64@0.25.9':
     optional: true
@@ -4296,7 +4429,9 @@ snapshots:
       '@hashgraph/proto': 2.22.0
       '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
       '@hashgraphonline/hashinal-wc': 1.0.103(@walletconnect/types@2.21.8(ioredis@5.7.0))(@walletconnect/web3wallet@1.16.1(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(bn.js@5.2.2)(ioredis@5.7.0)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))(react@18.3.1)(typescript@5.9.2)(zod@3.25.76)
-      '@kiloscribe/inscription-sdk': 1.0.59(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.8(ioredis@5.7.0))(@walletconnect/utils@2.21.8(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))(react@18.3.1)(typescript@5.9.2)
+      '@hiero-did-sdk/registrar': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/resolver': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@kiloscribe/inscription-sdk': 1.0.60(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.8(ioredis@5.7.0))(@walletconnect/utils@2.21.8(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))(react@18.3.1)(typescript@5.9.2)
       axios: 1.11.0
       bignumber.js: 9.3.1
       buffer: 6.0.3
@@ -4342,6 +4477,134 @@ snapshots:
       - typescript
       - uploadthing
       - utf-8-validate
+
+  '@hiero-did-sdk/cache@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/client@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/core@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@scure/base': 1.2.6
+      buffer: 6.0.3
+      cbor-x: 1.6.0
+      varint: 6.0.0
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/crypto@0.1.3':
+    dependencies:
+      buffer: 6.0.3
+
+  '@hiero-did-sdk/hcs@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/cache': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/client': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/crypto': 0.1.3
+      '@hiero-did-sdk/zstd': 0.1.3
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/lifecycle@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/messages@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/lifecycle': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/resolver': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/publisher-internal@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/registrar@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/lifecycle': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/messages': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/publisher-internal': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/resolver': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/signer-internal': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/verifier-internal': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/resolver@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/client': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/hcs': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/verifier-internal': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/signer-internal@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/verifier-internal@0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))':
+    dependencies:
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hiero-did-sdk/core': 0.1.3(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bn.js
+      - expo-crypto
+      - react-native
+
+  '@hiero-did-sdk/zstd@0.1.3': {}
 
   '@ioredis/commands@1.3.1': {}
 
@@ -4449,6 +4712,50 @@ snapshots:
       date-fns: 4.1.0
       file-type: 18.7.0
       mime-types: 2.1.35
+      socket.io-client: 4.8.1
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@capacitor/preferences'
+      - '@deno/kv'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@react-native-async-storage/async-storage'
+      - '@types/react'
+      - '@upstash/redis'
+      - '@vercel/blob'
+      - '@vercel/functions'
+      - '@vercel/kv'
+      - '@walletconnect/qrcode-modal'
+      - '@walletconnect/types'
+      - '@walletconnect/utils'
+      - '@walletconnect/web3wallet'
+      - aws4fetch
+      - bn.js
+      - bufferutil
+      - db0
+      - debug
+      - expo-crypto
+      - react
+      - react-native
+      - supports-color
+      - typescript
+      - uploadthing
+      - utf-8-validate
+
+  '@kiloscribe/inscription-sdk@1.0.60(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.8(ioredis@5.7.0))(@walletconnect/utils@2.21.8(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))(react@18.3.1)(typescript@5.9.2)':
+    dependencies:
+      '@hashgraph/hedera-wallet-connect': 1.5.1(@hashgraph/sdk@2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1)))(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.8(ioredis@5.7.0))(@walletconnect/utils@2.21.8(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))
+      '@hashgraph/sdk': 2.72.0(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))
+      '@hashgraphonline/standards-sdk': 0.0.187(@walletconnect/qrcode-modal@1.8.0)(@walletconnect/types@2.21.8(ioredis@5.7.0))(@walletconnect/utils@2.21.8(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(@walletconnect/web3wallet@1.16.1(ioredis@5.7.0)(typescript@5.9.2)(zod@3.25.76))(bn.js@5.2.2)(react-native@0.81.1(@babel/core@7.28.3)(react@18.3.1))(react@18.3.1)(typescript@5.9.2)
+      axios: 1.11.0
+      date-fns: 4.1.0
+      file-type: 21.0.0
+      mime-types: 3.0.1
       socket.io-client: 4.8.1
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -5761,6 +6068,22 @@ snapshots:
 
   caniuse-lite@1.0.30001739: {}
 
+  cbor-extract@2.2.0:
+    dependencies:
+      node-gyp-build-optional-packages: 5.1.1
+    optionalDependencies:
+      '@cbor-extract/cbor-extract-darwin-arm64': 2.2.0
+      '@cbor-extract/cbor-extract-darwin-x64': 2.2.0
+      '@cbor-extract/cbor-extract-linux-arm': 2.2.0
+      '@cbor-extract/cbor-extract-linux-arm64': 2.2.0
+      '@cbor-extract/cbor-extract-linux-x64': 2.2.0
+      '@cbor-extract/cbor-extract-win32-x64': 2.2.0
+    optional: true
+
+  cbor-x@1.6.0:
+    optionalDependencies:
+      cbor-extract: 2.2.0
+
   chalk@4.1.2:
     dependencies:
       ansi-styles: 4.3.0
@@ -6006,6 +6329,9 @@ snapshots:
 
   detect-browser@5.3.0: {}
 
+  detect-libc@2.0.4:
+    optional: true
+
   didyoumean@1.2.2: {}
 
   diffie-hellman@5.0.3:
@@ -6226,6 +6552,15 @@ snapshots:
       token-types: 5.0.1
 
   file-type@20.5.0:
+    dependencies:
+      '@tokenizer/inflate': 0.2.7
+      strtok3: 10.3.4
+      token-types: 6.1.1
+      uint8array-extras: 1.5.0
+    transitivePeerDependencies:
+      - supports-color
+
+  file-type@21.0.0:
     dependencies:
       '@tokenizer/inflate': 0.2.7
       strtok3: 10.3.4
@@ -6940,9 +7275,15 @@ snapshots:
 
   mime-db@1.52.0: {}
 
+  mime-db@1.54.0: {}
+
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
+
+  mime-types@3.0.1:
+    dependencies:
+      mime-db: 1.54.0
 
   mime@1.6.0: {}
 
@@ -6994,6 +7335,11 @@ snapshots:
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
+
+  node-gyp-build-optional-packages@5.1.1:
+    dependencies:
+      detect-libc: 2.0.4
+    optional: true
 
   node-int64@0.4.0: {}
 
@@ -8045,6 +8391,8 @@ snapshots:
       use-sync-external-store: 1.2.0(react@18.3.1)
     optionalDependencies:
       react: 18.3.1
+
+  varint@6.0.0: {}
 
   viem@2.31.0(typescript@5.9.2)(zod@3.25.76):
     dependencies:

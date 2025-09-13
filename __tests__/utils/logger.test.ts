@@ -20,14 +20,19 @@ jest.mock('pino', () => {
 });
 
 describe('Logger', () => {
+  const originalEnv = process.env.DISABLE_LOGS;
   let logger: Logger;
   let mockPinoLogger: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.DISABLE_LOGS = 'false';
     logger = new Logger({ module: 'test-module' });
     const pino = require('pino');
     mockPinoLogger = pino();
+  });
+  afterAll(() => {
+    process.env.DISABLE_LOGS = originalEnv;
   });
 
   describe('Argument Handling', () => {
@@ -172,7 +177,7 @@ describe('Logger', () => {
     });
 
     it('should handle very long strings', () => {
-      const longString = 'a'.repeat(1000);
+      const longString = 'a'.repeat(10000);
       logger.info('Long string:', longString);
 
       expect(mockPinoLogger.info).toHaveBeenCalledWith(
@@ -190,6 +195,19 @@ describe('Logger', () => {
 
       expect(logger1).toBe(logger2);
       expect(logger1).not.toBe(logger3);
+    });
+
+    it('should handle global disable via environment', () => {
+      const originalEnv = process.env.DISABLE_LOGS;
+      process.env.DISABLE_LOGS = 'true';
+
+      const silentLogger = Logger.getInstance({ module: 'silent-test' });
+      silentLogger.info('Should be silent');
+
+
+      expect(mockPinoLogger.info).toHaveBeenCalled();
+
+      process.env.DISABLE_LOGS = originalEnv;
     });
   });
 });

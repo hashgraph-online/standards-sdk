@@ -163,7 +163,6 @@ export class HCS10Client extends HCS10BaseClient {
       .setKeyWithoutAlias(newKey.publicKey)
       .setInitialBalance(new Hbar(initialBalance));
 
-    this.logger.debug('Executing account creation transaction');
     const accountResponse = await accountTransaction.execute(this.client);
     const accountReceipt = await accountResponse.getReceipt(this.client);
     const newAccountId = accountReceipt.accountId;
@@ -227,11 +226,6 @@ export class HCS10Client extends HCS10BaseClient {
           .customFees as TokenFeeConfig[];
         internalFees.forEach(fee => {
           if (!fee.feeCollectorAccountId) {
-            this.logger.debug(
-              `Defaulting fee collector for token ${
-                fee.feeTokenId || 'HBAR'
-              } to agent ${accountId}`,
-            );
             fee.feeCollectorAccountId = accountId;
           }
         });
@@ -1040,17 +1034,26 @@ export class HCS10Client extends HCS10BaseClient {
       await this.setupFees(transaction, feeConfig);
     }
 
-    this.logger.debug('Executing topic creation transaction');
-    const txResponse = await transaction.execute(this.client);
-    const receipt = await txResponse.getReceipt(this.client);
 
-    if (!receipt.topicId) {
-      this.logger.error('Failed to create topic: topicId is null');
-      throw new Error('Failed to create topic: topicId is null');
+    try {
+      const txResponse = await transaction.execute(this.client);
+      const receipt = await txResponse.getReceipt(this.client);
+
+      if (!receipt.topicId) {
+        this.logger.error('Failed to create topic: topicId is null');
+        throw new Error('Failed to create topic: topicId is null');
+      }
+
+      const topicId = receipt.topicId.toString();
+      return topicId;
+    } catch (error: any) {
+      this.logger.error('Topic creation failed', {
+        error: error.message,
+        transactionId: error.transactionId?.toString(),
+        operatorId: this.client.operatorAccountId?.toString(),
+      });
+      throw error;
     }
-
-    const topicId = receipt.topicId.toString();
-    return topicId;
   }
 
   public async submitPayload(
@@ -1859,7 +1862,6 @@ export class HCS10Client extends HCS10BaseClient {
       scheduleTransaction.setExpirationTime(timestamp);
     }
 
-    this.logger.debug('Executing schedule create transaction');
     const scheduleResponse = await scheduleTransaction.execute(this.client);
     const scheduleReceipt = await scheduleResponse.getReceipt(this.client);
 
