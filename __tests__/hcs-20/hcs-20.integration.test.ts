@@ -5,7 +5,6 @@
  * No mocking - tests the actual HCS-20 implementation end-to-end.
  */
 
-import { HCS20Client, HCS20PointsIndexer, HederaMirrorNode } from '../src';
 import * as dotenv from 'dotenv';
 import { describe, it, beforeAll, expect } from '@jest/globals';
 
@@ -14,12 +13,18 @@ dotenv.config();
 const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
 
 describeBlock('HCS-20 Integration Tests', () => {
+  let HCS20Client: any;
+  let HCS20PointsIndexer: any;
+  let HederaMirrorNode: any;
   let client: HCS20Client;
   let operatorId: string;
   const testTick = `TEST${Date.now()}`;
   let deployedTopicId: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    ;({ HCS20Client } = await import('../../src/hcs-20/sdk'));
+    ;({ HCS20PointsIndexer } = await import('../../src/hcs-20/points-indexer'));
+    ({ HederaMirrorNode } = await import('../../src/services/mirror-node'));
     operatorId = process.env.HEDERA_ACCOUNT_ID!;
     const operatorKey = process.env.HEDERA_PRIVATE_KEY!;
 

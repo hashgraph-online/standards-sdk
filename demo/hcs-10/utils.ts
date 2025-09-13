@@ -1,21 +1,5 @@
-import {
-  HCS10Client,
-  AgentBuilder,
-  InboundTopicType,
-  Logger,
-  AIAgentCapability,
-  HederaMirrorNode,
-  NetworkType,
-  TopicFeeConfig,
-  FeeConfigBuilder,
-  ConnectionsManager,
-  Connection,
-  HCSMessage,
-  RegistrationProgressData,
-  AgentCreationState,
-  MCPServerBuilder,
-  MCPServerCapability,
-} from '../../src';
+import { AgentBuilder, InboundTopicType, Logger, AIAgentCapability, HederaMirrorNode, NetworkType, TopicFeeConfig, FeeConfigBuilder, ConnectionsManager, Connection, HCSMessage, RegistrationProgressData, AgentCreationState, MCPServerBuilder, MCPServerCapability } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import { TransferTransaction, Hbar } from '@hashgraph/sdk';
 import * as fs from 'fs';
 import * as path from 'path';

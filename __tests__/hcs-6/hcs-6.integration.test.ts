@@ -6,7 +6,7 @@
  */
 
 import { PrivateKey, TopicCreateTransaction } from '@hashgraph/sdk';
-import { HCS6Client } from '../../src/hcs-6/client';
+import { HCS6Client } from '../../src/hcs-6/sdk';
 import { HCS6Operation, HCS6RegistryType } from '../../src/hcs-6/types';
 import * as dotenv from 'dotenv';
 

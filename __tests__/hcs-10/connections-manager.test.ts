@@ -1,13 +1,15 @@
 import { ConnectionsManager } from '../../src/hcs-10/connections-manager';
-import { HCSMessage, HCS10BaseClient } from '../../src/hcs-10/base-client';
+type HCSMessage = {
+  p: 'hcs-10';
+  op: string;
+  sequence_number: number;
+  created: Date;
+  payer: string;
+  data: string;
+  [key: string]: any;
+};
 
-class MockHCS10Client extends HCS10BaseClient {
-  constructor() {
-    super({
-      network: 'testnet',
-      logLevel: 'error',
-    });
-  }
+class MockHCS10Client {
 
   async submitPayload() {
     return { topicSequenceNumber: { toNumber: () => 123 } };
@@ -42,7 +44,7 @@ describe('ConnectionsManager', () => {
   beforeEach(() => {
     mockClient = new MockHCS10Client();
     manager = new ConnectionsManager({
-      baseClient: mockClient,
+      baseClient: mockClient as any,
       logLevel: 'error',
     });
   });
