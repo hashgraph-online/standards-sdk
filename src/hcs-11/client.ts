@@ -20,7 +20,6 @@ import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';
 import { isHederaNetwork, toHederaCaip10 } from '../hcs-14/caip';
-import { HCS14Client } from '../hcs-14';
 import { TopicInfo } from '../services/types';
 import {
   ProfileType,
@@ -759,6 +758,7 @@ export class HCS11Client {
     }
     if (!isHederaNetwork(this.network)) return;
     try {
+      const { HCS14Client } = await import('../hcs-14');
       const hcs14 = new HCS14Client({ client: this.client });
       const did = await hcs14.createDid({
         method: 'hedera',

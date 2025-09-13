@@ -173,15 +173,17 @@ export interface HCS6MintOptions {
  */
 export interface HCS6InscribeAndMintOptions {
   tokenId: string;
-  inscriptionInput: {
-    type: 'buffer';
-    buffer: Buffer | ArrayBuffer;
-    fileName: string;
-    mimeType?: string;
-  } | {
-    type: 'url';
-    url: string;
-  };
+  inscriptionInput:
+    | {
+        type: 'buffer';
+        buffer: Buffer | ArrayBuffer;
+        fileName: string;
+        mimeType?: string;
+      }
+    | {
+        type: 'url';
+        url: string;
+      };
   inscriptionOptions?: Record<string, unknown>;
   supplyKey?: string | PrivateKey;
   memo?: string;

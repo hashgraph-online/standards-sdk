@@ -98,7 +98,6 @@ describe('WasmExecutor', () => {
         },
       };
 
-      // Mock dynamic import via Function and browser Blob/URL helpers
       global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve(mockModule));
       global.Blob = jest.fn().mockImplementation(function () { return {}; } as any) as any;
       global.URL = {
