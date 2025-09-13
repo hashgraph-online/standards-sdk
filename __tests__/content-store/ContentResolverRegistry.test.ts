@@ -17,7 +17,6 @@ describe('ContentResolverRegistryImpl (isolated instance)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    registry = new ContentResolverRegistryImpl();
     mockResolver = {
       resolveReference: jest.fn(),
       shouldUseReference: jest.fn(),
@@ -32,6 +31,7 @@ describe('ContentResolverRegistryImpl (isolated instance)', () => {
     } as any;
 
     (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
+    registry = new ContentResolverRegistryImpl();
   });
 
   describe('constructor and instance management', () => {
