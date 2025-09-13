@@ -149,8 +149,14 @@ async function mintTransferBurnExample() {
     console.log(`- Expected total supply: 4500 (actual: ${totalSupply})`);
   } catch (error) {
     console.error('Operation failed:', error);
+    process.exit(1);
   }
 }
 
-// Run the demo
-mintTransferBurnExample().catch(console.error);
+// Run the demo and exit cleanly
+mintTransferBurnExample()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error(err);
+    process.exit(1);
+  });

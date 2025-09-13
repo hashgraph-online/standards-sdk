@@ -1,4 +1,4 @@
-import { Logger, LogLevel } from '../utils/logger';
+import { Logger, LogLevel, ILogger } from '../utils/logger';
 import { Registration } from './registrations';
 import { HCS11Client } from '../hcs-11/client';
 import {
@@ -82,7 +82,8 @@ export interface ProfileResponse {
 }
 
 export abstract class HCS10BaseClient extends Registration {
-  protected logger: Logger;
+  protected network: string;
+  protected logger: ILogger;
   protected feeAmount: number;
   public mirrorNode: HederaMirrorNode;
   public network: string;
@@ -399,7 +400,9 @@ export abstract class HCS10BaseClient extends Registration {
     let retryCount = 0;
 
     while (retryCount <= maxRetries) {
-      this.logger.debug(`Retrieving profile for account: ${accountId}${retryCount > 0 ? ` (attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`);
+      this.logger.debug(
+        `Retrieving profile for account: ${accountId}${retryCount > 0 ? ` (attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`,
+      );
 
       const cacheKey = `${accountId}-${this.network}`;
 
@@ -417,7 +420,7 @@ export abstract class HCS10BaseClient extends Registration {
           auth: {
             operatorId: '0.0.0',
           },
-          logLevel: 'info',
+          logLevel: this.logger.getLevel(),
         });
 
         const profileResult = await hcs11Client.fetchProfileByAccountId(
@@ -491,7 +494,6 @@ export abstract class HCS10BaseClient extends Registration {
       }
     }
 
-    // This should never be reached, but TypeScript needs a return
     return {
       profile: null,
       success: false,

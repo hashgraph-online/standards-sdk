@@ -1,5 +1,5 @@
 import { proto } from '@hashgraph/proto';
-import { ContractId, Hbar, HbarUnit, Long } from '@hashgraph/sdk';
+import { ContractId, Hbar, HbarUnit, Long, Transaction } from '@hashgraph/sdk';
 import {
   ContractCallData,
   ContractCreateData,
@@ -7,10 +7,382 @@ import {
   ContractDeleteData,
 } from '../transaction-parser-types';
 import { Buffer } from 'buffer';
-import { parseKey } from './parser-utils';
+import {
+  parseKey,
+  extractTransactionBody,
+  hasTransactionType,
+} from './parser-utils';
 import { AccountId, FileId } from '@hashgraph/sdk';
 
+/**
+ * Smart Contract Service (SCS) Parser
+ *
+ * Handles parsing for all contract-related transaction types including:
+ * - Contract calls (including EthereumTransaction)
+ * - Contract creation, updates, and deletion
+ * - Proper dual-branch parsing (regular vs signed transactions)
+ * - Comprehensive protobuf extraction
+ */
 export class SCSParser {
+  /**
+   * Parse Smart Contract Service transaction using unified dual-branch approach
+   * This handles both regular transactions and signed transaction variants
+   */
+  static parseSCSTransaction(
+    transaction: Transaction,
+    originalBytes?: Uint8Array,
+  ): {
+    type?: string;
+    humanReadableType?: string;
+    contractCall?: ContractCallData;
+    contractCreate?: ContractCreateData;
+    contractUpdate?: ContractUpdateData;
+    contractDelete?: ContractDeleteData;
+    [key: string]: unknown;
+  } {
+    try {
+      if (originalBytes || transaction.toBytes) {
+        try {
+          const bytesToParse = originalBytes || transaction.toBytes();
+          const decoded = proto.TransactionList.decode(bytesToParse);
+
+          if (decoded.transactionList && decoded.transactionList.length > 0) {
+            const tx = decoded.transactionList[0];
+            let txBody: proto.ITransactionBody | null = null;
+
+            if (tx.bodyBytes && tx.bodyBytes.length > 0) {
+              txBody = proto.TransactionBody.decode(tx.bodyBytes);
+            } else if (
+              tx.signedTransactionBytes &&
+              tx.signedTransactionBytes.length > 0
+            ) {
+              const signedTx = proto.SignedTransaction.decode(
+                tx.signedTransactionBytes,
+              );
+              if (signedTx.bodyBytes) {
+                txBody = proto.TransactionBody.decode(signedTx.bodyBytes);
+              }
+            }
+
+            if (txBody) {
+              const protoResult = this.parseFromProtobufTxBody(txBody);
+              if (protoResult.type && protoResult.type !== 'UNKNOWN') {
+                return protoResult;
+              }
+            }
+          }
+        } catch (protoError) {}
+      }
+
+      return this.parseFromTransactionInternals(transaction);
+    } catch (error) {
+      return {
+        type: 'UNKNOWN',
+        humanReadableType: 'Unknown Contract Transaction',
+      };
+    }
+  }
+
+  /**
+   * Parse contract transaction from protobuf TransactionBody
+   * Handles all contract operations from decoded protobuf data
+   */
+  private static parseFromProtobufTxBody(txBody: proto.ITransactionBody): {
+    type?: string;
+    humanReadableType?: string;
+    [key: string]: unknown;
+  } {
+    if (txBody.contractCall) {
+      const contractCall = this.parseContractCall(txBody.contractCall);
+      if (contractCall) {
+        return {
+          type: 'CONTRACTCALL',
+          humanReadableType: 'Contract Call',
+          contractCall,
+        };
+      }
+    }
+
+    if (txBody.contractCreateInstance) {
+      const contractCreate = this.parseContractCreate(
+        txBody.contractCreateInstance,
+      );
+      if (contractCreate) {
+        return {
+          type: 'CONTRACTCREATE',
+          humanReadableType: 'Contract Create',
+          contractCreate,
+        };
+      }
+    }
+
+    if (txBody.contractUpdateInstance) {
+      const contractUpdate = this.parseContractUpdate(
+        txBody.contractUpdateInstance,
+      );
+      if (contractUpdate) {
+        return {
+          type: 'CONTRACTUPDATE',
+          humanReadableType: 'Contract Update',
+          contractUpdate,
+        };
+      }
+    }
+
+    if (txBody.contractDeleteInstance) {
+      const contractDelete = this.parseContractDelete(
+        txBody.contractDeleteInstance,
+      );
+      if (contractDelete) {
+        return {
+          type: 'CONTRACTDELETE',
+          humanReadableType: 'Contract Delete',
+          contractDelete,
+        };
+      }
+    }
+
+    if (txBody.ethereumTransaction) {
+      const ethereumCall = this.parseEthereumTransaction(
+        txBody.ethereumTransaction,
+      );
+      if (ethereumCall) {
+        return {
+          type: 'ETHEREUMTRANSACTION',
+          humanReadableType: 'Ethereum Transaction',
+          ethereumTransaction: ethereumCall,
+        };
+      }
+    }
+
+    return {};
+  }
+
+  /**
+   * Extract contract data from Transaction internal fields
+   * This handles cases where data is stored in Transaction object internals
+   */
+  private static parseFromTransactionInternals(transaction: Transaction): {
+    type?: string;
+    humanReadableType?: string;
+    [key: string]: unknown;
+  } {
+    try {
+      const tx = transaction as unknown as {
+        _contractId?: { toString(): string };
+        _gas?: number | Long;
+        _amount?: { toString(): string };
+        _functionParameters?: Uint8Array;
+        _initialBalance?: { toString(): string };
+        _adminKey?: unknown;
+        _memo?: string;
+        _fileId?: { toString(): string };
+        _bytecode?: Uint8Array;
+        _constructorParameters?: Uint8Array;
+        _maxAutomaticTokenAssociations?: number;
+        _stakedAccountId?: { toString(): string };
+        _stakedNodeId?: number | Long;
+        _declineReward?: boolean;
+        _autoRenewPeriod?: { toString(): string };
+        _transferAccountId?: { toString(): string };
+        _transferContractId?: { toString(): string };
+        constructor?: { name?: string };
+      };
+
+      if (tx._contractId && tx._gas) {
+        const contractCall: ContractCallData = {
+          contractId: tx._contractId.toString(),
+          gas:
+            typeof tx._gas === 'number'
+              ? tx._gas
+              : Long.fromValue(tx._gas).toNumber(),
+          amount: tx._amount ? parseFloat(tx._amount.toString()) : 0,
+        };
+
+        if (tx._functionParameters) {
+          const funcParams = Buffer.from(tx._functionParameters).toString(
+            'hex',
+          );
+          contractCall.functionParameters = funcParams;
+          contractCall.functionName = this.extractFunctionName(funcParams);
+        }
+
+        return {
+          type: 'CONTRACTCALL',
+          humanReadableType: 'Contract Call',
+          contractCall,
+        };
+      }
+
+      if (hasTransactionType(transaction, 'contractCreateInstance')) {
+        const contractCreate: ContractCreateData = {
+          gas: tx._gas.toString(),
+          initialBalance: tx._initialBalance?.toString() || '0',
+        };
+
+        if (tx._fileId) {
+          contractCreate.initcodeSource = 'fileID';
+          contractCreate.initcode = tx._fileId.toString();
+        } else if (tx._bytecode) {
+          contractCreate.initcodeSource = 'bytes';
+          contractCreate.initcode = Buffer.from(tx._bytecode).toString('hex');
+        }
+
+        if (tx._constructorParameters) {
+          contractCreate.constructorParameters = Buffer.from(
+            tx._constructorParameters,
+          ).toString('hex');
+        }
+
+        if (tx._memo) contractCreate.memo = tx._memo;
+        if (tx._adminKey) contractCreate.adminKey = parseKey(tx._adminKey);
+        if (tx._maxAutomaticTokenAssociations !== undefined) {
+          contractCreate.maxAutomaticTokenAssociations =
+            tx._maxAutomaticTokenAssociations;
+        }
+        if (tx._stakedAccountId) {
+          contractCreate.stakedAccountId = tx._stakedAccountId.toString();
+        } else if (
+          tx._stakedNodeId !== null &&
+          tx._stakedNodeId !== undefined
+        ) {
+          contractCreate.stakedNodeId = Long.fromValue(
+            tx._stakedNodeId,
+          ).toString();
+        }
+        if (tx._declineReward !== undefined)
+          contractCreate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod)
+          contractCreate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+
+        return {
+          type: 'CONTRACTCREATE',
+          humanReadableType: 'Contract Create',
+          contractCreate,
+        };
+      }
+
+      if (hasTransactionType(transaction, 'contractUpdateInstance')) {
+        const contractUpdate: ContractUpdateData = {
+          contractIdToUpdate: tx._contractId.toString(),
+        };
+
+        if (tx._memo) contractUpdate.memo = tx._memo;
+        if (tx._adminKey) contractUpdate.adminKey = parseKey(tx._adminKey);
+        if (tx._maxAutomaticTokenAssociations !== undefined) {
+          contractUpdate.maxAutomaticTokenAssociations =
+            tx._maxAutomaticTokenAssociations;
+        }
+        if (tx._stakedAccountId) {
+          contractUpdate.stakedAccountId = tx._stakedAccountId.toString();
+        } else if (
+          tx._stakedNodeId !== null &&
+          tx._stakedNodeId !== undefined
+        ) {
+          contractUpdate.stakedNodeId = Long.fromValue(
+            tx._stakedNodeId,
+          ).toString();
+        }
+        if (tx._declineReward !== undefined)
+          contractUpdate.declineReward = tx._declineReward;
+        if (tx._autoRenewPeriod)
+          contractUpdate.autoRenewPeriod = tx._autoRenewPeriod.toString();
+
+        return {
+          type: 'CONTRACTUPDATE',
+          humanReadableType: 'Contract Update',
+          contractUpdate,
+        };
+      }
+
+      if (hasTransactionType(transaction, 'contractDeleteInstance')) {
+        const contractDelete: ContractDeleteData = {
+          contractIdToDelete: tx._contractId.toString(),
+        };
+
+        if (tx._transferAccountId) {
+          contractDelete.transferAccountId = tx._transferAccountId.toString();
+        } else if (tx._transferContractId) {
+          contractDelete.transferContractId = tx._transferContractId.toString();
+        }
+
+        return {
+          type: 'CONTRACTDELETE',
+          humanReadableType: 'Contract Delete',
+          contractDelete,
+        };
+      }
+
+      return {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  /**
+   * Enhanced function name extraction from contract call parameters
+   * Attempts to decode function selector and map to known function names
+   */
+  private static extractFunctionName(functionParameters: string): string {
+    if (functionParameters.length < 8) return 'unknown';
+
+    const selector = functionParameters.substring(0, 8);
+
+    const commonSelectors: Record<string, string> = {
+      a9059cbb: 'transfer',
+      '095ea7b3': 'approve',
+      '23b872dd': 'transferFrom',
+      '70a08231': 'balanceOf',
+      dd62ed3e: 'allowance',
+      '18160ddd': 'totalSupply',
+      '06fdde03': 'name',
+      '95d89b41': 'symbol',
+      '313ce567': 'decimals',
+      '42842e0e': 'safeTransferFrom',
+      b88d4fde: 'safeTransferFrom',
+      e985e9c5: 'isApprovedForAll',
+      a22cb465: 'setApprovalForAll',
+      '6352211e': 'ownerOf',
+      c87b56dd: 'tokenURI',
+      '01ffc9a7': 'supportsInterface',
+      '40c10f19': 'mint',
+      '42966c68': 'burn',
+      f2fde38b: 'transferOwnership',
+      '715018a6': 'renounceOwnership',
+      '8da5cb5b': 'owner',
+    };
+
+    return commonSelectors[selector] || selector;
+  }
+
+  /**
+   * Parse Ethereum Transaction (was completely missing from original parser)
+   */
+  static parseEthereumTransaction(
+    body: proto.IEthereumTransactionBody,
+  ): ContractCallData | undefined {
+    if (!body) return undefined;
+
+    const data: ContractCallData = {
+      contractId: 'EVM',
+      gas: body.maxGasAllowance
+        ? Long.fromValue(body.maxGasAllowance).toNumber()
+        : 0,
+      amount: 0,
+    };
+
+    if (body.ethereumData && body.ethereumData.length > 0) {
+      const ethData = Buffer.from(body.ethereumData).toString('hex');
+      data.functionParameters = ethData;
+
+      if (ethData.length >= 8) {
+        data.functionName = this.extractFunctionName(ethData);
+      }
+    }
+
+    return data;
+  }
+
   static parseContractCall(
     body: proto.IContractCallTransactionBody,
   ): ContractCallData | undefined {
@@ -30,7 +402,7 @@ export class SCSParser {
         'hex',
       );
       if (data.functionParameters.length >= 8) {
-        data.functionName = data.functionParameters.substring(0, 8);
+        data.functionName = this.extractFunctionName(data.functionParameters);
       }
     }
     return data;
@@ -121,19 +493,20 @@ export class SCSParser {
     }
 
     if (body.memo) {
-      const memoAsAny = body.memo as any;
+      const memoUnion = body.memo as unknown;
       if (
-        memoAsAny &&
-        typeof memoAsAny === 'object' &&
-        memoAsAny.hasOwnProperty('value')
+        memoUnion &&
+        typeof memoUnion === 'object' &&
+        Object.prototype.hasOwnProperty.call(memoUnion, 'value')
       ) {
-        const memoVal = memoAsAny.value;
-        data.memo =
-          memoVal === null || memoVal === undefined
-            ? undefined
-            : String(memoVal);
-      } else if (typeof memoAsAny === 'string') {
-        data.memo = memoAsAny;
+        const value = (memoUnion as { value: unknown }).value;
+        if (value === null || value === undefined) {
+          data.memo = undefined;
+        } else {
+          data.memo = String(value);
+        }
+      } else if (typeof memoUnion === 'string') {
+        data.memo = memoUnion;
       } else {
         data.memo = undefined;
       }
@@ -202,5 +575,17 @@ export class SCSParser {
       ).toString();
     }
     return data;
+  }
+
+  /**
+   * Parse SCS (Smart Contract Service) transaction from Transaction object
+   * This is the unified entry point that delegates to the comprehensive parsing logic
+   */
+  static parseFromTransactionObject(transaction: Transaction): {
+    type?: string;
+    humanReadableType?: string;
+    [key: string]: unknown;
+  } {
+    return this.parseSCSTransaction(transaction);
   }
 }

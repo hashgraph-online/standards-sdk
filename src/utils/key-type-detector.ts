@@ -41,15 +41,15 @@ export interface KeyDetectionResult {
 
 /**
  * Utility class for detecting cryptographic key types used in Hedera
- * 
+ *
  * This class provides methods to determine whether a key is ED25519 or ECDSA
  * based on various input formats (hex, DER, PEM) and detection strategies.
- * 
+ *
  * For ambiguous 32-byte raw keys, it uses heuristics and signature testing
  * to make a best-effort determination. When confidence is 'uncertain',
  * consider using the Hedera mirror node to confirm the key type if you have
  * the associated account ID.
- * 
+ *
  * @example
  * // Detect key type from a hex string
  * const keyInfo = KeyTypeDetector.detect('0x' + privateKey.toStringRaw());
@@ -83,7 +83,6 @@ export class KeyTypeDetector {
       0x00, 0x0a, 0x04, 0x22, 0x04, 0x20,
     ]);
 
-  // Additional ECDSA private key variants
   private static readonly ECDSA_SECP256K1_PRIVATE_KEY_PREFIX_LONG = Buffer.from(
     [0x30, 0x77, 0x02, 0x01, 0x01, 0x04, 0x20],
   );
@@ -93,20 +92,20 @@ export class KeyTypeDetector {
    *
    * This detector is designed for private keys only. It uses various heuristics to determine
    * the key type for ambiguous 32-byte keys, including byte patterns and statistical analysis.
-   * 
+   *
    * For ambiguous cases (where confidence is 'uncertain'), if you have the associated account ID,
    * you can use the Hedera mirror node to confirm the key type.
    *
    * @param keyInput - The key to detect, can be a string (hex, base64, PEM), Buffer, or Uint8Array
    * @returns KeyInfo object containing the detected key type and metadata
-   * 
+   *
    * @example
    * // Detect from hex string
    * const info1 = KeyTypeDetector.detect('0x7f96cea0c0d9d5bfb3ab8a42cf0cea44d57f62f2e068f8e5a3251914a9252b04');
-   * 
+   *
    * // Detect from DER-encoded string
    * const info2 = KeyTypeDetector.detect(privateKey.toStringDer());
-   * 
+   *
    * // Detect from PEM format
    * const info3 = KeyTypeDetector.detect(`-----BEGIN PRIVATE KEY-----
    * MC4CAQAwBQYDK2VwBCIEIGRchBsQGQduAAGBQ7GAkKCKkmQ3EGCARwHsHiRqTNR9
@@ -161,7 +160,7 @@ export class KeyTypeDetector {
 
   /**
    * Detect key type from raw bytes
-   * 
+   *
    * @param bytes - The raw bytes of the key
    * @param format - The original format of the key
    * @returns KeyInfo object with detection results
@@ -251,19 +250,17 @@ export class KeyTypeDetector {
 
     switch (bytes.length) {
       case this.ED25519_PUBLIC_KEY_LENGTH:
-        // 32-byte keys are ambiguous - could be either ED25519 or ECDSA private keys
         if (format === 'hex') {
           const hexStr = Array.from(bytes)
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
 
-          // Try as private key
           const privateResult = this.tryCreateKey(hexStr);
           if (privateResult.type !== KeyType.UNKNOWN) {
             return privateResult;
           }
         }
-        // Cannot determine type for 32-byte keys without additional context
+
         return {
           type: KeyType.UNKNOWN,
           format: format,
@@ -293,7 +290,7 @@ export class KeyTypeDetector {
 
   /**
    * Detect key type from PEM format
-   * 
+   *
    * @param pem - The PEM-encoded key string
    * @returns KeyInfo object with detection results
    * @private
@@ -360,7 +357,7 @@ export class KeyTypeDetector {
 
   /**
    * Try to create a key using Hedera SDK to validate the type
-   * 
+   *
    * @param keyInput - The key input string or bytes
    * @returns KeyInfo object with detection results
    * @private
@@ -376,7 +373,6 @@ export class KeyTypeDetector {
         if (this.isValidHex(keyStr) && keyStr.length === 64) {
           const keyBytes = this.hexToBytes(keyStr);
 
-          // Try signature-based detection for ambiguous cases
           const signatureResult = this.detectBySignature(keyStr);
           if (signatureResult.type !== KeyType.UNKNOWN) {
             return {
@@ -398,9 +394,7 @@ export class KeyTypeDetector {
           };
         }
       }
-    } catch {
-      // SDK creation failed
-    }
+    } catch {}
 
     return {
       type: KeyType.UNKNOWN,
@@ -413,12 +407,12 @@ export class KeyTypeDetector {
 
   /**
    * Detect key type by attempting to sign a message with both algorithms
-   * 
+   *
    * For ambiguous cases where both algorithms can use the key, this method
    * uses heuristics to make a best-effort determination. For production use
    * with ambiguous keys, consider using the Hedera mirror node to confirm
    * the key type if you have the associated account ID.
-   * 
+   *
    * @param hexKey - The hex string representation of the key
    * @returns Object containing type, confidence level, and optional warning
    * @private
@@ -428,14 +422,11 @@ export class KeyTypeDetector {
     confidence: 'certain' | 'uncertain';
     warning?: string;
   } {
-    // ECDSA keys must be in range [1, secp256k1_order - 1]
-    // ED25519 accepts any 32-byte value
     const keyBigInt = BigInt('0x' + hexKey);
     const secp256k1Order = BigInt(
       '0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141',
     );
 
-    // If the key is 0, it can only be ED25519 (ECDSA requires [1..N-1])
     if (keyBigInt === 0n) {
       return {
         type: KeyType.ED25519,
@@ -443,7 +434,6 @@ export class KeyTypeDetector {
       };
     }
 
-    // If the key is >= secp256k1 order, it can only be ED25519
     if (keyBigInt >= secp256k1Order) {
       return {
         type: KeyType.ED25519,
@@ -451,11 +441,9 @@ export class KeyTypeDetector {
       };
     }
 
-    // For keys below the order, try both algorithms
     let ed25519CanSign = false;
     let ecdsaCanSign = false;
 
-    // Try signing with ED25519
     try {
       const ed25519Key = PrivateKey.fromStringED25519(hexKey);
       const testMessage = new Uint8Array([1, 2, 3, 4, 5]);
@@ -463,11 +451,8 @@ export class KeyTypeDetector {
       if (ed25519Key.publicKey.verify(testMessage, signature)) {
         ed25519CanSign = true;
       }
-    } catch {
-      // ED25519 signing failed
-    }
+    } catch {}
 
-    // Try signing with ECDSA
     try {
       const ecdsaKey = PrivateKey.fromStringECDSA(hexKey);
       const testMessage = new Uint8Array([1, 2, 3, 4, 5]);
@@ -475,16 +460,11 @@ export class KeyTypeDetector {
       if (ecdsaKey.publicKey.verify(testMessage, signature)) {
         ecdsaCanSign = true;
       }
-    } catch {
-      // ECDSA signing failed
-    }
+    } catch {}
 
-    // Both can sign for keys below the order
     if (ed25519CanSign && ecdsaCanSign) {
-      // Use key characteristics as a tiebreaker
       const keyBytes = this.hexToBytes(hexKey);
 
-      // Check for known patterns
       if (keyBytes[0] === 0xa8 && keyBytes[1] === 0x01) {
         return {
           type: KeyType.ED25519,
@@ -494,13 +474,11 @@ export class KeyTypeDetector {
         };
       }
 
-      // Count high entropy bytes
       let highBytes = 0;
       for (const byte of keyBytes) {
         if (byte >= 0x80) highBytes++;
       }
 
-      // ECDSA keys tend to have more balanced byte distribution
       const highByteRatio = highBytes / keyBytes.length;
       if (highByteRatio >= 0.4 && highByteRatio <= 0.6) {
         return {
@@ -511,7 +489,6 @@ export class KeyTypeDetector {
         };
       }
 
-      // Default to ECDSA for ambiguous keys
       return {
         type: KeyType.ECDSA,
         confidence: 'uncertain',
@@ -520,7 +497,6 @@ export class KeyTypeDetector {
       };
     }
 
-    // Only one can sign
     if (ed25519CanSign && !ecdsaCanSign) {
       return {
         type: KeyType.ED25519,
@@ -543,7 +519,7 @@ export class KeyTypeDetector {
 
   /**
    * Check if a string is valid hexadecimal with even length
-   * 
+   *
    * @param str - The string to check
    * @returns True if the string is valid hex with even length
    * @private
@@ -554,7 +530,7 @@ export class KeyTypeDetector {
 
   /**
    * Check if a string is valid base64
-   * 
+   *
    * @param str - The string to check
    * @returns True if the string is valid base64
    * @private
@@ -569,7 +545,7 @@ export class KeyTypeDetector {
 
   /**
    * Convert a hex string to bytes
-   * 
+   *
    * @param hex - The hex string to convert
    * @returns Uint8Array of bytes
    * @private
@@ -584,7 +560,7 @@ export class KeyTypeDetector {
 
   /**
    * Check if bytes start with a specific prefix
-   * 
+   *
    * @param bytes - The bytes to check
    * @param prefix - The prefix to look for
    * @returns True if bytes start with the prefix
@@ -600,13 +576,12 @@ export class KeyTypeDetector {
 
   /**
    * Check if bytes contain an ECDSA private key pattern
-   * 
+   *
    * @param bytes - The bytes to check
    * @returns True if ECDSA private key pattern is found
    * @private
    */
   private static containsECDSAPrivateKeyPattern(bytes: Uint8Array): boolean {
-    // Look for the ECDSA private key pattern in DER encoding
     for (let i = 0; i < bytes.length - 7; i++) {
       if (
         bytes[i] === 0x30 &&
@@ -625,13 +600,12 @@ export class KeyTypeDetector {
 
   /**
    * Extract ECDSA private key from DER structure
-   * 
+   *
    * @param bytes - The DER encoded bytes
    * @returns The extracted private key bytes
    * @private
    */
   private static extractECDSAPrivateKey(bytes: Uint8Array): Uint8Array {
-    // Find and extract the 32-byte private key from DER structure
     for (let i = 0; i < bytes.length - 32; i++) {
       if (bytes[i] === 0x04 && bytes[i + 1] === 0x20) {
         return bytes.slice(i + 2, i + 34);
@@ -643,14 +617,14 @@ export class KeyTypeDetector {
 
 /**
  * Detects the key type from a private key string and returns the parsed PrivateKey
- * 
- * This function leverages the KeyTypeDetector class to determine whether a key is 
+ *
+ * This function leverages the KeyTypeDetector class to determine whether a key is
  * ED25519 or ECDSA. It handles parsing the key and provides appropriate warnings
  * for uncertain detections.
- * 
+ *
  * Note: For ambiguous keys, if you have the associated account ID, consider using
  * the Hedera mirror node to confirm the key type for production use.
- * 
+ *
  * @param privateKeyString The private key string to detect type from
  * @returns The detected key type, parsed PrivateKey, and optional warning
  * @throws Error if the private key cannot be parsed
@@ -658,59 +632,48 @@ export class KeyTypeDetector {
 export function detectKeyTypeFromString(
   privateKeyString: string,
 ): KeyDetectionResult {
-  // First, use the KeyTypeDetector for advanced detection
   const keyInfo = KeyTypeDetector.detect(privateKeyString);
-  
-  // If we have a detection of ED25519 or ECDSA, try to use it
+
   if (keyInfo.type !== KeyType.UNKNOWN) {
     try {
-      const privateKey = 
+      const privateKey =
         keyInfo.type === KeyType.ECDSA
           ? PrivateKey.fromStringECDSA(privateKeyString)
           : PrivateKey.fromStringED25519(privateKeyString);
-      
-      // Include warning for uncertain detections
+
       const result: KeyDetectionResult = {
         detectedType: keyInfo.type as 'ed25519' | 'ecdsa',
         privateKey,
       };
-      
+
       if (keyInfo.confidence === 'uncertain') {
-        result.warning = 
+        result.warning =
           `Key type detection is uncertain. If you have the associated account ID, ` +
           `consider using the Hedera mirror node to confirm the key type.`;
       }
-      
+
       return result;
-    } catch (error) {
-      // If parsing fails despite detection, continue to direct parsing
-    }
+    } catch (error) {}
   }
-  
-  // If the detector couldn't determine the type or parsing failed,
-  // try direct parsing with both key types
-  
-  // Try ECDSA first (default) as requested
+
   try {
     const privateKey = PrivateKey.fromStringECDSA(privateKeyString);
-    return { 
-      detectedType: 'ecdsa', 
+    return {
+      detectedType: 'ecdsa',
       privateKey,
-      warning: `Using ECDSA as default. If you have the associated account ID, consider using the Hedera mirror node to confirm the key type.`
+      warning: `Using ECDSA as default. If you have the associated account ID, consider using the Hedera mirror node to confirm the key type.`,
     };
   } catch (ecdsaError) {
-    // If ECDSA fails, try ED25519
     try {
       const privateKey = PrivateKey.fromStringED25519(privateKeyString);
-      return { 
-        detectedType: 'ed25519', 
+      return {
+        detectedType: 'ed25519',
         privateKey,
-        warning: `Using ED25519 as fallback. If you have the associated account ID, consider using the Hedera mirror node to confirm the key type.`
+        warning: `Using ED25519 as fallback. If you have the associated account ID, consider using the Hedera mirror node to confirm the key type.`,
       };
     } catch (ed25519Error) {
-      // If both fail, throw an error with details
       throw new Error(
-        `Failed to parse private key as either ECDSA or ED25519: ${ecdsaError}`
+        `Failed to parse private key as either ECDSA or ED25519: ${ecdsaError}`,
       );
     }
   }

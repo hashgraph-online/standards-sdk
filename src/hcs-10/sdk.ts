@@ -5,8 +5,6 @@ import {
   Hbar,
   KeyList,
   TopicCreateTransaction,
-  TopicMessageSubmitTransaction,
-  TopicId,
   Transaction,
   TransactionResponse,
   TransactionReceipt,
@@ -27,7 +25,19 @@ import {
   InscriptionSDK,
   RetrievedInscriptionResult,
 } from '@kiloscribe/inscription-sdk';
-import { Logger, LogLevel, detectKeyTypeFromString, getTopicId } from '../utils';
+import {
+  Logger,
+  LogLevel,
+  ILogger,
+  getTopicId,
+  detectKeyTypeFromString,
+  NetworkType,
+} from '../utils';
+import {
+  createNodeOperatorContext,
+  NodeOperatorResolver,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import { HCS10BaseClient } from './base-client';
 import * as mime from 'mime-types';
 import {
@@ -46,9 +56,7 @@ import {
   MCPServerCreationState,
   CreateRegistryTopicOptions,
   CreateRegistryTopicResponse,
-  RegistryMetadata,
 } from './types';
-import { MirrorNodeConfig } from '../services';
 import {
   HCS11Client,
   AgentMetadata as HCS11AgentMetadata,
@@ -62,19 +70,23 @@ import { FeeConfigBuilderInterface, TopicFeeConfig } from '../fees';
 import { accountIdsToExemptKeys } from '../utils/topic-fee-utils';
 import { Hcs10MemoType } from './base-client';
 import { AgentBuilder } from '../hcs-11/agent-builder';
+import { PersonBuilder } from '../hcs-11/person-builder';
 import { inscribe } from '../inscribe/inscriber';
 import { TokenFeeConfig } from '../fees/types';
 import { addSeconds } from 'date-fns';
+import { ProgressReporter } from '../utils/progress-reporter';
+import { InscribeProfileResponse } from '../hcs-11/types';
+import { buildTopicCreateTx, buildMessageTx } from '../common/tx/tx-utils';
+export { ConnectionsManager } from './connections-manager';
 
 export class HCS10Client extends HCS10BaseClient {
   private client: Client;
-  private operatorPrivateKey: string;
   private operatorAccountId: string;
-  declare protected network: string;
-  declare protected logger: Logger;
+  declare public network: string;
+  declare protected logger: ILogger;
   protected guardedRegistryBaseUrl: string;
   private hcs11Client: HCS11Client;
-  private keyType: 'ed25519' | 'ecdsa';
+  private operatorCtx: NodeOperatorContext;
 
   constructor(config: HCSClientConfig) {
     super({
@@ -86,47 +98,27 @@ export class HCS10Client extends HCS10BaseClient {
       silent: config.silent,
       keyType: config.keyType,
     });
-    
-    // Initialize logger first
+
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
       module: 'HCS-SDK',
       silent: config.silent,
     });
 
-    
-    this.client =
-      config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
-    this.operatorPrivateKey = config.operatorPrivateKey;
     this.operatorAccountId = config.operatorId;
-    
-    if (config.keyType) {
-      this.keyType = config.keyType;
-      const PK =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-      
-      this.client.setOperator(config.operatorId, PK);
-    } else {
-      try {
-        const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-        this.keyType = keyDetection.detectedType;
-        
-        if (keyDetection.warning) {
-          this.logger.warn(keyDetection.warning);
-        }
-        
-        this.client.setOperator(config.operatorId, keyDetection.privateKey);
-      } catch (error) {
-        this.logger.warn(
-          'Failed to detect key type from private key format, will query mirror node',
-        );
-        this.keyType = 'ecdsa'; // Default to ECDSA
-      }
-
-      this.initializeOperator();
-    }
+    this.operatorCtx = createNodeOperatorContext({
+      network: this.network as NetworkType,
+      operatorId: this.operatorAccountId,
+      operatorKey: config.operatorPrivateKey,
+      keyType: config.keyType,
+      mirrorNode: this.mirrorNode,
+      logger: this.logger,
+      client:
+        config.network === 'mainnet'
+          ? Client.forMainnet()
+          : Client.forTestnet(),
+    });
+    this.client = this.operatorCtx.client;
 
     this.network = config.network;
     this.guardedRegistryBaseUrl =
@@ -136,7 +128,7 @@ export class HCS10Client extends HCS10BaseClient {
       network: config.network,
       auth: {
         operatorId: config.operatorId,
-        privateKey: config.operatorPrivateKey,
+        privateKey: this.operatorCtx.operatorKey.toString(),
       },
       logLevel: config.logLevel,
       silent: config.silent,
@@ -144,36 +136,8 @@ export class HCS10Client extends HCS10BaseClient {
     });
   }
 
-  public async initializeOperator(): Promise<{
-    accountId: string;
-    privateKey: string;
-    keyType: 'ed25519' | 'ecdsa';
-    client: Client;
-  }> {
-    const account = await this.requestAccount(this.operatorAccountId);
-    const keyType = account?.key?._type;
-
-    if (keyType && keyType.includes('ECDSA')) {
-      this.keyType = 'ecdsa';
-    } else if (keyType && keyType.includes('ED25519')) {
-      this.keyType = 'ed25519';
-    } else {
-      this.keyType = 'ecdsa'; // Default to ECDSA
-    }
-
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-
-    this.client.setOperator(this.operatorAccountId, PK);
-
-    return {
-      accountId: this.operatorAccountId,
-      privateKey: this.operatorPrivateKey,
-      keyType: this.keyType,
-      client: this.client,
-    };
+  private async ensureInitialized(): Promise<void> {
+    await this.operatorCtx.ensureInitialized();
   }
 
   public getClient() {
@@ -188,9 +152,7 @@ export class HCS10Client extends HCS10BaseClient {
   async createAccount(
     initialBalance: number = 50,
   ): Promise<CreateAccountResponse> {
-    if (!this.keyType) {
-      await this.initializeOperator();
-    }
+    await this.ensureInitialized();
 
     this.logger.info(
       `Creating new account with ${initialBalance} HBAR initial balance`,
@@ -235,9 +197,7 @@ export class HCS10Client extends HCS10BaseClient {
     ttl: number = 60,
     feeConfigBuilder?: FeeConfigBuilderInterface,
   ): Promise<string> {
-    if (!this.keyType) {
-      await this.initializeOperator();
-    }
+    await this.ensureInitialized();
 
     const memo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
       accountId,
@@ -271,6 +231,10 @@ export class HCS10Client extends HCS10BaseClient {
         });
 
         finalFeeConfig = feeConfigBuilder.build();
+        finalFeeConfig.customFees = finalFeeConfig.customFees.map(f => ({
+          ...f,
+          feeCollectorAccountId: f.feeCollectorAccountId || accountId,
+        }));
         break;
       default:
         throw new Error(`Unsupported inbound topic type: ${topicType}`);
@@ -292,9 +256,7 @@ export class HCS10Client extends HCS10BaseClient {
     existingState?: Partial<AgentCreationState>,
     progressCallback?: RegistrationProgressCallback,
   ): Promise<CreateAgentResponse> {
-    if (!this.keyType) {
-      await this.initializeOperator();
-    }
+    await this.ensureInitialized();
 
     const config = builder.build();
     const accountId = this.client.operatorAccountId?.toString();
@@ -379,6 +341,192 @@ export class HCS10Client extends HCS10BaseClient {
     }
 
     return result;
+  }
+
+  /**
+   * Creates a profile (person or agent) with HCS-10 topics and HCS-11 profile.
+   * This method provides a unified interface for creating both person and agent profiles.
+   *
+   * @param builder - AgentBuilder or PersonBuilder instance
+   * @param options - Optional configuration including progress callback and state
+   * @returns Promise resolving to profile creation result
+   */
+  async create(
+    builder: AgentBuilder | PersonBuilder,
+    options?: {
+      progressCallback?: RegistrationProgressCallback;
+      existingState?: AgentCreationState;
+      ttl?: number;
+      updateAccountMemo?: boolean;
+    },
+  ): Promise<CreateAgentResponse | InscribeProfileResponse> {
+    const progressCallback = options?.progressCallback;
+    const progressReporter = new ProgressReporter({
+      module: 'ProfileCreate',
+      logger: this.logger,
+      callback: progressCallback
+        ? d =>
+            progressCallback({
+              stage: d.stage,
+              message: d.message,
+              progressPercent: d.progressPercent,
+              details: d.details,
+            })
+        : undefined,
+    });
+
+    try {
+      const isAgentBuilder = builder instanceof AgentBuilder;
+
+      let state;
+      if (options?.existingState) {
+        state = options.existingState;
+      } else {
+        state = {
+          currentStage: 'init',
+          completedPercentage: 0,
+          createdResources: [],
+        } as AgentCreationState;
+      }
+
+      if (isAgentBuilder) {
+        this.logger.info('Creating Agent Profile and HCS-10 Topics');
+        const agentConfig = (builder as AgentBuilder).build();
+        state.agentMetadata = agentConfig.metadata;
+      } else {
+        this.logger.info('Creating Person HCS-11 Profile');
+      }
+
+      progressReporter.preparing(
+        `Starting ${isAgentBuilder ? 'agent' : 'person'} resource creation`,
+        0,
+        {
+          state,
+        },
+      );
+
+      const accountId = this.client.operatorAccountId?.toString();
+      if (!accountId) {
+        throw new Error('Failed to retrieve operator account ID');
+      }
+
+      const {
+        inboundTopicId,
+        outboundTopicId,
+        state: updatedState,
+      } = await this.createCommunicationTopics(
+        accountId,
+        options,
+        progressReporter,
+      );
+
+      state = updatedState;
+
+      builder.setInboundTopicId(inboundTopicId);
+      builder.setOutboundTopicId(outboundTopicId);
+
+      let pfpTopicId: string | undefined;
+      let hasPfpBuffer: Buffer | undefined;
+      let pfpFileName: string | undefined;
+
+      if (isAgentBuilder) {
+        const agentProfile = (builder as AgentBuilder).build();
+        pfpTopicId = agentProfile.existingPfpTopicId || state.pfpTopicId;
+        hasPfpBuffer = agentProfile.pfpBuffer;
+        pfpFileName = agentProfile.pfpFileName || 'pfp.png';
+      } else {
+        const personProfile = (builder as PersonBuilder).build();
+        pfpTopicId = state.pfpTopicId;
+        hasPfpBuffer = personProfile.pfpBuffer;
+        pfpFileName = personProfile.pfpFileName;
+      }
+
+      if (!pfpTopicId && hasPfpBuffer && pfpFileName) {
+        pfpTopicId = await this.handleProfilePictureCreation(
+          hasPfpBuffer,
+          pfpFileName,
+          state,
+          progressReporter,
+        );
+      } else if (pfpTopicId) {
+        progressReporter.preparing(
+          `Using existing profile picture: ${pfpTopicId}`,
+          50,
+          { state },
+        );
+        state.pfpTopicId = pfpTopicId;
+      }
+
+      await this.createAndInscribeProfile(
+        isAgentBuilder,
+        builder,
+        pfpTopicId,
+        state,
+        inboundTopicId,
+        outboundTopicId,
+        options,
+        progressReporter,
+      );
+
+      state.currentStage = 'complete';
+      state.completedPercentage = 100;
+      progressReporter.completed(
+        `${isAgentBuilder ? 'Agent' : 'Person'} profile created successfully`,
+        {
+          profileTopicId: state.profileTopicId,
+          inboundTopicId,
+          outboundTopicId,
+          pfpTopicId,
+          state,
+        },
+      );
+
+      let outTopicId = '';
+      if (state.outboundTopicId) {
+        outTopicId = state.outboundTopicId;
+      }
+
+      let inTopicId = '';
+      if (state.inboundTopicId) {
+        inTopicId = state.inboundTopicId;
+      }
+
+      let profilePicTopicId = '';
+      if (state.pfpTopicId) {
+        profilePicTopicId = state.pfpTopicId;
+      }
+
+      let profTopicId = '';
+      if (state.profileTopicId) {
+        profTopicId = state.profileTopicId;
+      }
+
+      return {
+        outboundTopicId: outTopicId,
+        inboundTopicId: inTopicId,
+        pfpTopicId: profilePicTopicId,
+        profileTopicId: profTopicId,
+        success: true,
+        state,
+      } as CreateAgentResponse | InscribeProfileResponse;
+    } catch (error) {
+      progressReporter.failed('Error during profile creation', {
+        error: error.message,
+      });
+      return {
+        outboundTopicId: '',
+        inboundTopicId: '',
+        pfpTopicId: '',
+        profileTopicId: '',
+        success: false,
+        error: error.message,
+        state: {
+          currentStage: 'init',
+          completedPercentage: 0,
+          error: error.message,
+        } as AgentCreationState,
+      } as CreateAgentResponse;
+    }
   }
 
   /**
@@ -522,7 +670,7 @@ export class HCS10Client extends HCS10BaseClient {
         transactionId: profileResult.transactionId,
         success: true,
       };
-    } catch (e: any) {
+    } catch (e) {
       const error = e as Error;
       const logMessage = `Error storing HCS-11 profile: ${error.message}`;
       this.logger.error(logMessage);
@@ -850,8 +998,9 @@ export class HCS10Client extends HCS10BaseClient {
         } else {
           throw new Error('Failed to inscribe large message content');
         }
-      } catch (error: any) {
-        const logMessage = `Error inscribing large message: ${error.message}`;
+      } catch (error) {
+        const err = error as Error;
+        const logMessage = `Error inscribing large message: ${err.message}`;
         this.logger.error(logMessage);
         throw new Error(logMessage);
       }
@@ -872,50 +1021,20 @@ export class HCS10Client extends HCS10BaseClient {
     submitKey?: boolean | PublicKey | KeyList,
     feeConfig?: TopicFeeConfig,
   ): Promise<string> {
-    this.logger.info('Creating topic', {
-      operatorId: this.client.operatorAccountId?.toString(),
-      keyType: this.keyType,
-      hasOperatorPublicKey: !!this.client.operatorPublicKey,
-      operatorPrivateKeyLength: this.operatorPrivateKey?.length,
+    this.logger.info('Creating topic');
+
+    const transaction = buildTopicCreateTx({
+      memo,
+      adminKey: adminKey,
+      submitKey: submitKey,
+      operatorPublicKey: this.client.operatorPublicKey || undefined,
     });
-    const transaction = new TopicCreateTransaction().setTopicMemo(memo);
-
-    if (adminKey) {
-      if (
-        typeof adminKey === 'boolean' &&
-        adminKey &&
-        this.client.operatorPublicKey
-      ) {
-        transaction.setAdminKey(this.client.operatorPublicKey);
-        transaction.setAutoRenewAccountId(this.client.operatorAccountId!);
-      } else if (adminKey instanceof PublicKey || adminKey instanceof KeyList) {
-        transaction.setAdminKey(adminKey);
-        if (this.client.operatorAccountId) {
-          transaction.setAutoRenewAccountId(this.client.operatorAccountId);
-        }
-      }
-    }
-
-    if (submitKey) {
-      if (
-        typeof submitKey === 'boolean' &&
-        submitKey &&
-        this.client.operatorPublicKey
-      ) {
-        transaction.setSubmitKey(this.client.operatorPublicKey);
-      } else if (
-        submitKey instanceof PublicKey ||
-        submitKey instanceof KeyList
-      ) {
-        transaction.setSubmitKey(submitKey);
-      }
-    }
 
     if (feeConfig) {
       await this.setupFees(transaction, feeConfig);
     }
 
-    
+
     try {
       const txResponse = await transaction.execute(this.client);
       const receipt = await txResponse.getReceipt(this.client);
@@ -954,14 +1073,12 @@ export class HCS10Client extends HCS10BaseClient {
       );
     }
 
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
-      .setMessage(message);
-
     const transactionMemo = this.getHcs10TransactionMemo(payload);
-    if (transactionMemo) {
-      transaction.setTransactionMemo(transactionMemo);
-    }
+    const transaction = buildMessageTx({
+      topicId,
+      message,
+      transactionMemo: transactionMemo || undefined,
+    });
 
     if (requiresFee) {
       this.logger.info(
@@ -1003,17 +1120,14 @@ export class HCS10Client extends HCS10BaseClient {
       throw new Error('Operator account ID is not set');
     }
 
-    if (!this.operatorPrivateKey) {
+    if (!this.operatorCtx.operatorKey) {
       this.logger.error('Operator private key is not set');
       throw new Error('Operator private key is not set');
     }
 
     const mimeType = mime.lookup(fileName) || 'application/octet-stream';
 
-    const privateKey =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+    const privateKey = this.operatorCtx.operatorKey;
 
     const sdk = await InscriptionSDK.createWithAuth({
       type: 'server',
@@ -1042,7 +1156,6 @@ export class HCS10Client extends HCS10BaseClient {
       },
       {
         accountId: this.client.operatorAccountId.toString(),
-        // @ts-ignore
         privateKey: privateKey,
         network: this.network as 'testnet' | 'mainnet',
       },
@@ -1152,10 +1265,7 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   getAccountAndSigner(): GetAccountAndSignerResponse {
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-        : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+    const PK = this.operatorCtx.operatorKey;
 
     return {
       accountId: this.client.operatorAccountId!.toString()!,
@@ -1253,21 +1363,24 @@ export class HCS10Client extends HCS10BaseClient {
           });
         }
 
-        const keyType = detectKeyTypeFromString(account.privateKey);
+        const resolver = new NodeOperatorResolver({
+          mirrorNode: this.mirrorNode,
+          logger: this.logger,
+        });
 
-        const privateKey =
-          keyType.detectedType === 'ed25519'
-            ? PrivateKey.fromStringED25519(account.privateKey)
-            : PrivateKey.fromStringECDSA(account.privateKey);
+        const keyInfo = await resolver.resolveOperatorKey(
+          account.accountId,
+          account.privateKey,
+        );
 
-        const publicKey = privateKey.publicKey.toString();
+        const publicKey = keyInfo.privateKey.publicKey.toString();
 
         agentClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
-          operatorPrivateKey: account.privateKey,
+          operatorPrivateKey: keyInfo.privateKey.toString(),
           operatorPublicKey: publicKey,
-          keyType: keyType.detectedType as 'ed25519' | 'ecdsa',
+          keyType: keyInfo.keyType as 'ed25519' | 'ecdsa',
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
@@ -1369,13 +1482,20 @@ export class HCS10Client extends HCS10BaseClient {
           );
         }
 
+        const publicKey =
+          this.operatorCtx.keyType === 'ecdsa'
+            ? PrivateKey.fromStringECDSA(
+                account.privateKey,
+              ).publicKey.toString()
+            : PrivateKey.fromStringED25519(
+                account.privateKey,
+              ).publicKey.toString();
+
         agentClient = new HCS10Client({
           network: config.network,
           operatorId: account.accountId,
           operatorPrivateKey: account.privateKey,
-          operatorPublicKey: PrivateKey.fromString(
-            account.privateKey,
-          ).publicKey.toString(),
+          operatorPublicKey: publicKey,
           logLevel: 'info' as LogLevel,
           guardedRegistryBaseUrl: baseUrl,
         });
@@ -1694,7 +1814,7 @@ export class HCS10Client extends HCS10BaseClient {
     return this.network;
   }
 
-  getLogger(): Logger {
+  getLogger(): ILogger {
     return this.logger;
   }
 
@@ -1866,6 +1986,247 @@ export class HCS10Client extends HCS10BaseClient {
   }
 
   /**
+   * Creates communication topics (inbound and outbound) for a profile.
+   * Helper method used by the create method.
+   */
+  private async createCommunicationTopics(
+    accountId: string,
+    options?: {
+      existingState?: AgentCreationState;
+      ttl?: number;
+    },
+    progressReporter?: ProgressReporter,
+  ): Promise<{
+    inboundTopicId: string;
+    outboundTopicId: string;
+    state: AgentCreationState;
+  }> {
+    let state =
+      options?.existingState ||
+      ({
+        currentStage: 'init',
+        completedPercentage: 0,
+        createdResources: [],
+      } as AgentCreationState);
+
+    if (progressReporter) {
+      progressReporter.preparing('Starting communication topic creation', 0, {
+        state,
+      });
+    }
+
+    if (!state.outboundTopicId) {
+      state.currentStage = 'topics';
+      if (progressReporter) {
+        progressReporter.preparing('Creating outbound topic', 5, {
+          state,
+        });
+      }
+      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+        ttl: options?.ttl,
+        accountId,
+      });
+      const outboundTopicId = await this.createTopic(outboundMemo, true, true);
+      state.outboundTopicId = outboundTopicId;
+      if (state.createdResources)
+        state.createdResources.push(`outbound:${state.outboundTopicId}`);
+    }
+
+    if (!state.inboundTopicId) {
+      state.currentStage = 'topics';
+      if (progressReporter) {
+        progressReporter.preparing('Creating inbound topic', 10, {
+          state,
+        });
+      }
+      const inboundMemo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
+        ttl: options?.ttl,
+        accountId,
+      });
+
+      const inboundTopicId = await this.createTopic(inboundMemo, true, false);
+      state.inboundTopicId = inboundTopicId;
+      if (state.createdResources)
+        state.createdResources.push(`inbound:${state.inboundTopicId}`);
+    }
+
+    return {
+      inboundTopicId: state.inboundTopicId,
+      outboundTopicId: state.outboundTopicId,
+      state,
+    };
+  }
+
+  /**
+   * Handles profile picture creation by inscribing it.
+   * Helper method used by the create method.
+   */
+  private async handleProfilePictureCreation(
+    pfpBuffer: Buffer,
+    pfpFileName: string,
+    state: AgentCreationState,
+    progressReporter: ProgressReporter,
+  ): Promise<string> {
+    state.currentStage = 'pfp';
+    progressReporter.preparing('Creating profile picture', 30, {
+      state,
+    });
+
+    const pfpProgress = progressReporter.createSubProgress({
+      minPercent: 30,
+      maxPercent: 50,
+      logPrefix: 'PFP',
+    });
+
+    const pfpResult = await this.inscribePfp(pfpBuffer, pfpFileName);
+
+    if (!pfpResult.success) {
+      let errorMessage = 'Failed to inscribe profile picture';
+      if (pfpResult.error) {
+        errorMessage = pfpResult.error;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const pfpTopicId = pfpResult.pfpTopicId;
+    state.pfpTopicId = pfpTopicId;
+
+    if (state.createdResources) {
+      state.createdResources.push(`pfp:${state.pfpTopicId}`);
+    }
+
+    progressReporter.preparing('Profile picture created', 50, { state });
+
+    return pfpTopicId;
+  }
+
+  /**
+   * Creates and inscribes the HCS-11 profile.
+   * Helper method used by the create method.
+   */
+  private async createAndInscribeProfile(
+    isAgentBuilder: boolean,
+    builder: AgentBuilder | PersonBuilder,
+    pfpTopicId: string | undefined,
+    state: AgentCreationState,
+    inboundTopicId: string,
+    outboundTopicId: string,
+    options?: {
+      updateAccountMemo?: boolean;
+    },
+    progressReporter?: ProgressReporter,
+  ): Promise<void> {
+    this.logger.info('Creating and inscribing profile');
+    if (!state.profileTopicId) {
+      if (progressReporter) {
+        progressReporter.preparing(
+          `Storing HCS-11 ${isAgentBuilder ? 'agent' : 'person'} profile`,
+          80,
+        );
+      }
+
+      const profileProgress = progressReporter?.createSubProgress({
+        minPercent: 80,
+        maxPercent: 95,
+        logPrefix: 'StoreProfile',
+      });
+
+      let hcs11Profile;
+
+      if (isAgentBuilder) {
+        const agentProfile = (builder as AgentBuilder).build();
+
+        const socialLinks = agentProfile.metadata?.socials
+          ? Object.entries(agentProfile.metadata.socials).map(
+              ([platform, handle]) => ({
+                platform: platform as SocialPlatform,
+                handle: handle as string,
+              }),
+            )
+          : [];
+
+        hcs11Profile = this.hcs11Client.createAIAgentProfile(
+          agentProfile.name,
+          agentProfile.metadata?.type === 'manual' ? 0 : 1,
+          agentProfile.capabilities || [],
+          agentProfile.metadata?.model || 'unknown',
+          {
+            alias: agentProfile.name.toLowerCase().replace(/\s+/g, '_'),
+            bio: agentProfile.bio,
+            profileImage: pfpTopicId ? `hcs://1/${pfpTopicId}` : undefined,
+            socials: socialLinks,
+            properties: agentProfile.metadata?.properties || {},
+            inboundTopicId,
+            outboundTopicId,
+            creator: agentProfile.metadata?.creator,
+          },
+        );
+      } else {
+        const personProfile = (builder as PersonBuilder).build();
+
+        const { pfpBuffer, pfpFileName, ...cleanProfile } = personProfile;
+
+        hcs11Profile = this.hcs11Client.createPersonalProfile(
+          personProfile.display_name,
+          {
+            alias: personProfile.alias,
+            bio: personProfile.bio,
+            socials: personProfile.socials,
+            profileImage: pfpTopicId
+              ? `hcs://1/${pfpTopicId}`
+              : personProfile.profileImage,
+            properties: personProfile.properties,
+            inboundTopicId,
+            outboundTopicId,
+          },
+        );
+      }
+
+      const profileResult = await this.hcs11Client.createAndInscribeProfile(
+        hcs11Profile,
+        options?.updateAccountMemo ?? true,
+      );
+
+      if (!profileResult.success) {
+        if (progressReporter) {
+          progressReporter.failed(
+            `Failed to inscribe ${isAgentBuilder ? 'agent' : 'person'} profile`,
+            {
+              error: profileResult.error,
+            },
+          );
+        }
+
+        let errorMessage = `Failed to inscribe ${
+          isAgentBuilder ? 'agent' : 'person'
+        } profile`;
+        if (profileResult.error) {
+          errorMessage = profileResult.error;
+        }
+        throw new Error(errorMessage);
+      }
+
+      state.profileTopicId = profileResult.profileTopicId;
+
+      if (state.createdResources) {
+        state.createdResources.push(`profile:${profileResult.profileTopicId}`);
+      }
+
+      if (progressReporter) {
+        progressReporter.preparing('HCS-11 Profile stored', 95, { state });
+      }
+    } else if (progressReporter) {
+      progressReporter.preparing(
+        `Using existing ${isAgentBuilder ? 'agent' : 'person'} profile`,
+        95,
+        {
+          state,
+        },
+      );
+    }
+  }
+
+  /**
    * Creates a new MCP server with inbound and outbound topics.
    *
    * This method creates communication topics and profiles required for an MCP server,
@@ -1883,9 +2244,7 @@ export class HCS10Client extends HCS10BaseClient {
     existingState?: Partial<MCPServerCreationState>,
     progressCallback?: RegistrationProgressCallback,
   ): Promise<CreateMCPServerResponse> {
-    if (!this.keyType) {
-      await this.initializeOperator();
-    }
+    await this.ensureInitialized();
 
     const config = builder.build();
     const accountId = this.client.operatorAccountId?.toString();
@@ -2231,12 +2590,19 @@ export class HCS10Client extends HCS10BaseClient {
             details: { state, account },
           });
         }
-        const keyType = detectKeyTypeFromString(account.privateKey);
+        const resolver = new NodeOperatorResolver({
+          mirrorNode: this.mirrorNode,
+          logger: this.logger,
+        });
+        const keyInfo = await resolver.resolveOperatorKey(
+          account.accountId,
+          account.privateKey,
+        );
 
         builder.setExistingAccount(account.accountId, account.privateKey);
 
         const privateKey =
-          keyType.detectedType === 'ed25519'
+          keyInfo.keyType === 'ed25519'
             ? PrivateKey.fromStringED25519(account.privateKey)
             : PrivateKey.fromStringECDSA(account.privateKey);
 
@@ -2492,9 +2858,7 @@ export class HCS10Client extends HCS10BaseClient {
     } = options;
 
     try {
-      if (!this.keyType) {
-        await this.initializeOperator();
-      }
+      await this.ensureInitialized();
 
       if (progressCallback) {
         progressCallback({
@@ -2540,7 +2904,7 @@ export class HCS10Client extends HCS10BaseClient {
           },
           {
             accountId: this.client.operatorAccountId.toString(),
-            privateKey: this.operatorPrivateKey.toString(),
+            privateKey: this.operatorCtx.operatorKey,
             network: this.network as 'testnet' | 'mainnet',
           },
           inscriptionOptions,
@@ -2565,10 +2929,7 @@ export class HCS10Client extends HCS10BaseClient {
 
       const memo = `hcs-10:0:${ttl}:3${metadataTopicId ? `:${metadataTopicId}` : ''}`;
 
-      const operatorKey =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
+      const operatorKey = this.operatorCtx.operatorKey;
 
       let topicCreateTx = new TopicCreateTransaction().setTopicMemo(memo);
 
