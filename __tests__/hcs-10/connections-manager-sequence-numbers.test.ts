@@ -1,9 +1,18 @@
 import { ConnectionsManager } from '../../src/hcs-10/connections-manager';
-import { HCSMessage, HCS10BaseClient } from '../../src/hcs-10/base-client';
-import { AIAgentCapability, AIAgentProfile } from '../src';
+type HCSMessage = {
+  p: 'hcs-10';
+  op: string;
+  sequence_number: number;
+  created: Date;
+  payer: string;
+  data: string;
+  [key: string]: any;
+};
+type AIAgentProfile = any;
+const AIAgentCapability = { API_INTEGRATION: 1 } as const;
 import { TopicInfo } from '../../src/services/types';
 
-class MockHCS10Client implements HCS10BaseClient {
+class MockHCS10Client {
   async submitPayload() {
     return { topicSequenceNumber: { toNumber: () => 123 } };
   }
@@ -94,7 +103,7 @@ describe('ConnectionsManager - Sequence Number Uniqueness', () => {
   beforeEach(() => {
     mockClient = new MockHCS10Client();
     manager = new ConnectionsManager({
-      baseClient: mockClient,
+      baseClient: mockClient as any,
       logLevel: 'error',
     });
   });

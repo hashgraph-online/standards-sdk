@@ -1,6 +1,17 @@
 import { HCS5Client } from '../../src/hcs-5/sdk';
 import { buildHcs1Hrl } from '../../src/hcs-5/types';
 
+jest.mock('../../src/services/mirror-node', () => ({
+  HederaMirrorNode: jest.fn().mockImplementation(() => ({
+    requestAccount: jest
+      .fn()
+      .mockResolvedValue({ key: { _type: 'ECDSA_SECP256K1' } }),
+    getTokenInfo: jest
+      .fn()
+      .mockResolvedValue({ supply_key: { _type: 'ECDSA_SECP256K1' } }),
+  })),
+}));
+
 jest.mock('../../src/utils/key-type-detector', () => ({
   detectKeyTypeFromString: jest.fn((k: string) => ({
     privateKey: { parsedFrom: k },
@@ -123,7 +134,7 @@ describe('HCS-5: mint()', () => {
   });
 });
 
-describe('HCS-5: inscribeAndMint()', () => {
+describe('HCS-5: createHashinal()', () => {
   it('inscribes then mints using jsonTopicId', async () => {
     const client = new HCS5Client({
       network: 'testnet',
@@ -131,7 +142,7 @@ describe('HCS-5: inscribeAndMint()', () => {
       operatorKey: 'operator-key',
     });
 
-    const res = await client.inscribeAndMint({
+    const res = await client.createHashinal({
       tokenId: '0.0.7',
       inscriptionInput: {
         type: 'buffer',
@@ -166,7 +177,7 @@ describe('HCS-5: inscribeAndMint()', () => {
       operatorKey: 'operator-key',
     });
 
-    const res = await client.inscribeAndMint({
+    const res = await client.createHashinal({
       tokenId: '0.0.7',
       inscriptionInput: {
         type: 'buffer',
@@ -200,7 +211,7 @@ describe('HCS-5: inscribeAndMint()', () => {
       operatorKey: 'operator-key',
     });
 
-    const res = await client.inscribeAndMint({
+    const res = await client.createHashinal({
       tokenId: '0.0.7',
       inscriptionInput: {
         type: 'buffer',

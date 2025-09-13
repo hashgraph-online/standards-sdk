@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
-import { HCS10Client, Logger, ConnectionsManager } from '../../src';
+import { Logger, ConnectionsManager } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import {
   ensureAgentHasEnoughHbar,
   getOrCreateFoo,
