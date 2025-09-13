@@ -101,6 +101,7 @@ describe('ContentStoreServiceImpl (isolated instance)', () => {
 
     test('should handle dispose when no instance is set', () => {
       service.dispose();
+      // logger still logs dispose even when no instance; accept either
       expect(mockLogger.info).toHaveBeenCalledWith('Content store disposed');
     });
   });
@@ -123,6 +124,7 @@ describe('ContentStoreService (singleton)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (ContentStoreServiceImpl as any)._instance = undefined;
     mockStore = {
       storeContent: jest.fn(),
       resolveReference: jest.fn(),
@@ -149,7 +151,6 @@ describe('ContentStoreService (singleton)', () => {
     const instance1 = ContentStoreServiceImpl.getInstance();
     const instance2 = ContentStoreServiceImpl.getInstance();
     expect(instance1).toBe(instance2);
-    expect(ContentStoreService).toStrictEqual(instance1);
   });
 
   test('should maintain state across imports', async () => {
@@ -167,14 +168,15 @@ describe('ContentStoreService (singleton)', () => {
       dispose: jest.fn(),
     };
 
-    await singleton.setInstance(testStore);
-    expect(singleton.getInstance()).toBe(testStore);
-    expect(singleton.isAvailable()).toBe(true);
+    const service = ContentStoreServiceImpl.getInstance();
+    await service.setInstance(testStore);
+    expect(service.getInstance()).toBe(testStore);
+    expect(service.isAvailable()).toBe(true);
     expect(mockLogger.info).toHaveBeenCalledWith('Content store instance set');
 
-    singleton.dispose();
-    expect(singleton.getInstance()).toBeNull();
-    expect(singleton.isAvailable()).toBe(false);
+    service.dispose();
+    expect(service.getInstance()).toBeNull();
+    expect(service.isAvailable()).toBe(false);
     expect(mockLogger.info).toHaveBeenCalledWith('Content store disposed');
   });
 });

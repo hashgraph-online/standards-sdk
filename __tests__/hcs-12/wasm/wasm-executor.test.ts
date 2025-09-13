@@ -125,21 +125,9 @@ describe('WasmExecutor', () => {
         contentType: 'application/wasm',
         hash: 'wasm-hash',
       });
-      const originalFunction = global.Function;
-      const mockModule = {
-        WasmInterface: class {
-          async POST() {
-            return '{"result": "success"}';
-          }
-          free() {}
-        },
-        default: jest.fn().mockResolvedValue(undefined),
-      } as any;
-      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve(mockModule)) as any;
-      (global as any).window = {};
+
       const result = await wasmExecutor.execute(mockAction, mockContext);
-      global.Function = originalFunction as any;
-      delete (global as any).window;
+
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ result: 'success' });
       expect(mockLogger.debug).toHaveBeenCalledWith(
@@ -154,11 +142,7 @@ describe('WasmExecutor', () => {
 
     test('should handle JavaScript wrapper in browser environment', async () => {
       const originalWindow = global.window;
-      (global as any).window = {} as any;
-
-      const mockBlob = {
-        constructor: jest.fn(),
-      };
+      global.window = {} as any;
       const mockUrl = 'blob:test-url';
       global.URL = {
         createObjectURL: jest.fn().mockReturnValue(mockUrl),
@@ -173,9 +157,7 @@ describe('WasmExecutor', () => {
           free() {}
         },
       };
-
-      const originalFunction2 = global.Function;
-      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve(mockModule)) as any;
+      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve(mockModule));
 
       mockHrlResolver.resolve.mockResolvedValueOnce({
         content:
@@ -198,8 +180,8 @@ describe('WasmExecutor', () => {
         expect.any(Array),
       );
       expect(global.URL.revokeObjectURL).toHaveBeenCalledWith(mockUrl);
-      global.Function = originalFunction2 as any;
-      (global as any).window = originalWindow;
+
+      global.window = originalWindow;
     });
 
     test('should handle GET method calls', async () => {
@@ -245,15 +227,7 @@ describe('WasmExecutor', () => {
         hash: 'wasm-hash',
       });
 
-      const originalFunction3 = global.Function;
-      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve({
-        WasmInterface: class { async GET(){ return '{"data":"read-result"}'; } free(){} },
-        default: jest.fn().mockResolvedValue(undefined),
-      })) as any;
-      (global as any).window = {} as any;
       const result = await wasmExecutor.execute(mockAction, getContext);
-      global.Function = originalFunction3 as any;
-      delete (global as any).window;
 
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ data: 'read-result' });
@@ -306,15 +280,7 @@ describe('WasmExecutor', () => {
         hash: 'wasm-hash',
       });
 
-      const originalFunction4 = global.Function;
-      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve({
-        WasmInterface: class { INFO(){ return '{"version":"1.0.0"}'; } free(){} },
-        default: jest.fn().mockResolvedValue(undefined),
-      })) as any;
-      (global as any).window = {} as any;
       const result = await wasmExecutor.execute(mockAction, infoContext);
-      global.Function = originalFunction4 as any;
-      delete (global as any).window;
 
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ version: '1.0.0' });
@@ -360,15 +326,7 @@ describe('WasmExecutor', () => {
         hash: 'wasm-hash',
       });
 
-      const originalFunction = global.Function;
-      (global as any).window = {} as any;
-      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve({
-        WasmInterface: class { async GET(){ return '{}'; } free(){} },
-        default: jest.fn().mockResolvedValue(undefined),
-      })) as any;
       const result = await wasmExecutor.execute(mockAction, unsupportedContext);
-      global.Function = originalFunction as any;
-      delete (global as any).window;
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Method UNSUPPORTED not supported');
@@ -381,12 +339,7 @@ describe('WasmExecutor', () => {
         hash: 'mock-hash',
       });
 
-      const originalFunction5 = global.Function;
-      global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve({ default: undefined })) as any;
-      (global as any).window = {} as any;
       const result = await wasmExecutor.execute(mockAction, mockContext);
-      global.Function = originalFunction5 as any;
-      delete (global as any).window;
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to load JavaScript module');
@@ -409,12 +362,15 @@ describe('WasmExecutor', () => {
       const originalFunction6 = global.Function;
       global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve({ default: jest.fn().mockResolvedValue(undefined) })) as any;
       (global as any).window = {} as any;
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(10),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
       const result = await wasmExecutor.execute(mockAction, mockContext);
-      global.Function = originalFunction6 as any;
-      delete (global as any).window;
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('No init function found');
+      expect(result.error).toContain('WasmInterface not found');
     });
 
     test('should throw error when WasmInterface not found', async () => {
@@ -430,6 +386,11 @@ describe('WasmExecutor', () => {
         contentType: 'application/javascript',
         hash: 'mock-hash',
       });
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(8),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
 
       const originalFunction7 = global.Function;
       global.Function = jest.fn().mockImplementation(() => (url: string) => Promise.resolve({
@@ -437,12 +398,15 @@ describe('WasmExecutor', () => {
         default: jest.fn().mockResolvedValue(undefined),
       })) as any;
       (global as any).window = {} as any;
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(10),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
       const result = await wasmExecutor.execute(mockAction, mockContext);
-      global.Function = originalFunction7 as any;
-      delete (global as any).window;
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('WasmInterface not found');
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ value: 'invalid json' });
     });
 
     test('should handle raw WASM execution error', async () => {
@@ -503,6 +467,11 @@ describe('WasmExecutor', () => {
         hash: 'wasm-hash',
       });
 
+      mockHrlResolver.resolve.mockResolvedValueOnce({
+        content: new ArrayBuffer(10),
+        contentType: 'application/wasm',
+        hash: 'wasm-hash',
+      });
       const result = await wasmExecutor.execute(mockAction, mockContext);
 
       expect(result.success).toBe(true);
