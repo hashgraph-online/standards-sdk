@@ -539,6 +539,7 @@ async function main() {
     logger.info('   - Nested assembly for container with multiple blocks');
     logger.info('2. Execute actions through the WASM interface');
     logger.info('3. Deploy to mainnet when ready');
+    process.exit(0);
   } catch (error) {
     logger.error('Demo failed:', {
       message: error instanceof Error ? error.message : 'Unknown error',

@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import { Logger } from '../../src/utils/logger';
-import { detectKeyTypeFromString } from '../../src/utils/key-type-detector';
-import { HCS5Client } from '../../src/hcs-5/sdk';
+import { HCS6Client } from '../../src/hcs-6/sdk';
 import {
   Client,
   AccountId,
@@ -10,28 +9,21 @@ import {
   TokenType,
   TokenSupplyType,
 } from '@hashgraph/sdk';
-import { fileTypeFromBuffer } from 'file-type';
-import fs from 'fs';
-import path from 'path';
 import { HederaMirrorNode } from '../../src/services/mirror-node';
 
 async function main(): Promise<void> {
-  const logger = Logger.getInstance({ module: 'HCS-5 Demo' });
+  const logger = Logger.getInstance({ module: 'HCS-6 Demo' });
 
-  const network = (process.env.HEDERA_NETWORK || 'testnet') as
-    | 'testnet'
-    | 'mainnet';
+  const network = (process.env.HEDERA_NETWORK || 'testnet') as 'testnet' | 'mainnet';
   const operatorId = process.env.HEDERA_ACCOUNT_ID || '';
   const operatorKey = process.env.HEDERA_PRIVATE_KEY || '';
-  let tokenId = process.env.HCS5_TOKEN_ID || '';
+  let tokenId = process.env.HCS6_TOKEN_ID || '';
 
   if (!operatorId || !operatorKey) {
-    throw new Error(
-      'Please set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env',
-    );
+    throw new Error('Please set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env');
   }
 
-  const hcs5 = new HCS5Client({
+  const hcs6 = new HCS6Client({
     network,
     operatorId,
     operatorKey,
@@ -39,77 +31,39 @@ async function main(): Promise<void> {
   });
 
   if (!tokenId) {
-    logger.info('HCS5_TOKEN_ID not set, creating a demo NFT token');
-    tokenId = await createDemoNftToken(
-      network,
-      operatorId,
-      operatorKey,
-      logger,
-    );
+    logger.info('HCS6_TOKEN_ID not set, creating a demo NFT token');
+    tokenId = await createDemoNftToken(network, operatorId, operatorKey, logger);
     logger.info('Created demo token', { tokenId });
   }
 
-  const imagePath = process.env.HCS5_IMAGE_PATH || '';
-  const imageUrl = process.env.HCS5_IMAGE_URL || '';
-  const svgLetter = (process.env.HCS5_LETTER || 'S').slice(0, 1);
-  const svgBg = process.env.HCS5_BG || '#0d9488';
-  const svgFg = process.env.HCS5_FG || '#ffffff';
+  const svgLetter = (process.env.HCS6_LETTER || 'S').slice(0, 1);
+  const svgBg = process.env.HCS6_BG || '#0d9488';
+  const svgFg = process.env.HCS6_FG || '#ffffff';
+  const svg = generateSvgLetter(svgLetter, svgBg, svgFg);
 
-  let inscriptionInput:
-    | { type: 'buffer'; buffer: Buffer; fileName: string; mimeType: string }
-    | { type: 'url'; url: string };
   const metadata: Record<string, unknown> = {
-    name: 'HCS-5 Demo NFT',
+    name: 'HCS-6 Demo NFT',
     creator: operatorId,
-    description: 'Demo Hashinal (HCS-5) minted by standards-sdk',
+    description: 'Dynamic Hashinal (HCS-6) minted by standards-sdk',
+    type: 'image/svg+xml',
+    attributes: [
+      { trait_type: 'Letter', value: svgLetter },
+      { trait_type: 'Background', value: svgBg },
+      { trait_type: 'Foreground', value: svgFg },
+    ],
   };
 
-  if (imagePath) {
-    const imageBuf = fs.readFileSync(imagePath);
-    const ft = await fileTypeFromBuffer(imageBuf);
-    const mime = ft?.mime || 'application/octet-stream';
-    inscriptionInput = {
-      type: 'buffer',
-      buffer: imageBuf,
-      fileName: path.basename(imagePath),
-      mimeType: mime,
-    };
-    metadata.type = mime;
-    metadata.attributes = [
-      { trait_type: 'Letter', value: svgLetter },
-      { trait_type: 'Background', value: svgBg },
-      { trait_type: 'Foreground', value: svgFg },
-    ];
-  } else if (imageUrl) {
-    inscriptionInput = { type: 'url', url: imageUrl };
-    metadata.type = 'image/*';
-    metadata.attributes = [
-      { trait_type: 'Letter', value: svgLetter },
-      { trait_type: 'Background', value: svgBg },
-      { trait_type: 'Foreground', value: svgFg },
-    ];
-  } else {
-    const svg = generateSvgLetter(svgLetter, svgBg, svgFg);
-    inscriptionInput = {
+  const res = await hcs6.inscribeAndMint({
+    tokenId,
+    inscriptionInput: {
       type: 'buffer',
       buffer: svg,
       fileName: 'hashinal.svg',
       mimeType: 'image/svg+xml',
-    };
-    metadata.type = 'image/svg+xml';
-    metadata.attributes = [
-      { trait_type: 'Letter', value: svgLetter },
-      { trait_type: 'Background', value: svgBg },
-      { trait_type: 'Foreground', value: svgFg },
-    ];
-  }
-
-  const res = await hcs5.createHashinal({
-    tokenId,
-    inscriptionInput,
+    },
     inscriptionOptions: {
-      metadata,
       waitForConfirmation: true,
+      metadata,
       waitMaxAttempts: process.env.HCS_WAIT_MAX_ATTEMPTS
         ? Number(process.env.HCS_WAIT_MAX_ATTEMPTS)
         : undefined,
@@ -120,11 +74,11 @@ async function main(): Promise<void> {
   });
 
   if (!res.success) {
-    logger.error('HCS-5 demo failed', { error: res.error });
+    logger.error('HCS-6 demo failed', { error: res.error });
     process.exit(1);
   }
 
-  logger.info('HCS-5 demo succeeded', {
+  logger.info('HCS-6 demo succeeded', {
     tokenId,
     serialNumber: res.serialNumber,
     metadata: res.metadata,
@@ -134,8 +88,8 @@ async function main(): Promise<void> {
 }
 
 main().catch(err => {
-  const logger = Logger.getInstance({ module: 'HCS-5 Demo' });
-  logger.error('Unhandled error in HCS-5 demo', err);
+  const logger = Logger.getInstance({ module: 'HCS-6 Demo' });
+  logger.error('Unhandled error in HCS-6 demo', err);
   process.exit(1);
 });
 
@@ -145,8 +99,7 @@ async function createDemoNftToken(
   operatorKey: string,
   logger: ReturnType<typeof Logger.getInstance>,
 ): Promise<string> {
-  const client =
-    network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+  const client = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
   const operatorAccountId = AccountId.fromString(operatorId);
   const mirror = new HederaMirrorNode(network, logger);
   let privateKey: PrivateKey;
@@ -157,14 +110,14 @@ async function createDemoNftToken(
       ? PrivateKey.fromStringED25519(operatorKey)
       : PrivateKey.fromStringECDSA(operatorKey);
   } catch {
-    const fallback = detectKeyTypeFromString(operatorKey);
-    privateKey = fallback.privateKey;
+    // Fallback to ECDSA
+    privateKey = PrivateKey.fromStringECDSA(operatorKey);
   }
   client.setOperator(operatorAccountId, privateKey);
 
   const tx = new TokenCreateTransaction()
-    .setTokenName('HCS5 Demo Token')
-    .setTokenSymbol('H5D')
+    .setTokenName('HCS6 Demo Token')
+    .setTokenSymbol('H6D')
     .setTokenType(TokenType.NonFungibleUnique)
     .setSupplyType(TokenSupplyType.Infinite)
     .setTreasuryAccountId(operatorAccountId)
@@ -179,15 +132,10 @@ async function createDemoNftToken(
   if (!receipt.tokenId) {
     throw new Error('Failed to create demo NFT token');
   }
-  logger.info('Created NFT token for demo', {
-    tokenId: receipt.tokenId.toString(),
-  });
+  logger.info('Created NFT token for demo', { tokenId: receipt.tokenId.toString() });
   return receipt.tokenId.toString();
 }
 
-/**
- * Generate a simple SVG avatar with a single letter.
- */
 function generateSvgLetter(letter: string, bg: string, fg: string): Buffer {
   const safeLetter = (letter || 'S').slice(0, 1).toUpperCase();
   const svg = `<?xml version="1.0" encoding="UTF-8"?>

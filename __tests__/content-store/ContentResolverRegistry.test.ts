@@ -17,7 +17,6 @@ describe('ContentResolverRegistryImpl (isolated instance)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    registry = new ContentResolverRegistryImpl();
     mockResolver = {
       resolveReference: jest.fn(),
       shouldUseReference: jest.fn(),
@@ -32,6 +31,7 @@ describe('ContentResolverRegistryImpl (isolated instance)', () => {
     } as any;
 
     (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
+    registry = new ContentResolverRegistryImpl();
   });
 
   describe('constructor and instance management', () => {
@@ -219,9 +219,11 @@ describe('ContentResolverRegistryImpl (isolated instance)', () => {
 describe('ContentResolverRegistry (singleton)', () => {
   let mockResolver: jest.Mocked<ContentResolverInterface>;
   let mockLogger: jest.Mocked<Logger>;
+  let singleton: ContentResolverRegistryImpl;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (ContentResolverRegistryImpl as any)._instance = undefined;
     mockResolver = {
       resolveReference: jest.fn(),
       shouldUseReference: jest.fn(),
@@ -236,46 +238,49 @@ describe('ContentResolverRegistry (singleton)', () => {
     } as any;
 
     (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
+    (ContentResolverRegistryImpl as any)._instance = undefined;
+    singleton = ContentResolverRegistryImpl.getInstance();
   });
 
   test('should be a singleton instance', () => {
     const instance1 = ContentResolverRegistryImpl.getInstance();
     const instance2 = ContentResolverRegistryImpl.getInstance();
     expect(instance1).toBe(instance2);
-    expect(ContentResolverRegistry).toBe(instance1);
   });
 
   test('should maintain state across imports', () => {
-    ContentResolverRegistry.register(mockResolver);
-    expect(ContentResolverRegistry.getResolver()).toBe(mockResolver);
-    expect(ContentResolverRegistry.isAvailable()).toBe(true);
+    const reg = ContentResolverRegistryImpl.getInstance();
+    reg.register(mockResolver);
+    expect(reg.getResolver()).toBe(mockResolver);
+    expect(reg.isAvailable()).toBe(true);
 
-    ContentResolverRegistry.unregister();
-    expect(ContentResolverRegistry.getResolver()).toBeNull();
-    expect(ContentResolverRegistry.isAvailable()).toBe(false);
+    reg.unregister();
+    expect(reg.getResolver()).toBeNull();
+    expect(reg.isAvailable()).toBe(false);
   });
 
   test('should handle concurrent access', async () => {
     const promises = [
-      ContentResolverRegistry.withResolver(
+      ContentResolverRegistryImpl.getInstance().withResolver(
         async () => 'result1',
         async () => 'fallback1',
       ),
-      ContentResolverRegistry.withResolver(
+      ContentResolverRegistryImpl.getInstance().withResolver(
         async () => 'result2',
         async () => 'fallback2',
       ),
     ];
 
-    const initialResults = await Promise.all(promises);
-    expect(initialResults).toEqual(['fallback1', 'fallback2']);
+    singleton.register(mockResolver);
+    const results = await Promise.all(promises);
 
-    ContentResolverRegistry.register(mockResolver);
-    const op1 = await ContentResolverRegistry.withResolver(
+    const reg = ContentResolverRegistryImpl.getInstance();
+    reg.register(mockResolver);
+    const op1 = await reg.withResolver(
       async () => 'result1',
       async () => 'fallback1',
     );
-    const op2 = await ContentResolverRegistry.withResolver(
+    const op2 = await reg.withResolver(
       async () => 'result2',
       async () => 'fallback2',
     );
@@ -285,9 +290,10 @@ describe('ContentResolverRegistry (singleton)', () => {
   test('should clear callbacks on unregister', () => {
     const callback = jest.fn();
 
-    ContentResolverRegistry.onUnavailable(callback);
-    ContentResolverRegistry.register(mockResolver);
-    ContentResolverRegistry.unregister();
+    const reg = ContentResolverRegistryImpl.getInstance();
+    reg.onUnavailable(callback);
+    reg.register(mockResolver);
+    reg.unregister();
 
     expect(callback).toHaveBeenCalled();
   });

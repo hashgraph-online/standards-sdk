@@ -3,7 +3,7 @@
  */
 
 import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
-import { HederaClientConfig, InscriptionOptions, QuoteResult } from './types';
+import { HederaClientConfig, InscriptionOptions, QuoteResult, NodeHederaClientConfig } from './types';
 
 interface CacheKey {
   inputHash: string;
@@ -50,7 +50,7 @@ class QuoteCache {
    */
   createCacheKey(
     input: unknown,
-    clientConfig: HederaClientConfig,
+    clientConfig: NodeHederaClientConfig,
     options: InscriptionOptions,
   ): CacheKey {
     return {
@@ -193,7 +193,7 @@ const sdkCache = new SDKCache();
  * Get or create SDK instance with caching
  */
 export async function getOrCreateSDK(
-  clientConfig: HederaClientConfig,
+  clientConfig: NodeHederaClientConfig,
   options: InscriptionOptions,
   existingSDK?: InscriptionSDK,
 ): Promise<InscriptionSDK> {
@@ -224,7 +224,10 @@ export async function getOrCreateSDK(
     sdk = await InscriptionSDK.createWithAuth({
       type: 'server',
       accountId: clientConfig.accountId,
-      privateKey: clientConfig.privateKey,
+      privateKey:
+        typeof clientConfig.privateKey === 'string'
+          ? clientConfig.privateKey
+          : clientConfig.privateKey.toString(),
       network: clientConfig.network || 'mainnet',
     });
   }
@@ -238,7 +241,7 @@ export async function getOrCreateSDK(
  */
 export function getCachedQuote(
   input: unknown,
-  clientConfig: HederaClientConfig,
+  clientConfig: NodeHederaClientConfig,
   options: InscriptionOptions,
 ): QuoteResult | null {
   const cacheKey = quoteCache.createCacheKey(input, clientConfig, options);
@@ -250,7 +253,7 @@ export function getCachedQuote(
  */
 export function cacheQuote(
   input: unknown,
-  clientConfig: HederaClientConfig,
+  clientConfig: NodeHederaClientConfig,
   options: InscriptionOptions,
   quote: QuoteResult,
 ): void {
@@ -264,7 +267,7 @@ export function cacheQuote(
  */
 export function validateQuoteParameters(
   input: unknown,
-  clientConfig: HederaClientConfig,
+  clientConfig: NodeHederaClientConfig,
   options: InscriptionOptions,
 ): void {
   if (!input || typeof input !== 'object' || !('type' in input)) {

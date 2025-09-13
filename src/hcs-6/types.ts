@@ -159,6 +159,55 @@ export interface HCS6CreateHashinalResponse {
 }
 
 /**
+ * Options for minting an HTS NFT that references an HCS-6 topic via HRL
+ */
+export interface HCS6MintOptions {
+  tokenId: string;
+  metadataTopicId?: string;
+  supplyKey?: string | PrivateKey;
+  memo?: string;
+}
+
+/**
+ * Options for inscribing content then minting a HCS-6 Hashinal in one flow
+ */
+export interface HCS6InscribeAndMintOptions {
+  tokenId: string;
+  inscriptionInput:
+    | {
+        type: 'buffer';
+        buffer: Buffer | ArrayBuffer;
+        fileName: string;
+        mimeType?: string;
+      }
+    | {
+        type: 'url';
+        url: string;
+      };
+  inscriptionOptions?: Record<string, unknown>;
+  supplyKey?: string | PrivateKey;
+  memo?: string;
+}
+
+/**
+ * Response from minting an HTS NFT with HCS-6 HRL metadata
+ */
+export interface HCS6MintResponse {
+  success: boolean;
+  serialNumber?: number;
+  transactionId?: string;
+  metadata?: string;
+  error?: string;
+}
+
+/**
+ * Build an HRL for HCS-6 dynamic hashinals
+ */
+export function buildHcs6Hrl(topicId: string): string {
+  return `hcs://6/${topicId}`;
+}
+
+/**
  * Zod schemas for HCS-6 message validation
  */
 export const hcs6TopicIdSchema = z.string().regex(/^\d+\.\d+\.\d+$/, {

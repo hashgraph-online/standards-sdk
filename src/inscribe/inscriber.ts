@@ -7,6 +7,7 @@ import {
   QuoteResult,
   StartInscriptionRequest,
   InscriptionJobResponse,
+  NodeHederaClientConfig,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { Logger, ILogger } from '../utils/logger';
@@ -135,9 +136,20 @@ export interface InscriptionResponse {
   quote?: boolean;
 }
 
+function normalizeClientConfig(cfg: NodeHederaClientConfig): HederaClientConfig {
+  return {
+    accountId: cfg.accountId,
+    privateKey:
+      typeof cfg.privateKey === 'string'
+        ? cfg.privateKey
+        : cfg.privateKey.toString(),
+    network: cfg.network,
+  };
+}
+
 export async function inscribe(
   input: InscriptionInput,
-  clientConfig: HederaClientConfig,
+  clientConfig: NodeHederaClientConfig,
   options: InscriptionOptions,
   existingSDK?: InscriptionSDK,
 ): Promise<InscriptionResponse> {
@@ -180,11 +192,12 @@ export async function inscribe(
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
+      const normalized = normalizeClientConfig(clientConfig);
       sdk = await InscriptionSDK.createWithAuth({
         type: 'server',
-        accountId: clientConfig.accountId,
-        privateKey: clientConfig.privateKey,
-        network: clientConfig.network || 'mainnet',
+        accountId: normalized.accountId,
+        privateKey: normalized.privateKey,
+        network: normalized.network || 'mainnet',
       });
     }
 
@@ -252,7 +265,8 @@ export async function inscribe(
       holderId: clientConfig.accountId,
     });
 
-    const result = await sdk.inscribeAndExecute(request, clientConfig);
+    const normalizedCfg = normalizeClientConfig(clientConfig);
+    const result = await sdk.inscribeAndExecute(request, normalizedCfg);
     logger.info('Starting to inscribe.', {
       type: input.type,
       mode: options.mode || 'file',
@@ -608,7 +622,7 @@ function validateHashinalMetadata(
  */
 export async function generateQuote(
   input: InscriptionInput,
-  clientConfig: HederaClientConfig,
+  clientConfig: NodeHederaClientConfig,
   options: InscriptionOptions,
   existingSDK?: InscriptionSDK,
 ): Promise<InscriptionResponse> {

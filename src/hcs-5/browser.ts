@@ -1,10 +1,5 @@
 import { HCS5BaseClient } from './base-client';
-import {
-  HCS5InscribeAndMintOptions,
-  HCS5MintOptions,
-  HCS5MintResponse,
-  buildHcs1Hrl,
-} from './types';
+import { HCS5CreateHashinalOptions, HCS5MintOptions, HCS5MintResponse, buildHcs1Hrl } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import {
@@ -110,8 +105,8 @@ export class HCS5BrowserClient extends HCS5BaseClient {
     }
   }
 
-  async inscribeAndMint(
-    options: HCS5InscribeAndMintOptions,
+  async createHashinal(
+    options: HCS5CreateHashinalOptions,
   ): Promise<HCS5MintResponse> {
     try {
       const signer = this.getSigner();
