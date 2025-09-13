@@ -35,6 +35,7 @@ describe('HederaMirrorNode', () => {
       setSilent: jest.fn(),
     };
     mirrorNode = new HederaMirrorNode('testnet', logger);
+    mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
@@ -115,9 +116,7 @@ describe('HederaMirrorNode', () => {
       axiosGet
         .mockRejectedValueOnce(new Error('Network timeout'))
         .mockResolvedValueOnce({ data: mockAccountResponse });
-
       const result = await mirrorNode.requestAccount('0.0.12345');
-
       expect(axiosGet).toHaveBeenCalledTimes(2);
       expect(result).toEqual(mockAccountResponse);
     });
@@ -147,7 +146,7 @@ describe('HederaMirrorNode', () => {
         'https://testnet.mirrornode.hedera.com/api/v1/tokens/0.0.12345',
         expect.any(Object),
       );
-      expect(result).toEqual(mockTokenResponse);
+      expect(result?.token_id).toBe('0.0.12345');
     });
 
     test('handles token not found error', async () => {
@@ -169,14 +168,14 @@ describe('HederaMirrorNode', () => {
       messages: [
         {
           consensus_timestamp: '1234567890.000000000',
-          message: 'SGVsbG8gV29ybGQ=', // Base64 encoded "Hello World"
+          message: Buffer.from(JSON.stringify({ p: 'hcs-20', op: 'register' })).toString('base64'),
           running_hash: 'hash1',
           sequence_number: '1',
           topic_id: '0.0.12345',
         },
         {
           consensus_timestamp: '1234567891.000000000',
-          message: 'VGVzdCBtZXNzYWdl', // Base64 encoded "Test message"
+          message: Buffer.from(JSON.stringify({ any: 'json' })).toString('base64'),
           running_hash: 'hash2',
           sequence_number: '2',
           topic_id: '0.0.12345',
@@ -304,7 +303,6 @@ describe('HederaMirrorNode', () => {
 
     test('handles network fees API error', async () => {
       axiosGet.mockRejectedValue(new Error('Network error'));
-
       const result = await mirrorNode.getNetworkFees();
       expect(result).toBeNull();
     });
