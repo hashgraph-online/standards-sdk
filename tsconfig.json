@@ -12,7 +12,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "lib": ["es2020", "dom"]
+    "lib": ["es2020", "dom"],
+    "skipLibCheck": true
   },
   "include": ["src/**/*"]
 }

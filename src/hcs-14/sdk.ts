@@ -22,10 +22,14 @@ import { HieroDidResolver } from './resolvers/hiero';
 import { IssuerRegistry } from './issuers/registry';
 import { HederaHieroIssuer } from './issuers/hiero';
 import type { DidIssueRequest } from './issuers/types';
-import { Client, PrivateKey } from '@hashgraph/sdk';
+import { Client } from '@hashgraph/sdk';
 import { HCS11Client } from '../hcs-11/client';
-import { NetworkType, detectKeyTypeFromString } from '../utils';
+import { NetworkType, Logger, type ILogger } from '../utils';
 import { HederaMirrorNode } from '../services';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import { HCS10Client } from '../hcs-10/sdk';
 
 /**
@@ -48,12 +52,15 @@ export class HCS14Client {
   private operatorPrivateKey?: string;
   private hcs10Client?: HCS10Client;
   private issuers: IssuerRegistry;
+  private operatorCtx?: NodeOperatorContext;
+  private logger: ILogger;
 
   constructor(options?: HCS14ClientOptions) {
     this.registry = options?.registry ?? defaultResolverRegistry;
     this.issuers = new IssuerRegistry();
     this.registerHederaIssuer();
     this.registerHederaResolver();
+    this.logger = Logger.getInstance({ module: 'HCS-14' });
     this.client = options?.client;
     this.network = options?.network;
     this.operatorId = options?.operatorId;
@@ -63,14 +70,14 @@ export class HCS14Client {
       options?.operatorId &&
       options?.privateKey
     ) {
-      this.configureHederaClient(
-        options.network,
-        options.operatorId,
-        options.privateKey,
-      );
+      this.configureHederaClient(options.network, options.operatorId, options.privateKey);
     }
-    if (options?.privateKey) this.operatorPrivateKey = options.privateKey;
-    if (options?.hcs10Client) this.hcs10Client = options.hcs10Client;
+    if (options?.privateKey) {
+      this.operatorPrivateKey = options.privateKey;
+    }
+    if (options?.hcs10Client) {
+      this.hcs10Client = options.hcs10Client;
+    }
   }
 
   configureHederaClient(
@@ -78,34 +85,35 @@ export class HCS14Client {
     operatorId: string,
     privateKey: string,
   ): void {
-    const client = Client.forName(network);
-    const initial = detectKeyTypeFromString(privateKey);
-    client.setOperator(operatorId, initial.privateKey);
-    (async () => {
-      try {
-        const mirror = new HederaMirrorNode(network);
-        const info = await mirror.requestAccount(operatorId);
-        const keyType = info?.key?._type || '';
-        const needsEcdsa = keyType.includes('ECDSA');
-        const needsEd25519 = keyType.includes('ED25519');
-        if (needsEcdsa && initial.detectedType !== 'ecdsa') {
-          client.setOperator(
-            operatorId,
-            PrivateKey.fromStringECDSA(privateKey),
-          );
-        } else if (needsEd25519 && initial.detectedType !== 'ed25519') {
-          client.setOperator(
-            operatorId,
-            PrivateKey.fromStringED25519(privateKey),
-          );
-        }
-      } catch {}
-    })();
-
-    this.client = client;
+    const ctx = createNodeOperatorContext({
+      network,
+      operatorId,
+      operatorKey: privateKey,
+      mirrorNode: new HederaMirrorNode(network),
+      logger: this.logger,
+      client: Client.forName(network),
+    });
+    this.operatorCtx = ctx;
+    this.client = ctx.client;
     this.network = network;
     this.operatorId = operatorId;
     this.operatorPrivateKey = privateKey;
+  }
+
+  private async ensureInitializedHedera(): Promise<void> {
+    if (!this.operatorCtx) {
+      return;
+    }
+    await this.operatorCtx.ensureInitialized();
+    if (!this.operatorId) {
+      this.operatorId = this.operatorCtx.operatorId.toString();
+    }
+    if (!this.operatorPrivateKey) {
+      this.operatorPrivateKey = this.operatorCtx.operatorKey.toString();
+    }
+    if (!this.client) {
+      this.client = this.operatorCtx.client;
+    }
   }
 
   /**
@@ -213,6 +221,7 @@ export class HCS14Client {
 
     const isHedera = options.issue.method === 'hedera';
     if (isHedera) {
+      await this.ensureInitializedHedera();
       if (!nativeId) {
         if (!this.network || !this.operatorId) {
           throw new Error(
