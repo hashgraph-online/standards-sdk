@@ -34,3 +34,19 @@ if (self && !self.crypto) {
 }
 
 console.log('✅ Native Web Crypto API set up successfully for Jest environment'); 
+
+// Polyfill missing SDK PrivateKey helpers for tests
+try {
+  const sdk = require('@hashgraph/sdk');
+  if (sdk && sdk.PrivateKey) {
+    if (typeof sdk.PrivateKey.fromStringED25519 !== 'function') {
+      sdk.PrivateKey.fromStringED25519 = (s) =>
+        typeof sdk.PrivateKey.fromString === 'function'
+          ? sdk.PrivateKey.fromString(s)
+          : sdk.PrivateKey.fromStringECDSA(s);
+    }
+    if (typeof sdk.PrivateKey.fromStringECDSA !== 'function' && typeof sdk.PrivateKey.fromString === 'function') {
+      sdk.PrivateKey.fromStringECDSA = (s) => sdk.PrivateKey.fromString(s);
+    }
+  }
+} catch {}

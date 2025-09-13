@@ -1,6 +1,18 @@
 import { HCS5Client } from '../../src/hcs-5/sdk';
 import { buildHcs1Hrl } from '../../src/hcs-5/types';
 
+// Avoid real mirror node calls in unit tests
+jest.mock('../../src/services/mirror-node', () => ({
+  HederaMirrorNode: jest.fn().mockImplementation(() => ({
+    requestAccount: jest
+      .fn()
+      .mockResolvedValue({ key: { _type: 'ECDSA_SECP256K1' } }),
+    getTokenInfo: jest
+      .fn()
+      .mockResolvedValue({ supply_key: { _type: 'ECDSA_SECP256K1' } }),
+  })),
+}));
+
 jest.mock('../../src/utils/key-type-detector', () => ({
   detectKeyTypeFromString: jest.fn((k: string) => ({
     privateKey: { parsedFrom: k },
