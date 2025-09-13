@@ -25,7 +25,7 @@ import {
   RegistryEntry,
 } from './types';
 import { NetworkType } from '../utils/types';
-import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { NodeOperatorResolver, createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
 import { buildMessageTx } from '../common/tx/tx-utils';
 import { buildHcs2CreateRegistryTx } from './tx';
 
@@ -44,9 +44,7 @@ export interface SDKHCS2ClientConfig extends HCS2ClientConfig {
 export class HCS2Client extends HCS2BaseClient {
   private client: Client;
   private operatorId: AccountId;
-  private operatorKey: PrivateKey;
-  private initialized = false;
-  private keyType: 'ed25519' | 'ecdsa';
+  private operatorCtx: NodeOperatorContext;
 
   /**
    * Create a new HCS-2 client
@@ -66,54 +64,23 @@ export class HCS2Client extends HCS2BaseClient {
         ? AccountId.fromString(config.operatorId)
         : config.operatorId;
 
-    if (config.keyType) {
-      this.keyType = config.keyType;
-      this.operatorKey =
-        typeof config.operatorKey === 'string'
-          ? this.keyType === 'ecdsa'
-            ? PrivateKey.fromStringECDSA(config.operatorKey)
-            : PrivateKey.fromStringED25519(config.operatorKey)
-          : config.operatorKey;
-    } else if (typeof config.operatorKey === 'string') {
-      try {
-        const keyDetection = detectKeyTypeFromString(config.operatorKey);
-        this.operatorKey = keyDetection.privateKey;
-        this.keyType = keyDetection.detectedType;
-
-        if (keyDetection.warning) {
-          this.logger.warn(keyDetection.warning);
-        }
-      } catch (error) {
-        this.logger.warn(
-          'Failed to detect key type from private key format, defaulting to ECDSA',
-        );
-        this.keyType = 'ecdsa';
-        this.operatorKey = PrivateKey.fromStringECDSA(config.operatorKey);
-      }
-    } else {
-      this.operatorKey = config.operatorKey;
-      this.keyType = 'ecdsa'; // Default to ECDSA if we can't detect
-    }
-
-    this.client = this.createClient(config.network);
-
-    this.initializeClient();
+    this.operatorCtx = createNodeOperatorContext({
+      network: this.network,
+      operatorId: this.operatorId,
+      operatorKey: config.operatorKey,
+      keyType: config.keyType,
+      mirrorNode: this.mirrorNode,
+      logger: this.logger,
+      client: this.createClient(config.network),
+    });
+    this.client = this.operatorCtx.client;
   }
 
   /**
    * Initialize the Hedera client with operator information
    */
-  private initializeClient(): void {
-    try {
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-      this.logger.info(
-        `HCS-2 client initialized successfully with key type: ${this.keyType}`,
-      );
-    } catch (error) {
-      this.logger.error(`Failed to initialize HCS-2 client: ${error}`);
-      throw error;
-    }
+  private async ensureInitialized(): Promise<void> {
+    await this.operatorCtx.ensureInitialized();
   }
 
   /**
@@ -138,6 +105,7 @@ export class HCS2Client extends HCS2BaseClient {
     options: CreateRegistryOptions = {},
   ): Promise<TopicRegistrationResponse> {
     try {
+      await this.ensureInitialized();
       const registryType = options.registryType ?? HCS2RegistryType.INDEXED;
       const ttl = options.ttl ?? 86400; // Default TTL: 24 hours
 
@@ -155,12 +123,12 @@ export class HCS2Client extends HCS2BaseClient {
               'hex',
             );
             adminPublicKey =
-              this.keyType === 'ed25519'
+              this.operatorCtx.keyType === 'ed25519'
                 ? PublicKey.fromBytesED25519(keyBytes)
                 : PublicKey.fromBytesECDSA(keyBytes);
           }
         } else if (typeof options.adminKey === 'boolean') {
-          adminPublicKey = this.operatorKey.publicKey;
+          adminPublicKey = this.operatorCtx.operatorKey.publicKey;
         } else {
           adminPublicKey = options.adminKey.publicKey;
           adminKeyPrivate = options.adminKey;
@@ -179,12 +147,12 @@ export class HCS2Client extends HCS2BaseClient {
               'hex',
             );
             submitPublicKey =
-              this.keyType === 'ed25519'
+              this.operatorCtx.keyType === 'ed25519'
                 ? PublicKey.fromBytesED25519(keyBytes)
                 : PublicKey.fromBytesECDSA(keyBytes);
           }
         } else if (typeof options.submitKey === 'boolean') {
-          submitPublicKey = this.operatorKey.publicKey;
+          submitPublicKey = this.operatorCtx.operatorKey.publicKey;
         } else {
           submitPublicKey = options.submitKey.publicKey;
           submitKeyPrivate = options.submitKey;
@@ -196,7 +164,7 @@ export class HCS2Client extends HCS2BaseClient {
         ttl,
         adminKey: adminPublicKey,
         submitKey: submitPublicKey,
-        operatorPublicKey: this.operatorKey.publicKey,
+        operatorPublicKey: this.operatorCtx.operatorKey.publicKey,
       });
 
       const frozenTx = await transaction.freezeWith(this.client);
@@ -251,6 +219,7 @@ export class HCS2Client extends HCS2BaseClient {
     protocol: string = 'hcs-2',
   ): Promise<RegistryOperationResponse> {
     try {
+      await this.ensureInitialized();
       const message = this.createRegisterMessage(
         options.targetTopicId,
         options.metadata,
@@ -289,6 +258,7 @@ export class HCS2Client extends HCS2BaseClient {
     options: UpdateEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
+      await this.ensureInitialized();
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
 
@@ -333,6 +303,7 @@ export class HCS2Client extends HCS2BaseClient {
     options: DeleteEntryOptions,
   ): Promise<RegistryOperationResponse> {
     try {
+      await this.ensureInitialized();
       const registryInfo = await this.mirrorNode.getTopicInfo(registryTopicId);
       const memoInfo = this.parseRegistryTypeFromMemo(registryInfo.memo);
 
@@ -372,6 +343,7 @@ export class HCS2Client extends HCS2BaseClient {
     options: MigrateTopicOptions,
   ): Promise<RegistryOperationResponse> {
     try {
+      await this.ensureInitialized();
       const message = this.createMigrateMessage(
         options.targetTopicId,
         options.metadata,
@@ -406,6 +378,7 @@ export class HCS2Client extends HCS2BaseClient {
     options: QueryRegistryOptions = {},
   ): Promise<TopicRegistry> {
     try {
+      await this.ensureInitialized();
       const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
       this.logger.debug(
         `Retrieved topic info for ${topicId}: ${JSON.stringify(topicInfo)}`,
@@ -519,6 +492,7 @@ export class HCS2Client extends HCS2BaseClient {
     payload: HCS2Message,
   ): Promise<TransactionReceipt> {
     try {
+      await this.ensureInitialized();
       const { valid, errors } = this.validateMessage(payload);
       if (!valid) {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
@@ -559,13 +533,13 @@ export class HCS2Client extends HCS2BaseClient {
    * Get the configured key type (ed25519 or ecdsa)
    */
   public getKeyType(): 'ed25519' | 'ecdsa' {
-    return this.keyType;
+    return this.operatorCtx.keyType;
   }
 
   /**
    * Get the configured operator private key
    */
   public getOperatorKey(): PrivateKey {
-    return this.operatorKey;
+    return this.operatorCtx.operatorKey;
   }
 }

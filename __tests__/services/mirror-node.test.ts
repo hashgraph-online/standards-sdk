@@ -36,7 +36,6 @@ describe('HederaMirrorNode', () => {
     };
     mirrorNode = new HederaMirrorNode('testnet', logger);
 
-    // Make retries fast to avoid Jest timeouts in failure scenarios
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
     axiosGet = axios.get as jest.MockedFunction<typeof axios.get>;

@@ -37,6 +37,7 @@ import {
 } from './errors';
 import { sleep } from '../utils/sleep';
 import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import { NodeOperatorResolver } from '../common/node-operator-resolver';
 import { HCS2Client } from '../hcs-2/client';
 
 /**
@@ -58,26 +59,22 @@ export class HCS20Client extends HCS20BaseClient {
         ? AccountId.fromString(config.operatorId)
         : config.operatorId;
 
-    this.operatorKeyString = config.operatorKey;
-
     this.client =
       this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
 
-    try {
-      const keyDetection = detectKeyTypeFromString(config.operatorKey);
-      this.operatorKey = keyDetection.privateKey;
-      this.keyType = keyDetection.detectedType;
-
-      if (keyDetection.warning) {
-        this.logger.warn(keyDetection.warning);
-      }
-
+    const resolver = new NodeOperatorResolver({
+      mirrorNode: this.mirrorNode,
+      logger: this.logger,
+    });
+    if (typeof config.operatorKey !== 'string') {
+      this.operatorKey = config.operatorKey;
+      this.keyType = this.keyType || 'ecdsa';
       this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-    } catch (error) {
-      this.logger.debug(
-        'Failed to detect key type from string, will initialize later',
-      );
+    } else {
+      const guess = resolver.bestGuessOperatorKey(config.operatorKey);
+      this.keyType = guess.keyType;
+      this.operatorKey = guess.privateKey;
+      this.client.setOperator(this.operatorId, this.operatorKey);
     }
   }
 
@@ -88,24 +85,16 @@ export class HCS20Client extends HCS20BaseClient {
     if (this.initialized) return;
 
     try {
-      const accountInfo = await this.mirrorNode.requestAccount(
-        this.operatorId.toString(),
+      const resolver = new NodeOperatorResolver({
+        mirrorNode: this.mirrorNode,
+        logger: this.logger,
+      });
+      const resolved = await resolver.resolveOperatorKey(
+        this.operatorId,
+        this.operatorKeyString,
       );
-      const keyType = accountInfo?.key?._type;
-
-      if (keyType?.includes('ECDSA')) {
-        this.keyType = 'ecdsa';
-      } else if (keyType?.includes('ED25519')) {
-        this.keyType = 'ed25519';
-      } else {
-        this.keyType = 'ecdsa'; // Default to ECDSA
-      }
-
-      this.operatorKey =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorKeyString)
-          : PrivateKey.fromStringED25519(this.operatorKeyString);
-
+      this.keyType = resolved.keyType;
+      this.operatorKey = resolved.privateKey;
       this.client.setOperator(this.operatorId, this.operatorKey);
       this.initialized = true;
 
