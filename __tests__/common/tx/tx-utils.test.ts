@@ -13,36 +13,29 @@ import {
 } from '../../../src/common/tx/tx-utils';
 
 jest.mock('@hashgraph/sdk', () => {
-  const TopicCreateTransaction = jest.fn().mockImplementation(() => ({
+  const PublicKeyMock: any = jest.fn().mockImplementation(() => ({}));
+  PublicKeyMock.fromString = jest.fn();
+
+  return {
+  TopicCreateTransaction: jest.fn().mockImplementation(() => ({
     setTopicMemo: jest.fn().mockReturnThis(),
     setAdminKey: jest.fn().mockReturnThis(),
     setSubmitKey: jest.fn().mockReturnThis(),
     freezeWith: jest.fn().mockReturnThis(),
-  }));
-
-  const TopicMessageSubmitTransaction = jest.fn().mockImplementation(() => ({
+  })),
+  TopicMessageSubmitTransaction: jest.fn().mockImplementation(() => ({
     setTopicId: jest.fn().mockReturnThis(),
     setMessage: jest.fn().mockReturnThis(),
     setTransactionMemo: jest.fn().mockReturnThis(),
     freezeWith: jest.fn().mockReturnThis(),
-  }));
-
-  const PublicKey: any = jest.fn().mockImplementation(() => ({}));
-  PublicKey.fromString = jest.fn();
-
-  const KeyList = jest.fn().mockImplementation(() => ({}));
-
-  const TopicId = {
+  })),
+  PublicKey: PublicKeyMock,
+  KeyList: jest.fn().mockImplementation(() => ({
+  })),
+  TopicId: {
     fromString: jest.fn(),
-  };
-
-  return {
-    TopicCreateTransaction,
-    TopicMessageSubmitTransaction,
-    PublicKey,
-    KeyList,
-    TopicId,
-  };
+  },
+};
 });
 
 describe('Common TX Utils', () => {
@@ -157,17 +150,28 @@ describe('Common TX Utils', () => {
       expect(result.setAdminKey).not.toHaveBeenCalled();
     });
 
-    test('should create topic with operator public key when boolean true', () => {
-      const operatorPublicKey = {} as any;
+    test('should create topic with PublicKey instance', () => {
+      const publicKeyInstance = new PublicKey();
       const params = {
         memo: 'test-topic-memo',
-        adminKey: true,
-        operatorPublicKey,
+        adminKey: publicKeyInstance as any,
       };
 
       const result = buildTopicCreateTx(params);
 
-      expect(result.setAdminKey).toHaveBeenCalledWith(operatorPublicKey);
+      expect(result.setAdminKey).toHaveBeenCalledWith(publicKeyInstance);
+    });
+
+    test('should create topic with KeyList instance', () => {
+      const keyListInstance = new KeyList();
+      const params = {
+        memo: 'test-topic-memo',
+        submitKey: keyListInstance as any,
+      };
+
+      const result = buildTopicCreateTx(params);
+
+      expect(result.setSubmitKey).toHaveBeenCalledWith(keyListInstance);
     });
 
     test('should handle invalid string key gracefully', () => {

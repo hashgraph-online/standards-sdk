@@ -1,6 +1,6 @@
 import { DidIssueRequest, DidIssueRequestHedera, DidIssuer } from './types';
 import type { AdapterMeta } from '../adapters/types';
-import { createDID } from '@hiero-did-sdk/registrar';
+type CreateDID = typeof import('@hiero-did-sdk/registrar').createDID;
 
 export class HederaHieroIssuer implements DidIssuer {
   readonly meta: AdapterMeta = {
@@ -29,6 +29,8 @@ export class HederaHieroIssuer implements DidIssuer {
     if (!('client' in request)) {
       throw new Error('Hedera client is required to issue did:hedera');
     }
+    const mod = await import('@hiero-did-sdk/registrar');
+    const createDID: CreateDID = mod.createDID;
     const did = await createDID(
       {},
       { client: (request as DidIssueRequestHedera).client },

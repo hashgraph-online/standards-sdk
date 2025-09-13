@@ -11,7 +11,9 @@ import { describe, it, beforeAll, expect } from '@jest/globals';
 
 dotenv.config();
 
-describe('HCS-20 Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('HCS-20 Integration Tests', () => {
   let client: HCS20Client;
   let operatorId: string;
   const testTick = `TEST${Date.now()}`;

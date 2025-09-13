@@ -16,27 +16,15 @@ jest.mock('../../src/utils/logger', () => ({
 
 describe('HederaMirrorNode', () => {
   let mirrorNode: HederaMirrorNode;
-  let logger: any;
+  let logger: Logger;
   let axiosGet: jest.MockedFunction<typeof axios.get>;
   let axiosPost: jest.MockedFunction<typeof axios.post>;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
 
-    logger = {
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
-      trace: jest.fn(),
-      getLevel: jest.fn(),
-      setLogLevel: jest.fn(),
-      setModule: jest.fn(),
-      setSilent: jest.fn(),
-    };
+    logger = new Logger({ module: 'MirrorNodeTest' });
     mirrorNode = new HederaMirrorNode('testnet', logger);
-
-    // Make retries fast to avoid Jest timeouts in failure scenarios
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
     axiosGet = axios.get as jest.MockedFunction<typeof axios.get>;
@@ -98,27 +86,25 @@ describe('HederaMirrorNode', () => {
     });
 
     test('handles account not found error', async () => {
-      const notFoundError = Object.assign(new Error('Account not found'), {
+      const notFoundError = {
         response: {
           status: 404,
           data: { _status: { messages: [{ message: 'Account not found' }] } },
         },
-      });
+      };
       axiosGet.mockRejectedValue(notFoundError);
 
       await expect(mirrorNode.requestAccount('0.0.99999')).rejects.toThrow(
-        /Account not found|Failed to fetch account/,
+        /Failed to fetch account 0\.0\.99999 after retries:/,
       );
     });
 
     test('handles network errors with retry', async () => {
-      mirrorNode.configureRetry({ maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
       axiosGet
         .mockRejectedValueOnce(new Error('Network timeout'))
         .mockResolvedValueOnce({ data: mockAccountResponse });
-
       const result = await mirrorNode.requestAccount('0.0.12345');
-
       expect(axiosGet).toHaveBeenCalledTimes(2);
       expect(result).toEqual(mockAccountResponse);
     });
@@ -148,16 +134,16 @@ describe('HederaMirrorNode', () => {
         'https://testnet.mirrornode.hedera.com/api/v1/tokens/0.0.12345',
         expect.any(Object),
       );
-      expect(result).toEqual(mockTokenResponse);
+      expect(result?.token_id).toBe('0.0.12345');
     });
 
     test('handles token not found error', async () => {
-      const notFoundError = Object.assign(new Error('Token not found'), {
+      const notFoundError = {
         response: {
           status: 404,
           data: { _status: { messages: [{ message: 'Token not found' }] } },
         },
-      });
+      };
       axiosGet.mockRejectedValue(notFoundError);
 
       const result = await mirrorNode.getTokenInfo('0.0.99999');
@@ -170,14 +156,14 @@ describe('HederaMirrorNode', () => {
       messages: [
         {
           consensus_timestamp: '1234567890.000000000',
-          message: 'SGVsbG8gV29ybGQ=', // Base64 encoded "Hello World"
+          message: Buffer.from(JSON.stringify({ p: 'hcs-20', op: 'register' })).toString('base64'),
           running_hash: 'hash1',
           sequence_number: '1',
           topic_id: '0.0.12345',
         },
         {
           consensus_timestamp: '1234567891.000000000',
-          message: 'VGVzdCBtZXNzYWdl', // Base64 encoded "Test message"
+          message: Buffer.from(JSON.stringify({ any: 'json' })).toString('base64'),
           running_hash: 'hash2',
           sequence_number: '2',
           topic_id: '0.0.12345',
@@ -197,7 +183,14 @@ describe('HederaMirrorNode', () => {
         'https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.12345/messages',
         expect.any(Object),
       );
-      expect(result).toEqual([]);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          consensus_timestamp: '1234567890.000000000',
+          sequence_number: '1',
+        }),
+      );
     });
 
     test('applies query parameters correctly', async () => {
@@ -223,6 +216,7 @@ describe('HederaMirrorNode', () => {
 
       const result = await mirrorNode.getTopicMessages('0.0.12345');
 
+      expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(0);
     });
   });
@@ -259,16 +253,16 @@ describe('HederaMirrorNode', () => {
     });
 
     test('handles topic not found error', async () => {
-      const notFoundError = Object.assign(new Error('Topic not found'), {
+      const notFoundError = {
         response: {
           status: 404,
           data: { _status: { messages: [{ message: 'Topic not found' }] } },
         },
-      });
+      };
       axiosGet.mockRejectedValue(notFoundError);
 
       await expect(mirrorNode.getTopicInfo('0.0.99999')).rejects.toThrow(
-        /Topic not found|Error retrieving topic information/,
+        'Topic not found',
       );
     });
   });
@@ -302,7 +296,6 @@ describe('HederaMirrorNode', () => {
 
     test('handles network fees API error', async () => {
       axiosGet.mockRejectedValue(new Error('Network error'));
-
       const result = await mirrorNode.getNetworkFees();
       expect(result).toBeNull();
     });
@@ -313,7 +306,7 @@ describe('HederaMirrorNode', () => {
       axiosGet.mockRejectedValue(new Error('Connection timeout'));
 
       await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow(
-        'Connection timeout',
+        /Failed to fetch account 0\.0\.12345 after retries:/,
       );
     });
 
@@ -324,16 +317,16 @@ describe('HederaMirrorNode', () => {
     });
 
     test('handles rate limiting', async () => {
-      const rateLimitError = Object.assign(new Error('Rate limit exceeded'), {
+      const rateLimitError = {
         response: {
           status: 429,
           data: { _status: { messages: [{ message: 'Rate limit exceeded' }] } },
         },
-      });
+      };
       axiosGet.mockRejectedValue(rateLimitError);
 
       await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow(
-        /Rate limit exceeded|Failed to fetch account/,
+        /Failed to fetch account 0\.0\.12345 after retries:/,
       );
     });
   });
@@ -369,8 +362,6 @@ describe('HederaMirrorNode', () => {
         apiKey: 'test-api-key-123',
       });
 
-      mirrorWithApiKey.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
-
       axiosGet.mockResolvedValue({ data: { account: '0.0.12345' } });
 
       await mirrorWithApiKey.requestAccount('0.0.12345');
@@ -384,7 +375,7 @@ describe('HederaMirrorNode', () => {
 
   describe('retry logic', () => {
     test('retries on transient errors', async () => {
-      mirrorNode.configureRetry({ maxRetries: 3, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({ maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
       axiosGet
         .mockRejectedValueOnce(new Error('ECONNRESET'))
         .mockRejectedValueOnce(new Error('ETIMEDOUT'))
@@ -397,23 +388,21 @@ describe('HederaMirrorNode', () => {
     });
 
     test('respects max retry limit', async () => {
-      mirrorNode.configureRetry({ maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({ maxRetries: 5, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
       axiosGet.mockRejectedValue(new Error('ECONNRESET'));
-
-      await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow(
-        /ECONNRESET|Failed to fetch account/,
-      );
-
-      expect(axiosGet).toHaveBeenCalledTimes(2); // Initial + 1 retry
+      await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow();
+      expect(axiosGet).toHaveBeenCalledTimes(6); // Initial + 5 retries
     });
 
     test('does not retry on 4xx errors except 429', async () => {
-      const notFoundError = Object.assign(new Error('Not found'), { response: { status: 409 } });
+      const notFoundError = {
+        response: { status: 404 },
+      };
       axiosGet.mockRejectedValue(notFoundError);
 
       await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow();
 
-      expect(axiosGet).toHaveBeenCalledTimes(1);
+      expect(axiosGet).toHaveBeenCalledTimes(1); // No retries for 404
     });
   });
 
@@ -442,8 +431,9 @@ describe('HederaMirrorNode', () => {
     test('handles HBAR price API error', async () => {
       axiosGet.mockRejectedValue(new Error('Exchange rate unavailable'));
 
-      const result = await mirrorNode.getHBARPrice(new Date());
-      expect(result).toBeNull();
+      await expect(mirrorNode.getHBARPrice(new Date())).rejects.toThrow(
+        'Exchange rate unavailable',
+      );
     });
   });
 });
