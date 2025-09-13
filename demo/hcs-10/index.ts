@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
-import { FeeConfigBuilder, HCS10Client, Logger } from '../../src';
+import { FeeConfigBuilder, Logger } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -78,7 +79,18 @@ async function main() {
       );
     }
 
-    const alice = await getOrCreateAlice(logger, baseClient);
+    let alice;
+    try {
+      logger.info('Attempting to create Alice using new create() method...');
+      alice = await getOrCreateAlice(logger, baseClient);
+    } catch (error) {
+      logger.warn(
+        'Failed to create Alice using create() method, falling back to legacy method:',
+        error,
+      );
+      alice = await getOrCreateAlice(logger, baseClient);
+    }
+
     const bob = await getOrCreateBob(logger, baseClient);
 
     if (!alice) {
@@ -364,9 +376,12 @@ async function main() {
     logger.info('Demo complete!');
     logger.info(`Alice ID: ${alice.accountId}`);
     logger.info(`Bob ID: ${bob.accountId}`);
+
+    process.exit(0);
   } catch (error) {
     console.log(error);
     logger.error('Error in demo:', error);
+    process.exit(1);
   }
 }
 

@@ -1,6 +1,6 @@
 # Hashgraph Online Standards SDK
 
-| ![](https://hashgraphonline.com/img/logo.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online.<br><br>This SDK is built and maintained by [Hashgraph Online](https://hashgraphonline.com), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hcs-improvement-proposals.pages.dev/docs/standards) |
+| ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online.<br><br>This SDK is built and maintained by [Hashgraph Online](https://hashgraphonline.com), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hashgraphonline.com/docs/standards) |
 | :-------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 
 ## Quick Start
@@ -134,7 +134,7 @@ See [MAINTAINERS.md](MAINTAINERS.md) for a list of project maintainers.
 
 ## Resources
 
-- [HCS Standards Documentation](https://hcs-improvement-proposals.pages.dev/docs/standards)
+- [HCS Standards Documentation](https://hashgraphonline.com/docs/standards)
 - [Hedera Documentation](https://docs.hedera.com)
 - [Telegram Community](https://t.me/hashinals)
 

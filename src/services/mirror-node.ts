@@ -1,6 +1,6 @@
 import { PublicKey, Timestamp, AccountId } from '@hashgraph/sdk';
 import axios, { AxiosRequestConfig } from 'axios';
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { proto } from '@hashgraph/proto';
 import {
   AccountResponse,
@@ -83,7 +83,7 @@ export interface MirrorNodeConfig {
 export class HederaMirrorNode {
   private network: NetworkType;
   private baseUrl: string;
-  private logger: Logger;
+  private logger: ILogger;
   private isServerEnvironment: boolean;
   private apiKey?: string;
   private customHeaders: Record<string, string>;
@@ -95,7 +95,7 @@ export class HederaMirrorNode {
 
   constructor(
     network: NetworkType,
-    logger?: Logger,
+    logger?: ILogger,
     config?: MirrorNodeConfig,
   ) {
     this.network = network;
@@ -190,7 +190,7 @@ export class HederaMirrorNode {
    * @throws An error if the account ID is invalid or the public key cannot be retrieved.
    */
   async getPublicKey(accountId: string): Promise<PublicKey> {
-    this.logger.info(`Getting public key for account ${accountId}`);
+    this.logger.debug(`Getting public key for account ${accountId}`);
 
     const accountInfo = await this.requestAccount(accountId);
 
@@ -217,7 +217,7 @@ export class HederaMirrorNode {
    * @throws An error if the account ID is invalid or the memo cannot be retrieved.
    */
   async getAccountMemo(accountId: string): Promise<string | null> {
-    this.logger.info(`Getting account memo for account ID: ${accountId}`);
+    this.logger.debug(`Getting account memo for account ID: ${accountId}`);
 
     try {
       const accountInfo = await this._requestWithRetry<AccountResponse>(

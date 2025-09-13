@@ -1,10 +1,8 @@
 import dotenv from 'dotenv';
-import { HCS10Client, HCSMessage, Logger, ConnectionsManager } from '../../src';
+import { HCSMessage, Logger, ConnectionsManager } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import { extractAllText, getOrCreateBob, monitorTopics } from './utils.js';
-import {
-  HederaConversationalAgent,
-  ServerSigner,
-} from '@hashgraphonline/hedera-agent-kit';
+import { ConversationalAgent } from '@hashgraphonline/conversational-agent';
 import { ScheduleCreateTransaction } from '@hashgraph/sdk';
 
 const logger = new Logger({
@@ -155,12 +153,6 @@ async function handleStandardMessage(
       return;
     }
   }
-  const agentSigner = new ServerSigner(
-    process.env.HEDERA_ACCOUNT_ID!,
-    process.env.HEDERA_PRIVATE_KEY!,
-    'testnet',
-  );
-
   let messageContent = rawContent;
 
   if (isJson(rawContent)) {
@@ -193,12 +185,14 @@ async function handleStandardMessage(
     return;
   }
 
-  const hederaAgent = new HederaConversationalAgent(agentSigner, {
-    operationalMode: 'provideBytes',
+  const hederaAgent = new ConversationalAgent({
+    accountId: process.env.HEDERA_ACCOUNT_ID!,
+    privateKey: process.env.HEDERA_PRIVATE_KEY!,
+    network: 'testnet',
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    operationalMode: 'returnBytes',
     userAccountId,
     verbose: false,
-    openAIApiKey: process.env.OPENAI_API_KEY!,
-    scheduleUserTransactionsInBytesMode: false,
   });
   await hederaAgent.initialize();
 
@@ -209,20 +203,10 @@ async function handleStandardMessage(
   try {
     logger.info(`Sending response to topic ${connectionTopicId}`);
 
-    if (response.output && !response?.transactionBytes) {
+    if (response.response && !response?.transactionBytes) {
       await agent.client.sendMessage(
         connectionTopicId,
-        `[Reply to #${message.sequence_number}] ${response.output}`,
-      );
-    }
-
-    if (response.notes && !response?.transactionBytes) {
-      const formattedNotes = response.notes.map(note => `- ${note}`).join('\n');
-      const inferenceMessage =
-        "I've made some inferences based on your prompt. If this isn't what you expected, please try a more refined prompt.";
-      await agent.client.sendMessage(
-        connectionTopicId,
-        `[Reply to #${message.sequence_number}]\n${inferenceMessage}\n${formattedNotes}`,
+        `[Reply to #${message.sequence_number}] ${response.response}`,
       );
     }
 
@@ -232,14 +216,6 @@ async function handleStandardMessage(
       );
 
       let reply = `[Reply to #${message.sequence_number}]`;
-      if (response?.notes?.length && response?.notes?.length > 0) {
-        const inferenceMessage =
-          "I've made some inferences based on your prompt. If this isn't what you expected, please try a more refined prompt.";
-        const formattedNotes = response.notes
-          .map(note => `- ${note}`)
-          .join('\n');
-        reply += `\n${inferenceMessage}\n${formattedNotes}`;
-      }
 
       const schedulePayerAccountId = extractAccountId(message.operator_id);
 

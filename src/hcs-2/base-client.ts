@@ -1,4 +1,4 @@
-import { Logger } from '../utils/logger';
+import { Logger, ILogger } from '../utils/logger';
 import { HederaMirrorNode } from '../services/mirror-node';
 import {
   HCS2ClientConfig,
@@ -30,7 +30,7 @@ import { ZodError } from 'zod';
  * This abstract class provides shared functionality for both SDK and browser implementations
  */
 export abstract class HCS2BaseClient {
-  protected logger: Logger;
+  protected logger: ILogger;
   protected mirrorNode: HederaMirrorNode;
   protected network: NetworkType;
 
@@ -182,20 +182,17 @@ export abstract class HCS2BaseClient {
     errors: string[];
   } {
     try {
-      // Use Zod schema for validation
       hcs2MessageSchema.parse(message);
       return { valid: true, errors: [] };
     } catch (error) {
       const errors: string[] = [];
 
       if (error instanceof ZodError) {
-        // Format Zod errors for better readability
         error.errors.forEach(err => {
           const path = err.path.join('.');
           errors.push(`${path ? path + ': ' : ''}${err.message}`);
         });
       } else {
-        // Handle non-Zod errors
         errors.push(`Unexpected error: ${error}`);
       }
 
@@ -209,15 +206,17 @@ export abstract class HCS2BaseClient {
    * @param targetTopicId The target topic ID
    * @param metadata Optional metadata URI
    * @param memo Optional memo
+   * @param protocol Optional protocol version (defaults to 'hcs-2')
    * @returns The register message
    */
   protected createRegisterMessage(
     targetTopicId: string,
     metadata?: string,
     memo?: string,
+    protocol: string = 'hcs-2',
   ): HCS2RegisterMessage {
     return {
-      p: 'hcs-2',
+      p: protocol,
       op: HCS2Operation.REGISTER,
       t_id: targetTopicId,
       metadata,
@@ -231,6 +230,7 @@ export abstract class HCS2BaseClient {
    * @param uid The unique ID to update
    * @param metadata Optional metadata URI
    * @param memo Optional memo
+   * @param protocol Optional protocol version (defaults to 'hcs-2')
    * @returns The update message
    */
   protected createUpdateMessage(
@@ -238,9 +238,10 @@ export abstract class HCS2BaseClient {
     uid: string,
     metadata?: string,
     memo?: string,
+    protocol: string = 'hcs-2',
   ): HCS2UpdateMessage {
     return {
-      p: 'hcs-2',
+      p: protocol,
       op: HCS2Operation.UPDATE,
       t_id: targetTopicId,
       uid,
@@ -253,11 +254,16 @@ export abstract class HCS2BaseClient {
    * Create a delete message
    * @param uid The unique ID to delete
    * @param memo Optional memo
+   * @param protocol Optional protocol version (defaults to 'hcs-2')
    * @returns The delete message
    */
-  protected createDeleteMessage(uid: string, memo?: string): HCS2DeleteMessage {
+  protected createDeleteMessage(
+    uid: string,
+    memo?: string,
+    protocol: string = 'hcs-2',
+  ): HCS2DeleteMessage {
     return {
-      p: 'hcs-2',
+      p: protocol,
       op: HCS2Operation.DELETE,
       uid,
       m: memo,
@@ -269,15 +275,17 @@ export abstract class HCS2BaseClient {
    * @param targetTopicId The target topic ID to migrate to
    * @param metadata Optional metadata URI
    * @param memo Optional memo
+   * @param protocol Optional protocol version (defaults to 'hcs-2')
    * @returns The migrate message
    */
   protected createMigrateMessage(
     targetTopicId: string,
     metadata?: string,
     memo?: string,
+    protocol: string = 'hcs-2',
   ): HCS2MigrateMessage {
     return {
-      p: 'hcs-2',
+      p: protocol,
       op: HCS2Operation.MIGRATE,
       t_id: targetTopicId,
       metadata,
@@ -324,7 +332,6 @@ export abstract class HCS2BaseClient {
           `Successfully parsed message: ${JSON.stringify(message)}`,
         );
 
-        // Validate message
         const { valid, errors } = this.validateMessage(message);
         if (!valid) {
           this.logger.warn(`Invalid HCS-2 message: ${errors.join(', ')}`);
@@ -343,7 +350,6 @@ export abstract class HCS2BaseClient {
 
         entries.push(entry);
 
-        // For non-indexed registries, we only care about the latest message
         if (
           registryType === HCS2RegistryType.NON_INDEXED ||
           !latestEntry ||

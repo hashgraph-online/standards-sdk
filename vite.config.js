@@ -15,7 +15,7 @@ export default defineConfig(async () => {
   }
 
   const externalDependencies = [
-    '@hashgraphonline/hedera-agent-kit',
+    '@hashgraphonline/conversational-agent',
     '@hashgraph/proto',
     '@hashgraph/sdk',
     'fetch-retry',
@@ -25,12 +25,11 @@ export default defineConfig(async () => {
     dts({
       insertTypesEntry: true,
       include: ['src/**/*.ts'],
-      exclude: ['**/*.d.ts'],
+      exclude: ['**/*.d.ts', '**/__tests__/**', '**/__mocks__/**'],
       outputDir: outputDir,
     }),
   ];
 
-  // Only add nodePolyfills for UMD build
   if (format === 'umd') {
     const { nodePolyfills } = await import('vite-plugin-node-polyfills');
     plugins.push(
@@ -60,6 +59,10 @@ export default defineConfig(async () => {
       },
       rollupOptions: {
         external: id => {
+          // Always externalize Node.js built-in modules
+          if (id === 'fs' || id === 'path' || id === 'crypto' || id === 'stream' || id === 'buffer') {
+            return true;
+          }
           if (id.startsWith('@kiloscribe/inscription-sdk')) {
             return false;
           }
@@ -80,6 +83,8 @@ export default defineConfig(async () => {
             ? {
                 exports: 'named',
                 format: 'cjs',
+                inlineDynamicImports: true,
+                manualChunks: undefined,
               }
             : {
                 globals: id => id,

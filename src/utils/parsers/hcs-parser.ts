@@ -1,5 +1,5 @@
 import { proto } from '@hashgraph/proto';
-import { AccountId, Long } from '@hashgraph/sdk';
+import { AccountId, Long, Transaction } from '@hashgraph/sdk';
 import {
   ConsensusCreateTopicData,
   ConsensusSubmitMessageData,
@@ -138,5 +138,81 @@ export class HCSParser {
       }`;
     }
     return data;
+  }
+
+  /**
+   * Parse HCS transaction from Transaction object with comprehensive extraction
+   * This is the unified entry point that handles both protobuf and internal field extraction
+   */
+  static parseFromTransactionObject(transaction: Transaction): {
+    type?: string;
+    humanReadableType?: string;
+    [key: string]: unknown;
+  } {
+    try {
+      const transactionBody = (
+        transaction as unknown as { _transactionBody?: unknown }
+      )._transactionBody as proto.ITransactionBody | undefined;
+
+      if (!transactionBody) {
+        return {};
+      }
+
+      if (transactionBody.consensusCreateTopic) {
+        const consensusCreateTopic = this.parseConsensusCreateTopic(
+          transactionBody.consensusCreateTopic,
+        );
+        if (consensusCreateTopic) {
+          return {
+            type: 'TOPICCREATE',
+            humanReadableType: 'Topic Create',
+            consensusCreateTopic,
+          };
+        }
+      }
+
+      if (transactionBody.consensusSubmitMessage) {
+        const consensusSubmitMessage = this.parseConsensusSubmitMessage(
+          transactionBody.consensusSubmitMessage,
+        );
+        if (consensusSubmitMessage) {
+          return {
+            type: 'CONSENSUSSUBMITMESSAGE',
+            humanReadableType: 'Submit Message',
+            consensusSubmitMessage,
+          };
+        }
+      }
+
+      if (transactionBody.consensusUpdateTopic) {
+        const consensusUpdateTopic = this.parseConsensusUpdateTopic(
+          transactionBody.consensusUpdateTopic,
+        );
+        if (consensusUpdateTopic) {
+          return {
+            type: 'TOPICUPDATE',
+            humanReadableType: 'Topic Update',
+            consensusUpdateTopic,
+          };
+        }
+      }
+
+      if (transactionBody.consensusDeleteTopic) {
+        const consensusDeleteTopic = this.parseConsensusDeleteTopic(
+          transactionBody.consensusDeleteTopic,
+        );
+        if (consensusDeleteTopic) {
+          return {
+            type: 'TOPICDELETE',
+            humanReadableType: 'Topic Delete',
+            consensusDeleteTopic,
+          };
+        }
+      }
+
+      return {};
+    } catch (error) {
+      return {};
+    }
   }
 }

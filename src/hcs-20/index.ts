@@ -18,3 +18,4 @@ export { BrowserHCS20Client } from './browser';
 export { HCS20Client } from './sdk';
 
 export { HCS20PointsIndexer } from './points-indexer';
+export * from './tx';
