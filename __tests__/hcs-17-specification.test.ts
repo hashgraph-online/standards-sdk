@@ -1,18 +1,18 @@
 /**
- * HCS-23 Specification Compliance Tests
+ * HCS-17 Specification Compliance Tests
  *
  * These tests verify actual HCS-23 standard requirements from the specification
  */
 
 import { createHash } from 'crypto';
 import { PublicKey } from '@hashgraph/sdk';
-import { StateHashCalculator } from '../src/hcs-23/state-hash-calculator';
+import { HCS17BaseClient } from '../src/hcs-17/base-client';
 import {
   AccountStateInput,
   CompositeStateInput,
   StateHashMessage,
   TopicState,
-} from '../src/hcs-23/types';
+} from '../src/hcs-17/types';
 import { Logger } from '../src/utils/logger';
 
 const mockLogger = {
@@ -22,12 +22,12 @@ const mockLogger = {
   debug: jest.fn(),
 } as any;
 
-describe('HCS-23 Specification Compliance', () => {
-  let calculator: StateHashCalculator;
+describe('HCS-17 Specification Compliance', () => {
+  let calculator: HCS17BaseClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    calculator = new StateHashCalculator(mockLogger);
+    calculator = new HCS17BaseClient({ network: 'testnet' as const, logger: mockLogger });
   });
 
   describe('State Hash Calculation Methodology (Spec Section: State Hash Calculation Methodology)', () => {
@@ -43,11 +43,9 @@ describe('HCS-23 Specification Compliance', () => {
 
       const result = calculator.calculateAccountStateHash(input);
 
-      // Verify SHA384 hash format (96 hex characters)
       expect(result.stateHash).toHaveLength(96);
       expect(result.stateHash).toMatch(/^[0-9a-f]{96}$/);
 
-      // Manual verification of spec example
       const expectedConcatenation =
         '0.0.12345abcd12340.0.67890efgh5678FGHKLJHDGK';
       const expectedHash = createHash('sha384')
@@ -69,7 +67,6 @@ describe('HCS-23 Specification Compliance', () => {
 
       const result = calculator.calculateAccountStateHash(input);
 
-      // Verify correct sorting by manually calculating expected result
       const sortedConcatenation =
         '0.0.12345hash10.0.67890hash20.0.99999hash3test-key';
       const expectedHash = createHash('sha384')
@@ -98,7 +95,6 @@ describe('HCS-23 Specification Compliance', () => {
       const result1 = calculator.calculateAccountStateHash(input1);
       const result2 = calculator.calculateAccountStateHash(input2);
 
-      // Both should produce valid hashes
       expect(result1.stateHash).toHaveLength(96);
       expect(result2.stateHash).toHaveLength(96);
       expect(result1.stateHash).not.toBe(result2.stateHash);
@@ -122,11 +118,9 @@ describe('HCS-23 Specification Compliance', () => {
 
       const result = calculator.calculateCompositeStateHash(input);
 
-      // Verify SHA384 format
       expect(result.stateHash).toHaveLength(96);
       expect(result.stateHash).toMatch(/^[0-9a-f]{96}$/);
 
-      // Manual verification per spec example
       const expectedConcatenation =
         '0.0.1110xaaa0.0.2220xbbb0.0.3330xccc0.0.4440xddd0xffff';
       const expectedHash = createHash('sha384')
@@ -149,7 +143,6 @@ describe('HCS-23 Specification Compliance', () => {
 
       const result = calculator.calculateCompositeStateHash(input);
 
-      // Verify sorting by calculating expected hash
       const sortedConcatenation =
         '0.0.111hash10.0.555hash20.0.999hash3fingerprint';
       const expectedHash = createHash('sha384')
@@ -172,7 +165,6 @@ describe('HCS-23 Specification Compliance', () => {
 
       const result = calculator.calculateCompositeStateHash(input);
 
-      // Verify sorting by calculating expected hash
       const sortedConcatenation =
         '0.0.111hash10.0.555hash20.0.999hash3fingerprint';
       const expectedHash = createHash('sha384')
@@ -191,7 +183,6 @@ describe('HCS-23 Specification Compliance', () => {
 
       const result = calculator.calculateCompositeStateHash(input);
 
-      // Should only contain fingerprint
       const expectedHash = createHash('sha384')
         .update('fingerprint')
         .digest('hex');
@@ -209,15 +200,12 @@ describe('HCS-23 Specification Compliance', () => {
 
       const fingerprint = calculator.calculateKeyFingerprint(keys, 2);
 
-      // Verify deterministic fingerprint generation
       expect(fingerprint).toHaveLength(96); // SHA384
       expect(fingerprint).toMatch(/^[0-9a-f]{96}$/);
 
-      // Should be reproducible
       const fingerprint2 = calculator.calculateKeyFingerprint(keys, 2);
       expect(fingerprint).toBe(fingerprint2);
 
-      // Different order should produce same result (deterministic sorting)
       const shuffledKeys = [keys[2], keys[0], keys[1]];
       const fingerprint3 = calculator.calculateKeyFingerprint(shuffledKeys, 2);
       expect(fingerprint).toBe(fingerprint3);
@@ -232,12 +220,10 @@ describe('HCS-23 Specification Compliance', () => {
       const fingerprint1 = calculator.calculateKeyFingerprint(keys, 1);
       const fingerprint2 = calculator.calculateKeyFingerprint(keys, 2);
 
-      // Different thresholds should produce different fingerprints
       expect(fingerprint1).not.toBe(fingerprint2);
     });
 
     it('should create deterministic fingerprint for Flora/Bloom accounts', () => {
-      // Test consistent fingerprint generation for threshold keys
       const petalKeys = [
         { toString: () => 'ecdsa-key-1' },
         { toString: () => 'ecdsa-key-2' },
@@ -246,20 +232,18 @@ describe('HCS-23 Specification Compliance', () => {
 
       const floraFingerprint = calculator.calculateKeyFingerprint(petalKeys, 2);
 
-      // Should be deterministic across multiple calls
       const floraFingerprint2 = calculator.calculateKeyFingerprint(
         petalKeys,
         2,
       );
       expect(floraFingerprint).toBe(floraFingerprint2);
 
-      // Should be usable in composite state hash
       expect(floraFingerprint).toHaveLength(96);
     });
   });
 
-  describe('Message Format (Spec Section: HCS-23 Message Format)', () => {
-    it('should create valid HCS-23 state hash message (REQUIRED)', () => {
+  describe('Message Format (Spec Section: HCS-17 Message Format)', () => {
+    it('should create valid HCS-17 state hash message (REQUIRED)', () => {
       const message = calculator.createStateHashMessage(
         '0x9a1cfb...',
         '0.0.123456',
@@ -267,9 +251,8 @@ describe('HCS-23 Specification Compliance', () => {
         'Change of state synchronization.',
       );
 
-      // Verify exact spec format
       expect(message).toEqual({
-        p: 'hcs-23',
+        p: 'hcs-17',
         op: 'state_hash',
         state_hash: '0x9a1cfb...',
         topics: ['0.0.topic1', '0.0.topic2'],
@@ -278,8 +261,7 @@ describe('HCS-23 Specification Compliance', () => {
         m: 'Change of state synchronization.',
       });
 
-      // Verify protocol identifier
-      expect(message.p).toBe('hcs-23');
+      expect(message.p).toBe('hcs-17');
       expect(message.op).toBe('state_hash');
     });
 
@@ -318,7 +300,6 @@ describe('HCS-23 Specification Compliance', () => {
 
   describe('Recursive Composition (Spec Section: Composite State Hash)', () => {
     it('should support Bloom aggregating Flora hashes (REQUIRED)', () => {
-      // Simulate Flora state hashes
       const floraHash1 = createHash('sha384')
         .update('flora-1-state')
         .digest('hex');
@@ -326,7 +307,6 @@ describe('HCS-23 Specification Compliance', () => {
         .update('flora-2-state')
         .digest('hex');
 
-      // Bloom composite with Flora members
       const bloomInput: CompositeStateInput = {
         compositeAccountId: '0.0.bloom',
         compositePublicKeyFingerprint: 'bloom-fingerprint',
@@ -341,14 +321,12 @@ describe('HCS-23 Specification Compliance', () => {
 
       const bloomHash = calculator.calculateCompositeStateHash(bloomInput);
 
-      // Verify recursive composition works
       expect(bloomHash.stateHash).toHaveLength(96);
       expect(bloomHash.memberCount).toBe(2);
       expect(bloomHash.compositeTopicCount).toBe(1);
     });
 
     it('should handle multi-level hierarchy (Meadow -> Bloom -> Flora -> Petal)', () => {
-      // Petal state hash
       const petalHash = calculator.calculateAccountStateHash({
         accountId: '0.0.petal',
         publicKey: 'petal-key',
@@ -360,7 +338,6 @@ describe('HCS-23 Specification Compliance', () => {
         ],
       });
 
-      // Flora state hash (aggregating Petal)
       const floraHash = calculator.calculateCompositeStateHash({
         compositeAccountId: '0.0.flora',
         compositePublicKeyFingerprint: 'flora-fingerprint',
@@ -370,7 +347,6 @@ describe('HCS-23 Specification Compliance', () => {
         compositeTopics: [],
       });
 
-      // Bloom state hash (aggregating Flora)
       const bloomHash = calculator.calculateCompositeStateHash({
         compositeAccountId: '0.0.bloom',
         compositePublicKeyFingerprint: 'bloom-fingerprint',
@@ -380,12 +356,10 @@ describe('HCS-23 Specification Compliance', () => {
         compositeTopics: [],
       });
 
-      // Verify each level produces valid hashes
       expect(petalHash.stateHash).toHaveLength(96);
       expect(floraHash.stateHash).toHaveLength(96);
       expect(bloomHash.stateHash).toHaveLength(96);
 
-      // Each level should be different
       expect(petalHash.stateHash).not.toBe(floraHash.stateHash);
       expect(floraHash.stateHash).not.toBe(bloomHash.stateHash);
     });
@@ -404,7 +378,6 @@ describe('HCS-23 Specification Compliance', () => {
 
       expect(isValid).toBe(true);
 
-      // Test with wrong hash
       const isInvalid = await calculator.verifyStateHash(input, 'wrong-hash');
       expect(isInvalid).toBe(false);
     });
@@ -422,7 +395,6 @@ describe('HCS-23 Specification Compliance', () => {
 
       expect(isValid).toBe(true);
 
-      // Test with wrong hash
       const isInvalid = await calculator.verifyStateHash(input, 'wrong-hash');
       expect(isInvalid).toBe(false);
     });
@@ -443,7 +415,6 @@ describe('HCS-23 Specification Compliance', () => {
         calculator.calculateAccountStateHash(input),
       );
 
-      // All results should be identical
       const firstHash = results[0].stateHash;
       results.forEach(result => {
         expect(result.stateHash).toBe(firstHash);
@@ -469,7 +440,6 @@ describe('HCS-23 Specification Compliance', () => {
       expect(result.stateHash).toHaveLength(96);
       expect(result.topicCount).toBe(1000);
 
-      // Should complete in reasonable time (less than 1 second)
       expect(endTime - startTime).toBeLessThan(1000);
     });
 
@@ -501,7 +471,6 @@ describe('HCS-23 Specification Compliance', () => {
       expect(result.memberCount).toBe(100);
       expect(result.compositeTopicCount).toBe(100);
 
-      // Should complete in reasonable time
       expect(endTime - startTime).toBeLessThan(1000);
     });
   });

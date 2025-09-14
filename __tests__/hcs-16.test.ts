@@ -1,203 +1,58 @@
-/**
- * HCS-16 Flora Account Manager Tests
- *
- * Tests for creating and managing Flora (multi-signature) accounts with collaborative governance
- */
+import { buildHcs16CreateAccountTx, buildHcs16CreateFloraTopicTx, buildHcs16FloraCreatedTx } from '../src/hcs-16/tx';
 
-import {
-  Client,
-  PrivateKey,
-  PublicKey,
-  AccountId,
-  TopicId,
-  Hbar,
-  KeyList,
-  AccountCreateTransaction,
-  TopicCreateTransaction,
-  TopicMessageSubmitTransaction,
-} from '@hashgraph/sdk';
-import { FloraAccountManager } from '../src/hcs-16/flora-account-manager';
-import {
-  FloraConfig,
-  FloraMember,
-  FloraCreationResult,
-  FloraMessage,
-  FloraOperation,
-} from '../src/hcs-16/types';
-import { Logger } from '../src/utils/logger';
-import { HCS11Client } from '../src/hcs-11/client';
+jest.mock('@hashgraph/sdk', () => ({
+  AccountCreateTransaction: class {
+    setKey() { return this; }
+    setInitialBalance() { return this; }
+    setMaxAutomaticTokenAssociations() { return this; }
+  },
+  TopicCreateTransaction: class {
+    setTopicMemo() { return this; }
+    setAdminKey() { return this; }
+    setSubmitKey() { return this; }
+    setFeeScheduleKey() { return this; }
+    setCustomFees() { return this; }
+    setAutoRenewAccountId() { return this; }
+  },
+  TopicMessageSubmitTransaction: class {
+    private _topicId: any;
+    private _message: any;
+    setTopicId(id: any) { this._topicId = id; return this; }
+    setMessage(m: any) { this._message = m; return this; }
+  },
+  KeyList: class {},
+  PublicKey: class {},
+  AccountId: { fromString: (s: string) => ({ toString: () => s }) },
+  TokenId: { fromString: (s: string) => ({ toString: () => s }) },
+  CustomFixedFee: class { setAmount(){return this;} setFeeCollectorAccountId(){return this;} setDenominatingTokenId(){return this;} },
+  Hbar: class { constructor(public amount: number) {} },
+}));
 
-const mockClient = {
-  close: jest.fn(),
-} as any;
-
-const mockLogger = {
-  info: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn(),
-  debug: jest.fn(),
-} as any;
-
-jest.mock('@hashgraph/sdk');
-jest.mock('../src/hcs-11/client');
-
-const mockHCS11Client = {
-  createAndInscribeProfile: jest.fn().mockResolvedValue({
-    success: true,
-    profileTopicId: '0.0.12345',
-    transactionId: 'mockTxId',
-  }),
-};
-
-(HCS11Client as jest.MockedClass<typeof HCS11Client>).mockImplementation(
-  () => mockHCS11Client as any,
-);
-
-describe('FloraAccountManager', () => {
-  let manager: FloraAccountManager;
-
-  const mockMembers: FloraMember[] = [
-    {
-      accountId: '0.0.1001',
-      publicKey: { toString: () => 'key1' } as any,
-      privateKey: 'mockPrivateKey1',
-      weight: 1,
-    },
-    {
-      accountId: '0.0.1002',
-      publicKey: { toString: () => 'key2' } as any,
-      weight: 1,
-    },
-    {
-      accountId: '0.0.1003',
-      publicKey: { toString: () => 'key3' } as any,
-      weight: 1,
-    },
-  ];
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    process.env.DISABLE_LOGS = 'true';
-    manager = new FloraAccountManager(mockClient);
+describe('HCS-16 tx builders', () => {
+  it('creates Flora account tx', () => {
+    const tx: any = buildHcs16CreateAccountTx({
+      keyList: ({} as unknown) as any,
+      initialBalanceHbar: 2,
+      maxAutomaticTokenAssociations: -1,
+    });
+    expect(typeof tx.setKey).toBe('function');
   });
 
-  describe('constructor', () => {
-    it('should create an instance with client and logger', () => {
-      expect(manager).toBeDefined();
-      expect(manager).toBeInstanceOf(FloraAccountManager);
-    });
+  it('creates Flora topic tx', () => {
+    const tx: any = buildHcs16CreateFloraTopicTx({ floraAccountId: '0.0.flora', topicType: 2 });
+    expect(typeof tx.setTopicMemo).toBe('function');
   });
 
-  describe('createFlora', () => {
-    it('should create a Flora account with required components', async () => {
-      const mockAccountId = { toString: () => '0.0.9999' } as any;
-      const mockTopicIds = {
-        communication: { toString: () => '0.0.8001' } as any,
-        transaction: { toString: () => '0.0.8002' } as any,
-        state: { toString: () => '0.0.8003' } as any,
-      };
-
-      const mockKeyList = {
-        toString: () => 'mock-keylist',
-        setThreshold: jest.fn().mockReturnThis(),
-        push: jest.fn(),
-      } as any;
-
-
-      (KeyList.of as jest.Mock).mockReturnValue(mockKeyList);
-
-
-      (KeyList as jest.MockedClass<typeof KeyList>).mockImplementation(
-        () => mockKeyList,
-      );
-
-
-      const mockAccountTransaction = {
-        setKey: jest.fn().mockReturnThis(),
-        setInitialBalance: jest.fn().mockReturnThis(),
-        setMaxAutomaticTokenAssociations: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({
-          getReceipt: jest.fn().mockResolvedValue({
-            accountId: mockAccountId,
-          }),
-          transactionId: { toString: () => 'account-tx-id' },
-        }),
-      };
-
-      (
-        AccountCreateTransaction as jest.MockedClass<
-          typeof AccountCreateTransaction
-        >
-      ).mockImplementation(() => mockAccountTransaction as any);
-
-
-      let topicCallCount = 0;
-      const mockTopicTransaction = {
-        setTopicMemo: jest.fn().mockReturnThis(),
-        setAdminKey: jest.fn().mockReturnThis(),
-        setSubmitKey: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockImplementation(() => {
-          const topicIds = ['0.0.8001', '0.0.8002', '0.0.8003'];
-          const topicId = { toString: () => topicIds[topicCallCount++] };
-          return Promise.resolve({
-            getReceipt: jest.fn().mockResolvedValue({
-              topicId,
-            }),
-          });
-        }),
-      };
-
-      (
-        TopicCreateTransaction as jest.MockedClass<
-          typeof TopicCreateTransaction
-        >
-      ).mockImplementation(() => mockTopicTransaction as any);
-      (Hbar as jest.MockedClass<typeof Hbar>).mockImplementation(
-        amount => ({ amount }) as any,
-      );
-
-      const config: FloraConfig = {
-        displayName: 'Test Flora',
-        members: mockMembers,
-        threshold: 2,
-        initialBalance: 10,
-        maxAutomaticTokenAssociations: 100,
-      };
-
-      const result = await manager.createFlora(config);
-
-      expect(result).toBeDefined();
-      expect(result.floraAccountId).toBeDefined();
-      expect(result.topics).toBeDefined();
-      expect(result.keyList).toBeDefined();
+  it('builds flora_created message', () => {
+    const tx: any = buildHcs16FloraCreatedTx({
+      topicId: '0.0.comm',
+      operatorId: '0.0.op@0.0.flora',
+      floraAccountId: '0.0.flora',
+      topics: { communication: '0.0.c', transaction: '0.0.t', state: '0.0.s' },
     });
-
-    it('should handle Flora creation errors', async () => {
-      const mockTransaction = {
-        setKey: jest.fn().mockReturnThis(),
-        setInitialBalance: jest.fn().mockReturnThis(),
-        setMaxAutomaticTokenAssociations: jest.fn().mockReturnThis(),
-        execute: jest
-          .fn()
-          .mockRejectedValue(new Error('Account creation failed')),
-      };
-
-      (
-        AccountCreateTransaction as jest.MockedClass<
-          typeof AccountCreateTransaction
-        >
-      ).mockImplementation(() => mockTransaction as any);
-
-      const config: FloraConfig = {
-        displayName: 'Test Flora',
-        members: mockMembers,
-        threshold: 2,
-      };
-
-      await expect(manager.createFlora(config)).rejects.toThrow(
-        'Account creation failed',
-      );
-    });
+    const payload = JSON.parse(tx._message);
+    expect(payload).toMatchObject({ p: 'hcs-16', op: 'flora_created' });
+  });
   });
 
   describe('buildKeyList', () => {

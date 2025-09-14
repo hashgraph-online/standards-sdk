@@ -1,8 +1,5 @@
-import {
-  FloraProfile,
-  FloraMember,
-} from '../hcs-16/types';
-import { Logger } from '../utils/logger';
+import { FloraProfile, FloraMember } from '../hcs-16/types';
+import { ILogger, Logger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 
 /**
@@ -14,7 +11,7 @@ export class FloraBuilder {
     version: '1.0',
     type: 3,
   };
-  private logger: Logger;
+  private logger: ILogger;
 
   constructor() {
     this.logger = Logger.getInstance({

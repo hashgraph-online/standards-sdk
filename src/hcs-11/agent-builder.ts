@@ -30,6 +30,7 @@ import { NetworkType } from '../utils/types';
 export class AgentBuilder {
   private config: Partial<AgentConfiguration> = {};
   private logger: ILogger;
+  private baseAccount?: string;
 
   constructor() {
     this.logger = Logger.getInstance({

@@ -20,14 +20,19 @@ jest.mock('pino', () => {
 });
 
 describe('Logger', () => {
+  const originalEnv = process.env.DISABLE_LOGS;
   let logger: Logger;
   let mockPinoLogger: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.DISABLE_LOGS = 'false';
     logger = new Logger({ module: 'test-module' });
     const pino = require('pino');
     mockPinoLogger = pino();
+  });
+  afterAll(() => {
+    process.env.DISABLE_LOGS = originalEnv;
   });
 
   describe('Argument Handling', () => {

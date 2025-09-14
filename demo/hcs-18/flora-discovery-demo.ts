@@ -16,9 +16,13 @@ import { config } from 'dotenv';
 import {
   HCS10Client,
   HCS11Client,
-  FloraDiscovery,
-  DiscoveryConfig,
-  DiscoveryState,
+  HCS18Client,
+  FloraAccountManager,
+  TrackedAnnouncement,
+  TrackedProposal,
+  isAnnounceMessage,
+  isProposeMessage,
+  isRespondMessage,
   Logger,
   NetworkType,
   AIAgentProfile,
@@ -26,9 +30,7 @@ import {
   AIAgentCapability,
   AgentBuilder,
   InboundTopicType,
-  ProfileType,
-  HCS15PetalManager,
-  PetalConfig,
+  HCS15Client,
 } from '../../src';
 import {
   getOrCreateBaseAccount,
@@ -56,6 +58,11 @@ async function main() {
 
   const client = Client.forTestnet();
   client.setOperator(operatorId, operatorKey);
+  const hcs15 = new HCS15Client({
+    network: 'testnet' as NetworkType,
+    operatorId,
+    operatorKey,
+  });
 
   logger.info('🌸 Starting HCS-18 Flora Discovery Demo');
 
@@ -69,12 +76,13 @@ async function main() {
       logger.info(`Using existing discovery topic: ${discoveryTopicId}`);
     } else {
       logger.info('Creating discovery topic...');
-      const discoveryTopicTx = await new TopicCreateTransaction()
-        .setTopicMemo('hcs-18:discovery:demo')
-        .execute(client);
-
-      const discoveryTopicReceipt = await discoveryTopicTx.getReceipt(client);
-      discoveryTopicId = discoveryTopicReceipt.topicId!;
+      const hcs18 = new HCS18Client({
+        network: 'testnet' as NetworkType,
+        operatorId: operatorId,
+        operatorKey: operatorKey,
+      });
+      const created = await hcs18.createDiscoveryTopic({ ttlSeconds: 300 });
+      discoveryTopicId = TopicId.fromString(created.topicId);
 
       await updateEnvFile(ENV_FILE_PATH, {
         FLORA_DISCOVERY_TOPIC_ID: discoveryTopicId.toString(),
@@ -84,12 +92,14 @@ async function main() {
     }
 
     logger.info('Creating base accounts and Petal accounts...');
-    const { baseAccounts, petals } = await createPetals(client, logger);
+    const { baseAccounts, petals } = await createPetals(client, logger, hcs15);
 
     const memberPrivateKeys = new Map<string, string>();
     baseAccounts.forEach(base => {
       memberPrivateKeys.set(base.accountId.toString(), base.privateKeyHex);
     });
+
+    const discoveryTopic = discoveryTopicId.toString();
 
     const discoveryClients = await Promise.all(
       petals.map(async (petal, index) => {
@@ -99,24 +109,20 @@ async function main() {
           operatorPrivateKey: petal.basePrivateKeyHex,
           keyType: 'ecdsa',
         });
-
-        const config: DiscoveryConfig = {
-          discoveryTopicId: discoveryTopicId.toString(),
+        const hcs18Client = new HCS18Client({
+          network: 'testnet' as NetworkType,
+          operatorId: petal.accountId.toString(),
+          operatorKey: petal.privateKey,
+        });
+        return {
           accountId: petal.accountId.toString(),
-          petalName: `Petal-${index + 1}`,
+          name: `Petal-${index + 1}`,
           priority: 500 + index * 100,
-          capabilities: {
-            protocols: ['hcs-16', 'hcs-17', 'hcs-18'],
-            resources: {
-              compute: index === 0 ? 'high' : 'medium',
-              storage: 'medium',
-              bandwidth: 'high',
-            },
-          },
-          memberPrivateKeys,
+          capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] },
+          hcs10Client,
+          hcs18Client,
+          privateKey: petal.privateKey.toString(),
         };
-
-        return new FloraDiscovery(config, hcs10Client, client, logger);
       }),
     );
 
@@ -124,111 +130,239 @@ async function main() {
 
     await sleep(3000);
 
+    const announcements = new Map<number, TrackedAnnouncement>();
+    const proposals = new Map<number, TrackedProposal>();
+    let lastSeq = 0;
+
+    const syncMessages = async (): Promise<void> => {
+      const msgs = await discoveryClients[0].hcs18Client.getDiscoveryMessages(
+        discoveryTopic,
+        { sequenceNumber: lastSeq + 1 },
+      );
+      for (const m of msgs) {
+        lastSeq = m.sequence_number;
+        if (isAnnounceMessage(m)) {
+          const a: TrackedAnnouncement = {
+            account: m.data.account,
+            sequenceNumber: m.sequence_number,
+            consensusTimestamp: m.consensus_timestamp || '',
+            data: m.data,
+          };
+          announcements.set(m.sequence_number, a);
+        } else if (isProposeMessage(m)) {
+          const p: TrackedProposal = {
+            sequenceNumber: m.sequence_number,
+            consensusTimestamp: m.consensus_timestamp || '',
+            proposer: m.data.proposer,
+            data: m.data,
+            responses: new Map<string, ReturnType<typeof Object.assign>>(),
+          };
+          proposals.set(m.sequence_number, p);
+        } else if (isRespondMessage(m)) {
+          const p = proposals.get(m.data.proposal_seq);
+          if (p) {
+            p.responses.set(m.data.responder, m.data);
+          }
+        }
+      }
+    };
+
     for (let i = 0; i < discoveryClients.length; i++) {
-      await discoveryClients[i].startDiscovery();
-      const seqNum = await discoveryClients[i].announceAvailability();
-      logger.info(`Petal-${i + 1} announced (seq: ${seqNum})`);
+      const dc = discoveryClients[i];
+      const { sequenceNumber } = await dc.hcs18Client.announce({
+        discoveryTopicId: discoveryTopic,
+        data: {
+          account: dc.accountId,
+          petal: { name: dc.name, priority: dc.priority },
+          capabilities: dc.capabilities,
+          valid_for: 10000,
+        },
+      });
+      logger.info(`Petal-${i + 1} announced (seq: ${sequenceNumber})`);
       await sleep(1000);
+      await syncMessages();
     }
 
     await sleep(5000);
+    await syncMessages();
 
     logger.info('Petal-1 searching for compatible Petals...');
-    const compatiblePetals = discoveryClients[0].findCompatiblePetals({
-      protocols: ['hcs-16'],
-      minPriority: 400,
-    });
+    const compatiblePetals = Array.from(announcements.values())
+      .filter(a => a.account !== discoveryClients[0].accountId)
+      .filter(a => a.data.capabilities.protocols.includes('hcs-16'))
+      .filter(a => a.data.petal.priority >= 400)
+      .sort((a, b) => b.data.petal.priority - a.data.petal.priority);
 
     logger.info(`Found ${compatiblePetals.length} compatible Petals`);
 
     if (compatiblePetals.length >= 2) {
       logger.info('Proposing Flora formation...');
 
-      const memberAccounts = baseAccounts.map(b => b.accountId.toString());
+      const memberAccounts = discoveryClients.map(dc => dc.accountId);
 
-      const proposalSeq = await discoveryClients[0].proposeFloraFormation(
-        memberAccounts,
-        {
-          name: 'Demo Flora',
-          threshold: 2,
-          purpose: 'Testing HCS-18 Flora Discovery',
-        },
-      );
+      const members = memberAccounts.map(account => {
+        const ann = Array.from(announcements.values()).find(
+          a => a.account === account,
+        );
+        return {
+          account,
+          announce_seq: ann ? ann.sequenceNumber : undefined,
+          priority: ann ? ann.data.petal.priority : 500,
+        };
+      });
+      const { sequenceNumber: proposalSeq } =
+        await discoveryClients[0].hcs18Client.propose({
+          discoveryTopicId: discoveryTopic,
+          data: {
+            proposer: discoveryClients[0].accountId,
+            members,
+            config: {
+              name: 'Demo Flora',
+              threshold: 2,
+              purpose: 'Testing HCS-18 Flora Discovery',
+            },
+          },
+        });
 
       logger.info(`Flora proposal created (seq: ${proposalSeq})`);
 
       await sleep(5000);
+      await syncMessages();
 
       for (let i = 1; i < 3; i++) {
         logger.info(`Petal-${i + 1} responding to proposal...`);
-        await discoveryClients[i].respondToProposal(
-          proposalSeq,
-          'accept' as 'accept' | 'reject',
-        );
+        await discoveryClients[i].hcs18Client.respond({
+          discoveryTopicId: discoveryTopic,
+          data: {
+            responder: discoveryClients[i].accountId,
+            proposal_seq: proposalSeq,
+            decision: 'accept',
+          },
+        });
       }
 
-      logger.info('Waiting for Flora creation...');
-      await sleep(10000);
-
-      const formations = discoveryClients[0].getFormations();
-      logger.info(`Total formations: ${formations.size}`);
-
-      if (formations.size > 0) {
-        const flora = formations.values().next().value;
-        logger.info('🌺 Flora created successfully!', {
-          floraAccountId: flora.floraAccountId,
-          topics: flora.topics,
-          members: flora.members,
-          threshold: flora.threshold,
-        });
-      } else {
-        logger.info('No Flora formations found yet');
-
-        const proposals = discoveryClients[0]['proposals'];
-        logger.info(`Total proposals tracked: ${proposals.size}`);
-
-        const ourProposal = Array.from(proposals.values()).find(
-          p => p.sequenceNumber === proposalSeq,
-        );
-
-        if (ourProposal) {
-          logger.info(`✅ Proposal ${proposalSeq} details:`, {
-            proposer: ourProposal.proposer,
-            members: ourProposal.data.members.length,
-            memberAccounts: ourProposal.data.members.map(m => m.account),
-            responses: ourProposal.responses.size,
-            acceptances: Array.from(ourProposal.responses.values()).filter(
+      logger.info('Waiting for enough acceptances to create Flora...');
+      {
+        const deadline = Date.now() + 60000;
+        let ready = false;
+        while (Date.now() < deadline) {
+          await sleep(2000);
+          await syncMessages();
+          const p = proposals.get(proposalSeq);
+          if (p) {
+            const acc = Array.from(p.responses.values()).filter(
               r => r.decision === 'accept',
-            ).length,
+            ).length;
+            const req = Math.max(0, (p.data.config.threshold || 1) - 1);
+            if (acc >= req) {
+              ready = true;
+              break;
+            }
+          }
+        }
+        if (!ready) {
+          logger.info('Timed out waiting for acceptances');
+        }
+      }
+
+      const ourProposal = proposals.get(proposalSeq);
+      if (ourProposal) {
+        logger.info(`✅ Proposal ${proposalSeq} details:`, {
+          proposer: ourProposal.proposer,
+          members: ourProposal.data.members.length,
+          memberAccounts: ourProposal.data.members.map(m => m.account),
+          responses: ourProposal.responses.size,
+          acceptances: Array.from(ourProposal.responses.values()).filter(
+            r => r.decision === 'accept',
+          ).length,
+        });
+
+        const acceptances = Array.from(ourProposal.responses.values()).filter(
+          r => r.decision === 'accept',
+        ).length;
+        const required = Math.max(
+          0,
+          (ourProposal.data.config.threshold || 1) - 1,
+        );
+        if (acceptances >= required) {
+          logger.info('Creating Flora via HCS-16...');
+          const floraMgr = new FloraAccountManager(
+            client,
+            'testnet' as NetworkType,
+            logger,
+          );
+
+          const memberAccounts = ourProposal.data.members.map(
+            m => m.account as string,
+          );
+          const memberPubKeys = await Promise.all(
+            memberAccounts.map(async account => {
+              const pub =
+                await discoveryClients[0].hcs18Client.mirrorNode.getPublicKey(
+                  account,
+                );
+              return { account, publicKey: pub.toString() };
+            }),
+          );
+
+          const proposerIdx = memberAccounts.findIndex(
+            a => a === discoveryClients[0].accountId,
+          );
+          const operatorIdx = proposerIdx >= 0 ? proposerIdx : 0;
+          const operatorAccount = memberAccounts[operatorIdx];
+          const operatorPrivateKey = discoveryClients.find(
+            dc => dc.accountId === operatorAccount,
+          )?.privateKey;
+
+          const members = memberPubKeys.map((m, idx) => ({
+            accountId: m.account,
+            publicKey: m.publicKey,
+            privateKey:
+              idx === operatorIdx && operatorPrivateKey
+                ? operatorPrivateKey
+                : undefined,
+          }));
+
+          const flora = await floraMgr.createFlora({
+            displayName: ourProposal.data.config.name,
+            members,
+            threshold: ourProposal.data.config.threshold,
+            initialBalance: 10,
           });
 
-          logger.info('🔍 Discovery process completed successfully:');
-          logger.info('  - All 3 Petals announced their availability');
-          logger.info('  - Petals discovered each other on the network');
-          logger.info('  - Proposal for Flora formation was created');
-          logger.info('  - All Petals responded and accepted the proposal');
-          logger.info('');
-          logger.info(
-            '✅ Success! The HCS-18 Discovery protocol demonstrates:',
-          );
-          logger.info('  - Creating unique base accounts with ECDSA keys');
-          logger.info('  - Petal account creation from each base account');
-          logger.info('  - Discovery protocol for finding compatible peers');
-          logger.info(
-            '  - Proposal and acceptance workflow for Flora formation',
-          );
-          logger.info('  - Flora accounts with threshold keys can be created');
-          logger.info(
-            '  - Complete Flora with topics and profiles is possible',
-          );
+          await discoveryClients[0].hcs18Client.complete({
+            discoveryTopicId: discoveryTopic,
+            data: {
+              proposer: discoveryClients[0].accountId,
+              proposal_seq: proposalSeq,
+              flora_account: flora.floraAccountId.toString(),
+              topics: {
+                communication: flora.topics.communication.toString(),
+                transaction: flora.topics.transaction.toString(),
+                state: flora.topics.state.toString(),
+              },
+            },
+          });
+
+          logger.info('🌺 Flora created and completion announced', {
+            floraAccountId: flora.floraAccountId.toString(),
+            communication: flora.topics.communication.toString(),
+            transaction: flora.topics.transaction.toString(),
+            state: flora.topics.state.toString(),
+          });
+        } else {
+          logger.info('Not enough acceptances to create Flora');
         }
+      } else {
+        logger.info('No proposal details found');
       }
     }
 
     logger.info('🎉 Demo completed successfully!');
+    process.exit(0);
   } catch (error) {
     logger.error('Demo failed:', error);
-    throw error;
+    process.exit(1);
   }
 }
 
@@ -238,26 +372,27 @@ async function main() {
 async function createPetals(
   client: Client,
   logger: Logger,
+  hcs15: HCS15Client,
 ): Promise<{ baseAccounts: any[]; petals: PetalData[] }> {
   const petals: PetalData[] = [];
   const baseAccounts: any[] = [];
-  const petalManager = new HCS15PetalManager(client, logger);
 
   for (let i = 1; i <= 3; i++) {
     try {
       const baseAccount = await getOrCreateBaseAccount(
         client,
-        petalManager,
+        hcs15,
         logger,
         i,
       );
       baseAccounts.push(baseAccount);
 
       const petal = await getOrCreatePetal(
-        petalManager,
+        hcs15,
         logger,
         baseAccount,
         i,
+        'testnet',
       );
       petals.push(petal);
     } catch (error) {
@@ -269,4 +404,9 @@ async function createPetals(
   return { baseAccounts, petals };
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error(err);
+    process.exit(1);
+  });

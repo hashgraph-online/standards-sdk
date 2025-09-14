@@ -1,7 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { AccountId, PrivateKey, PublicKey, Client, TransferTransaction, Hbar } from '@hashgraph/sdk';
-import { Logger, HCS15PetalManager, AgentBuilder, AIAgentCapability, InboundTopicType, HederaMirrorNode } from '../../src';
+import {
+  AccountId,
+  PrivateKey,
+  PublicKey,
+  Client,
+  TransferTransaction,
+  Hbar,
+} from '@hashgraph/sdk';
+import {
+  Logger,
+  HCS15Client,
+  AgentBuilder,
+  AIAgentCapability,
+  InboundTopicType,
+  HederaMirrorNode,
+  HCS10Client,
+  NetworkType,
+} from '../../src';
 
 export const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
@@ -64,7 +80,7 @@ export async function updateEnvFile(
  */
 export async function getOrCreateBaseAccount(
   client: Client,
-  petalManager: HCS15PetalManager,
+  hcs15: HCS15Client,
   logger: Logger,
   baseNumber: number,
 ): Promise<BaseAccountData> {
@@ -90,21 +106,35 @@ export async function getOrCreateBaseAccount(
     };
   } else {
     logger.info(`Creating new base account ${baseNumber}...`);
-    const newAccount = await petalManager.createBaseAccount(10);
-    
+    const newAccount = await hcs15.createBaseAccount({ initialBalance: 10 });
+
     await updateEnvFile(ENV_FILE_PATH, {
       [`${envPrefix}_ACCOUNT_ID`]: newAccount.accountId.toString(),
       [`${envPrefix}_PRIVATE_KEY`]: newAccount.privateKeyHex,
       [`${envPrefix}_EVM_ADDRESS`]: newAccount.evmAddress,
     });
 
-    logger.info(`Base account ${baseNumber} created and saved: ${newAccount.accountId}`);
+    logger.info(
+      `Base account ${baseNumber} created and saved: ${newAccount.accountId}`,
+    );
     logger.info(`EVM address: ${newAccount.evmAddress}`);
 
-    baseAccount = newAccount;
+    baseAccount = {
+      accountId: AccountId.fromString(newAccount.accountId),
+      privateKey: newAccount.privateKey,
+      privateKeyHex: newAccount.privateKeyHex,
+      publicKey: newAccount.publicKey,
+      evmAddress: newAccount.evmAddress,
+    };
   }
 
-  await ensureAccountHasEnoughHbar(client, logger, baseAccount.accountId.toString(), `Base ${baseNumber}`, 10.0);
+  await ensureAccountHasEnoughHbar(
+    client,
+    logger,
+    baseAccount.accountId.toString(),
+    `Base ${baseNumber}`,
+    10.0,
+  );
 
   return baseAccount;
 }
@@ -113,18 +143,18 @@ export async function getOrCreateBaseAccount(
  * Get or create Petal account from environment
  */
 export async function getOrCreatePetal(
-  petalManager: HCS15PetalManager,
+  hcs15: HCS15Client,
   logger: Logger,
   baseAccount: BaseAccountData,
   petalNumber: number,
+  network: NetworkType,
 ): Promise<PetalData> {
   const envPrefix = `PETAL_${petalNumber}`;
-  
+
   const accountId = process.env[`${envPrefix}_ACCOUNT_ID`];
   const profileTopicId = process.env[`${envPrefix}_PROFILE_TOPIC_ID`];
   const inboundTopicId = process.env[`${envPrefix}_INBOUND_TOPIC_ID`];
   const outboundTopicId = process.env[`${envPrefix}_OUTBOUND_TOPIC_ID`];
-
 
   if (accountId && profileTopicId && inboundTopicId && outboundTopicId) {
     logger.info(`Petal-${petalNumber} found in environment`);
@@ -146,7 +176,7 @@ export async function getOrCreatePetal(
   }
 
   logger.info(`Creating Petal-${petalNumber}...`);
-  
+
   const agentBuilder = new AgentBuilder()
     .setName(`Demo Petal ${petalNumber}`)
     .setBio(`A demo Petal account for HCS-18 testing`)
@@ -155,38 +185,50 @@ export async function getOrCreatePetal(
     .setInboundTopicType(InboundTopicType.PUBLIC)
     .setCapabilities([AIAgentCapability.TEXT_GENERATION]);
 
-  const result = await petalManager.createPetal(agentBuilder, {
-    baseAccountId: baseAccount.accountId.toString(),
+  // Create the Petal account using HCS-15
+  const petalRes = await hcs15.createPetalAccount({
     basePrivateKey: baseAccount.privateKeyHex,
     initialBalance: 0.5,
   });
 
+  // Create HCS-11 Agent profile using base account as operator
+  const hcs10Client = new HCS10Client({
+    network,
+    operatorId: baseAccount.accountId.toString(),
+    operatorPrivateKey: baseAccount.privateKeyHex,
+    keyType: 'ecdsa',
+  });
+  agentBuilder
+    .setBaseAccount(baseAccount.accountId.toString())
+    .setNetwork(network);
+  const profile = await hcs10Client.createAgent(agentBuilder, 60);
+
   await updateEnvFile(ENV_FILE_PATH, {
-    [`${envPrefix}_ACCOUNT_ID`]: result.petalAccount.accountId.toString(),
-    [`${envPrefix}_PROFILE_TOPIC_ID`]: result.petalAccount.profileTopicId || '',
-    [`${envPrefix}_INBOUND_TOPIC_ID`]: result.petalAccount.inboundTopicId || '',
-    [`${envPrefix}_OUTBOUND_TOPIC_ID`]: result.petalAccount.outboundTopicId || '',
+    [`${envPrefix}_ACCOUNT_ID`]: petalRes.accountId.toString(),
+    [`${envPrefix}_PROFILE_TOPIC_ID`]: profile.profileTopicId || '',
+    [`${envPrefix}_INBOUND_TOPIC_ID`]: profile.inboundTopicId || '',
+    [`${envPrefix}_OUTBOUND_TOPIC_ID`]: profile.outboundTopicId || '',
   });
 
-  logger.info(`Created and saved Petal-${petalNumber}: ${result.petalAccount.accountId}`);
-  logger.info(`  Profile: ${result.petalAccount.profileTopicId}`);
-  logger.info(`  Inbound: ${result.petalAccount.inboundTopicId}`);
-  logger.info(`  Outbound: ${result.petalAccount.outboundTopicId}`);
+  logger.info(`Created and saved Petal-${petalNumber}: ${petalRes.accountId}`);
+  logger.info(`  Profile: ${profile.profileTopicId}`);
+  logger.info(`  Inbound: ${profile.inboundTopicId}`);
+  logger.info(`  Outbound: ${profile.outboundTopicId}`);
 
-  const isValid = await petalManager.verifyPetalAccount(
-    result.petalAccount.accountId.toString(),
+  const isValid = await hcs15.verifyPetalAccount(
+    petalRes.accountId.toString(),
     baseAccount.accountId.toString(),
   );
   logger.info(`  Valid petal: ${isValid}`);
 
   return {
-    accountId: result.petalAccount.accountId,
-    privateKey: result.petalAccount.privateKey,
-    publicKey: result.petalAccount.publicKey,
-    inboundTopicId: result.petalAccount.inboundTopicId,
-    outboundTopicId: result.petalAccount.outboundTopicId,
-    profileTopicId: result.petalAccount.profileTopicId,
-    baseAccountId: result.petalAccount.baseAccountId,
+    accountId: AccountId.fromString(petalRes.accountId),
+    privateKey: baseAccount.privateKey,
+    publicKey: baseAccount.publicKey,
+    inboundTopicId: profile.inboundTopicId,
+    outboundTopicId: profile.outboundTopicId,
+    profileTopicId: profile.profileTopicId,
+    baseAccountId: baseAccount.accountId.toString(),
     basePrivateKeyHex: baseAccount.privateKeyHex,
   };
 }
@@ -217,20 +259,30 @@ export async function ensureAccountHasEnoughHbar(
     logger.info(`${accountName} account ${accountId} has ${hbarBalance} HBAR`);
 
     if (hbarBalance < minRequiredHbar) {
-      logger.info(`${accountName} needs funding. Current: ${hbarBalance} HBAR, Required: ${minRequiredHbar} HBAR`);
+      logger.info(
+        `${accountName} needs funding. Current: ${hbarBalance} HBAR, Required: ${minRequiredHbar} HBAR`,
+      );
 
       const operatorId = client.operatorAccountId;
       const amountToTransfer = minRequiredHbar - hbarBalance + 1;
 
       const transferTx = new TransferTransaction()
-        .addHbarTransfer(operatorId!, Hbar.fromTinybars(Math.round(amountToTransfer * -100_000_000)))
-        .addHbarTransfer(accountId, Hbar.fromTinybars(Math.round(amountToTransfer * 100_000_000)));
+        .addHbarTransfer(
+          operatorId!,
+          Hbar.fromTinybars(Math.round(amountToTransfer * -100_000_000)),
+        )
+        .addHbarTransfer(
+          accountId,
+          Hbar.fromTinybars(Math.round(amountToTransfer * 100_000_000)),
+        );
 
-      logger.info(`Funding ${accountName} with ${amountToTransfer.toFixed(2)} HBAR from ${operatorId}`);
+      logger.info(
+        `Funding ${accountName} with ${amountToTransfer.toFixed(2)} HBAR from ${operatorId}`,
+      );
 
       const txResponse = await transferTx.execute(client);
       await txResponse.getReceipt(client);
-      
+
       logger.info(`Successfully funded ${accountName} account ${accountId}`);
     } else {
       logger.info(`${accountName} has sufficient balance`);

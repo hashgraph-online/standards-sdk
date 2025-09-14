@@ -1,4 +1,4 @@
-import { TransactionParser } from '../transaction-parser';
+import { TransactionParser } from '../../src/utils/transaction-parser';
 import {
   Transaction,
   TokenCreateTransaction,
@@ -6,7 +6,7 @@ import {
   AccountId,
   TokenId,
 } from '@hashgraph/sdk';
-import { TransactionParsingError } from '../transaction-parser-types';
+import { TransactionParsingError } from '../../src/utils/transaction-parser-types';
 
 describe('TransactionParser', () => {
   describe('Input Validation', () => {
@@ -468,5 +468,119 @@ describe('TransactionParser', () => {
       expect(result.type).not.toBe('UNKNOWN');
       expect(result.type).toBe('TOKENCREATE');
     });
+  });
+});
+
+describe('TransactionParser bytes-level', () => {
+  test('validateTransactionBytes detects hex vs base64', () => {
+    const hex = TransactionParser.validateTransactionBytes('0xdeadbeef');
+    expect(hex.isValid).toBe(true);
+    expect(hex.format).toBe('hex');
+
+    const b64 = TransactionParser.validateTransactionBytes(Buffer.from('x').toString('base64'));
+    expect(b64.isValid).toBe(true);
+    expect(b64.format).toBe('base64');
+  });
+
+  test('invalid input is flagged by validation (no throw on decode)', () => {
+    const v = TransactionParser.validateTransactionBytes('%%%');
+    expect(v.isValid).toBe(false);
+  });
+
+  test('parseTransactionBody decodes schedulable body and applies parsing', () => {
+    const { proto } = require('@hashgraph/proto');
+    const { Hbar, HbarUnit, Long } = require('@hashgraph/sdk');
+    const sb = {
+      memo: 'm',
+      transactionFee: Long.fromValue(100000000),
+      cryptoTransfer: {
+        transfers: { accountAmounts: [
+          { accountID: { shardNum: 0, realmNum: 0, accountNum: 1 }, amount: -100 },
+          { accountID: { shardNum: 0, realmNum: 0, accountNum: 2 }, amount: 100 },
+        ]},
+      },
+    };
+    const base64 = Buffer.from(proto.SchedulableTransactionBody.encode(sb).finish()).toString('base64');
+    const parsed = TransactionParser.parseTransactionBody(base64);
+    expect(parsed.memo).toBe('m');
+    expect(parsed.transactionFee).toBe(Hbar.fromTinybars(Long.fromValue(100000000)).toString(HbarUnit.Hbar));
+    expect(parsed.transfers?.length).toBe(2);
+  });
+
+  test('parseScheduleResponse handles missing body and merges memo', () => {
+    const { proto } = require('@hashgraph/proto');
+    const r1 = TransactionParser.parseScheduleResponse({ transaction_body: '' });
+    expect(r1.type).toBe('UNKNOWN');
+
+    const sb = { memo: 'a' };
+    const base64 = Buffer.from(proto.SchedulableTransactionBody.encode(sb).finish()).toString('base64');
+    const r2 = TransactionParser.parseScheduleResponse({ transaction_body: base64, memo: 'b' });
+    expect(r2.memo).toBe('b');
+  });
+
+  test('parseTransactionBytes falls back to scheduled parser', async () => {
+    const { proto } = require('@hashgraph/proto');
+    const sb = { memo: 'fallback' };
+    const base64 = Buffer.from(proto.SchedulableTransactionBody.encode(sb).finish()).toString('base64');
+    const out = await TransactionParser.parseTransactionBytes(base64, { enableFallback: true, includeRaw: true });
+    expect(out.memo).toBe('fallback');
+    expect(out.formatDetection?.originalFormat).toBe('base64');
+  });
+});
+
+describe('TransactionParser regular flow', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('parseTransactionBytes merges proto and parser results', async () => {
+    const { proto } = require('@hashgraph/proto');
+    const fakeTx = {
+      transactionId: { toString: () => '0.0.100@1.0' },
+      nodeAccountIds: [{ toString: () => '0.0.3' }],
+      maxTransactionFee: { toTinybars: () => ({ toString: () => '1' }) },
+      _transactionMemo: 'memo',
+    } as unknown as Transaction;
+
+    jest.spyOn(Transaction, 'fromBytes').mockReturnValue(fakeTx);
+
+    const hts = require('../../src/utils/parsers/hts-parser');
+    const hcs = require('../../src/utils/parsers/hcs-parser');
+    const file = require('../../src/utils/parsers/file-parser');
+    const scs = require('../../src/utils/parsers/scs-parser');
+    const sched = require('../../src/utils/parsers/schedule-parser');
+    const util = require('../../src/utils/parsers/util-parser');
+    const crypto = require('../../src/utils/parsers/crypto-parser');
+
+    jest.spyOn(hts.HTSParser, 'parseFromTransactionObject').mockReturnValue({});
+    jest.spyOn(hcs.HCSParser, 'parseFromTransactionObject').mockReturnValue({});
+    jest.spyOn(file.FileParser, 'parseFromTransactionObject').mockReturnValue({});
+    jest.spyOn(scs.SCSParser, 'parseFromTransactionObject').mockReturnValue({});
+    jest.spyOn(sched.ScheduleParser, 'parseFromTransactionObject').mockReturnValue({});
+    jest.spyOn(util.UtilParser, 'parseFromTransactionObject').mockReturnValue({});
+    jest
+      .spyOn(crypto.CryptoParser, 'parseFromTransactionObject')
+      .mockReturnValue({
+        type: 'CRYPTOTRANSFER',
+        humanReadableType: 'Crypto Transfer',
+        transfers: [{ accountId: '0.0.1', amount: '1 ℏ' }],
+        tokenTransfers: [],
+      });
+
+    jest.spyOn(proto.TransactionList, 'decode').mockReturnValue({
+      transactionList: [{ bodyBytes: new Uint8Array([1]) }],
+    } as any);
+    jest.spyOn(proto.TransactionBody, 'decode').mockReturnValue({
+      tokenCreation: { name: 'X', symbol: 'Y', treasury: { shardNum: 0, realmNum: 0, accountNum: 1 } },
+    } as any);
+
+    const out = await TransactionParser.parseTransactionBytes('0x00', {
+      includeRaw: true,
+      enableFallback: false,
+    });
+
+    expect(out.type).toBe('TOKENCREATE');
+    expect(out.transfers?.length).toBe(1);
+    expect(out.details?.memo || out.memo).toBeDefined();
   });
 });
