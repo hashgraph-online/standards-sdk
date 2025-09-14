@@ -784,7 +784,7 @@ export class HCS11Client {
   }
 
   private async attachUaidIfMissing(profile: HCS11Profile): Promise<void> {
-    if ((profile as { uaid?: string }).uaid) {
+    if (profile.uaid) {
       return;
     }
     if (!isHederaNetwork(this.network)) return;

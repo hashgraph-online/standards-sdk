@@ -7,7 +7,7 @@ import {
   KeyList,
   TokenId,
 } from '@hashgraph/sdk';
-import { SocialLink } from '../hcs-11/types';
+import { BaseProfile, SocialLink } from '../hcs-11/types';
 
 /**
  * HCS-16 Topic type enums
@@ -23,7 +23,7 @@ export enum FloraTopicType {
  */
 export interface FloraMember {
   accountId: string;
-  publicKey?: PublicKey | string; // Support both PublicKey objects and serialized strings
+  publicKey?: PublicKey | string;
   privateKey?: string;
   weight?: number;
 }
@@ -85,7 +85,6 @@ export enum FloraOperation {
   FLORA_JOIN_REQUEST = 'flora_join_request',
   FLORA_JOIN_VOTE = 'flora_join_vote',
   FLORA_JOIN_ACCEPTED = 'flora_join_accepted',
-  CREDIT_PURCHASE = 'credit_purchase',
 }
 
 /**
@@ -102,7 +101,7 @@ export interface FloraMessage {
 /**
  * HCS-16 Flora profile (extends HCS-11)
  */
-export interface FloraProfile {
+export interface FloraProfile extends BaseProfile {
   version: string;
   type: 3;
   display_name: string;
@@ -176,13 +175,4 @@ export interface TransactionTopicConfig {
   feeExemptKeys?: Key[];
 }
 
-/**
- * HCS-16 Credit purchase message
- */
-export interface CreditPurchaseMessage extends FloraMessage {
-  p: 'hcs-16';
-  op: FloraOperation.CREDIT_PURCHASE;
-  amount: number;
-  purchaser: string;
-  timestamp: string;
-}
+/** credit_purchase not part of HCS-16 specification; no message type defined. */

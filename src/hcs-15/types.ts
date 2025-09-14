@@ -3,7 +3,16 @@
  */
 
 import { PrivateKey, PublicKey, AccountId } from '@hashgraph/sdk';
-import { PersonalProfile, AIAgentProfile, MCPServerProfile, ProfileType } from '../hcs-11/types';
+import type { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
+import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
+import { Logger, LogLevel } from '../utils/logger';
+import { NetworkType } from '../utils/types';
+import {
+  PersonalProfile,
+  AIAgentProfile,
+  MCPServerProfile,
+  ProfileType,
+} from '../hcs-11/types';
 import { AgentBuilder, PersonBuilder, MCPServerBuilder } from '../hcs-11';
 
 export interface PetalConfig {
@@ -29,7 +38,11 @@ export interface PetalAccount {
   stateTopicId?: string;
 }
 
-export type PetalProfile = (PersonalProfile | AIAgentProfile | MCPServerProfile) & {
+export type PetalProfile = (
+  | PersonalProfile
+  | AIAgentProfile
+  | MCPServerProfile
+) & {
   base_account: string;
 };
 
@@ -47,4 +60,32 @@ export interface PetalCreationOptions {
   initialBalance?: number;
   maxAutomaticTokenAssociations?: number;
   ttl?: number;
+}
+
+/**
+ * Base configuration shared by HCS‑15 Node and Browser clients.
+ */
+export interface HCS15ClientConfig {
+  network: NetworkType;
+  logLevel?: LogLevel;
+  silent?: boolean;
+  mirrorNodeUrl?: string;
+  logger?: Logger;
+}
+
+/**
+ * Node SDK configuration for HCS‑15 client.
+ */
+export interface SDKHCS15ClientConfig extends HCS15ClientConfig {
+  operatorId: string;
+  operatorKey: string | PrivateKey;
+  keyType?: 'ed25519' | 'ecdsa';
+}
+
+/**
+ * Browser client configuration for HCS‑15 operations.
+ */
+export interface BrowserHCS15ClientConfig extends HCS15ClientConfig {
+  hwc?: HashinalsWalletConnectSDK;
+  signer?: DAppSigner;
 }

@@ -1,4 +1,4 @@
-import { HTSParser } from '../parsers/hts-parser';
+import { HTSParser } from '../../src/utils/parsers/hts-parser';
 import {
   Transaction,
   TokenCreateTransaction,
@@ -305,6 +305,96 @@ describe('HTSParser', () => {
     });
   });
 
+  describe('Token Update & Fee Schedule Update', () => {
+    test('parseTokenUpdate maps fields and keys', () => {
+      const body = {
+        token: { shardNum: 0, realmNum: 0, tokenNum: 1 },
+        name: 'N',
+        symbol: 'S',
+        treasury: { shardNum: 0, realmNum: 0, accountNum: 2 },
+        adminKey: { ed25519: Uint8Array.from([1]) },
+        kycKey: { ed25519: Uint8Array.from([2]) },
+        freezeKey: { ed25519: Uint8Array.from([3]) },
+        wipeKey: { ed25519: Uint8Array.from([4]) },
+        supplyKey: { ed25519: Uint8Array.from([5]) },
+        feeScheduleKey: { ed25519: Uint8Array.from([6]) },
+        pauseKey: { ed25519: Uint8Array.from([7]) },
+        autoRenewAccount: { shardNum: 0, realmNum: 0, accountNum: 3 },
+        autoRenewPeriod: { seconds: 9 },
+        memo: { value: 'mm' },
+        expiry: { seconds: 10, nanos: 1 },
+      } satisfies import('@hashgraph/proto').proto.ITokenUpdateTransactionBody;
+      const r = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUpdate(body);
+      expect(r?.tokenId).toBe('0.0.1');
+      expect(r?.name).toBe('N');
+      expect(r?.symbol).toBe('S');
+      expect(r?.treasuryAccountId).toBe('0.0.2');
+      expect(r?.adminKey).toContain('ED25519');
+      expect(r?.feeScheduleKey).toContain('ED25519');
+      expect(r?.autoRenewAccountId).toBe('0.0.3');
+      expect(r?.autoRenewPeriod).toBe('9');
+      expect(r?.memo).toBe('mm');
+      expect(r?.expiry?.startsWith('10.')).toBe(true);
+    });
+
+    test('parseTokenFeeScheduleUpdate supports fixed/fractional/royalty', () => {
+      const body = {
+        tokenId: { shardNum: 0, realmNum: 0, tokenNum: 9 },
+        customFees: [
+          {
+            feeCollectorAccountId: { shardNum: 0, realmNum: 0, accountNum: 5 },
+            fixedFee: { amount: 1 },
+          },
+          {
+            feeCollectorAccountId: { shardNum: 0, realmNum: 0, accountNum: 6 },
+            fractionalFee: {
+              fractionalAmount: { numerator: 1, denominator: 2 },
+              minimumAmount: 0,
+              maximumAmount: 100,
+              netOfTransfers: true,
+            },
+          },
+          {
+            feeCollectorAccountId: { shardNum: 0, realmNum: 0, accountNum: 7 },
+            royaltyFee: {
+              exchangeValueFraction: { numerator: 1, denominator: 10 },
+              fallbackFee: { amount: 3, denominatingTokenId: { shardNum: 0, realmNum: 0, tokenNum: 9 } },
+            },
+          },
+        ],
+      } satisfies import('@hashgraph/proto').proto.ITokenFeeScheduleUpdateTransactionBody;
+      const r = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenFeeScheduleUpdate(body);
+      expect(r?.tokenId).toBe('0.0.9');
+      expect(r?.customFees?.length).toBe(3);
+      const fixed = r!.customFees![0];
+      const frac = r!.customFees![1];
+      const roy = r!.customFees![2];
+      expect(fixed.feeType).toBe('FIXED_FEE');
+      expect(frac.feeType).toBe('FRACTIONAL_FEE');
+      expect(frac.fractionalFee?.denominator).toBe('2');
+      expect(roy.feeType).toBe('ROYALTY_FEE');
+      expect(roy.royaltyFee?.fallbackFee?.denominatingTokenId).toBe('0.0.9');
+    });
+
+    test('parseTokenWipeAccount handles amount and serial numbers', () => {
+      const withAmount = {
+        token: { shardNum: 0, realmNum: 0, tokenNum: 1 },
+        account: { shardNum: 0, realmNum: 0, accountNum: 2 },
+        amount: 10,
+      } satisfies import('@hashgraph/proto').proto.ITokenWipeAccountTransactionBody;
+      const a = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenWipeAccount(withAmount);
+      expect(a?.amount).toBe('10');
+
+      const withSerials = {
+        token: { shardNum: 0, realmNum: 0, tokenNum: 1 },
+        account: { shardNum: 0, realmNum: 0, accountNum: 2 },
+        serialNumbers: [1, 2, 3],
+      } satisfies import('@hashgraph/proto').proto.ITokenWipeAccountTransactionBody;
+      const b = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenWipeAccount(withSerials);
+      expect(b?.serialNumbers).toEqual(['1', '2', '3']);
+    });
+  });
+
   describe('Token Creation Parsing', () => {
     test('parseTokenCreate - parses token creation data', () => {
       const mockTokenCreation = {
@@ -429,5 +519,108 @@ describe('HTSParser', () => {
       expect(result!.accountId).toBe('0.0.444');
       expect(result!.tokenIds).toEqual(['0.0.555']);
     });
+  });
+});
+
+describe('HTSParser branches', () => {
+  test('freeze/unfreeze/grantKyc/revokeKyc/pause/unpause/delete', () => {
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenFreeze)({ token: { shardNum: 0, realmNum: 0, tokenNum: 1 }, account: { shardNum: 0, realmNum: 0, accountNum: 2 } })?.tokenId,
+    ).toBe('0.0.1');
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUnfreeze)({ token: { shardNum: 0, realmNum: 0, tokenNum: 1 }, account: { shardNum: 0, realmNum: 0, accountNum: 2 } })?.accountId,
+    ).toBe('0.0.2');
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenGrantKyc)({ token: { shardNum: 0, realmNum: 0, tokenNum: 3 }, account: { shardNum: 0, realmNum: 0, accountNum: 4 } })?.tokenId,
+    ).toBe('0.0.3');
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenRevokeKyc)({ token: { shardNum: 0, realmNum: 0, tokenNum: 3 }, account: { shardNum: 0, realmNum: 0, accountNum: 4 } })?.accountId,
+    ).toBe('0.0.4');
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenPause)({ token: { shardNum: 0, realmNum: 0, tokenNum: 5 } })?.tokenId,
+    ).toBe('0.0.5');
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUnpause)({ token: { shardNum: 0, realmNum: 0, tokenNum: 6 } })?.tokenId,
+    ).toBe('0.0.6');
+    expect(
+      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenDelete)({ token: { shardNum: 0, realmNum: 0, tokenNum: 7 } })?.tokenId,
+    ).toBe('0.0.7');
+  });
+
+  test('mint metadata and burn serialNumbers branches', () => {
+    const { HTSParser } = require('../../src/utils/parsers/hts-parser');
+    const m = HTSParser.parseTokenMint({ token: { shardNum: 0, realmNum: 0, tokenNum: 9 }, amount: 1, metadata: [new Uint8Array([1,2,3])] });
+    expect(m?.metadata?.[0]).toBe(Buffer.from([1,2,3]).toString('base64'));
+
+    const b = HTSParser.parseTokenBurn({ token: { shardNum: 0, realmNum: 0, tokenNum: 9 }, amount: 0, serialNumbers: [1,2] });
+    expect(b?.serialNumbers).toEqual([1,2]);
+  });
+
+  test('extractTokenCreationFromTransaction internal fields', () => {
+    const fakeTx = {
+      _tokenName: 'T',
+      _tokenSymbol: 'TOK',
+      _initialSupply: 100,
+      _decimals: 2,
+      _treasuryAccountId: { toString: () => '0.0.100' },
+      _maxSupply: 1000,
+      _tokenType: 'FUNGIBLE_COMMON',
+      _supplyType: 'FINITE',
+      _tokenMemo: 'memo',
+      _adminKey: { toString: () => 'k1' },
+      _kycKey: { toString: () => 'k2' },
+      _freezeKey: { toString: () => 'k3' },
+      _wipeKey: { toString: () => 'k4' },
+      _supplyKey: { toString: () => 'k5' },
+      _feeScheduleKey: { toString: () => 'k6' },
+      _pauseKey: { toString: () => 'k7' },
+      _metadataKey: { toString: () => 'k8' },
+      _autoRenewAccountId: { toString: () => '0.0.200' },
+      _autoRenewPeriod: { toString: () => '10' },
+      _expirationTime: { toString: () => '20' },
+      _customFees: [
+        { fixedFee: { amount: 1, denominatingTokenId: { toString: () => '0.0.9' } }, allCollectorsAreExempt: true, feeCollectorAccountId: { toString: () => '0.0.5' } },
+      ],
+    } as unknown;
+
+    const { HTSParser } = require('../../src/utils/parsers/hts-parser');
+    const r = HTSParser.extractTokenCreationFromTransaction(fakeTx as any)!;
+    expect(r.tokenName).toBe('T');
+    expect(r.tokenSymbol).toBe('TOK');
+    expect(r.treasuryAccountId).toBe('0.0.100');
+    expect(r.maxSupply).toBe('1000');
+    expect(r.memo).toBe('memo');
+    expect(r.autoRenewAccount).toBe('0.0.200');
+    expect(r.autoRenewPeriod).toBe('10');
+    expect(r.expiry).toBe('20');
+    expect(r.customFees?.[0].feeType).toBe('FIXED_FEE');
+  });
+
+  test('extractTokenAirdropFromTransaction internal list', () => {
+    const fakeTx = {
+      _tokenAirdrops: [
+        {
+          tokenId: { toString: () => '0.0.9' },
+          transfers: [
+            { accountId: { toString: () => '0.0.1' }, amount: { toString: () => '5' }, serialNumbers: [{ toString: () => '1' }] },
+          ],
+        },
+      ],
+    } as unknown;
+    const { HTSParser } = require('../../src/utils/parsers/hts-parser');
+    const out = HTSParser.extractTokenAirdropFromTransaction(fakeTx as any);
+    expect(out?.tokenTransfers[0].tokenId).toBe('0.0.9');
+    expect(out?.tokenTransfers[0].transfers[0].serialNumbers).toEqual(['1']);
+  });
+
+  test('parseFromTransactionObject maps tokenDeletion path from _transactionBody', () => {
+    const fakeTx = {
+      _transactionBody: {
+        tokenDeletion: { token: { shardNum: 0, realmNum: 0, tokenNum: 1 } },
+      },
+    } as unknown;
+    const { HTSParser } = require('../../src/utils/parsers/hts-parser');
+    const r = HTSParser.parseFromTransactionObject(fakeTx as any);
+    expect((r as any).tokenDelete.tokenId).toBe('0.0.1');
   });
 });

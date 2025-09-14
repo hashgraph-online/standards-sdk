@@ -269,7 +269,7 @@ describe('HCS6Client', () => {
         execute: jest.fn().mockResolvedValue({
           getReceipt: jest
             .fn()
-            .mockResolvedValue({ topicSequenceNumber: { low: 1 } }),
+            .mockResolvedValue({ topicSequenceNumber: { toNumber: () => 1 } }),
         }),
       };
       (TopicMessageSubmitTransaction as jest.Mock).mockReturnValue(
@@ -328,10 +328,11 @@ describe('HCS6Client', () => {
       };
       const mockMessages = [
         {
+          ...payload,
           sequence_number: 1,
           consensus_timestamp: '1234567890.000000000',
-          payer_account_id: '0.0.12345',
-          message: Buffer.from(JSON.stringify(payload)).toString('base64'),
+          payer: '0.0.12345',
+          created: new Date(1234567890 * 1000),
         },
       ];
 

@@ -1,10 +1,8 @@
 export * from './types';
-export * from './flora-account-manager';
+export * from './tx';
+export * from './sdk';
+export * from './browser';
 
-export { FloraAccountManager as HCS22Client } from './flora-account-manager';
+export * from './base-client';
 
-export type {
-  TransactionTopicConfig,
-  TransactionTopicFee,
-  CreditPurchaseMessage,
-} from './types';
+export type { TransactionTopicConfig, TransactionTopicFee } from './types';

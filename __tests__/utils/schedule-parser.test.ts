@@ -1,8 +1,8 @@
-import { ScheduleParser } from '../parsers/schedule-parser';
+import { ScheduleParser } from '../../src/utils/parsers/schedule-parser';
 import { Transaction } from '@hashgraph/sdk';
-import * as parserUtils from '../parsers/parser-utils';
+import * as parserUtils from '../../src/utils/parsers/parser-utils';
 
-jest.mock('../parsers/parser-utils');
+jest.mock('../../src/utils/parsers/parser-utils');
 
 describe('ScheduleParser', () => {
   const mockHasTransactionType =

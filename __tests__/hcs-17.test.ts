@@ -1,25 +1,25 @@
 /**
- * HCS-23 State Hash Calculator Tests
+ * HCS-17 State Hash Calculator Tests
  *
  * Tests for calculating SHA384 state hashes for accounts and composite accounts
  */
 
-import { StateHashCalculator } from '../src/hcs-23/state-hash-calculator';
+import { HCS17BaseClient } from '../src/hcs-17/base-client';
 import {
   AccountStateInput,
   CompositeStateInput,
   TopicState,
   StateHashResult,
   CompositeStateHashResult,
-} from '../src/hcs-23/types';
+} from '../src/hcs-17/types';
 import { PublicKey } from '@hashgraph/sdk';
 
-describe('StateHashCalculator', () => {
-  let calculator: StateHashCalculator;
+describe('HCS17BaseClient calculations', () => {
+  let calculator: HCS17BaseClient;
 
   beforeEach(() => {
     process.env.DISABLE_LOGS = 'true';
-    calculator = new StateHashCalculator();
+    calculator = new HCS17BaseClient({ network: 'testnet' as const, logLevel: 'error' as const });
   });
 
   describe('calculateAccountStateHash', () => {
