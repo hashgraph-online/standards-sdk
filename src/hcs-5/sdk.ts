@@ -6,15 +6,10 @@ import {
   HCS5MintResponse,
   buildHcs1Hrl,
 } from './types';
-import {
-  Client,
-  TokenId,
-  PrivateKey,
-  TokenMintTransaction,
-  AccountId,
-} from '@hashgraph/sdk';
+import { Client, TokenId, PrivateKey, AccountId } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
 import { inscribe } from '../inscribe/inscriber';
+import { buildHcs5MintTx, buildHcs5MintWithHrlTx } from './tx';
 import { NodeOperatorResolver, createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
 
 export class HCS5Client extends HCS5BaseClient {
@@ -51,9 +46,7 @@ export class HCS5Client extends HCS5BaseClient {
       }
 
       const metadata = buildHcs1Hrl(options.metadataTopicId);
-      const tx = new TokenMintTransaction()
-        .setTokenId(TokenId.fromString(options.tokenId))
-        .setMetadata([Buffer.from(metadata)]);
+      const tx = buildHcs5MintTx({ tokenId: options.tokenId, metadata });
       const frozen = await tx.freezeWith(this.client);
 
       if (options.supplyKey) {

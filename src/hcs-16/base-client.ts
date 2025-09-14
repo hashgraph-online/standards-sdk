@@ -81,27 +81,40 @@ export class HCS16BaseClient {
       payer?: string;
     }> = [];
 
-    for (const m of items) {
-      if (m.p !== 'hcs-16') {
+    for (const raw of items) {
+      if (raw.p !== 'hcs-16') {
         continue;
       }
-      if (options?.opFilter && m.op !== options.opFilter) {
+
+      const {
+        consensus_timestamp,
+        sequence_number,
+        running_hash,
+        running_hash_version,
+        topic_id,
+        payer,
+        created,
+        chunk_info,
+        ...payload
+      } = raw as unknown as Record<string, unknown>;
+
+      const op = payload.op as FloraOperation | string | undefined;
+      const operatorId = payload.operator_id as string | undefined;
+
+      if (options?.opFilter && op !== options.opFilter) {
         continue;
       }
-      if (typeof m.operator_id !== 'string') {
+      if (typeof operatorId !== 'string') {
         continue;
       }
-      const envelope: FloraMessage = {
-        p: 'hcs-16',
-        op: m.op as FloraOperation,
-        operator_id: m.operator_id,
-        m: m.m,
-      } as FloraMessage;
+
+      const message = payload as unknown as FloraMessage;
+
       results.push({
-        message: envelope,
-        consensus_timestamp: m.consensus_timestamp,
-        sequence_number: Number(m.sequence_number),
-        payer: m.payer,
+        message,
+        consensus_timestamp: consensus_timestamp as string | undefined,
+        sequence_number: Number(sequence_number),
+        payer: payer as string | undefined,
       });
     }
     return results;

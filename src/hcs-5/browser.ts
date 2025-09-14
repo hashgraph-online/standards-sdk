@@ -2,17 +2,13 @@ import { HCS5BaseClient } from './base-client';
 import { HCS5CreateHashinalOptions, HCS5MintOptions, HCS5MintResponse, buildHcs1Hrl } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
-import {
-  TokenMintTransaction,
-  TokenId,
-  PrivateKey,
-  TransactionReceipt,
-} from '@hashgraph/sdk';
+import { PrivateKey, TransactionReceipt } from '@hashgraph/sdk';
 import {
   inscribeWithSigner,
   type InscriptionInput,
   type InscriptionOptions,
 } from '../inscribe/inscriber';
+import { buildHcs5MintTx } from './tx';
 
 export interface BrowserHCS5ClientConfig {
   network: 'testnet' | 'mainnet';
@@ -64,9 +60,7 @@ export class HCS5BrowserClient extends HCS5BaseClient {
       }
 
       const metadata = buildHcs1Hrl(options.metadataTopicId);
-      const tx = new TokenMintTransaction()
-        .setTokenId(TokenId.fromString(options.tokenId))
-        .setMetadata([Buffer.from(metadata)]);
+      const tx = buildHcs5MintTx({ tokenId: options.tokenId, metadata });
 
       let result: { result?: TransactionReceipt; error?: string };
 
