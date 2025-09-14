@@ -98,6 +98,10 @@ export class HCS6Client extends HCS6BaseClient {
     return this.operatorCtx.keyType;
   }
 
+  public getOperatorKey(): PrivateKey {
+    return this.operatorCtx.operatorKey;
+  }
+
   public async submitMessage(
     topicId: string,
     payload: HCS6Message,

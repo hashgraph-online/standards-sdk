@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.100",
+  "version": "0.1.102",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -65,7 +65,10 @@
     "demo:hcs-6:create-registry": "tsx demo/hcs-6/create-registry.ts",
     "demo:hcs-6:query-registry": "tsx demo/hcs-6/query-registry.ts",
     "demo:hcs-6:mint": "tsx demo/hcs-6/mint-hashinal.ts",
+    "demo:hcs-17": "tsx demo/hcs-17/state-hash-demo.ts",
+    "demo:hcs-15": "tsx demo/hcs-15/petal-accounts-demo.ts",
     "demo:hcs-10:create-registry": "tsx demo/hcs-10/create-registry.ts",
+    "demo:hcs-16:create-flora": "tsx demo/hcs-16/create-flora-demo.ts",
     "demo:hcs-11:profile": "tsx demo/hcs-11/inscribe-profile-with-uaid.ts",
     "demo:hcs-11:resolve-uaid": "tsx demo/hcs-11/resolve-profile-uaid.ts",
     "demo:hcs-20:deploy-and-mint": "tsx demo/hcs-20/deploy-and-mint.ts",
@@ -75,6 +78,8 @@
     "demo:hcs-5": "tsx demo/hcs-5/mint-hashinal.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest",
+    "test:unit-list": "jest --listTests --testPathPattern __tests__/utils/ --testPathPattern __tests__/services/ --testPathPattern __tests__/content-store/ --testPathPattern __tests__/fees/ --testPathPattern __tests__/common/tx/",
+    "test:unit-fast": "jest --coverage --runInBand --detectOpenHandles --testPathPattern __tests__/utils/ --testPathPattern __tests__/services/ --testPathPattern __tests__/content-store/ --testPathPattern __tests__/fees/ --testPathPattern __tests__/common/tx/",
     "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
     "lint:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
     "format": "npm run lint:fix",

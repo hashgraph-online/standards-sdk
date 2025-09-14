@@ -39,11 +39,59 @@ describe('HederaMirrorNode', () => {
 
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
-    // Make retries fast to avoid Jest timeouts in failure scenarios
     mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
 
     axiosGet = axios.get as jest.MockedFunction<typeof axios.get>;
     axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
+  });
+
+  describe('additional endpoints and filters', () => {
+    test('accounts memo and airdrops endpoints', async () => {
+      axiosGet.mockResolvedValueOnce({ data: { memo: 'hi' } });
+      await expect(mirrorNode.getAccountMemo('0.0.10')).resolves.toBe('hi');
+
+      axiosGet.mockResolvedValueOnce({ data: { airdrops: [{ id: 1 }] } });
+      const out = await mirrorNode.getOutstandingTokenAirdrops('0.0.1', { limit: 2, order: 'desc', receiverId: '0.0.2', serialNumber: '3', tokenId: '0.0.4' });
+      expect(out?.length).toBe(1);
+    });
+
+    test('blocks and contracts endpoints', async () => {
+      axiosGet.mockResolvedValueOnce({ data: { blocks: [{ number: 1 }] } });
+      const blocks = await mirrorNode.getBlocks({ limit: 1, order: 'asc', timestamp: 'gte:1', blockNumber: '5' });
+      expect(blocks?.length).toBe(1);
+
+      axiosGet.mockResolvedValueOnce({ data: { id: 'c1' } });
+      const c = await mirrorNode.getContract('0.0.5', '1.0');
+      expect(c?.id).toBe('c1');
+    });
+
+    test('contract results/state/logs/actions', async () => {
+      axiosGet.mockResolvedValueOnce({ data: { results: [{ r: 1 }] } });
+      const rs = await mirrorNode.getContractResults({ limit: 1 });
+      expect(rs?.length).toBe(1);
+
+      axiosGet.mockResolvedValueOnce({ data: { state: [{ key: '0x00', value: '0x01' }] } });
+      const st = await mirrorNode.getContractState('0.0.5', { limit: 1 });
+      expect(st?.length).toBe(1);
+
+      axiosGet.mockResolvedValueOnce({ data: { logs: [{ data: '0x' }] } });
+      const logs = await mirrorNode.getContractLogs({ limit: 1 });
+      expect(logs?.length).toBe(1);
+
+      axiosGet.mockResolvedValueOnce({ data: { actions: [{ t: 'CALL' }] } });
+      const acts = await mirrorNode.getContractActions('0xhash', { limit: 1 });
+      expect(acts?.length).toBe(1);
+    });
+
+    test('nft endpoints and network info', async () => {
+      axiosGet.mockResolvedValueOnce({ data: { nfts: [{ token_id: '0.0.9', serial_number: 1, metadata: Buffer.from('ipfs://x').toString('base64') }], links: { next: null } } });
+      const nfts = await mirrorNode.getAccountNfts('0.0.1', '0.0.9');
+      expect(nfts?.[0].token_uri).toContain('ipfs://');
+
+      axiosGet.mockResolvedValueOnce({ data: { nodes: [] } });
+      const info = await mirrorNode.getNetworkInfo();
+      expect(info).toEqual({ nodes: [] });
+    });
   });
 
   describe('constructor', () => {
@@ -199,7 +247,13 @@ describe('HederaMirrorNode', () => {
         'https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.12345/messages',
         expect.any(Object),
       );
-      expect(result).toEqual([]);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(2);
+      expect(result[0]).toMatchObject({
+        p: 'hcs-20',
+        op: 'register',
+        sequence_number: '1',
+      });
     });
 
     test('applies query parameters correctly', async () => {
