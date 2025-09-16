@@ -25,6 +25,6 @@ describe('HCS-18 tx builders', () => {
     } as any);
     const inst = (TopicMessageSubmitTransaction as unknown as jest.Mock).mock
       .results[0].value;
-    expect(inst.setTransactionMemo).toHaveBeenCalledWith('');
+    expect(inst.setTransactionMemo).toHaveBeenCalledWith('hcs-18:op:0');
   });
 });

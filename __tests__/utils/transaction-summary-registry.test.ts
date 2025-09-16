@@ -121,7 +121,6 @@ describe('Transaction Summary Registry', () => {
   });
 });
 
-// Extended coverage for Transaction Summary Registry
 describe('Transaction Summary Registry – extended coverage', () => {
   const base: Partial<import('../../src/utils/transaction-parser-types').ParsedTransaction> = {
     humanReadableType: 'Unknown Transaction',

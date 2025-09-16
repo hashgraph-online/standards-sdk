@@ -1,4 +1,4 @@
-import { buildHcs16FloraCreatedTx, buildHcs16TxProposalTx, buildHcs16StateUpdateTx, buildHcs16FloraJoinRequestTx, buildHcs16FloraJoinVoteTx, buildHcs16FloraJoinAcceptedTx } from '../src/hcs-16/tx';
+import { buildHcs16FloraCreatedTx, buildHcs16TransactionTx, buildHcs16StateUpdateTx, buildHcs16FloraJoinRequestTx, buildHcs16FloraJoinVoteTx, buildHcs16FloraJoinAcceptedTx } from '../src/hcs-16/tx';
 
 jest.mock('@hashgraph/sdk', () => ({
   TopicMessageSubmitTransaction: class {
@@ -17,6 +17,7 @@ jest.mock('@hashgraph/sdk', () => ({
     setAutoRenewAccountId() { return this; }
   },
   AccountCreateTransaction: class {},
+  TopicId: { fromString: (s: string) => ({ toString: () => s }) },
 }));
 
 describe('HCS-16 tx builders', () => {
@@ -38,20 +39,20 @@ describe('HCS-16 tx builders', () => {
     expect(tx._topicId.toString()).toBe('0.0.1');
   });
 
-  it('builds tx_proposal payload', () => {
-    const tx: any = buildHcs16TxProposalTx({
+  it('builds transaction payload', () => {
+    const tx: any = buildHcs16TransactionTx({
       topicId: '0.0.tx',
       operatorId: '0.0.op@0.0.flora',
-      scheduledTxId: '0.0.sch',
-      description: 'desc',
+      scheduleId: '0.0.sch',
+      data: 'desc',
     });
     const parsed = JSON.parse(tx._message);
     expect(parsed).toMatchObject({
       p: 'hcs-16',
-      op: 'tx_proposal',
+      op: 'transaction',
       operator_id: '0.0.op@0.0.flora',
-      scheduled_tx_id: '0.0.sch',
-      description: 'desc',
+      schedule_id: '0.0.sch',
+      data: 'desc',
       m: 'desc',
     });
   });
@@ -68,9 +69,9 @@ describe('HCS-16 tx builders', () => {
       p: 'hcs-16',
       op: 'state_update',
       operator_id: '0.0.op@0.0.flora',
-      hash: '0xabc',
       epoch: 42,
     });
+    expect(parsed.hash).toBe('0xabc');
     expect(typeof parsed.timestamp).toBe('string');
   });
 

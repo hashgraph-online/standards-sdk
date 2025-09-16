@@ -44,13 +44,16 @@ export class Logger implements ILogger {
     }
 
     const globalDisable = process.env.DISABLE_LOGS === 'true';
+    const isTestEnv =
+      process.env.JEST_WORKER_ID !== undefined ||
+      process.env.NODE_ENV === 'test';
 
     const shouldSilence = options.silent || globalDisable;
     const level = shouldSilence ? 'silent' : options.level || 'info';
     this.moduleContext = options.module || 'app';
 
     const shouldEnablePrettyPrint =
-      !shouldSilence && options.prettyPrint !== false;
+      !shouldSilence && options.prettyPrint !== false && !isTestEnv;
     const pinoOptions: pino.LoggerOptions = {
       level,
       enabled: !shouldSilence,
@@ -66,7 +69,10 @@ export class Logger implements ILogger {
         : undefined,
     };
 
-    this.logger = pino(pinoOptions);
+    // In test environments, use a synchronous destination to avoid worker threads
+    // that keep Jest open (thread-stream). This prevents open handle warnings.
+    const destination = isTestEnv ? pino.destination({ sync: true }) : undefined;
+    this.logger = pino(pinoOptions, destination as any);
   }
 
   static getInstance(options: LoggerOptions = {}): ILogger {

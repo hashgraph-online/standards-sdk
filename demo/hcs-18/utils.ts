@@ -185,13 +185,11 @@ export async function getOrCreatePetal(
     .setInboundTopicType(InboundTopicType.PUBLIC)
     .setCapabilities([AIAgentCapability.TEXT_GENERATION]);
 
-  // Create the Petal account using HCS-15
   const petalRes = await hcs15.createPetalAccount({
     basePrivateKey: baseAccount.privateKeyHex,
     initialBalance: 0.5,
   });
 
-  // Create HCS-11 Agent profile using base account as operator
   const hcs10Client = new HCS10Client({
     network,
     operatorId: baseAccount.accountId.toString(),

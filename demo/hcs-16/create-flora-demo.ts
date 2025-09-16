@@ -15,13 +15,11 @@ async function main() {
 
   const client = new HCS16Client({ network, operatorId, operatorKey });
 
-  // Generate a simple 2-of-3 threshold key for the Flora account
   const k1 = PrivateKey.generateECDSA();
   const k2 = PrivateKey.generateECDSA();
   const k3 = PrivateKey.generateECDSA();
   const keyList = new KeyList([k1.publicKey, k2.publicKey, k3.publicKey], 2);
 
-  // Create the Flora account
   const payerClient = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
   payerClient.setOperator(operatorId, operatorKey);
   const { buildHcs16CreateAccountTx } = await import('../../src/hcs-16/tx');
@@ -34,13 +32,11 @@ async function main() {
   const floraAccountId = accountReceipt.accountId.toString();
   console.log('Flora account created:', floraAccountId);
 
-  // Create Flora topics: communication, transaction, state
   const comm = await client.createFloraTopic({ floraAccountId, topicType: FloraTopicType.COMMUNICATION });
   const tx = await client.createFloraTopic({ floraAccountId, topicType: FloraTopicType.TRANSACTION });
   const state = await client.createFloraTopic({ floraAccountId, topicType: FloraTopicType.STATE });
   console.log('Flora topics:', { communication: comm, transaction: tx, state });
 
-  // Publish flora_created to the communication topic
   const receipt = await client.sendFloraCreated({
     topicId: comm,
     operatorId: `${operatorId}@${floraAccountId}`,

@@ -1,26 +1,41 @@
 import { describe, it, expect, jest } from '@jest/globals';
 
-jest.mock('../../src/hcs-15/tx', () => {
+jest.mock('@hashgraph/sdk', () => {
+  class AccountCreateTransaction {
+    private _isBase = false;
+    setECDSAKeyWithAlias() { this._isBase = true; return this; }
+    setKeyWithoutAlias() { this._isBase = false; return this; }
+    setInitialBalance() { return this; }
+    setMaxAutomaticTokenAssociations() { return this; }
+    setAccountMemo() { return this; }
+    async freezeWithSigner() {
+      const id = this._isBase ? '0.0.7100001' : '0.0.7100002';
+      return {
+        executeWithSigner: async () => ({
+          getReceiptWithSigner: async () => ({ accountId: { toString: () => id } }),
+        }),
+      } as any;
+    }
+  }
   return {
-    buildHcs15BaseAccountCreateTx: jest.fn(() => ({
-      freezeWithSigner: async () => ({
-        executeWithSigner: async () => ({
-          getReceiptWithSigner: async () => ({ accountId: { toString: () => '0.0.7100001' } }),
-        }),
-      }),
-    })),
-    buildHcs15PetalAccountCreateTx: jest.fn(() => ({
-      freezeWithSigner: async () => ({
-        executeWithSigner: async () => ({
-          getReceiptWithSigner: async () => ({ accountId: { toString: () => '0.0.7100002' } }),
-        }),
-      }),
-    })),
+    AccountCreateTransaction,
+    PrivateKey: {
+      generateECDSA: jest.fn(() => ({
+        toString: () => 'priv-hex-abcdef1234',
+        toStringRaw: () => 'priv-raw',
+        publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub-abcdef1234' },
+      })),
+      fromStringECDSA: jest.fn((s: string) => ({
+        toString: () => s,
+        publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub-abcdef1234' },
+      })),
+    },
+    Hbar: jest.fn((v: any) => v),
   };
 });
 
-import { PrivateKey } from '@hashgraph/sdk';
-import { HCS15BrowserClient } from '../../src/hcs-15';
+const { PrivateKey } = require('@hashgraph/sdk');
+const { HCS15BrowserClient } = require('../../src/hcs-15');
 
 class FakeSigner {}
 

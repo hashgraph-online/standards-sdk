@@ -1,7 +1,10 @@
 import {
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
+  TopicUpdateTransaction,
   AccountCreateTransaction,
+  AccountUpdateTransaction,
+  ScheduleCreateTransaction,
   Hbar,
   PublicKey,
   KeyList,
@@ -90,7 +93,7 @@ export function buildHcs16CreateTransactionTopicTx(params: {
     tx.setCustomFees(fees);
   }
   if (params.feeExemptKeys && params.feeExemptKeys.length > 0) {
-    (tx as any).setFeeExemptKeyList(params.feeExemptKeys);
+    throw new Error('feeExemptKeys not supported by installed @hashgraph/sdk');
   }
   return tx;
 }
@@ -118,19 +121,59 @@ export function buildHcs16CreateAccountTx(params: {
 }
 
 /**
+ * Build a ScheduleCreateTransaction that wraps an AccountUpdateTransaction to rotate the Flora account KeyList.
+ * Members will sign this scheduled transaction until threshold is reached and it executes.
+ */
+export function buildHcs16ScheduleAccountKeyUpdateTx(params: {
+  floraAccountId: string;
+  newKeyList: KeyList;
+  memo?: string;
+}): ScheduleCreateTransaction {
+  const inner = new AccountUpdateTransaction()
+    .setAccountId(AccountId.fromString(params.floraAccountId))
+    .setKey(params.newKeyList);
+  if (params.memo) {
+    inner.setTransactionMemo(params.memo);
+  }
+  return new ScheduleCreateTransaction().setScheduledTransaction(inner);
+}
+
+/**
+ * Build a ScheduleCreateTransaction that wraps a TopicUpdateTransaction to rotate topic admin/submit keys.
+ * Repeat for CTopic, TTopic, and STopic as needed for membership changes.
+ */
+export function buildHcs16ScheduleTopicKeyUpdateTx(params: {
+  topicId: string;
+  adminKey?: KeyList | PublicKey;
+  submitKey?: KeyList | PublicKey;
+  memo?: string;
+}): ScheduleCreateTransaction {
+  const inner = new TopicUpdateTransaction().setTopicId(params.topicId);
+  if (params.adminKey) {
+    inner.setAdminKey(params.adminKey);
+  }
+  if (params.submitKey) {
+    inner.setSubmitKey(params.submitKey);
+  }
+  if (params.memo) {
+    inner.setTransactionMemo(params.memo);
+  }
+  return new ScheduleCreateTransaction().setScheduledTransaction(inner);
+}
+
+/**
  * Build a TopicMessageSubmitTransaction for generic HCS‑16 messages.
  * Body fields are merged into the envelope `{ p: 'hcs-16', op, operator_id }`.
  */
 export function buildHcs16MessageTx(params: {
   topicId: string;
   operatorId: string;
-  op: FloraOperation | string;
+  op: FloraOperation;
   body?: Record<string, unknown>;
-  analyticsMemo?: string;
 }): TopicMessageSubmitTransaction {
   const payload: FloraMessage = {
     p: 'hcs-16',
-    op: params.op as FloraOperation,
+    op: params.op,
     operator_id: params.operatorId,
     ...(params.body || {}),
   } as FloraMessage;
@@ -138,7 +181,6 @@ export function buildHcs16MessageTx(params: {
   return buildMessageTx({
     topicId: params.topicId,
     message: JSON.stringify(payload),
-    transactionMemo: params.analyticsMemo,
   });
 }
 
@@ -150,7 +192,6 @@ export function buildHcs16FloraCreatedTx(params: {
   operatorId: string;
   floraAccountId: string;
   topics: { communication: string; transaction: string; state: string };
-  analyticsMemo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
@@ -160,32 +201,31 @@ export function buildHcs16FloraCreatedTx(params: {
       flora_account_id: params.floraAccountId,
       topics: params.topics,
     },
-    analyticsMemo: params.analyticsMemo,
   });
 }
 
 /**
- * Build HCS‑16 tx_proposal message.
+ * Build HCS‑16 transaction message.
  */
-export function buildHcs16TxProposalTx(params: {
+export function buildHcs16TransactionTx(params: {
   topicId: string;
   operatorId: string;
-  scheduledTxId: string;
-  description?: string;
-  analyticsMemo?: string;
+  scheduleId: string;
+  data?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
     operatorId: params.operatorId,
-    op: FloraOperation.TX_PROPOSAL,
+    op: FloraOperation.TRANSACTION,
     body: {
-      scheduled_tx_id: params.scheduledTxId,
-      description: params.description,
-      m: params.description,
+      schedule_id: params.scheduleId,
+      data: params.data,
+      m: params.data,
     },
-    analyticsMemo: params.analyticsMemo,
   });
 }
+
+ 
 
 /**
  * Build HCS‑16 state_update message.
@@ -195,7 +235,6 @@ export function buildHcs16StateUpdateTx(params: {
   operatorId: string;
   hash: string;
   epoch?: number;
-  analyticsMemo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
@@ -206,52 +245,6 @@ export function buildHcs16StateUpdateTx(params: {
       epoch: params.epoch,
       timestamp: new Date().toISOString(),
     },
-    analyticsMemo: params.analyticsMemo,
-  });
-}
-
-/**
- * Build HCS‑16 credit_purchase message.
- */
-/** credit_purchase is not part of HCS-16 specification; intentionally omitted. */
-
-/**
- * Build HCS‑16 flora_create_request message.
- */
-export function buildHcs16FloraCreateRequestTx(params: {
-  topicId: string;
-  operatorId: string;
-  members: string[];
-  threshold: number;
-  seedHbar?: number;
-  analyticsMemo?: string;
-}): TopicMessageSubmitTransaction {
-  return buildHcs16MessageTx({
-    topicId: params.topicId,
-    operatorId: params.operatorId,
-    op: FloraOperation.FLORA_CREATE_REQUEST,
-    body: {
-      members: params.members,
-      threshold: params.threshold,
-      seed_hbar: params.seedHbar,
-    },
-    analyticsMemo: params.analyticsMemo,
-  });
-}
-
-/**
- * Build HCS‑16 flora_create_accepted message.
- */
-export function buildHcs16FloraCreateAcceptedTx(params: {
-  topicId: string;
-  operatorId: string;
-  analyticsMemo?: string;
-}): TopicMessageSubmitTransaction {
-  return buildHcs16MessageTx({
-    topicId: params.topicId,
-    operatorId: params.operatorId,
-    op: FloraOperation.FLORA_CREATE_ACCEPTED,
-    analyticsMemo: params.analyticsMemo,
   });
 }
 
@@ -262,7 +255,6 @@ export function buildHcs16FloraJoinRequestTx(params: {
   topicId: string;
   operatorId: string;
   candidateAccountId: string;
-  analyticsMemo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
@@ -271,7 +263,6 @@ export function buildHcs16FloraJoinRequestTx(params: {
     body: {
       candidate_account_id: params.candidateAccountId,
     },
-    analyticsMemo: params.analyticsMemo,
   });
 }
 
@@ -283,7 +274,6 @@ export function buildHcs16FloraJoinVoteTx(params: {
   operatorId: string;
   candidateAccountId: string;
   approve: boolean;
-  analyticsMemo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
@@ -293,7 +283,6 @@ export function buildHcs16FloraJoinVoteTx(params: {
       candidate_account_id: params.candidateAccountId,
       approve: params.approve,
     },
-    analyticsMemo: params.analyticsMemo,
   });
 }
 
@@ -305,7 +294,6 @@ export function buildHcs16FloraJoinAcceptedTx(params: {
   operatorId: string;
   members: string[];
   epoch?: number;
-  analyticsMemo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
@@ -315,6 +303,5 @@ export function buildHcs16FloraJoinAcceptedTx(params: {
       members: params.members,
       epoch: params.epoch,
     },
-    analyticsMemo: params.analyticsMemo,
   });
 }

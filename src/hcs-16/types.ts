@@ -77,10 +77,8 @@ export interface FloraCreationResult {
  * HCS-16 Message protocol operations
  */
 export enum FloraOperation {
-  FLORA_CREATE_REQUEST = 'flora_create_request',
-  FLORA_CREATE_ACCEPTED = 'flora_create_accepted',
   FLORA_CREATED = 'flora_created',
-  TX_PROPOSAL = 'tx_proposal',
+  TRANSACTION = 'transaction',
   STATE_UPDATE = 'state_update',
   FLORA_JOIN_REQUEST = 'flora_join_request',
   FLORA_JOIN_VOTE = 'flora_join_vote',

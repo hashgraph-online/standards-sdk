@@ -1,14 +1,10 @@
 import type { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import type { PublicKey, KeyList } from '@hashgraph/sdk';
-import {
-  buildHcs16CreateFloraTopicTx,
-  buildHcs16FloraCreatedTx,
-  buildHcs16TxProposalTx,
-  buildHcs16StateUpdateTx,
-} from './tx';
+import { ScheduleSignTransaction } from '@hashgraph/sdk';
+import { buildHcs16CreateFloraTopicTx, buildHcs16FloraCreatedTx, buildHcs16TransactionTx, buildHcs16StateUpdateTx, buildHcs16FloraJoinRequestTx, buildHcs16FloraJoinVoteTx, buildHcs16FloraJoinAcceptedTx, buildHcs16CreateAccountTx } from './tx';
 import { FloraTopicType } from './types';
-import { HCS17BaseClient } from '../hcs-17/base-client';
+import { HCS16BaseClient } from './base-client';
 
 export interface HCS16BrowserClientConfig {
   network: 'testnet' | 'mainnet';
@@ -19,7 +15,7 @@ export interface HCS16BrowserClientConfig {
 /**
  * Browser client for HCS‑16 operations using a DAppSigner.
  */
-export class HCS16BrowserClient extends HCS17BaseClient {
+export class HCS16BrowserClient extends HCS16BaseClient {
   private readonly hwc?: HashinalsWalletConnectSDK;
   private readonly signer?: DAppSigner;
 
@@ -88,16 +84,25 @@ export class HCS16BrowserClient extends HCS17BaseClient {
     await frozen.executeWithSigner(signer);
   }
 
-  async sendTxProposal(params: {
+  async sendTransaction(params: {
     topicId: string;
     operatorId: string;
-    scheduledTxId: string;
-    description?: string;
+    scheduleId: string;
+    data?: string;
   }): Promise<void> {
     const signer = this.getSigner();
-    const tx = buildHcs16TxProposalTx(params);
+    const tx = buildHcs16TransactionTx(params);
     const frozen = await tx.freezeWithSigner(signer);
     await frozen.executeWithSigner(signer);
+  }
+
+  /**
+   * Wallet-signed ScheduleSign for a given scheduleId.
+   */
+  async signSchedule(params: { scheduleId: string }): Promise<void> {
+    const signer = this.getSigner();
+    const tx = await new ScheduleSignTransaction().setScheduleId(params.scheduleId).freezeWithSigner(signer);
+    await tx.executeWithSigner(signer);
   }
 
   async sendStateUpdate(params: {
@@ -113,4 +118,123 @@ export class HCS16BrowserClient extends HCS17BaseClient {
   }
 
   /** credit_purchase is not part of HCS-16 specification */
+
+  
+
+  /**
+   * Create Flora account and C/T/S topics using DAppSigner.
+   * - Account KeyList = threshold of members
+   * - Topic submitKey = 1-of-M KeyList of members
+   * Returns created Flora account ID and topic IDs.
+   */
+  async createFloraAccountWithTopics(params: {
+    members: string[];
+    threshold: number;
+    initialBalanceHbar?: number;
+    autoRenewAccountId?: string;
+  }): Promise<{
+    floraAccountId: string;
+    topics: { communication: string; transaction: string; state: string };
+  }> {
+    const signer = this.getSigner();
+    const keyList = await this.assembleKeyList({ members: params.members, threshold: params.threshold });
+    const submitList = await this.assembleSubmitKeyList(params.members);
+
+    const createAcc = buildHcs16CreateAccountTx({
+      keyList,
+      initialBalanceHbar: typeof params.initialBalanceHbar === 'number' ? params.initialBalanceHbar : 5,
+      maxAutomaticTokenAssociations: -1,
+    });
+    const accFrozen = await createAcc.freezeWithSigner(signer);
+    const accExec = await accFrozen.executeWithSigner(signer);
+    const accReceipt = await accExec.getReceiptWithSigner(signer);
+    const floraAccountId = accReceipt?.accountId?.toString?.();
+    if (!floraAccountId) {
+      throw new Error('Failed to create Flora account');
+    }
+
+    const { communication: commTx, transaction: trnTx, state: stateTx } = this.buildFloraTopicCreateTxs({
+      floraAccountId,
+      keyList,
+      submitList,
+      autoRenewAccountId: params.autoRenewAccountId,
+    });
+
+    const commR = await (await (await commTx.freezeWithSigner(signer)).executeWithSigner(signer)).getReceiptWithSigner(
+      signer,
+    );
+    const trnR = await (await (await trnTx.freezeWithSigner(signer)).executeWithSigner(signer)).getReceiptWithSigner(
+      signer,
+    );
+    const stateR = await (await (await stateTx.freezeWithSigner(signer)).executeWithSigner(signer)).getReceiptWithSigner(
+      signer,
+    );
+    const topics = {
+      communication: commR?.topicId?.toString?.() || '',
+      transaction: trnR?.topicId?.toString?.() || '',
+      state: stateR?.topicId?.toString?.() || '',
+    };
+    return { floraAccountId, topics };
+  }
+
+  /** Publish flora_created on the communication topic. */
+  async publishFloraCreated(params: {
+    communicationTopicId: string;
+    operatorId: string;
+    floraAccountId: string;
+    topics: { communication: string; transaction: string; state: string };
+  }): Promise<void> {
+    const signer = this.getSigner();
+    const tx = buildHcs16FloraCreatedTx({
+      topicId: params.communicationTopicId,
+      operatorId: params.operatorId,
+      floraAccountId: params.floraAccountId,
+      topics: params.topics,
+    });
+    const frozen = await tx.freezeWithSigner(signer);
+    await frozen.executeWithSigner(signer);
+  }
+
+  
+
+  /**
+   * Post flora_join_request on Flora communication topic.
+   * If submitKey=1/M, a member must relay the message.
+   */
+  async sendFloraJoinRequest(params: {
+    topicId: string;
+    operatorId: string;
+    candidateAccountId: string;
+  }): Promise<void> {
+    const signer = this.getSigner();
+    const tx = buildHcs16FloraJoinRequestTx(params);
+    const frozen = await tx.freezeWithSigner(signer);
+    await frozen.executeWithSigner(signer);
+  }
+
+  /** Post flora_join_vote approval/rejection on the communication topic. */
+  async sendFloraJoinVote(params: {
+    topicId: string;
+    operatorId: string;
+    candidateAccountId: string;
+    approve: boolean;
+  }): Promise<void> {
+    const signer = this.getSigner();
+    const tx = buildHcs16FloraJoinVoteTx(params);
+    const frozen = await tx.freezeWithSigner(signer);
+    await frozen.executeWithSigner(signer);
+  }
+
+  /** Post flora_join_accepted after threshold approval. */
+  async sendFloraJoinAccepted(params: {
+    topicId: string;
+    operatorId: string;
+    members: string[];
+    epoch?: number;
+  }): Promise<void> {
+    const signer = this.getSigner();
+    const tx = buildHcs16FloraJoinAcceptedTx(params);
+    const frozen = await tx.freezeWithSigner(signer);
+    await frozen.executeWithSigner(signer);
+  }
 }

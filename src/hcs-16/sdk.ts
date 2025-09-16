@@ -4,6 +4,9 @@ import {
   PublicKey,
   KeyList,
   TransactionReceipt,
+  Hbar,
+  ScheduleSignTransaction,
+  PrivateKey,
 } from '@hashgraph/sdk';
 import type { NetworkType } from '../utils/types';
 import type { Logger } from '../utils/logger';
@@ -13,13 +16,9 @@ import {
 } from '../common/node-operator-resolver';
 import { HederaMirrorNode } from '../services/mirror-node';
 import { HCS16BaseClient } from './base-client';
-import {
-  buildHcs16CreateFloraTopicTx,
-  buildHcs16FloraCreatedTx,
-  buildHcs16TxProposalTx,
-  buildHcs16StateUpdateTx,
-} from './tx';
+import { buildHcs16CreateFloraTopicTx, buildHcs16FloraCreatedTx, buildHcs16TransactionTx, buildHcs16StateUpdateTx } from './tx';
 import { FloraTopicType } from './types';
+import { buildHcs16FloraJoinRequestTx, buildHcs16FloraJoinVoteTx, buildHcs16FloraJoinAcceptedTx, buildHcs16CreateAccountTx } from './tx';
 
 export interface HCS16ClientConfig {
   network: NetworkType;
@@ -93,14 +92,28 @@ export class HCS16Client extends HCS16BaseClient {
     return resp.getReceipt(this.client);
   }
 
-  async sendTxProposal(params: {
+  /**
+   * Send HCS-16 transaction (preferred). scheduleId is the ScheduleId entity (e.g., 0.0.12345).
+   */
+  async sendTransaction(params: {
     topicId: string;
     operatorId: string;
-    scheduledTxId: string;
-    description?: string;
+    scheduleId: string;
+    data?: string;
   }): Promise<TransactionReceipt> {
-    const tx = buildHcs16TxProposalTx(params);
+    const tx = buildHcs16TransactionTx(params);
     const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  /**
+   * Sign a scheduled transaction by ScheduleId entity using provided signer key (PrivateKey).
+   * The signer must be a valid member key for the scheduled transaction to count toward threshold.
+   */
+  async signSchedule(params: { scheduleId: string; signerKey: PrivateKey }): Promise<TransactionReceipt> {
+    const tx = await new ScheduleSignTransaction().setScheduleId(params.scheduleId).freezeWith(this.client);
+    const signed = await tx.sign(params.signerKey);
+    const resp = await signed.execute(this.client);
     return resp.getReceipt(this.client);
   }
 
@@ -114,4 +127,97 @@ export class HCS16Client extends HCS16BaseClient {
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
   }
+
+  /**
+   * Resolve member public keys from Mirror Node and build a KeyList with the given threshold.
+   */
+  async assembleKeyList(params: {
+    members: string[];
+    threshold: number;
+  }): Promise<KeyList> {
+    return super.assembleKeyList(params);
+  }
+
+  /**
+   * Create a Flora account with a threshold KeyList, then create the three Flora topics.
+   * Returns the Flora account ID and the topic IDs.
+   */
+  async createFloraAccountWithTopics(params: {
+    members: string[];
+    threshold: number;
+    initialBalanceHbar?: number;
+    autoRenewAccountId?: string;
+  }): Promise<{
+    floraAccountId: string;
+    topics: { communication: string; transaction: string; state: string };
+  }> {
+    const keyList = await this.assembleKeyList({
+      members: params.members,
+      threshold: params.threshold,
+    });
+    const submitList = await this.assembleSubmitKeyList(params.members);
+
+    const createAcc = buildHcs16CreateAccountTx({
+      keyList,
+      initialBalanceHbar:
+        typeof params.initialBalanceHbar === 'number'
+          ? params.initialBalanceHbar
+          : 5,
+      maxAutomaticTokenAssociations: -1,
+    });
+    const accResp = await createAcc.execute(this.client);
+    const accReceipt = await accResp.getReceipt(this.client);
+    if (!accReceipt.accountId) {
+      throw new Error('Failed to create Flora account');
+    }
+    const floraAccountId = accReceipt.accountId.toString();
+
+    const {
+      communication: commTx,
+      transaction: trnTx,
+      state: stateTx,
+    } = this.buildFloraTopicCreateTxs({
+      floraAccountId,
+      keyList,
+      submitList,
+      autoRenewAccountId: params.autoRenewAccountId,
+    });
+
+    const commR = await commTx
+      .execute(this.client)
+      .then(r => r.getReceipt(this.client));
+    const trnR = await trnTx
+      .execute(this.client)
+      .then(r => r.getReceipt(this.client));
+    const stateR = await stateTx
+      .execute(this.client)
+      .then(r => r.getReceipt(this.client));
+    const topics = {
+      communication: commR.topicId!.toString(),
+      transaction: trnR.topicId!.toString(),
+      state: stateR.topicId!.toString(),
+    };
+    return { floraAccountId, topics };
+  }
+
+  /**
+   * Convenience: publish flora_created on the communication topic.
+   */
+  async publishFloraCreated(params: {
+    communicationTopicId: string;
+    operatorId: string;
+    floraAccountId: string;
+    topics: { communication: string; transaction: string; state: string };
+  }): Promise<TransactionReceipt> {
+    const tx = buildHcs16FloraCreatedTx({
+      topicId: params.communicationTopicId,
+      operatorId: params.operatorId,
+      floraAccountId: params.floraAccountId,
+      topics: params.topics,
+    });
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  
 }
