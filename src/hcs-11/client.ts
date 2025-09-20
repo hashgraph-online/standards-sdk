@@ -13,7 +13,7 @@ import {
   InscriptionOptions,
   InscriptionResult,
 } from '../inscribe';
-import { Logger, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
+import { Logger, ILogger, getTopicId } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
@@ -21,6 +21,11 @@ import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';
 import { isHederaNetwork, toHederaCaip10 } from '../hcs-14/caip';
 import { TopicInfo } from '../services/types';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
+import { NetworkType } from '../utils/types';
 import {
   ProfileType,
   AIAgentType,
@@ -167,6 +172,7 @@ export class HCS11Client {
   private mirrorNode: HederaMirrorNode;
   private keyType: 'ed25519' | 'ecdsa';
   private operatorId: string;
+  private operatorCtx?: NodeOperatorContext;
 
   constructor(config: HCS11ClientConfig) {
     this.client =
@@ -187,28 +193,21 @@ export class HCS11Client {
     );
 
     if (this.auth.privateKey) {
-      if (config.keyType) {
-        this.keyType = config.keyType;
-        this.initializeOperatorWithKeyType();
-      } else {
-        try {
-          const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
-          this.keyType = keyDetection.detectedType;
-
-          if (keyDetection.warning) {
-            this.logger.warn(keyDetection.warning);
-          }
-
-          this.client.setOperator(this.operatorId, keyDetection.privateKey);
-        } catch (error) {
-          this.logger.warn(
-            'Failed to detect key type from private key format, will query mirror node',
-          );
-          this.keyType = 'ecdsa';
-        }
-
-        this.initializeOperator();
-      }
+      this.operatorCtx = createNodeOperatorContext({
+        network: this.network as NetworkType,
+        operatorId: this.operatorId,
+        operatorKey: this.auth.privateKey,
+        keyType: config.keyType,
+        mirrorNode: this.mirrorNode,
+        logger: this.logger,
+        client: this.client,
+      });
+      this.client = this.operatorCtx.client;
+      this.keyType = this.operatorCtx.keyType;
+      void this.operatorCtx.ensureInitialized();
+      this.client.setOperator(this.operatorId, this.operatorCtx.operatorKey);
+    } else {
+      this.keyType = config.keyType || 'ed25519';
     }
   }
 
@@ -221,31 +220,21 @@ export class HCS11Client {
   }
 
   public async initializeOperator() {
-    const account = await this.mirrorNode.requestAccount(this.operatorId);
-    const keyType = account?.key?._type;
-
-    if (keyType && keyType.includes('ECDSA')) {
-      this.keyType = 'ecdsa';
-    } else if (keyType && keyType.includes('ED25519')) {
-      this.keyType = 'ed25519';
-    } else {
-      this.keyType = 'ecdsa';
-    }
-
-    this.initializeOperatorWithKeyType();
-  }
-
-  private initializeOperatorWithKeyType() {
-    if (!this.auth.privateKey) {
+    if (!this.operatorCtx) {
       return;
     }
 
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.auth.privateKey)
-        : PrivateKey.fromStringED25519(this.auth.privateKey);
-
-    this.client.setOperator(this.operatorId, PK);
+    try {
+      await this.operatorCtx.ensureInitialized();
+      this.keyType = this.operatorCtx.keyType;
+      this.client.setOperator(this.operatorId, this.operatorCtx.operatorKey);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to verify operator key with mirror node: ${
+          (error as Error).message
+        }`,
+      );
+    }
   }
 
   public createPersonalProfile(

@@ -212,6 +212,7 @@ export interface BrowserHCS20ClientConfig extends HCS20ClientConfig {
 export interface SDKHCS20ClientConfig extends HCS20ClientConfig {
   operatorId: string | AccountId;
   operatorKey: string | PrivateKey;
+  keyType?: 'ed25519' | 'ecdsa';
 }
 
 /**
