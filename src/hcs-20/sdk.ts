@@ -36,7 +36,10 @@ import {
   PointsValidationError,
 } from './errors';
 import { sleep } from '../utils/sleep';
-import { NodeOperatorResolver } from '../common/node-operator-resolver';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import { HCS2Client } from '../hcs-2/client';
 
 /**
@@ -44,86 +47,41 @@ import { HCS2Client } from '../hcs-2/client';
  */
 export class HCS20Client extends HCS20BaseClient {
   private client: Client;
-  private operatorId: AccountId;
-  private operatorKey: PrivateKey;
-  /**
-   * Original operator key string, when provided by config. Optional because
-   * callers may pass a parsed PrivateKey instead of a string.
-   */
-  private operatorKeyString?: string;
-  private keyType?: 'ed25519' | 'ecdsa';
-  private initialized = false;
+  private operatorAccountId: AccountId;
+  private operatorId: string;
+  private operatorCtx: NodeOperatorContext;
 
   constructor(config: SDKHCS20ClientConfig) {
     super(config);
 
-    this.operatorId =
+    this.operatorAccountId =
       typeof config.operatorId === 'string'
         ? AccountId.fromString(config.operatorId)
         : config.operatorId;
+    this.operatorId = this.operatorAccountId.toString();
 
-    this.client =
+    const baseClient =
       this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
 
-    const resolver = new NodeOperatorResolver({
+    this.operatorCtx = createNodeOperatorContext({
+      network: this.network,
+      operatorId: this.operatorId,
+      operatorKey: config.operatorKey,
+      keyType: config.keyType,
       mirrorNode: this.mirrorNode,
       logger: this.logger,
+      client: baseClient,
     });
-    if (typeof config.operatorKey !== 'string') {
-      this.operatorKey = config.operatorKey;
-      this.keyType = this.keyType || 'ecdsa';
-      this.client.setOperator(this.operatorId, this.operatorKey);
-    } else {
-      this.operatorKeyString = config.operatorKey;
-      const guess = resolver.bestGuessOperatorKey(config.operatorKey);
-      this.keyType = guess.keyType;
-      this.operatorKey = guess.privateKey;
-      this.client.setOperator(this.operatorId, this.operatorKey);
-    }
-  }
 
-  /**
-   * Initialize operator by querying mirror node for key type
-   */
-  private async initializeOperator(): Promise<void> {
-    if (this.initialized) return;
-
-    try {
-      const resolver = new NodeOperatorResolver({
-        mirrorNode: this.mirrorNode,
-        logger: this.logger,
-      });
-      const resolved = await resolver.resolveOperatorKey(
-        this.operatorId,
-        this.operatorKeyString ?? this.operatorKey,
-        this.keyType,
-      );
-      this.keyType = resolved.keyType;
-      this.operatorKey = resolved.privateKey;
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-
-      this.logger.debug(`Initialized operator with key type: ${this.keyType}`);
-    } catch (error) {
-      this.logger.warn(
-        'Failed to query mirror node for key type, defaulting to existing key (ECDSA if unknown)',
-      );
-      this.keyType = this.keyType || 'ecdsa';
-      if (this.operatorKeyString) {
-        this.operatorKey = PrivateKey.fromStringECDSA(this.operatorKeyString);
-      }
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-    }
+    this.client = this.operatorCtx.client;
+    void this.operatorCtx.ensureInitialized();
   }
 
   /**
    * Ensure operator is initialized before operations
    */
   private async ensureInitialized(): Promise<void> {
-    if (!this.initialized) {
-      await this.initializeOperator();
-    }
+    await this.operatorCtx.ensureInitialized();
   }
 
   /**
@@ -196,13 +154,13 @@ export class HCS20Client extends HCS20BaseClient {
 
     const hcs2Client = new HCS2Client({
       operatorId: this.operatorId,
-      operatorKey: this.operatorKey,
+      operatorKey: this.operatorCtx.operatorKey,
       network: this.network,
     });
 
     const topicCreateResponse = await hcs2Client.createRegistry({
-      submitKey: this.operatorKey,
-      adminKey: this.operatorKey,
+      submitKey: this.operatorCtx.operatorKey,
+      adminKey: this.operatorCtx.operatorKey,
     });
 
     if (!topicCreateResponse.success) {
@@ -234,14 +192,14 @@ export class HCS20Client extends HCS20BaseClient {
 
       const hcs2Client = new HCS2Client({
         operatorId: this.operatorId,
-        operatorKey: this.operatorKey,
+        operatorKey: this.operatorCtx.operatorKey,
         network: this.network,
       });
 
       if (options.usePrivateTopic) {
         const topicCreateResponse = await hcs2Client.createRegistry({
-          submitKey: this.operatorKey,
-          adminKey: this.operatorKey,
+          submitKey: this.operatorCtx.operatorKey,
+          adminKey: this.operatorCtx.operatorKey,
         });
 
         if (!topicCreateResponse.success) {
@@ -310,7 +268,7 @@ export class HCS20Client extends HCS20BaseClient {
         limitPerMint: options.limitPerMint,
         metadata: options.metadata,
         topicId,
-        deployerAccountId: this.operatorId.toString(),
+        deployerAccountId: this.operatorId,
         currentSupply: '0',
         deploymentTimestamp: new Date().toISOString(),
         isPrivate: options.usePrivateTopic || false,
@@ -419,7 +377,7 @@ export class HCS20Client extends HCS20BaseClient {
       const fromAccount = this.accountToString(options.from);
       const toAccount = this.accountToString(options.to);
 
-      if (fromAccount !== this.operatorId.toString()) {
+      if (fromAccount !== this.operatorId) {
         throw new PointsTransferError(
           'For public topics, transaction payer must match sender',
           options.tick,
@@ -505,7 +463,7 @@ export class HCS20Client extends HCS20BaseClient {
       const normalizedTick = this.normalizeTick(options.tick);
       const fromAccount = this.accountToString(options.from);
 
-      if (fromAccount !== this.operatorId.toString()) {
+      if (fromAccount !== this.operatorId) {
         throw new PointsBurnError(
           'For public topics, transaction payer must match burner',
           options.tick,
