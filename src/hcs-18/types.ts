@@ -22,17 +22,17 @@ export enum DiscoveryOperation {
 export interface DiscoveryMessage {
   p: 'hcs-18';
   op: DiscoveryOperation;
-  data: any; // Operation-specific data
+  data: any;
 }
 
 /**
  * Announce operation data
  */
 export interface AnnounceData {
-  account: string; // Account ID of the announcing Petal
+  account: string;
   petal: {
     name: string;
-    priority: number; // 0-1000, higher = preferred for Flora coordination
+    priority: number;
   };
   capabilities: {
     protocols: string[];
@@ -46,17 +46,17 @@ export interface AnnounceData {
       threshold_ratios?: number[];
     };
   };
-  valid_for?: number; // Number of HCS messages this announcement remains valid
+  valid_for?: number;
 }
 
 /**
  * Propose operation data
  */
 export interface ProposeData {
-  proposer: string; // Account ID of the proposing Petal
+  proposer: string;
   members: Array<{
     account: string;
-    announce_seq?: number; // Required for new members
+    announce_seq?: number;
     priority: number;
     status?: 'existing' | 'proposed';
   }>;
@@ -64,27 +64,26 @@ export interface ProposeData {
     name: string;
     threshold: number;
     purpose?: string;
-    reason?: string; // For replacements
+    reason?: string;
   };
-  existing_flora?: string; // For member replacement
+  existing_flora?: string;
 }
 
 /**
  * Respond operation data
  */
 export interface RespondData {
-  responder: string; // Account ID of the responding Petal
+  responder: string;
   proposal_seq: number;
   decision: 'accept' | 'reject';
   reason?: string;
-  accepted_seq?: number; // When rejecting due to conflict
+  accepted_seq?: number;
 }
 
 /**
  * Complete operation data
  */
 export interface CompleteData {
-  proposer: string; // Account ID of the original proposer
   proposal_seq: number;
   flora_account: string;
   topics: {
@@ -92,13 +91,14 @@ export interface CompleteData {
     transaction: string;
     state: string;
   };
+  proposer?: string;
 }
 
 /**
  * Withdraw operation data
  */
 export interface WithdrawData {
-  account: string; // Account ID of the withdrawing Petal
+  account: string;
   announce_seq: number;
   reason?: string;
 }
@@ -418,7 +418,7 @@ export interface DiscoveryConfig {
   };
   autoAcceptFilter?: (proposal: TrackedProposal) => boolean;
   onDiscoveryEvent?: (event: DiscoveryEvent) => void;
-  memberPrivateKeys?: Map<string, string>; // Map of accountId -> privateKey for Flora creation
+  memberPrivateKeys?: Map<string, string>;
 }
 
 /**

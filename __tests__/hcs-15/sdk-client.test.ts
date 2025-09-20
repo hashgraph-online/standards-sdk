@@ -1,39 +1,44 @@
 import { describe, it, expect, jest } from '@jest/globals';
-import { AccountId, PrivateKey } from '@hashgraph/sdk';
 
-jest.mock('../../src/hcs-15/tx', () => {
-  const { AccountId } = require('@hashgraph/sdk');
+jest.mock('@hashgraph/sdk', () => {
+  class AccountCreateTransaction {
+    private _isBase = false;
+    setECDSAKeyWithAlias() { this._isBase = true; return this; }
+    setKeyWithoutAlias() { this._isBase = false; return this; }
+    setInitialBalance() { return this; }
+    setMaxAutomaticTokenAssociations() { return this; }
+    setAccountMemo() { return this; }
+    async execute() {
+      const id = this._isBase ? '0.0.7000001' : '0.0.7000002';
+      return {
+        getReceipt: async () => ({ accountId: { toString: () => id } }),
+      } as any;
+    }
+  }
   return {
-    buildHcs15BaseAccountCreateTx: jest.fn(() => ({
-      execute: async () => ({
-        getReceipt: async () => ({ accountId: AccountId.fromString('0.0.7000001') }),
-      }),
-    })),
-    buildHcs15PetalAccountCreateTx: jest.fn(() => ({
-      execute: async () => ({
-        getReceipt: async () => ({ accountId: AccountId.fromString('0.0.7000002') }),
-      }),
-    })),
+    AccountCreateTransaction,
+    Client: {
+      forTestnet: jest.fn(() => ({ setOperator: jest.fn(), close: jest.fn(), operatorPublicKey: {} })),
+      forMainnet: jest.fn(() => ({ setOperator: jest.fn(), close: jest.fn(), operatorPublicKey: {} })),
+    },
+    AccountId: { fromString: (s: string) => ({ toString: () => s }) },
+    PrivateKey: {
+      generateECDSA: jest.fn(() => ({
+        toString: () => 'priv-hex-abcdef1234',
+        toStringRaw: () => 'priv-raw',
+        publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub-abcdef1234' },
+      })),
+      fromStringECDSA: jest.fn((s: string) => ({
+        toString: () => s,
+        publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub-abcdef1234' },
+      })),
+    },
+    Hbar: jest.fn((v: any) => v),
   };
 });
 
-jest.mock('@hashgraph/sdk', () => ({
-  AccountId: { fromString: (s: string) => ({ toString: () => s }) },
-  PrivateKey: {
-    generateECDSA: jest.fn(() => ({
-      toString: () => 'priv-hex',
-      toStringRaw: () => 'priv-raw',
-      publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub' },
-    })),
-    fromStringECDSA: jest.fn((s: string) => ({
-      toString: () => s,
-      publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub' },
-    })),
-  },
-  Hbar: jest.fn((v: any) => v),
-}));
-
-import { HCS15Client } from '../../src/hcs-15';
+const { PrivateKey } = require('@hashgraph/sdk');
+const { HCS15Client } = require('../../src/hcs-15');
 
 describe('HCS-15 Node SDK client', () => {
   it('createBaseAccount returns account + keys', async () => {

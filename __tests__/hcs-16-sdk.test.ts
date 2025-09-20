@@ -18,6 +18,29 @@ jest.mock('@hashgraph/sdk', () => ({
     setMessage() { return this; }
     async execute() { return { getReceipt: async () => ({ status: 'SUCCESS' }) }; }
   },
+  TopicId: { fromString: (s: string) => ({ toString: () => s }) },
+  ScheduleSignTransaction: class {
+    private _id: string | undefined;
+    setScheduleId(id: string) { this._id = id; return this; }
+    async freezeWith() { return this; }
+    async sign() { return this; }
+    async execute() { return { getReceipt: async () => ({ status: 'SUCCESS', scheduleId: this._id }) }; }
+  },
+}));
+
+jest.mock('../src/services/mirror-node', () => ({
+  HederaMirrorNode: class {
+    constructor() {}
+    async requestAccount() {
+      return { key: { _type: 'ECDSA' } } as any;
+    }
+    async getPublicKey() {
+      return { toString: () => 'pub' } as any;
+    }
+    async getTopicInfo() {
+      return { memo: 'test' } as any;
+    }
+  },
 }));
 
 import { HCS16Client } from '../src/hcs-16/sdk';
@@ -38,12 +61,18 @@ describe('HCS-16 Node client', () => {
     expect(r).toBeDefined();
   });
 
-  it('sends tx_proposal and state_update', async () => {
+  it('sends transaction and state_update', async () => {
     const c = new HCS16Client(cfg);
-    const rp = await c.sendTxProposal({ topicId: '0.0.t', operatorId: 'op@fl', scheduledTxId: '0.0.sch', description: 'desc' });
+    const rp = await c.sendTransaction({ topicId: '0.0.t', operatorId: 'op@fl', scheduleId: '0.0.sch', data: 'desc' });
     const rs = await c.sendStateUpdate({ topicId: '0.0.s', operatorId: 'op@fl', hash: '0xabc' });
     expect(rp).toBeDefined();
     expect(rs).toBeDefined();
   });
-});
 
+  it('signs schedule via helper', async () => {
+    const c = new HCS16Client(cfg);
+    const signer: any = { dummy: true };
+    const r = await c.signSchedule({ scheduleId: '0.0.sch', signerKey: signer });
+    expect(r).toBeDefined();
+  });
+});

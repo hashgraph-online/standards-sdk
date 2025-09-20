@@ -2,7 +2,7 @@ import { Logger, LoggerOptions, ILogger } from '../utils/logger';
 import { HCS10BaseClient } from './base-client';
 import { AIAgentProfile } from '../hcs-11';
 import { TransactMessage } from './types';
-import { HCSMessageWithCommonFields } from '..';
+import { HCSMessageWithCommonFields } from '../services/types';
 
 /**
  * Represents a connection request between agents

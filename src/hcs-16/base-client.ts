@@ -1,4 +1,6 @@
 import { HederaMirrorNode } from '../services/mirror-node';
+import { KeyList, TopicCreateTransaction, PublicKey } from '@hashgraph/sdk';
+import { buildHcs16CreateFloraTopicTx } from './tx';
 import { Logger, ILogger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { FloraTopicType, FloraMessage, FloraOperation } from './types';
@@ -10,7 +12,7 @@ import type { HCSMessageWithCommonFields } from '../services/types';
  */
 export class HCS16BaseClient {
   protected readonly network: NetworkType;
-  protected readonly mirrorNode: HederaMirrorNode;
+  public mirrorNode: HederaMirrorNode;
   protected readonly logger: ILogger;
 
   constructor(params: { network: NetworkType; logger?: ILogger; mirrorNodeUrl?: string }) {
@@ -19,6 +21,58 @@ export class HCS16BaseClient {
     this.mirrorNode = new HederaMirrorNode(this.network, this.logger, {
       customUrl: params.mirrorNodeUrl,
     });
+  }
+
+  async assembleKeyList(params: { members: string[]; threshold: number }): Promise<KeyList> {
+    const keys: PublicKey[] = [];
+    for (const accountId of params.members) {
+      const pub = await this.mirrorNode.getPublicKey(accountId);
+      keys.push(pub);
+    }
+    return new KeyList(keys, params.threshold);
+  }
+
+  async assembleSubmitKeyList(members: string[]): Promise<KeyList> {
+    const keys: PublicKey[] = [];
+    for (const accountId of members) {
+      const pub = await this.mirrorNode.getPublicKey(accountId);
+      keys.push(pub);
+    }
+    return new KeyList(keys, 1);
+  }
+
+  buildFloraTopicCreateTxs(params: {
+    floraAccountId: string;
+    keyList: KeyList;
+    submitList: KeyList;
+    autoRenewAccountId?: string;
+  }): {
+    communication: TopicCreateTransaction;
+    transaction: TopicCreateTransaction;
+    state: TopicCreateTransaction;
+  } {
+    const communication = buildHcs16CreateFloraTopicTx({
+      floraAccountId: params.floraAccountId,
+      topicType: FloraTopicType.COMMUNICATION,
+      adminKey: params.keyList,
+      submitKey: params.submitList,
+      autoRenewAccountId: params.autoRenewAccountId,
+    });
+    const transaction = buildHcs16CreateFloraTopicTx({
+      floraAccountId: params.floraAccountId,
+      topicType: FloraTopicType.TRANSACTION,
+      adminKey: params.keyList,
+      submitKey: params.submitList,
+      autoRenewAccountId: params.autoRenewAccountId,
+    });
+    const state = buildHcs16CreateFloraTopicTx({
+      floraAccountId: params.floraAccountId,
+      topicType: FloraTopicType.STATE,
+      adminKey: params.keyList,
+      submitKey: params.submitList,
+      autoRenewAccountId: params.autoRenewAccountId,
+    });
+    return { communication, transaction, state };
   }
 
   /**
@@ -43,10 +97,10 @@ export class HCS16BaseClient {
   /**
    * Build a Flora message envelope by merging an operation body into the HCS‑16 envelope.
    */
-  protected createFloraMessage(op: string, operatorId: string, body?: Record<string, unknown>): FloraMessage {
+  protected createFloraMessage(op: FloraOperation, operatorId: string, body?: Record<string, unknown>): FloraMessage {
     const payload: FloraMessage = {
       p: 'hcs-16',
-      op: op as any,
+      op,
       operator_id: operatorId,
       ...(body || {}),
     } as FloraMessage;
