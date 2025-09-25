@@ -223,14 +223,18 @@ export function buildHcs10SendMessageTx(params: {
 export function buildHcs10RegistryRegisterTx(params: {
   registryTopicId: string;
   accountId: string;
+  inboundTopicId?: string;
   memo?: string;
 }): TopicMessageSubmitTransaction {
   const payload = {
     p: 'hcs-10',
     op: 'register',
     account_id: params.accountId,
+    ...(params.inboundTopicId
+      ? { inbound_topic_id: params.inboundTopicId }
+      : {}),
     m: params.memo,
-  } as const;
+  };
   return buildMessageTx({
     topicId: params.registryTopicId,
     message: JSON.stringify(payload),

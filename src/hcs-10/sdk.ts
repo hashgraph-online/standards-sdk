@@ -5,6 +5,7 @@ import {
   Hbar,
   KeyList,
   TopicCreateTransaction,
+  TopicMessageSubmitTransaction,
   Transaction,
   TransactionResponse,
   TransactionReceipt,
@@ -77,6 +78,15 @@ import { addSeconds } from 'date-fns';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { InscribeProfileResponse } from '../hcs-11/types';
 import { buildTopicCreateTx, buildMessageTx } from '../common/tx/tx-utils';
+import {
+  buildHcs10CreateInboundTopicTx,
+  buildHcs10CreateOutboundTopicTx,
+  buildHcs10CreateConnectionTopicTx,
+  buildHcs10CreateRegistryTopicTx,
+  buildHcs10RegistryRegisterTx,
+  buildHcs10ConfirmConnectionTx,
+  buildHcs10SendMessageTx,
+} from './tx';
 export { ConnectionsManager } from './connections-manager';
 
 export class HCS10Client extends HCS10BaseClient {
@@ -240,7 +250,25 @@ export class HCS10Client extends HCS10BaseClient {
         throw new Error(`Unsupported inbound topic type: ${topicType}`);
     }
 
-    return this.createTopic(memo, true, submitKey, finalFeeConfig);
+    const operatorPublicKey =
+      this.client.operatorPublicKey || this.operatorCtx.operatorKey.publicKey;
+
+    const transaction = buildHcs10CreateInboundTopicTx({
+      accountId,
+      ttl,
+      adminKey: true,
+      submitKey,
+      operatorPublicKey,
+    });
+
+    this.logger.info('Creating inbound topic');
+
+    const { topicId } = await this.executeTopicCreateTransaction({
+      transaction,
+      feeConfig: finalFeeConfig,
+    });
+
+    return topicId;
   }
 
   /**
@@ -803,11 +831,6 @@ export class HCS10Client extends HCS10BaseClient {
     connectionFeeConfig?: FeeConfigBuilderInterface,
     ttl: number = 60,
   ): Promise<HandleConnectionRequestResponse> {
-    const memo = this._generateHcs10Memo(Hcs10MemoType.CONNECTION, {
-      ttl,
-      inboundTopicId,
-      connectionId: connectionRequestId,
-    });
     this.logger.info(
       `Handling connection request ${connectionRequestId} from ${requestingAccountId}`,
     );
@@ -829,6 +852,14 @@ export class HCS10Client extends HCS10BaseClient {
     let connectionTopicId: string;
 
     try {
+      const connectionTransaction = buildHcs10CreateConnectionTopicTx({
+        ttl,
+        inboundTopicId,
+        connectionId: connectionRequestId,
+        adminKey: thresholdKey,
+        submitKey: thresholdKey,
+      });
+
       if (connectionFeeConfig) {
         const feeConfig = connectionFeeConfig.build();
         const modifiedFeeConfig = {
@@ -836,18 +867,17 @@ export class HCS10Client extends HCS10BaseClient {
           exemptAccounts: [...(feeConfig.exemptAccounts || [])],
         };
 
-        connectionTopicId = await this.createTopic(
-          memo,
-          thresholdKey,
-          thresholdKey,
-          modifiedFeeConfig,
-        );
+        const { topicId } = await this.executeTopicCreateTransaction({
+          transaction: connectionTransaction,
+          feeConfig: modifiedFeeConfig,
+        });
+
+        connectionTopicId = topicId;
       } else {
-        connectionTopicId = await this.createTopic(
-          memo,
-          thresholdKey,
-          thresholdKey,
-        );
+        const { topicId } = await this.executeTopicCreateTransaction({
+          transaction: connectionTransaction,
+        });
+        connectionTopicId = topicId;
       }
 
       this.logger.info(`Created new connection topic ID: ${connectionTopicId}`);
@@ -911,24 +941,23 @@ export class HCS10Client extends HCS10BaseClient {
   ): Promise<number> {
     const operatorId = await this.getOperatorId();
     this.logger.info(`Confirming connection with ID ${connectionId}`);
-    const payload = {
-      p: 'hcs-10',
-      op: 'connection_created',
-      connection_topic_id: connectionTopicId,
-      connected_account_id: connectedAccountId,
-      operator_id: operatorId,
-      connection_id: connectionId,
-      m: memo,
-    };
-
     const submissionCheck = await this.canSubmitToTopic(
       inboundTopicId,
       this.client.operatorAccountId?.toString() || '',
     );
 
-    const result = await this.submitPayload(
+    const transaction = buildHcs10ConfirmConnectionTx({
       inboundTopicId,
-      payload,
+      connectionTopicId,
+      connectedAccountId,
+      operatorId,
+      connectionId,
+      memo,
+    });
+
+    const result = await this.submitPayload(
+      transaction,
+      undefined,
       submitKey,
       submissionCheck.requiresFee,
     );
@@ -1007,12 +1036,63 @@ export class HCS10Client extends HCS10BaseClient {
     }
 
     this.logger.info('Submitting message to connection topic', payload);
-    return await this.submitPayload(
+
+    const transaction = buildHcs10SendMessageTx({
       connectionTopicId,
-      payload,
+      operatorId,
+      data: payload.data,
+      memo,
+    });
+
+    return await this.submitPayload(
+      transaction,
+      undefined,
       submitKey,
       submissionCheck.requiresFee,
     );
+  }
+
+  private async executeTopicCreateTransaction(params: {
+    transaction: TopicCreateTransaction;
+    feeConfig?: TopicFeeConfig;
+    additionalExemptAccounts?: string[];
+  }): Promise<{
+    topicId: string;
+    receipt: TransactionReceipt;
+    response: TransactionResponse;
+  }> {
+    let workingTransaction = params.transaction;
+
+    if (params.feeConfig) {
+      workingTransaction = await this.setupFees(
+        workingTransaction,
+        params.feeConfig,
+        params.additionalExemptAccounts || [],
+      );
+    }
+
+    try {
+      const response = await workingTransaction.execute(this.client);
+      const receipt = await response.getReceipt(this.client);
+
+      if (!receipt.topicId) {
+        this.logger.error('Failed to create topic: topicId is null');
+        throw new Error('Failed to create topic: topicId is null');
+      }
+
+      return {
+        topicId: receipt.topicId.toString(),
+        receipt,
+        response,
+      };
+    } catch (error: any) {
+      this.logger.error('Topic creation failed', {
+        error: error.message,
+        transactionId: error.transactionId?.toString(),
+        operatorId: this.client.operatorAccountId?.toString(),
+      });
+      throw error;
+    }
   }
 
   async createTopic(
@@ -1027,41 +1107,71 @@ export class HCS10Client extends HCS10BaseClient {
       memo,
       adminKey: adminKey,
       submitKey: submitKey,
-      operatorPublicKey: this.client.operatorPublicKey || undefined,
+      operatorPublicKey:
+        this.client.operatorPublicKey || this.operatorCtx.operatorKey?.publicKey,
     });
 
-    if (feeConfig) {
-      await this.setupFees(transaction, feeConfig);
-    }
+    const { topicId } = await this.executeTopicCreateTransaction({
+      transaction,
+      feeConfig,
+    });
 
-
-    try {
-      const txResponse = await transaction.execute(this.client);
-      const receipt = await txResponse.getReceipt(this.client);
-
-      if (!receipt.topicId) {
-        this.logger.error('Failed to create topic: topicId is null');
-        throw new Error('Failed to create topic: topicId is null');
-      }
-
-      const topicId = receipt.topicId.toString();
-      return topicId;
-    } catch (error: any) {
-      this.logger.error('Topic creation failed', {
-        error: error.message,
-        transactionId: error.transactionId?.toString(),
-        operatorId: this.client.operatorAccountId?.toString(),
-      });
-      throw error;
-    }
+    return topicId;
   }
 
   public async submitPayload(
-    topicId: string,
-    payload: object | string,
+    topicOrTransaction: string | TopicMessageSubmitTransaction,
+    payload?: object | string,
     submitKey?: PrivateKey,
     requiresFee: boolean = false,
   ): Promise<TransactionReceipt> {
+    const isTransaction =
+      topicOrTransaction instanceof TopicMessageSubmitTransaction ||
+      (topicOrTransaction as TopicMessageSubmitTransaction)?.getMessage !==
+        undefined;
+
+    if (isTransaction) {
+      const transaction =
+        topicOrTransaction as TopicMessageSubmitTransaction;
+
+      const messageBytes = transaction.getMessage();
+      if (!messageBytes) {
+        throw new Error('Message payload is missing');
+      }
+
+      const payloadSizeInBytes = Buffer.from(messageBytes).length;
+      if (payloadSizeInBytes > 1000) {
+        throw new PayloadSizeError(
+          'Payload size exceeds 1000 bytes limit',
+          payloadSizeInBytes,
+        );
+      }
+
+      if (requiresFee) {
+        this.logger.info(
+          'Topic requires fee payment, setting max transaction fee',
+        );
+        transaction.setMaxTransactionFee(new Hbar(this.feeAmount));
+      }
+
+      let transactionResponse: TransactionResponse;
+      if (submitKey) {
+        const frozenTransaction = transaction.freezeWith(this.client);
+        const signedTransaction = await frozenTransaction.sign(submitKey);
+        transactionResponse = await signedTransaction.execute(this.client);
+      } else {
+        transactionResponse = await transaction.execute(this.client);
+      }
+
+      const receipt = await transactionResponse.getReceipt(this.client);
+      if (!receipt) {
+        this.logger.error('Failed to submit message: receipt is null');
+        throw new Error('Failed to submit message: receipt is null');
+      }
+      this.logger.info('Message submitted successfully');
+      return receipt;
+    }
+
     const message =
       typeof payload === 'string' ? payload : JSON.stringify(payload);
 
@@ -1075,7 +1185,7 @@ export class HCS10Client extends HCS10BaseClient {
 
     const transactionMemo = this.getHcs10TransactionMemo(payload);
     const transaction = buildMessageTx({
-      topicId,
+      topicId: topicOrTransaction,
       message,
       transactionMemo: transactionMemo || undefined,
     });
@@ -1758,15 +1868,14 @@ export class HCS10Client extends HCS10BaseClient {
     submitKey?: PrivateKey,
   ): Promise<void> {
     this.logger.info('Registering agent');
-    const payload = {
-      p: 'hcs-10',
-      op: 'register',
-      account_id: accountId,
-      inbound_topic_id: inboundTopicId,
-      m: memo,
-    };
+    const transaction = buildHcs10RegistryRegisterTx({
+      registryTopicId,
+      accountId,
+      inboundTopicId,
+      memo,
+    });
 
-    await this.submitPayload(registryTopicId, payload, submitKey);
+    await this.submitPayload(transaction, undefined, submitKey);
   }
 
   async getInboundTopicType(topicId: string): Promise<InboundTopicType> {
@@ -2022,11 +2131,17 @@ export class HCS10Client extends HCS10BaseClient {
           state,
         });
       }
-      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
-        ttl: options?.ttl,
-        accountId,
+      const operatorPublicKey =
+        this.client.operatorPublicKey || this.operatorCtx.operatorKey.publicKey;
+      const outboundTopicTx = buildHcs10CreateOutboundTopicTx({
+        ttl: options?.ttl ?? 60,
+        adminKey: true,
+        submitKey: true,
+        operatorPublicKey,
       });
-      const outboundTopicId = await this.createTopic(outboundMemo, true, true);
+      const { topicId: outboundTopicId } = await this.executeTopicCreateTransaction({
+        transaction: outboundTopicTx,
+      });
       state.outboundTopicId = outboundTopicId;
       if (state.createdResources)
         state.createdResources.push(`outbound:${state.outboundTopicId}`);
@@ -2039,12 +2154,20 @@ export class HCS10Client extends HCS10BaseClient {
           state,
         });
       }
-      const inboundMemo = this._generateHcs10Memo(Hcs10MemoType.INBOUND, {
-        ttl: options?.ttl,
+      const operatorPublicKey =
+        this.client.operatorPublicKey || this.operatorCtx.operatorKey.publicKey;
+
+      const inboundTopicTx = buildHcs10CreateInboundTopicTx({
         accountId,
+        ttl: options?.ttl ?? 60,
+        adminKey: true,
+        submitKey: false,
+        operatorPublicKey,
       });
 
-      const inboundTopicId = await this.createTopic(inboundMemo, true, false);
+      const { topicId: inboundTopicId } = await this.executeTopicCreateTransaction({
+        transaction: inboundTopicTx,
+      });
       state.inboundTopicId = inboundTopicId;
       if (state.createdResources)
         state.createdResources.push(`inbound:${state.inboundTopicId}`);
@@ -2392,10 +2515,21 @@ export class HCS10Client extends HCS10BaseClient {
       existingTopics;
 
     if (!outboundTopicId) {
-      const outboundMemo = this._generateHcs10Memo(Hcs10MemoType.OUTBOUND, {
+      const operatorPublicKey =
+        this.client.operatorPublicKey || this.operatorCtx.operatorKey.publicKey;
+
+      const outboundTransaction = buildHcs10CreateOutboundTopicTx({
         ttl,
+        adminKey: true,
+        submitKey: true,
+        operatorPublicKey,
       });
-      outboundTopicId = await this.createTopic(outboundMemo, true, true);
+
+      const { topicId } = await this.executeTopicCreateTransaction({
+        transaction: outboundTransaction,
+      });
+
+      outboundTopicId = topicId;
       this.logger.info(`Created new outbound topic ID: ${outboundTopicId}`);
 
       if (progressCallback) {
@@ -2927,27 +3061,22 @@ export class HCS10Client extends HCS10BaseClient {
         });
       }
 
-      const memo = `hcs-10:0:${ttl}:3${metadataTopicId ? `:${metadataTopicId}` : ''}`;
-
       const operatorKey = this.operatorCtx.operatorKey;
+      const operatorPublicKey =
+        this.client.operatorPublicKey || operatorKey.publicKey;
 
-      let topicCreateTx = new TopicCreateTransaction().setTopicMemo(memo);
+      const transaction = buildHcs10CreateRegistryTopicTx({
+        ttl,
+        metadataTopicId,
+        adminKey,
+        submitKey,
+        operatorPublicKey,
+      });
 
-      if (adminKey) {
-        topicCreateTx = topicCreateTx.setAdminKey(operatorKey.publicKey);
-      }
-
-      if (submitKey) {
-        topicCreateTx = topicCreateTx.setSubmitKey(operatorKey.publicKey);
-      }
-
-      const txResponse = await topicCreateTx.execute(this.client);
-      const receipt = await txResponse.getReceipt(this.client);
-      const topicId = receipt.topicId?.toString();
-
-      if (!topicId) {
-        throw new Error('Failed to create registry topic');
-      }
+      const { topicId, response: txResponse } =
+        await this.executeTopicCreateTransaction({
+          transaction,
+        });
 
       if (progressCallback) {
         progressCallback({

@@ -6,6 +6,7 @@ import {
   HandleConnectionRequestResponse,
 } from '../../src/hcs-10/types';
 import { Logger } from '../../src/utils/logger';
+import * as hcs10Tx from '../../src/hcs-10/tx';
 
 jest.mock('@hashgraph/sdk', () => {
   const MockPrivateKey = function (this: any) {
@@ -32,17 +33,20 @@ jest.mock('@hashgraph/sdk', () => {
     })),
   } as any;
 
-  const PublicKey = {
-    fromString: jest.fn().mockImplementation((s: string) => ({
-      toString: () => s,
-    })),
-    fromBytesED25519: jest.fn().mockImplementation((b: Buffer) => ({
-      toString: () => b.toString('hex'),
-    })),
-    fromBytesECDSA: jest.fn().mockImplementation((b: Buffer) => ({
-      toString: () => b.toString('hex'),
-    })),
+  const PublicKey = function (this: any, value?: string) {
+    this.value = value;
+    this.toString = jest.fn().mockReturnValue(value ?? 'mock-public-key');
   } as any;
+
+  PublicKey.fromString = jest.fn().mockImplementation(
+    (s: string) => new (PublicKey as any)(s),
+  );
+  PublicKey.fromBytesED25519 = jest
+    .fn()
+    .mockImplementation((b: Buffer) => new (PublicKey as any)(b.toString('hex')));
+  PublicKey.fromBytesECDSA = jest
+    .fn()
+    .mockImplementation((b: Buffer) => new (PublicKey as any)(b.toString('hex')));
 
   const Hbar = function (this: any, amount?: number) {
     this.toString = () => String(amount ?? 0);
@@ -100,19 +104,32 @@ jest.mock('@hashgraph/sdk', () => {
         }),
       }),
     })),
-    TopicMessageSubmitTransaction: jest.fn().mockImplementation(() => ({
-      setTopicId: jest.fn().mockReturnThis(),
-      setMessage: jest.fn().mockReturnThis(),
-      setTransactionMemo: jest.fn().mockReturnThis(),
-      freezeWith: jest.fn().mockReturnThis(),
-      sign: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({
-        getReceipt: jest.fn().mockResolvedValue({
-          status: { toString: jest.fn().mockReturnValue('SUCCESS') },
-          topicSequenceNumber: { toNumber: () => 1 },
-        }),
-      }),
-    })),
+    TopicMessageSubmitTransaction: jest.fn().mockImplementation(() => {
+      let messageBuffer: Uint8Array | null = null;
+      const receipt = {
+        status: { toString: jest.fn().mockReturnValue('SUCCESS') },
+        topicSequenceNumber: { toNumber: () => 1 },
+      };
+      const executionResult = {
+        getReceipt: jest.fn().mockResolvedValue(receipt),
+      };
+      const tx: any = {
+        setTopicId: jest.fn().mockReturnValue(undefined),
+      };
+      tx.setTopicId = jest.fn().mockReturnValue(tx);
+      tx.setMessage = jest.fn().mockImplementation((msg: string | Uint8Array) => {
+        messageBuffer =
+          typeof msg === 'string' ? Buffer.from(msg) : new Uint8Array(msg);
+        return tx;
+      });
+      tx.getMessage = jest.fn(() => messageBuffer);
+      tx.setTransactionMemo = jest.fn().mockReturnValue(tx);
+      tx.setMaxTransactionFee = jest.fn().mockReturnValue(tx);
+      tx.freezeWith = jest.fn().mockReturnValue(tx);
+      tx.sign = jest.fn().mockImplementation(() => ({ execute: jest.fn().mockResolvedValue(executionResult) }));
+      tx.execute = jest.fn().mockResolvedValue(executionResult);
+      return tx;
+    }),
   };
 });
 
@@ -124,6 +141,39 @@ jest.mock('@kiloscribe/inscription-sdk', () => ({
     }),
   })),
 }));
+
+jest.mock('../../src/hcs-10/tx', () => {
+  const actual = jest.requireActual('../../src/hcs-10/tx');
+  return {
+    ...actual,
+    buildHcs10CreateInboundTopicTx: jest.fn(
+      actual.buildHcs10CreateInboundTopicTx,
+    ),
+    buildHcs10CreateOutboundTopicTx: jest.fn(
+      actual.buildHcs10CreateOutboundTopicTx,
+    ),
+    buildHcs10CreateConnectionTopicTx: jest.fn(
+      actual.buildHcs10CreateConnectionTopicTx,
+    ),
+    buildHcs10CreateRegistryTopicTx: jest.fn(
+      actual.buildHcs10CreateRegistryTopicTx,
+    ),
+    buildHcs10RegistryRegisterTx: jest.fn(actual.buildHcs10RegistryRegisterTx),
+    buildHcs10ConfirmConnectionTx: jest.fn(
+      actual.buildHcs10ConfirmConnectionTx,
+    ),
+    buildHcs10SendMessageTx: jest.fn(actual.buildHcs10SendMessageTx),
+    buildHcs10SubmitConnectionRequestTx: jest.fn(
+      actual.buildHcs10SubmitConnectionRequestTx,
+    ),
+    buildHcs10OutboundConnectionRequestRecordTx: jest.fn(
+      actual.buildHcs10OutboundConnectionRequestRecordTx,
+    ),
+    buildHcs10OutboundConnectionCreatedRecordTx: jest.fn(
+      actual.buildHcs10OutboundConnectionCreatedRecordTx,
+    ),
+  };
+});
 
 jest.mock('../../src/services/mirror-node', () => ({
   HederaMirrorNode: jest.fn().mockImplementation(() => ({
@@ -148,6 +198,8 @@ jest.mock('../../src/utils/logger', () => ({
     }),
   },
 }));
+
+const mockedTx = hcs10Tx as jest.Mocked<typeof hcs10Tx>;
 
 describe('HCS10Client', () => {
   let client: HCS10Client;
@@ -277,9 +329,7 @@ describe('HCS10Client', () => {
 
   describe('handleConnectionRequest', () => {
     test('should handle connection request successfully', async () => {
-      jest
-        .spyOn(client as any, 'createTopic')
-        .mockResolvedValue('0.0.55555');
+      const createTopicSpy = jest.spyOn(client as any, 'createTopic');
       jest
         .spyOn(client, 'confirmConnection')
         .mockResolvedValue(42);
@@ -296,8 +346,10 @@ describe('HCS10Client', () => {
         7,
       );
 
+      expect(createTopicSpy).not.toHaveBeenCalled();
+
       expect(result).toMatchObject({
-        connectionTopicId: '0.0.55555',
+        connectionTopicId: '0.0.67890',
         confirmedConnectionSequenceNumber: 42,
         operatorId: expect.stringContaining('0.0.100@'),
       });
@@ -339,6 +391,147 @@ describe('HCS10Client', () => {
       await expect(
         client.waitForConnectionConfirmation('0.0.100', 123, 1, 1),
       ).rejects.toThrow('Connection confirmation not found after 1 attempts');
+    });
+  });
+
+
+  describe('transaction builder integration', () => {
+    beforeEach(() => {
+      (client as any).ensureInitialized = jest.fn().mockResolvedValue(undefined);
+      (client as any).operatorCtx = {
+        ensureInitialized: jest.fn().mockResolvedValue(undefined),
+        operatorKey: {
+          publicKey: { toString: () => 'mock-public-key' },
+        },
+      };
+      (client as any).client = {
+        operatorAccountId: { toString: () => '0.0.123' },
+        operatorPublicKey: { toString: () => 'mock-public-key' },
+      };
+      (client as any).submitPayload = jest.fn().mockResolvedValue({
+        topicSequenceNumber: { toNumber: () => 1 },
+      });
+      (client as any).canSubmitToTopic = jest
+        .fn()
+        .mockResolvedValue({ canSubmit: true, requiresFee: false });
+      (client as any).getOperatorId = jest
+        .fn()
+        .mockResolvedValue('0.0.100@0.0.200');
+      (client as any).retrieveInboundAccountId = jest
+        .fn()
+        .mockResolvedValue('0.0.300');
+      (client as any).retrieveCommunicationTopics = jest
+        .fn()
+        .mockResolvedValue({ outboundTopic: '0.0.400' });
+      (client as any).getAccountAndSigner = jest
+        .fn()
+        .mockReturnValue({ accountId: '0.0.500', signer: {} });
+      (client as any).inscribeFile = jest.fn();
+    });
+
+    test('createRegistryTopic proxies parameters to builder', async () => {
+      await client.createRegistryTopic({
+        ttl: 120,
+        adminKey: true,
+        submitKey: 'public-key-string',
+      });
+
+      expect(mockedTx.buildHcs10CreateRegistryTopicTx).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ttl: 120,
+          adminKey: true,
+          submitKey: 'public-key-string',
+        }),
+      );
+    });
+
+    test('registerAgent routes payload through registry builder', async () => {
+      await client.registerAgent(
+        '0.0.registry',
+        '0.0.account',
+        '0.0.inbound',
+        'memo-text',
+      );
+
+      expect(mockedTx.buildHcs10RegistryRegisterTx).toHaveBeenCalledWith({
+        registryTopicId: '0.0.registry',
+        accountId: '0.0.account',
+        inboundTopicId: '0.0.inbound',
+        memo: 'memo-text',
+      });
+    });
+
+    test('confirmConnection uses connection confirmation builder', async () => {
+      await client.confirmConnection(
+        '0.0.inbound',
+        '0.0.connection',
+        '0.0.connected',
+        7,
+        'confirm memo',
+      );
+
+      expect(mockedTx.buildHcs10ConfirmConnectionTx).toHaveBeenCalledWith({
+        inboundTopicId: '0.0.inbound',
+        connectionTopicId: '0.0.connection',
+        connectedAccountId: '0.0.connected',
+        operatorId: '0.0.100@0.0.200',
+        connectionId: 7,
+        memo: 'confirm memo',
+      });
+    });
+
+    test('sendMessage leverages message builder for submission', async () => {
+      await client.sendMessage('0.0.connection', 'payload-data', 'memo');
+
+      expect(mockedTx.buildHcs10SendMessageTx).toHaveBeenCalledWith({
+        connectionTopicId: '0.0.connection',
+        operatorId: '0.0.100@0.0.200',
+        data: 'payload-data',
+        memo: 'memo',
+      });
+    });
+
+    test('submitConnectionRequest utilizes request builders', async () => {
+      await client.submitConnectionRequest('0.0.inbound', 'hello');
+
+      expect(mockedTx.buildHcs10SubmitConnectionRequestTx).toHaveBeenCalledWith({
+        inboundTopicId: '0.0.inbound',
+        operatorId: '0.0.100@0.0.200',
+        memo: 'hello',
+      });
+
+      expect(
+        mockedTx.buildHcs10OutboundConnectionRequestRecordTx,
+      ).toHaveBeenCalledWith({
+        outboundTopicId: '0.0.400',
+        operatorId: '0.0.inbound@0.0.300',
+        connectionRequestId: 1,
+        memo: 'hello',
+      });
+    });
+
+    test('recordOutboundConnectionConfirmation uses outbound confirmation builder', async () => {
+      await client.recordOutboundConnectionConfirmation({
+        outboundTopicId: '0.0.400',
+        requestorOutboundTopicId: '0.0.401',
+        connectionRequestId: 2,
+        confirmedRequestId: 3,
+        connectionTopicId: '0.0.402',
+        operatorId: '0.0.100@0.0.200',
+        memo: 'done',
+      });
+
+      expect(
+        mockedTx.buildHcs10OutboundConnectionCreatedRecordTx,
+      ).toHaveBeenCalledWith({
+        outboundTopicId: '0.0.400',
+        requestorOutboundTopicId: '0.0.401',
+        connectionTopicId: '0.0.402',
+        confirmedRequestId: 3,
+        connectionRequestId: 2,
+        operatorId: '0.0.100@0.0.200',
+        memo: 'done',
+      });
     });
   });
 
