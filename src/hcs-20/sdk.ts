@@ -4,7 +4,6 @@
 
 import {
   AccountId,
-  TopicId,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
   PrivateKey,
@@ -24,9 +23,6 @@ import {
   PointsInfo,
   PointsTransaction,
   HCS20DeployMessage,
-  HCS20MintMessage,
-  HCS20TransferMessage,
-  HCS20BurnMessage,
   HCS20RegisterMessage,
 } from './types';
 import {
@@ -41,6 +37,13 @@ import {
   type NodeOperatorContext,
 } from '../common/node-operator-resolver';
 import { HCS2Client } from '../hcs-2/client';
+import {
+  buildHcs20DeployTx,
+  buildHcs20MintTx,
+  buildHcs20TransferTx,
+  buildHcs20BurnTx,
+  buildHcs20RegisterTx,
+} from './tx';
 
 /**
  * SDK-specific HCS-20 client for server-side operations
@@ -88,17 +91,9 @@ export class HCS20Client extends HCS20BaseClient {
    * Submit a payload to a topic
    */
   private async submitPayload(
-    topicId: string,
-    payload: object | string,
+    transaction: TopicMessageSubmitTransaction,
     submitKey?: PrivateKey,
   ): Promise<{ receipt: TransactionReceipt; transactionId: string }> {
-    const message =
-      typeof payload === 'string' ? payload : JSON.stringify(payload);
-
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
-      .setMessage(message);
-
     let transactionResponse: TransactionResponse;
     if (submitKey) {
       const frozenTransaction = transaction.freezeWith(this.client);
@@ -240,9 +235,18 @@ export class HCS20Client extends HCS20BaseClient {
         );
       }
 
-      const { transactionId: deployTxId } = await this.submitPayload(
+      const deployTransaction = buildHcs20DeployTx({
         topicId,
-        deployMessage,
+        name: options.name,
+        tick: options.tick,
+        max: options.maxSupply,
+        lim: options.limitPerMint,
+        metadata: options.metadata,
+        memo: options.topicMemo,
+      });
+
+      const { transactionId: deployTxId } = await this.submitPayload(
+        deployTransaction,
       );
 
       progressCallback?.({
@@ -305,19 +309,19 @@ export class HCS20Client extends HCS20BaseClient {
         percentage: 50,
       });
 
-      const mintMessage: HCS20MintMessage = {
-        p: 'hcs-20',
-        op: 'mint',
-        tick: normalizedTick,
+      const topicId = options.topicId
+        ? this.topicToString(options.topicId)
+        : this.publicTopicId;
+      const mintTransaction = buildHcs20MintTx({
+        topicId,
+        tick: options.tick,
         amt: options.amount,
         to: this.accountToString(options.to),
-        m: options.memo,
-      };
+        memo: options.memo,
+      });
 
-      const topicId = (options as any).topicId || this.publicTopicId;
       const { transactionId: mintTxId } = await this.submitPayload(
-        topicId,
-        mintMessage,
+        mintTransaction,
       );
 
       progressCallback?.({
@@ -392,20 +396,20 @@ export class HCS20Client extends HCS20BaseClient {
         percentage: 50,
       });
 
-      const transferMessage: HCS20TransferMessage = {
-        p: 'hcs-20',
-        op: 'transfer',
-        tick: normalizedTick,
+      const topicId = options.topicId
+        ? this.topicToString(options.topicId)
+        : this.publicTopicId;
+      const transferTransaction = buildHcs20TransferTx({
+        topicId,
+        tick: options.tick,
         amt: options.amount,
         from: fromAccount,
         to: toAccount,
-        m: options.memo,
-      };
+        memo: options.memo,
+      });
 
-      const topicId = (options as any).topicId || this.publicTopicId;
       const { transactionId: transferTxId } = await this.submitPayload(
-        topicId,
-        transferMessage,
+        transferTransaction,
       );
 
       progressCallback?.({
@@ -477,19 +481,19 @@ export class HCS20Client extends HCS20BaseClient {
         percentage: 50,
       });
 
-      const burnMessage: HCS20BurnMessage = {
-        p: 'hcs-20',
-        op: 'burn',
-        tick: normalizedTick,
+      const topicId = options.topicId
+        ? this.topicToString(options.topicId)
+        : this.publicTopicId;
+      const burnTransaction = buildHcs20BurnTx({
+        topicId,
+        tick: options.tick,
         amt: options.amount,
         from: fromAccount,
-        m: options.memo,
-      };
+        memo: options.memo,
+      });
 
-      const topicId = (options as any).topicId || this.publicTopicId;
       const { transactionId: burnTxId } = await this.submitPayload(
-        topicId,
-        burnMessage,
+        burnTransaction,
       );
 
       progressCallback?.({
@@ -561,14 +565,30 @@ export class HCS20Client extends HCS20BaseClient {
         );
       }
 
+      if (!this.registryTopicId) {
+        throw new PointsDeploymentError(
+          'Registry topic not available',
+          options.name,
+        );
+      }
+
       progressCallback?.({
         stage: 'submitting',
         percentage: 50,
       });
 
+      const registerTransaction = buildHcs20RegisterTx({
+        registryTopicId: this.registryTopicId,
+        name: options.name,
+        topicId: this.topicToString(options.topicId),
+        isPrivate: options.isPrivate,
+        metadata: options.metadata,
+        memo: options.memo,
+      });
+
       const { transactionId: registerTxId } = await this.submitPayload(
-        this.registryTopicId,
-        registerMessage,
+        registerTransaction,
+        this.operatorCtx.operatorKey,
       );
 
       progressCallback?.({
@@ -614,7 +634,13 @@ export class HCS20Client extends HCS20BaseClient {
           order: 'desc',
         });
 
-        const found = messages.some((msg: any) => msg.consensus_timestamp);
+        const found = messages.some(message => {
+          if (typeof message !== 'object' || message === null) {
+            return false;
+          }
+          const candidate = message as { consensus_timestamp?: unknown };
+          return typeof candidate.consensus_timestamp === 'string';
+        });
 
         if (found) {
           this.logger.debug(

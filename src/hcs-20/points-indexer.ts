@@ -17,7 +17,15 @@ import {
   HCS20TransferMessage,
   HCS20BurnMessage,
   HCS20_CONSTANTS,
+  HCS20MessageSchema,
 } from './types';
+
+interface TopicMessageMeta {
+  consensus_timestamp: string;
+  sequence_number: number;
+  payer_account_id: string;
+  transaction_id: string;
+}
 
 /**
  * HCS-20 Points Indexer for processing and maintaining points state
@@ -191,22 +199,16 @@ export class HCS20PointsIndexer {
         order: 'asc',
       });
 
-      for (const msg of messages) {
-        try {
-          const msgData = (msg as any).data || msg;
-          if (
-            msgData &&
-            typeof msgData === 'object' &&
-            msgData.p === 'hcs-20' &&
-            msgData.op === 'register' &&
-            msgData.t_id
-          ) {
-            topics.push(msgData.t_id);
-          }
-        } catch (error) {
-          continue;
-        }
-      }
+      messages
+        .filter(
+          message =>
+            message.p === 'hcs-20' &&
+            message.op === 'register' &&
+            typeof message.t_id === 'string',
+        )
+        .forEach(message => {
+          topics.push(message.t_id as string);
+        });
     } catch (error) {
       this.logger.error('Failed to fetch registry messages:', error);
     }
@@ -235,36 +237,39 @@ export class HCS20PointsIndexer {
 
       let maxSequence = lastSequence || 0;
 
-      for (const msg of messages) {
-        try {
-          const messageData = msg as any;
-          if (!messageData.p || messageData.p !== 'hcs-20') continue;
-
-          const parsedMsg = messageData as HCS20Message;
-          const sequenceNumber = messageData.sequence_number || 0;
-
-          this.logger.debug(
-            `Found HCS-20 message: op=${parsedMsg.op}, sequence=${sequenceNumber}`,
-          );
-
-          if (sequenceNumber > maxSequence) {
-            maxSequence = sequenceNumber;
-          }
-          const topicMessage = {
-            consensus_timestamp: messageData.consensus_timestamp || '',
-            sequence_number: sequenceNumber,
-            payer_account_id: messageData.payer_account_id || '',
-            transaction_id: messageData.transaction_id || '',
-          };
-          this.processMessage(parsedMsg, topicMessage, topicId, isPrivate);
-
-          this.state.lastProcessedSequence++;
-          this.state.lastProcessedTimestamp =
-            messageData.consensus_timestamp || '';
-        } catch (error) {
-          this.logger.debug(`Failed to process message: ${error}`);
+      for (const message of messages) {
+        if (message.p !== 'hcs-20') {
           continue;
         }
+
+        const parseResult = HCS20MessageSchema.safeParse(message);
+        if (!parseResult.success) {
+          this.logger.debug('Skipping message due to schema mismatch');
+          continue;
+        }
+
+        const parsedMsg = parseResult.data;
+        const sequenceNumber = message.sequence_number ?? 0;
+
+        this.logger.debug(
+          `Found HCS-20 message: op=${parsedMsg.op}, sequence=${sequenceNumber}`,
+        );
+
+        if (sequenceNumber > maxSequence) {
+          maxSequence = sequenceNumber;
+        }
+
+        const topicMessage: TopicMessageMeta = {
+          consensus_timestamp: message.consensus_timestamp ?? '',
+          sequence_number: sequenceNumber,
+          payer_account_id: message.payer_account_id ?? message.payer ?? '',
+          transaction_id: message.transaction_id ?? '',
+        };
+
+        this.processMessage(parsedMsg, topicMessage, topicId, isPrivate);
+
+        this.state.lastProcessedSequence++;
+        this.state.lastProcessedTimestamp = message.consensus_timestamp || '';
       }
       if (maxSequence > (lastSequence || 0)) {
         this.lastIndexedSequence.set(topicId, maxSequence);
@@ -279,7 +284,7 @@ export class HCS20PointsIndexer {
    */
   private processMessage(
     msg: HCS20Message,
-    hcsMsg: any,
+    hcsMsg: TopicMessageMeta,
     topicId: string,
     isPrivate: boolean,
   ): void {
@@ -304,7 +309,7 @@ export class HCS20PointsIndexer {
    */
   private processDeployMessage(
     msg: HCS20DeployMessage,
-    hcsMsg: any,
+    hcsMsg: TopicMessageMeta,
     topicId: string,
     isPrivate: boolean,
   ): void {
@@ -334,7 +339,7 @@ export class HCS20PointsIndexer {
    */
   private processMintMessage(
     msg: HCS20MintMessage,
-    hcsMsg: any,
+    hcsMsg: TopicMessageMeta,
     topicId: string,
     isPrivate: boolean,
   ): void {
@@ -387,7 +392,7 @@ export class HCS20PointsIndexer {
    */
   private processTransferMessage(
     msg: HCS20TransferMessage,
-    hcsMsg: any,
+    hcsMsg: TopicMessageMeta,
     topicId: string,
     isPrivate: boolean,
   ): void {
@@ -441,7 +446,7 @@ export class HCS20PointsIndexer {
    */
   private processBurnMessage(
     msg: HCS20BurnMessage,
-    hcsMsg: any,
+    hcsMsg: TopicMessageMeta,
     topicId: string,
     isPrivate: boolean,
   ): void {

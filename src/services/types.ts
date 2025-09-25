@@ -666,6 +666,7 @@ export interface HCSMessageWithCommonFields {
   consensus_timestamp?: string;
   m?: string;
   payer: string;
+  payer_account_id?: string;
   outbound_topic_id?: string;
   connection_request_id?: number;
   confirmed_request_id?: number;
@@ -681,4 +682,5 @@ export interface HCSMessageWithCommonFields {
   account_id?: string;
   uid?: string;
   t_id?: string;
+  transaction_id?: string;
 }

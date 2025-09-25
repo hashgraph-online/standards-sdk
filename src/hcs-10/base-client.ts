@@ -7,13 +7,23 @@ import {
   TopicResponse,
 } from '../services/types';
 import { TopicInfo } from '../services/types';
-import { TransactionReceipt, PrivateKey, PublicKey } from '@hashgraph/sdk';
+import {
+  TransactionReceipt,
+  PrivateKey,
+  PublicKey,
+  TopicMessageSubmitTransaction,
+} from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
 import { HederaMirrorNode, MirrorNodeConfig } from '../services';
 import {
   WaitForConnectionConfirmationResponse,
   TransactMessage,
 } from './types';
+import {
+  buildHcs10SubmitConnectionRequestTx,
+  buildHcs10OutboundConnectionRequestRecordTx,
+  buildHcs10OutboundConnectionCreatedRecordTx,
+} from './tx';
 import { HRLResolver } from '../utils/hrl-resolver';
 
 export enum Hcs10MemoType {
@@ -107,8 +117,8 @@ export abstract class HCS10BaseClient extends Registration {
   }
 
   abstract submitPayload(
-    topicId: string,
-    payload: object | string,
+    topicOrTransaction: string | TopicMessageSubmitTransaction,
+    payload?: object | string,
     submitKey?: PrivateKey,
     requiresFee?: boolean,
   ): Promise<TransactionReceipt>;
@@ -737,17 +747,17 @@ export abstract class HCS10BaseClient extends Registration {
       throw new Error('Failed to retrieve topic info account ID');
     }
 
-    const connectionRequestMessage = {
-      p: 'hcs-10',
-      op: 'connection_request',
-      operator_id: operatorId,
-      m: memo,
-    };
-
     const requiresFee = submissionCheck.requiresFee;
-    const response = await this.submitPayload(
+
+    const connectionRequestTx = buildHcs10SubmitConnectionRequestTx({
       inboundTopicId,
-      connectionRequestMessage,
+      operatorId,
+      memo,
+    });
+
+    const response = await this.submitPayload(
+      connectionRequestTx,
+      undefined,
       undefined,
       requiresFee,
     );
@@ -770,12 +780,14 @@ export abstract class HCS10BaseClient extends Registration {
 
     const requestorOperatorId = `${inboundTopicId}@${inboundAccountOwner}`;
 
-    await this.submitPayload(outboundTopic.outboundTopic, {
-      ...connectionRequestMessage,
-      outbound_topic_id: outboundTopic.outboundTopic,
-      connection_request_id: responseSequenceNumber,
-      operator_id: requestorOperatorId,
+    const outboundRecordTx = buildHcs10OutboundConnectionRequestRecordTx({
+      outboundTopicId: outboundTopic.outboundTopic,
+      operatorId: requestorOperatorId,
+      connectionRequestId: responseSequenceNumber,
+      memo,
     });
+
+    await this.submitPayload(outboundRecordTx);
 
     return response;
   }
@@ -806,18 +818,16 @@ export abstract class HCS10BaseClient extends Registration {
     operatorId: string;
     memo: string;
   }): Promise<TransactionReceipt> {
-    const payload = {
-      p: 'hcs-10',
-      op: 'connection_created',
-      connection_topic_id: connectionTopicId,
-      outbound_topic_id: outboundTopicId,
-      requestor_outbound_topic_id: requestorOutboundTopicId,
-      confirmed_request_id: confirmedRequestId,
-      connection_request_id: connectionRequestId,
-      operator_id: operatorId,
-      m: memo,
-    };
-    return await this.submitPayload(outboundTopicId, payload);
+    const transaction = buildHcs10OutboundConnectionCreatedRecordTx({
+      outboundTopicId,
+      requestorOutboundTopicId,
+      connectionTopicId,
+      confirmedRequestId,
+      connectionRequestId,
+      operatorId,
+      memo,
+    });
+    return await this.submitPayload(transaction);
   }
 
   /**
