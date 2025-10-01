@@ -174,7 +174,6 @@ describe('Logger', () => {
 
     it('should handle very long strings', () => {
       const longString = 'a'.repeat(10000);
-      const longString = 'a'.repeat(10000);
       logger.info('Long string:', longString);
 
       expect(mockWrite).toHaveBeenCalledWith(
