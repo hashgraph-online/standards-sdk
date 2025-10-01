@@ -6,9 +6,14 @@ import {
 } from '../../src/utils/logger';
 
 describe('Logger', () => {
+  const originalEnv = process.env.DISABLE_LOGS;
   beforeEach(() => {
     Logger.clearInstances();
     setLoggerFactory(null as any);
+    process.env.DISABLE_LOGS = 'false';
+  });
+  afterEach(() => {
+    process.env.DISABLE_LOGS = originalEnv;
   });
 
   describe('Swappable Logger Implementation', () => {

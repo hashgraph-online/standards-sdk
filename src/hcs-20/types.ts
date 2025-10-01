@@ -3,7 +3,8 @@
  */
 
 import { z } from 'zod';
-import { AccountId, TopicId } from '@hashgraph/sdk';
+import { AccountId, TopicId, PrivateKey } from '@hashgraph/sdk';
+import type { ILogger } from '../utils/logger';
 
 /**
  * HCS-20 Constants
@@ -187,7 +188,7 @@ export interface PointsTransaction {
  */
 export interface HCS20ClientConfig {
   mirrorNodeUrl?: string;
-  logger?: any;
+  logger?: ILogger;
   network?: 'mainnet' | 'testnet';
   registryTopicId?: string;
   publicTopicId?: string;
@@ -211,7 +212,8 @@ export interface BrowserHCS20ClientConfig extends HCS20ClientConfig {
  */
 export interface SDKHCS20ClientConfig extends HCS20ClientConfig {
   operatorId: string | AccountId;
-  operatorKey: string;
+  operatorKey: string | PrivateKey;
+  keyType?: 'ed25519' | 'ecdsa';
 }
 
 /**
@@ -252,6 +254,7 @@ export interface MintPointsOptions {
   amount: string;
   to: string | AccountId;
   memo?: string;
+  topicId?: string | TopicId;
   progressCallback?: (data: MintPointsProgress) => void;
 }
 
@@ -274,6 +277,7 @@ export interface TransferPointsOptions {
   from: string | AccountId;
   to: string | AccountId;
   memo?: string;
+  topicId?: string | TopicId;
   progressCallback?: (data: TransferPointsProgress) => void;
 }
 
@@ -295,6 +299,7 @@ export interface BurnPointsOptions {
   amount: string;
   from: string | AccountId;
   memo?: string;
+  topicId?: string | TopicId;
   progressCallback?: (data: BurnPointsProgress) => void;
 }
 

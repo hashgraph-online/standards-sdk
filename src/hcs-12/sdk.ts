@@ -9,7 +9,8 @@ import {
   KeyList,
 } from '@hashgraph/sdk';
 import { HCS12BaseClient, HCS12Config } from './base-client';
-import { Logger, detectKeyTypeFromString } from '../utils';
+import { Logger } from '../utils';
+import { createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
 import {
   ActionRegistry,
   BlockLoader,
@@ -39,7 +40,7 @@ export interface HCS12ClientConfig extends HCS12Config {
   /** Operator account ID */
   operatorId: string;
   /** Operator private key */
-  operatorPrivateKey: string;
+  operatorPrivateKey: string | PrivateKey;
 }
 
 /**
@@ -47,42 +48,28 @@ export interface HCS12ClientConfig extends HCS12Config {
  */
 export class HCS12Client extends HCS12BaseClient {
   private client: Client;
-  private operatorPrivateKey: string;
   private operatorAccountId: string;
-  private keyType: 'ed25519' | 'ecdsa';
+  private operatorCtx: NodeOperatorContext;
 
   constructor(config: HCS12ClientConfig) {
     super(config);
 
-    this.client =
-      config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
-
-    this.operatorPrivateKey = config.operatorPrivateKey;
     this.operatorAccountId = config.operatorId;
-
-    if (config.keyType) {
-      this.keyType = config.keyType;
-      const PK =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorPrivateKey)
-          : PrivateKey.fromStringED25519(this.operatorPrivateKey);
-      this.client.setOperator(config.operatorId, PK);
-    } else {
-      try {
-        const keyDetection = detectKeyTypeFromString(this.operatorPrivateKey);
-        this.keyType = keyDetection.detectedType;
-        this.client.setOperator(config.operatorId, keyDetection.privateKey);
-        this.logger.debug(`Detected key type: ${this.keyType}`);
-      } catch (error) {
-        this.logger.error('Failed to detect key type:', error);
-        throw new Error('Invalid private key format');
-      }
-    }
+    this.operatorCtx = createNodeOperatorContext({
+      network: this.network,
+      operatorId: this.operatorAccountId,
+      operatorKey: config.operatorPrivateKey,
+      keyType: config.keyType,
+      mirrorNode: this.mirrorNode,
+      logger: this.logger,
+      client: config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet(),
+    });
+    this.client = this.operatorCtx.client;
 
     this.logger.info('HCS-12 SDK Client initialized', {
       network: config.network,
       operatorId: this.operatorAccountId,
-      keyType: this.keyType,
+      keyType: this.operatorCtx.keyType,
     });
   }
 
@@ -148,8 +135,8 @@ export class HCS12Client extends HCS12BaseClient {
 
     const transaction = buildTopicCreateTx({
       memo,
-      adminKey: adminKey as any,
-      submitKey: submitKey as any,
+      adminKey: adminKey as boolean | PublicKey | KeyList | undefined,
+      submitKey: submitKey as boolean | PublicKey | KeyList | undefined,
       operatorPublicKey: this.client.operatorPublicKey || undefined,
     });
 
@@ -315,7 +302,7 @@ export class HCS12Client extends HCS12BaseClient {
    * Get operator private key
    */
   getOperatorPrivateKey(): string {
-    return this.operatorPrivateKey;
+    return this.operatorCtx.operatorKey.toString();
   }
 
   /**
@@ -337,7 +324,7 @@ export class HCS12Client extends HCS12BaseClient {
     const sdk = await InscriptionSDK.createWithAuth({
       type: 'server',
       accountId: this.operatorAccountId,
-      privateKey: this.operatorPrivateKey,
+      privateKey: this.operatorCtx.operatorKey.toString(),
       network: this.network as 'testnet' | 'mainnet',
     });
 
@@ -361,7 +348,7 @@ export class HCS12Client extends HCS12BaseClient {
       },
       {
         accountId: this.operatorAccountId,
-        privateKey: this.operatorPrivateKey,
+        privateKey: this.operatorCtx.operatorKey,
         network: this.network,
       },
       inscriptionOptions,

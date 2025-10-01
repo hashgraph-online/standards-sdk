@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { defaultResolverRegistry, HieroDidResolver } from '../../src/hcs-14';
+import { HCS14Client } from '../../src/hcs-14';
 import { HCS11Client, HCS11Profile } from '../../src/hcs-11';
 
 function required(name: string, value: string | undefined): string {
@@ -27,8 +27,8 @@ async function main(): Promise<void> {
     throw new Error('HCS-11 profile does not contain uaid');
   }
 
-  defaultResolverRegistry.register(new HieroDidResolver());
-  const didDoc = await defaultResolverRegistry.resolveUaid(profile.uaid);
+  const hcs14 = new HCS14Client();
+  const didDoc = await hcs14.getResolverRegistry().resolveUaid(profile.uaid);
   const output = {
     accountId,
     uaid: profile.uaid,

@@ -16,12 +16,16 @@ Object.defineProperty(process.stdout, 'write', {
 });
 
 describe('Logger', () => {
+  const originalEnv = process.env.DISABLE_LOGS;
   let logger: Logger;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockWrite.mockClear();
     logger = new Logger({ module: 'test-module', prettyPrint: false });
+  });
+  afterAll(() => {
+    process.env.DISABLE_LOGS = originalEnv;
   });
 
   describe('Argument Handling', () => {
@@ -169,6 +173,7 @@ describe('Logger', () => {
     });
 
     it('should handle very long strings', () => {
+      const longString = 'a'.repeat(10000);
       const longString = 'a'.repeat(10000);
       logger.info('Long string:', longString);
 

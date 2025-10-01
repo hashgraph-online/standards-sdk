@@ -127,4 +127,18 @@ describe('HCS-10 tx builders', () => {
       }),
     ).toBeInstanceOf(TopicMessageSubmitTransaction);
   });
+
+  test('buildHcs10RegistryRegisterTx includes inbound topic id when provided', () => {
+    const tx = buildHcs10RegistryRegisterTx({
+      registryTopicId: '0.0.8',
+      accountId: '0.0.9',
+      inboundTopicId: '0.0.100',
+      memo: 'hello',
+    });
+
+    const rawMessage = tx.getMessage();
+    expect(rawMessage).not.toBeNull();
+    const messageString = Buffer.from(rawMessage!).toString('utf8');
+    expect(messageString).toContain('"inbound_topic_id":"0.0.100"');
+  });
 });

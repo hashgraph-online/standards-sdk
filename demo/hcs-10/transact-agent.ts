@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
-import { HCS10Client, HCSMessage, Logger, ConnectionsManager } from '../../src';
+import { HCSMessage, Logger, ConnectionsManager } from '../../src';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import { extractAllText, getOrCreateBob, monitorTopics } from './utils.js';
 import { ConversationalAgent } from '@hashgraphonline/conversational-agent';
 import { ScheduleCreateTransaction } from '@hashgraph/sdk';

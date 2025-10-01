@@ -5,12 +5,7 @@
 import { getCryptoAdapter } from '../utils/crypto-abstraction';
 import { base58Encode } from './base58';
 import { canonicalizeAgentData } from './canonical';
-import {
-  CanonicalAgentData,
-  DidRoutingParams,
-  Hcs14Method,
-  ParsedHcs14Did,
-} from './types';
+import { CanonicalAgentData, DidRoutingParams, ParsedHcs14Did } from './types';
 
 function encodeMultibaseB58btc(input: string): string {
   const bytes = Buffer.from(input, 'utf8');
@@ -49,7 +44,7 @@ function defaultAidParams(
   return merged;
 }
 
-export async function generateAidDid(
+async function createUaidAidImpl(
   input: CanonicalAgentData,
   params?: DidRoutingParams,
   options?: { includeParams?: boolean },
@@ -72,12 +67,10 @@ export async function generateAidDid(
     ? defaultAidParams(normalized, params || {})
     : {};
   const paramString = includeParams ? buildParamString(finalParams) : '';
-  return paramString
-    ? `uaid:aid:${id};${paramString}`
-    : `uaid:aid:${id}`;
+  return paramString ? `uaid:aid:${id};${paramString}` : `uaid:aid:${id}`;
 }
 
-export function generateUaidDid(
+function createUaidFromDidImpl(
   existingDid: string,
   params?: DidRoutingParams,
 ): string {
@@ -99,7 +92,9 @@ export function generateUaidDid(
 
   let finalId = sanitized;
   if (method === 'hedera') {
-    const networkPrefixMatch = sanitized.match(/^(mainnet|testnet|previewnet|devnet):(.+)$/);
+    const networkPrefixMatch = sanitized.match(
+      /^(mainnet|testnet|previewnet|devnet):(.+)$/,
+    );
     if (networkPrefixMatch) {
       finalId = networkPrefixMatch[2];
     }
@@ -113,6 +108,26 @@ export function generateUaidDid(
   return paramString
     ? `uaid:did:${finalId};${paramString}`
     : `uaid:did:${finalId}`;
+}
+
+export function createUaid(
+  existingDid: string,
+  params?: DidRoutingParams,
+): string;
+export function createUaid(
+  input: CanonicalAgentData,
+  params?: DidRoutingParams,
+  options?: { includeParams?: boolean },
+): Promise<string>;
+export function createUaid(
+  input: string | CanonicalAgentData,
+  params?: DidRoutingParams,
+  options?: { includeParams?: boolean },
+): Promise<string> | string {
+  if (typeof input === 'string') {
+    return createUaidFromDidImpl(input, params);
+  }
+  return createUaidAidImpl(input, params, options);
 }
 
 export function parseHcs14Did(did: string): ParsedHcs14Did {

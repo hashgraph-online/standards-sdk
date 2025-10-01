@@ -638,7 +638,14 @@ type HCSProtocol =
   | 'hcs-10'
   | 'hcs-11'
   | 'hcs-12'
-  | 'hcs-13';
+  | 'hcs-13'
+  | 'hcs-14'
+  | 'hcs-15'
+  | 'hcs-16'
+  | 'hcs-17'
+  | 'hcs-18'
+  | 'hcs-19'
+  | 'hcs-20';
 
 export interface HCSMessageWithCommonFields {
   p: HCSProtocol;
@@ -659,6 +666,7 @@ export interface HCSMessageWithCommonFields {
   consensus_timestamp?: string;
   m?: string;
   payer: string;
+  payer_account_id?: string;
   outbound_topic_id?: string;
   connection_request_id?: number;
   confirmed_request_id?: number;
@@ -674,4 +682,5 @@ export interface HCSMessageWithCommonFields {
   account_id?: string;
   uid?: string;
   t_id?: string;
+  transaction_id?: string;
 }

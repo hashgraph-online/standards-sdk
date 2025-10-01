@@ -1,8 +1,8 @@
-import { Logger, LoggerOptions } from '../utils/logger';
+import { Logger, LoggerOptions, ILogger } from '../utils/logger';
 import { HCS10BaseClient } from './base-client';
 import { AIAgentProfile } from '../hcs-11';
 import { TransactMessage } from './types';
-import { HCSMessageWithCommonFields } from '..';
+import { HCSMessageWithCommonFields } from '../services/types';
 
 /**
  * Represents a connection request between agents
@@ -230,7 +230,7 @@ export interface IConnectionsManager {
  * across different applications. It works with both frontend and backend implementations.
  */
 export class ConnectionsManager implements IConnectionsManager {
-  private logger: Logger;
+  private logger: ILogger;
   private connections: Map<string, Connection> = new Map();
   private pendingRequests: Map<string, ConnectionRequest> = new Map();
   private profileCache: Map<string, AIAgentProfile> = new Map();
@@ -247,7 +247,7 @@ export class ConnectionsManager implements IConnectionsManager {
       prettyPrint: true,
       silent: options?.silent,
     };
-    this.logger = new Logger(loggerOptions);
+    this.logger = Logger.getInstance(loggerOptions);
 
     if (options?.filterPendingAccountIds) {
       this.filterPendingAccountIds = new Set(options.filterPendingAccountIds);

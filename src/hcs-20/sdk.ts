@@ -4,7 +4,6 @@
 
 import {
   AccountId,
-  TopicId,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
   PrivateKey,
@@ -24,9 +23,6 @@ import {
   PointsInfo,
   PointsTransaction,
   HCS20DeployMessage,
-  HCS20MintMessage,
-  HCS20TransferMessage,
-  HCS20BurnMessage,
   HCS20RegisterMessage,
 } from './types';
 import {
@@ -36,115 +32,68 @@ import {
   PointsValidationError,
 } from './errors';
 import { sleep } from '../utils/sleep';
-import { detectKeyTypeFromString } from '../utils/key-type-detector';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import { HCS2Client } from '../hcs-2/client';
+import {
+  buildHcs20DeployTx,
+  buildHcs20MintTx,
+  buildHcs20TransferTx,
+  buildHcs20BurnTx,
+  buildHcs20RegisterTx,
+} from './tx';
 
 /**
  * SDK-specific HCS-20 client for server-side operations
  */
 export class HCS20Client extends HCS20BaseClient {
   private client: Client;
-  private operatorId: AccountId;
-  private operatorKey: PrivateKey;
-  private operatorKeyString: string;
-  private keyType?: 'ed25519' | 'ecdsa';
-  private initialized = false;
+  private operatorAccountId: AccountId;
+  private operatorId: string;
+  private operatorCtx: NodeOperatorContext;
 
   constructor(config: SDKHCS20ClientConfig) {
     super(config);
 
-    this.operatorId =
+    this.operatorAccountId =
       typeof config.operatorId === 'string'
         ? AccountId.fromString(config.operatorId)
         : config.operatorId;
+    this.operatorId = this.operatorAccountId.toString();
 
-    this.operatorKeyString = config.operatorKey;
-
-    this.client =
+    const baseClient =
       this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
 
-    try {
-      const keyDetection = detectKeyTypeFromString(config.operatorKey);
-      this.operatorKey = keyDetection.privateKey;
-      this.keyType = keyDetection.detectedType;
+    this.operatorCtx = createNodeOperatorContext({
+      network: this.network,
+      operatorId: this.operatorId,
+      operatorKey: config.operatorKey,
+      keyType: config.keyType,
+      mirrorNode: this.mirrorNode,
+      logger: this.logger,
+      client: baseClient,
+    });
 
-      if (keyDetection.warning) {
-        this.logger.warn(keyDetection.warning);
-      }
-
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-    } catch (error) {
-      this.logger.debug(
-        'Failed to detect key type from string, will initialize later',
-      );
-    }
-  }
-
-  /**
-   * Initialize operator by querying mirror node for key type
-   */
-  private async initializeOperator(): Promise<void> {
-    if (this.initialized) return;
-
-    try {
-      const accountInfo = await this.mirrorNode.requestAccount(
-        this.operatorId.toString(),
-      );
-      const keyType = accountInfo?.key?._type;
-
-      if (keyType?.includes('ECDSA')) {
-        this.keyType = 'ecdsa';
-      } else if (keyType?.includes('ED25519')) {
-        this.keyType = 'ed25519';
-      } else {
-        this.keyType = 'ecdsa'; // Default to ECDSA
-      }
-
-      this.operatorKey =
-        this.keyType === 'ecdsa'
-          ? PrivateKey.fromStringECDSA(this.operatorKeyString)
-          : PrivateKey.fromStringED25519(this.operatorKeyString);
-
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-
-      this.logger.debug(`Initialized operator with key type: ${this.keyType}`);
-    } catch (error) {
-      this.logger.warn(
-        'Failed to query mirror node for key type, using ECDSA as default',
-      );
-      this.keyType = 'ecdsa'; // Default to ECDSA
-      this.operatorKey = PrivateKey.fromStringECDSA(this.operatorKeyString);
-      this.client.setOperator(this.operatorId, this.operatorKey);
-      this.initialized = true;
-    }
+    this.client = this.operatorCtx.client;
+    void this.operatorCtx.ensureInitialized();
   }
 
   /**
    * Ensure operator is initialized before operations
    */
   private async ensureInitialized(): Promise<void> {
-    if (!this.initialized) {
-      await this.initializeOperator();
-    }
+    await this.operatorCtx.ensureInitialized();
   }
 
   /**
    * Submit a payload to a topic
    */
   private async submitPayload(
-    topicId: string,
-    payload: object | string,
+    transaction: TopicMessageSubmitTransaction,
     submitKey?: PrivateKey,
   ): Promise<{ receipt: TransactionReceipt; transactionId: string }> {
-    const message =
-      typeof payload === 'string' ? payload : JSON.stringify(payload);
-
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
-      .setMessage(message);
-
     let transactionResponse: TransactionResponse;
     if (submitKey) {
       const frozenTransaction = transaction.freezeWith(this.client);
@@ -200,13 +149,13 @@ export class HCS20Client extends HCS20BaseClient {
 
     const hcs2Client = new HCS2Client({
       operatorId: this.operatorId,
-      operatorKey: this.operatorKey,
+      operatorKey: this.operatorCtx.operatorKey,
       network: this.network,
     });
 
     const topicCreateResponse = await hcs2Client.createRegistry({
-      submitKey: this.operatorKey,
-      adminKey: this.operatorKey,
+      submitKey: this.operatorCtx.operatorKey,
+      adminKey: this.operatorCtx.operatorKey,
     });
 
     if (!topicCreateResponse.success) {
@@ -238,14 +187,14 @@ export class HCS20Client extends HCS20BaseClient {
 
       const hcs2Client = new HCS2Client({
         operatorId: this.operatorId,
-        operatorKey: this.operatorKey,
+        operatorKey: this.operatorCtx.operatorKey,
         network: this.network,
       });
 
       if (options.usePrivateTopic) {
         const topicCreateResponse = await hcs2Client.createRegistry({
-          submitKey: this.operatorKey,
-          adminKey: this.operatorKey,
+          submitKey: this.operatorCtx.operatorKey,
+          adminKey: this.operatorCtx.operatorKey,
         });
 
         if (!topicCreateResponse.success) {
@@ -286,9 +235,18 @@ export class HCS20Client extends HCS20BaseClient {
         );
       }
 
-      const { transactionId: deployTxId } = await this.submitPayload(
+      const deployTransaction = buildHcs20DeployTx({
         topicId,
-        deployMessage,
+        name: options.name,
+        tick: options.tick,
+        max: options.maxSupply,
+        lim: options.limitPerMint,
+        metadata: options.metadata,
+        memo: options.topicMemo,
+      });
+
+      const { transactionId: deployTxId } = await this.submitPayload(
+        deployTransaction,
       );
 
       progressCallback?.({
@@ -314,7 +272,7 @@ export class HCS20Client extends HCS20BaseClient {
         limitPerMint: options.limitPerMint,
         metadata: options.metadata,
         topicId,
-        deployerAccountId: this.operatorId.toString(),
+        deployerAccountId: this.operatorId,
         currentSupply: '0',
         deploymentTimestamp: new Date().toISOString(),
         isPrivate: options.usePrivateTopic || false,
@@ -351,19 +309,19 @@ export class HCS20Client extends HCS20BaseClient {
         percentage: 50,
       });
 
-      const mintMessage: HCS20MintMessage = {
-        p: 'hcs-20',
-        op: 'mint',
-        tick: normalizedTick,
+      const topicId = options.topicId
+        ? this.topicToString(options.topicId)
+        : this.publicTopicId;
+      const mintTransaction = buildHcs20MintTx({
+        topicId,
+        tick: options.tick,
         amt: options.amount,
         to: this.accountToString(options.to),
-        m: options.memo,
-      };
+        memo: options.memo,
+      });
 
-      const topicId = (options as any).topicId || this.publicTopicId;
       const { transactionId: mintTxId } = await this.submitPayload(
-        topicId,
-        mintMessage,
+        mintTransaction,
       );
 
       progressCallback?.({
@@ -423,7 +381,7 @@ export class HCS20Client extends HCS20BaseClient {
       const fromAccount = this.accountToString(options.from);
       const toAccount = this.accountToString(options.to);
 
-      if (fromAccount !== this.operatorId.toString()) {
+      if (fromAccount !== this.operatorId) {
         throw new PointsTransferError(
           'For public topics, transaction payer must match sender',
           options.tick,
@@ -438,20 +396,20 @@ export class HCS20Client extends HCS20BaseClient {
         percentage: 50,
       });
 
-      const transferMessage: HCS20TransferMessage = {
-        p: 'hcs-20',
-        op: 'transfer',
-        tick: normalizedTick,
+      const topicId = options.topicId
+        ? this.topicToString(options.topicId)
+        : this.publicTopicId;
+      const transferTransaction = buildHcs20TransferTx({
+        topicId,
+        tick: options.tick,
         amt: options.amount,
         from: fromAccount,
         to: toAccount,
-        m: options.memo,
-      };
+        memo: options.memo,
+      });
 
-      const topicId = (options as any).topicId || this.publicTopicId;
       const { transactionId: transferTxId } = await this.submitPayload(
-        topicId,
-        transferMessage,
+        transferTransaction,
       );
 
       progressCallback?.({
@@ -509,7 +467,7 @@ export class HCS20Client extends HCS20BaseClient {
       const normalizedTick = this.normalizeTick(options.tick);
       const fromAccount = this.accountToString(options.from);
 
-      if (fromAccount !== this.operatorId.toString()) {
+      if (fromAccount !== this.operatorId) {
         throw new PointsBurnError(
           'For public topics, transaction payer must match burner',
           options.tick,
@@ -523,19 +481,19 @@ export class HCS20Client extends HCS20BaseClient {
         percentage: 50,
       });
 
-      const burnMessage: HCS20BurnMessage = {
-        p: 'hcs-20',
-        op: 'burn',
-        tick: normalizedTick,
+      const topicId = options.topicId
+        ? this.topicToString(options.topicId)
+        : this.publicTopicId;
+      const burnTransaction = buildHcs20BurnTx({
+        topicId,
+        tick: options.tick,
         amt: options.amount,
         from: fromAccount,
-        m: options.memo,
-      };
+        memo: options.memo,
+      });
 
-      const topicId = (options as any).topicId || this.publicTopicId;
       const { transactionId: burnTxId } = await this.submitPayload(
-        topicId,
-        burnMessage,
+        burnTransaction,
       );
 
       progressCallback?.({
@@ -607,14 +565,30 @@ export class HCS20Client extends HCS20BaseClient {
         );
       }
 
+      if (!this.registryTopicId) {
+        throw new PointsDeploymentError(
+          'Registry topic not available',
+          options.name,
+        );
+      }
+
       progressCallback?.({
         stage: 'submitting',
         percentage: 50,
       });
 
+      const registerTransaction = buildHcs20RegisterTx({
+        registryTopicId: this.registryTopicId,
+        name: options.name,
+        topicId: this.topicToString(options.topicId),
+        isPrivate: options.isPrivate,
+        metadata: options.metadata,
+        memo: options.memo,
+      });
+
       const { transactionId: registerTxId } = await this.submitPayload(
-        this.registryTopicId,
-        registerMessage,
+        registerTransaction,
+        this.operatorCtx.operatorKey,
       );
 
       progressCallback?.({
@@ -660,7 +634,13 @@ export class HCS20Client extends HCS20BaseClient {
           order: 'desc',
         });
 
-        const found = messages.some((msg: any) => msg.consensus_timestamp);
+        const found = messages.some(message => {
+          if (typeof message !== 'object' || message === null) {
+            return false;
+          }
+          const candidate = message as { consensus_timestamp?: unknown };
+          return typeof candidate.consensus_timestamp === 'string';
+        });
 
         if (found) {
           this.logger.debug(

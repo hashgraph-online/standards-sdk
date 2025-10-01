@@ -13,16 +13,19 @@ import {
   InscriptionOptions,
   InscriptionResult,
 } from '../inscribe';
-import { Logger, ILogger, detectKeyTypeFromString, getTopicId } from '../utils';
+import { Logger, ILogger, getTopicId } from '../utils';
 import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { ProgressReporter } from '../utils/progress-reporter';
 import { HederaMirrorNode } from '../services';
 import { isHederaNetwork, toHederaCaip10 } from '../hcs-14/caip';
-import { generateUaidDid } from '../hcs-14/did';
-import { createDID } from '@hiero-did-sdk/registrar';
 import { TopicInfo } from '../services/types';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
+import { NetworkType } from '../utils/types';
 import {
   ProfileType,
   AIAgentType,
@@ -111,6 +114,7 @@ export const BaseProfileSchema = z.object({
   properties: z.record(z.any()).optional(),
   inboundTopicId: z.string().optional(),
   outboundTopicId: z.string().optional(),
+  base_account: z.string().optional(),
 });
 
 export const PersonalProfileSchema = BaseProfileSchema.extend({
@@ -129,10 +133,35 @@ export const MCPServerProfileSchema = BaseProfileSchema.extend({
   mcpServer: MCPServerDetailsSchema,
 });
 
+const FloraProfileSchema = z.object({
+  version: z.string(),
+  type: z.literal(ProfileType.FLORA),
+  display_name: z.string().min(1),
+  members: z.array(
+    z.object({
+      accountId: z.string(),
+      publicKey: z.string().optional(),
+      weight: z.number().optional(),
+    }),
+  ),
+  threshold: z.number().min(1),
+  topics: z.object({
+    communication: z.string(),
+    transaction: z.string(),
+    state: z.string(),
+  }),
+  inboundTopicId: z.string(),
+  outboundTopicId: z.string(),
+  bio: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  policies: z.record(z.any()).optional(),
+});
+
 export const HCS11ProfileSchema = z.union([
   PersonalProfileSchema,
   AIAgentProfileSchema,
   MCPServerProfileSchema,
+  FloraProfileSchema,
 ]);
 
 export class HCS11Client {
@@ -143,6 +172,7 @@ export class HCS11Client {
   private mirrorNode: HederaMirrorNode;
   private keyType: 'ed25519' | 'ecdsa';
   private operatorId: string;
+  private operatorCtx?: NodeOperatorContext;
 
   constructor(config: HCS11ClientConfig) {
     this.client =
@@ -163,28 +193,21 @@ export class HCS11Client {
     );
 
     if (this.auth.privateKey) {
-      if (config.keyType) {
-        this.keyType = config.keyType;
-        this.initializeOperatorWithKeyType();
-      } else {
-        try {
-          const keyDetection = detectKeyTypeFromString(this.auth.privateKey);
-          this.keyType = keyDetection.detectedType;
-
-          if (keyDetection.warning) {
-            this.logger.warn(keyDetection.warning);
-          }
-
-          this.client.setOperator(this.operatorId, keyDetection.privateKey);
-        } catch (error) {
-          this.logger.warn(
-            'Failed to detect key type from private key format, will query mirror node',
-          );
-          this.keyType = 'ecdsa'; // Default to ECDSA
-        }
-
-        this.initializeOperator();
-      }
+      this.operatorCtx = createNodeOperatorContext({
+        network: this.network as NetworkType,
+        operatorId: this.operatorId,
+        operatorKey: this.auth.privateKey,
+        keyType: config.keyType,
+        mirrorNode: this.mirrorNode,
+        logger: this.logger,
+        client: this.client,
+      });
+      this.client = this.operatorCtx.client;
+      this.keyType = this.operatorCtx.keyType;
+      void this.operatorCtx.ensureInitialized();
+      this.client.setOperator(this.operatorId, this.operatorCtx.operatorKey);
+    } else {
+      this.keyType = config.keyType || 'ed25519';
     }
   }
 
@@ -197,31 +220,21 @@ export class HCS11Client {
   }
 
   public async initializeOperator() {
-    const account = await this.mirrorNode.requestAccount(this.operatorId);
-    const keyType = account?.key?._type;
-
-    if (keyType && keyType.includes('ECDSA')) {
-      this.keyType = 'ecdsa';
-    } else if (keyType && keyType.includes('ED25519')) {
-      this.keyType = 'ed25519';
-    } else {
-      this.keyType = 'ecdsa'; // Default to ECDSA
-    }
-
-    this.initializeOperatorWithKeyType();
-  }
-
-  private initializeOperatorWithKeyType() {
-    if (!this.auth.privateKey) {
+    if (!this.operatorCtx) {
       return;
     }
 
-    const PK =
-      this.keyType === 'ecdsa'
-        ? PrivateKey.fromStringECDSA(this.auth.privateKey)
-        : PrivateKey.fromStringED25519(this.auth.privateKey);
-
-    this.client.setOperator(this.operatorId, PK);
+    try {
+      await this.operatorCtx.ensureInitialized();
+      this.keyType = this.operatorCtx.keyType;
+      this.client.setOperator(this.operatorId, this.operatorCtx.operatorKey);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to verify operator key with mirror node: ${
+          (error as Error).message
+        }`,
+      );
+    }
   }
 
   public createPersonalProfile(
@@ -236,6 +249,7 @@ export class HCS11Client {
       properties?: Record<string, any>;
       inboundTopicId?: string;
       outboundTopicId?: string;
+      baseAccount?: string;
     },
   ): PersonalProfile {
     return {
@@ -249,6 +263,7 @@ export class HCS11Client {
       properties: options?.properties,
       inboundTopicId: options?.inboundTopicId,
       outboundTopicId: options?.outboundTopicId,
+      base_account: options?.baseAccount,
     };
   }
 
@@ -266,6 +281,7 @@ export class HCS11Client {
       inboundTopicId?: string;
       outboundTopicId?: string;
       creator?: string;
+      baseAccount?: string;
     },
   ): AIAgentProfile {
     const validation = this.validateProfile({
@@ -279,6 +295,7 @@ export class HCS11Client {
       properties: options?.properties,
       inboundTopicId: options?.inboundTopicId,
       outboundTopicId: options?.outboundTopicId,
+      base_account: options?.baseAccount,
       aiAgent: {
         type: agentType,
         capabilities,
@@ -304,6 +321,7 @@ export class HCS11Client {
       properties: options?.properties,
       inboundTopicId: options?.inboundTopicId,
       outboundTopicId: options?.outboundTopicId,
+      base_account: options?.baseAccount,
       aiAgent: {
         type: agentType,
         capabilities,
@@ -755,13 +773,17 @@ export class HCS11Client {
   }
 
   private async attachUaidIfMissing(profile: HCS11Profile): Promise<void> {
-    if ((profile as { uaid?: string }).uaid) {
+    if (profile.uaid) {
       return;
     }
     if (!isHederaNetwork(this.network)) return;
     try {
-      const created = await createDID({ client: this.client });
-      const did = created.did;
+      const { HCS14Client } = await import('../hcs-14');
+      const hcs14 = new HCS14Client({ client: this.client });
+      const did = await hcs14.createDid({
+        method: 'hedera',
+        client: this.client,
+      });
       const nativeId = toHederaCaip10(this.network, this.auth.operatorId);
       let uid = this.auth.operatorId;
       const inboundFromProfile = profile.inboundTopicId;
@@ -780,8 +802,8 @@ export class HCS11Client {
         } catch {}
       }
 
-      const uaid = generateUaidDid(did, { proto: 'hcs-10', nativeId, uid });
-      (profile as { uaid?: string }).uaid = uaid;
+      const uaid = hcs14.createUaid(did, { proto: 'hcs-10', nativeId, uid });
+      profile.uaid = uaid;
     } catch {
       this.logger.warn(
         'Hiero registrar not available; skipping UAID generation for profile',
@@ -1022,7 +1044,7 @@ export class HCS11Client {
 
           return {
             success: true,
-            profile: parsed.data,
+            profile: parsed.data as HCS11Profile,
             topicInfo: {
               inboundTopic: parsed.data.inboundTopicId || '',
               outboundTopic: parsed.data.outboundTopicId || '',
@@ -1053,7 +1075,7 @@ export class HCS11Client {
         }
         return {
           success: true,
-          profile: parsed.data,
+          profile: parsed.data as HCS11Profile,
           topicInfo: {
             inboundTopic: parsed.data.inboundTopicId || '',
             outboundTopic: parsed.data.outboundTopicId || '',
@@ -1081,7 +1103,7 @@ export class HCS11Client {
         }
         return {
           success: true,
-          profile: parsed.data,
+          profile: parsed.data as HCS11Profile,
           topicInfo: {
             inboundTopic: parsed.data.inboundTopicId || '',
             outboundTopic: parsed.data.outboundTopicId || '',

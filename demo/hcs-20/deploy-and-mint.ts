@@ -86,20 +86,25 @@ async function main() {
   console.log(`Operator Account: ${operatorId}`);
 
   try {
+    const tick = `DEMO${Date.now().toString(36).toUpperCase()}`;
+
     // Step 1: Deploy a new points system
     console.log('\n📝 Step 1: Deploying new points system...');
     const pointsInfo = await client.deployPoints({
       name: 'Demo Loyalty Points',
-      tick: 'DEMO',
+      tick,
       maxSupply: '1000000',
       limitPerMint: '10000',
       metadata: 'Demo loyalty points for testing',
       usePrivateTopic: false,
       progressCallback: progress => {
         console.log(`  ${progress.stage}: ${progress.percentage}%`);
-        if (progress.topicId) console.log(`  Topic ID: ${progress.topicId}`);
-        if (progress.deployTxId)
+        if (progress.topicId) {
+          console.log(`  Topic ID: ${progress.topicId}`);
+        }
+        if (progress.deployTxId) {
           console.log(`  Deploy Tx: ${progress.deployTxId}`);
+        }
       },
     });
 
@@ -113,7 +118,7 @@ async function main() {
     // Step 2: Mint points to the operator account
     console.log('\n💰 Step 2: Minting points...');
     const mintTx = await client.mintPoints({
-      tick: 'DEMO',
+      tick,
       amount: '5000',
       to: operatorId,
       memo: 'Initial mint for demo',
@@ -131,20 +136,21 @@ async function main() {
     if (recipientAccount) {
       console.log('\n📤 Step 3: Transferring points...');
       const transferTx = await client.transferPoints({
-        tick: 'DEMO',
+        tick,
         amount: '1000',
         from: operatorId,
         to: recipientAccount,
         memo: 'Demo transfer',
         progressCallback: progress => {
           console.log(`  ${progress.stage}: ${progress.percentage}%`);
-          if (progress.transferTxId)
+          if (progress.transferTxId) {
             console.log(`  Transfer Tx: ${progress.transferTxId}`);
+          }
         },
       });
 
-      console.log('\n✅ Points transferred successfully!');
-      console.log('Transaction:', transferTx);
+    console.log('\n✅ Points transferred successfully!');
+    console.log('Transaction:', transferTx);
     } else {
       console.log('\n⚠️  Skipping transfer (no BOB_ACCOUNT_ID set)');
     }
@@ -152,13 +158,15 @@ async function main() {
     // Step 4: Burn some points
     console.log('\n🔥 Step 4: Burning points...');
     const burnTx = await client.burnPoints({
-      tick: 'DEMO',
+      tick,
       amount: '500',
       from: operatorId,
       memo: 'Demo burn',
       progressCallback: progress => {
         console.log(`  ${progress.stage}: ${progress.percentage}%`);
-        if (progress.burnTxId) console.log(`  Burn Tx: ${progress.burnTxId}`);
+        if (progress.burnTxId) {
+          console.log(`  Burn Tx: ${progress.burnTxId}`);
+        }
       },
     });
 
@@ -167,12 +175,12 @@ async function main() {
 
     console.log('\n🎉 Demo completed successfully!');
     console.log('\n📊 Summary:');
-    console.log('- Deployed DEMO points with 1M max supply');
-    console.log('- Minted 5,000 points to operator');
+    console.log(`- Deployed ${tick} points with 1M max supply`);
+    console.log(`- Minted 5,000 ${tick} to operator`);
     if (recipientAccount) {
-      console.log('- Transferred 1,000 points to recipient');
+      console.log(`- Transferred 1,000 ${tick} to recipient`);
     }
-    console.log('- Burned 500 points');
+    console.log(`- Burned 500 ${tick}`);
 
     console.log('\n📊 Starting indexer to verify final balances...');
     const indexer = new HCS20PointsIndexer('testnet');
@@ -186,18 +194,19 @@ async function main() {
       registryTopicId,
     });
 
-    const indexedPointsInfo = await indexer.getPointsInfo('demo');
-    const operatorBalance = await indexer.getBalance('demo', operatorId);
+    const normalizedTick = tick.toLowerCase();
+    const indexedPointsInfo = await indexer.getPointsInfo(normalizedTick);
+    const operatorBalance = await indexer.getBalance(normalizedTick, operatorId);
     const recipientBalance = recipientAccount
-      ? await indexer.getBalance('demo', recipientAccount)
+      ? await indexer.getBalance(normalizedTick, recipientAccount)
       : '0';
 
     console.log('\n💵 Final Balances:');
-    console.log(`- Operator: ${operatorBalance} DEMO`);
+    console.log(`- Operator: ${operatorBalance} ${tick}`);
     if (recipientAccount) {
-      console.log(`- Recipient: ${recipientBalance} DEMO`);
+      console.log(`- Recipient: ${recipientBalance} ${tick}`);
     }
-    console.log(`- Total Supply: ${indexedPointsInfo?.currentSupply} DEMO`);
+    console.log(`- Total Supply: ${indexedPointsInfo?.currentSupply} ${tick}`);
 
     const expectedOperatorBalance = recipientAccount ? '3500' : '4500';
     const expectedRecipientBalance = '1000';
@@ -221,5 +230,10 @@ async function main() {
   }
 }
 
-// Run the demo
-main().catch(console.error);
+// Run the demo and exit cleanly
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error(err);
+    process.exit(1);
+  });

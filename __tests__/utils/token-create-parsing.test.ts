@@ -1,4 +1,4 @@
-import { TransactionParser } from '../transaction-parser';
+import { TransactionParser } from '../../src/utils/transaction-parser';
 
 describe('TransactionParser - Token Creation Bug Fix', () => {
   const tokenCreateTransactionBytes =

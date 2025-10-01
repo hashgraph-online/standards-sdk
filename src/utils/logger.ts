@@ -48,6 +48,9 @@ export class Logger implements ILogger {
     }
 
     const globalDisable = process.env.DISABLE_LOGS === 'true';
+    const isTestEnv =
+      process.env.JEST_WORKER_ID !== undefined ||
+      process.env.NODE_ENV === 'test';
 
     this.silent = options.silent || globalDisable;
     this.level = this.silent ? 'silent' : options.level || 'info';

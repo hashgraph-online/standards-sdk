@@ -4,7 +4,7 @@ import * as cryptoAbstraction from '../src/utils/crypto-abstraction';
 
 describe('HCS-14 AID/UAID', () => {
   it('generates deterministic AID for HCS-10 agent and matches manual hash', async () => {
-    const { generateAidDid, parseHcs14Did, canonicalizeAgentData } =
+    const { createUaid, parseHcs14Did, canonicalizeAgentData } =
       await import('../src/hcs-14');
     const input = {
       registry: 'hol',
@@ -15,7 +15,7 @@ describe('HCS-14 AID/UAID', () => {
       skills: [0, 17],
     } as const;
 
-    const did = await generateAidDid(input);
+    const did = await createUaid(input);
     const parsed = parseHcs14Did(did);
     expect(parsed.method).toBe('aid');
     expect(parsed.params.registry).toBe('hol');
@@ -35,7 +35,7 @@ describe('HCS-14 AID/UAID', () => {
   });
 
   it('normalizes strings and sorts skills deterministically', async () => {
-    const { generateAidDid } = await import('../src/hcs-14');
+    const { createUaid } = await import('../src/hcs-14');
     const inputA = {
       registry: 'HOL',
       name: '  Support Agent  ',
@@ -54,16 +54,16 @@ describe('HCS-14 AID/UAID', () => {
       skills: [0, 17],
     } as const;
 
-    const didA = await generateAidDid(inputA);
-    const didB = await generateAidDid(inputB);
+    const didA = await createUaid(inputA);
+    const didB = await createUaid(inputB);
     expect(didA).toBe(didB);
   });
 
   it('generates UAID from existing DID with params', async () => {
-    const { generateUaidDid, parseHcs14Did } = await import('../src/hcs-14');
+    const { createUaid, parseHcs14Did } = await import('../src/hcs-14');
     const existingDid =
       'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
-    const uaid = generateUaidDid(existingDid, {
+    const uaid = createUaid(existingDid, {
       proto: 'hcs-10',
       nativeId: 'hedera:testnet:0.0.999',
       uid: '0',
@@ -78,16 +78,16 @@ describe('HCS-14 AID/UAID', () => {
   });
 
   it('UAID without params has no param segment', async () => {
-    const { generateUaidDid, parseHcs14Did } = await import('../src/hcs-14');
+    const { createUaid, parseHcs14Did } = await import('../src/hcs-14');
     const existingDid = 'did:web:example.com:agents:alice';
-    const uaid = generateUaidDid(existingDid);
+    const uaid = createUaid(existingDid);
     expect(uaid).toBe('uaid:did:example.com:agents:alice');
     const parsed = parseHcs14Did(uaid);
     expect(Object.keys(parsed.params).length).toBe(0);
   });
 
   it('builds AID with additional params when provided', async () => {
-    const { generateAidDid, parseHcs14Did } = await import('../src/hcs-14');
+    const { createUaid, parseHcs14Did } = await import('../src/hcs-14');
     const input = {
       registry: 'nanda',
       name: 'Pirate Bot',
@@ -97,7 +97,7 @@ describe('HCS-14 AID/UAID', () => {
       skills: [],
     } as const;
 
-    const did = await generateAidDid(input, {
+    const did = await createUaid(input, {
       proto: 'a2a',
       uid: 'pirate-bot',
       domain: 'pirates.example',
@@ -111,7 +111,7 @@ describe('HCS-14 AID/UAID', () => {
   });
 
   it('throws for invalid inputs and unsupported DIDs', async () => {
-    const { canonicalizeAgentData, generateUaidDid, parseHcs14Did } =
+    const { canonicalizeAgentData, createUaid, parseHcs14Did } =
       await import('../src/hcs-14');
     const bad: unknown = {
       registry: '',
@@ -123,7 +123,7 @@ describe('HCS-14 AID/UAID', () => {
     };
     expect(() => canonicalizeAgentData(bad)).toThrow();
 
-    expect(() => generateUaidDid('not-a-did')).toThrow();
+    expect(() => createUaid('not-a-did')).toThrow();
     expect(() => parseHcs14Did('bad')).toThrow();
     expect(() => parseHcs14Did('did:other:abc')).toThrow();
   });
@@ -164,19 +164,19 @@ describe('HCS-14 AID/UAID', () => {
   });
 
   it('UAID from did:hedera with params is sanitized and carries src', async () => {
-    const { generateUaidDid, parseHcs14Did } = await import('../src/hcs-14');
+    const { createUaid, parseHcs14Did } = await import('../src/hcs-14');
     const did =
       'did:hedera:testnet:zABC123;hedera:testnet:fid=0.0.1;tid=0.0.2#frag';
-    const uaid = generateUaidDid(did, { proto: 'hcs-10', uid: '0' });
+    const uaid = createUaid(did, { proto: 'hcs-10', uid: '0' });
     expect(uaid.startsWith('uaid:did:zABC123;')).toBe(true);
     const parsed = parseHcs14Did(uaid);
     expect(parsed.params.src?.startsWith('z')).toBe(true);
   });
 
   it('UAID from did:hedera underscore variant keeps full id without src', async () => {
-    const { generateUaidDid, parseHcs14Did } = await import('../src/hcs-14');
+    const { createUaid, parseHcs14Did } = await import('../src/hcs-14');
     const did = 'did:hedera:testnet:zK3Y_0.0.12345';
-    const uaid = generateUaidDid(did, { proto: 'hcs-10' });
+    const uaid = createUaid(did, { proto: 'hcs-10' });
     expect(uaid).toBe('uaid:did:zK3Y_0.0.12345;proto=hcs-10');
     const parsed = parseHcs14Did(uaid);
     expect(parsed.params.src).toBeUndefined();
@@ -234,8 +234,8 @@ describe('HCS-14 AID/UAID', () => {
     const cryptoPath = require.resolve('../src/utils/crypto-abstraction');
     jest.doMock(cryptoPath, () => ({ getCryptoAdapter: () => mockAdapter }));
 
-    const { generateAidDid } = await import('../src/hcs-14');
-    const did = await generateAidDid(
+    const { createUaid } = await import('../src/hcs-14');
+    const did = await createUaid(
       {
         registry: 'x',
         name: 'y',
@@ -267,8 +267,8 @@ describe('HCS-14 AID/UAID', () => {
     const cryptoPath = require.resolve('../src/utils/crypto-abstraction');
     jest.doMock(cryptoPath, () => ({ getCryptoAdapter: () => mockAdapter }));
 
-    const { generateAidDid } = await import('../src/hcs-14');
-    const did = await generateAidDid(
+    const { createUaid } = await import('../src/hcs-14');
+    const did = await createUaid(
       {
         registry: 'reg',
         name: 'name',

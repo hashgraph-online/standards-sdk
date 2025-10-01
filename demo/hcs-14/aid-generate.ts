@@ -1,4 +1,4 @@
-import { generateAidDid } from '../../src/hcs-14';
+import { createUaid } from '../../src/hcs-14';
 
 async function main(): Promise<void> {
   const input = {
@@ -10,7 +10,7 @@ async function main(): Promise<void> {
     skills: [0, 17],
   } as const;
 
-  const did = await generateAidDid(input);
+  const did = await createUaid(input);
   process.stdout.write(JSON.stringify({ input, aid: did }, null, 2) + '\n');
 }
 
@@ -20,4 +20,3 @@ main()
     process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
   });
-

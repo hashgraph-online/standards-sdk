@@ -6,13 +6,15 @@
  */
 
 import { PrivateKey, TopicCreateTransaction } from '@hashgraph/sdk';
-import { HCS6Client } from '../../src/hcs-6/client';
+import { HCS6Client } from '../../src/hcs-6/sdk';
 import { HCS6Operation, HCS6RegistryType } from '../../src/hcs-6/types';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-describe('HCS-6 Integration Tests', () => {
+const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+
+describeBlock('HCS-6 Integration Tests', () => {
   let client: HCS6Client;
   let operatorId: string;
   let registryTopicId: string;

@@ -5,7 +5,7 @@ import {
   ParsedHcs14Did,
 } from './types';
 import { canonicalizeAgentData } from './canonical';
-import { generateAidDid, generateUaidDid, parseHcs14Did } from './did';
+import { createUaid as createUaidFn, parseHcs14Did } from './did';
 import {
   isHederaNetwork,
   isHederaCaip10,
@@ -19,11 +19,17 @@ import {
   defaultResolverRegistry,
 } from './resolvers/registry';
 import { HieroDidResolver } from './resolvers/hiero';
-import { Client, PrivateKey } from '@hashgraph/sdk';
-import { createDID } from '@hiero-did-sdk/registrar';
+import { IssuerRegistry } from './issuers/registry';
+import { HederaHieroIssuer } from './issuers/hiero';
+import type { DidIssueRequest } from './issuers/types';
+import { Client } from '@hashgraph/sdk';
 import { HCS11Client } from '../hcs-11/client';
-import { NetworkType, detectKeyTypeFromString } from '../utils';
+import { NetworkType, Logger, type ILogger } from '../utils';
 import { HederaMirrorNode } from '../services';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import { HCS10Client } from '../hcs-10/sdk';
 
 /**
@@ -45,9 +51,16 @@ export class HCS14Client {
   private operatorId?: string;
   private operatorPrivateKey?: string;
   private hcs10Client?: HCS10Client;
+  private issuers: IssuerRegistry;
+  private operatorCtx?: NodeOperatorContext;
+  private logger: ILogger;
 
   constructor(options?: HCS14ClientOptions) {
     this.registry = options?.registry ?? defaultResolverRegistry;
+    this.issuers = new IssuerRegistry();
+    this.registerHederaIssuer();
+    this.registerHederaResolver();
+    this.logger = Logger.getInstance({ module: 'HCS-14' });
     this.client = options?.client;
     this.network = options?.network;
     this.operatorId = options?.operatorId;
@@ -57,14 +70,14 @@ export class HCS14Client {
       options?.operatorId &&
       options?.privateKey
     ) {
-      this.configureHederaClient(
-        options.network,
-        options.operatorId,
-        options.privateKey,
-      );
+      this.configureHederaClient(options.network, options.operatorId, options.privateKey);
     }
-    if (options?.privateKey) this.operatorPrivateKey = options.privateKey;
-    if (options?.hcs10Client) this.hcs10Client = options.hcs10Client;
+    if (options?.privateKey) {
+      this.operatorPrivateKey = options.privateKey;
+    }
+    if (options?.hcs10Client) {
+      this.hcs10Client = options.hcs10Client;
+    }
   }
 
   configureHederaClient(
@@ -72,50 +85,86 @@ export class HCS14Client {
     operatorId: string,
     privateKey: string,
   ): void {
-    const client = Client.forName(network);
-    const initial = detectKeyTypeFromString(privateKey);
-    client.setOperator(operatorId, initial.privateKey);
-    (async () => {
-      try {
-        const mirror = new HederaMirrorNode(network);
-        const info = await mirror.requestAccount(operatorId);
-        const keyType = info?.key?._type || '';
-        const needsEcdsa = keyType.includes('ECDSA');
-        const needsEd25519 = keyType.includes('ED25519');
-        if (needsEcdsa && initial.detectedType !== 'ecdsa') {
-          client.setOperator(
-            operatorId,
-            PrivateKey.fromStringECDSA(privateKey),
-          );
-        } else if (needsEd25519 && initial.detectedType !== 'ed25519') {
-          client.setOperator(
-            operatorId,
-            PrivateKey.fromStringED25519(privateKey),
-          );
-        }
-      } catch {}
-    })();
-
-    this.client = client;
+    const ctx = createNodeOperatorContext({
+      network,
+      operatorId,
+      operatorKey: privateKey,
+      mirrorNode: new HederaMirrorNode(network),
+      logger: this.logger,
+      client: Client.forName(network),
+    });
+    this.operatorCtx = ctx;
+    this.client = ctx.client;
     this.network = network;
     this.operatorId = operatorId;
     this.operatorPrivateKey = privateKey;
+  }
+
+  private async ensureInitializedHedera(): Promise<void> {
+    if (!this.operatorCtx) {
+      return;
+    }
+    await this.operatorCtx.ensureInitialized();
+    if (!this.operatorId) {
+      this.operatorId = this.operatorCtx.operatorId.toString();
+    }
+    if (!this.operatorPrivateKey) {
+      this.operatorPrivateKey = this.operatorCtx.operatorKey.toString();
+    }
+    if (!this.client) {
+      this.client = this.operatorCtx.client;
+    }
+  }
+
+  /**
+   * DID issuance adapters
+   */
+  getIssuerRegistry(): IssuerRegistry {
+    return this.issuers;
+  }
+
+  /** Convenience: list registered issuers with metadata. */
+  listIssuers(): ReadonlyArray<import('./issuers/types').DidIssuer> {
+    return this.issuers.list();
+  }
+
+  /** Convenience: list registered resolvers with metadata. */
+  listResolvers(): ReadonlyArray<import('./resolvers/types').DidResolver> {
+    return this.registry.list();
+  }
+
+  /** Convenience: filter issuers by DID method. */
+  filterIssuersByMethod(method: string) {
+    return this.issuers.filterByDidMethod(method);
+  }
+
+  /** Convenience: filter resolvers by DID method. */
+  filterResolversByMethod(method: string) {
+    return this.registry.filterByDidMethod(method);
+  }
+
+  registerHederaIssuer(): void {
+    this.issuers.register(new HederaHieroIssuer());
+  }
+
+  async createDid(request: DidIssueRequest): Promise<string> {
+    return this.issuers.issue(request);
   }
 
   canonicalizeAgentData(input: unknown): CanonicalizationResult {
     return canonicalizeAgentData(input);
   }
 
-  generateAidDid(
-    input: CanonicalAgentData,
+  createUaid(existingDid: string, params?: DidRoutingParams): string;
+  createUaid(
+    input: CanonicalAgentData | string,
     params?: DidRoutingParams,
     options?: { includeParams?: boolean },
-  ): Promise<string> {
-    return generateAidDid(input, params, options);
-  }
-
-  generateUaidDid(existingDid: string, params?: DidRoutingParams): string {
-    return generateUaidDid(existingDid, params);
+  ): Promise<string> | string {
+    if (typeof input === 'string') {
+      return createUaidFn(input, params);
+    }
+    return createUaidFn(input, params, options);
   }
 
   parseHcs14Did(did: string): ParsedHcs14Did {
@@ -155,65 +204,69 @@ export class HCS14Client {
     this.registry.register(new HieroDidResolver());
   }
 
-  async createHederaDid(): Promise<string> {
-    if (!this.client) {
-      throw new Error(
-        'Hedera client is not configured. Call configureHederaClient or pass a client to the constructor.',
-      );
-    }
-    const result = await createDID({ client: this.client });
-    return result.did;
-  }
-
-  async createDidAndUaid(params?: {
+  /**
+   * Issue a DID via adapters and immediately wrap as UAID with routing params.
+   * For Hedera + proto=hcs-10, nativeId and uid are derived when possible.
+   */
+  async createDidWithUaid(options: {
+    issue: DidIssueRequest;
     uid?: string;
     proto?: string;
     nativeId?: string;
   }): Promise<{ did: string; uaid: string; parsed: ParsedHcs14Did }> {
-    const did = await this.createHederaDid();
-    let uid = params?.uid;
-    const proto = params?.proto ?? 'hcs-10';
-    let nativeId = params?.nativeId;
-    if (!nativeId) {
-      if (!this.network || !this.operatorId) {
-        throw new Error(
-          'nativeId not provided and network/operatorId are not configured',
-        );
+    const did = await this.createDid(options.issue);
+    let uid = options.uid;
+    const proto = options.proto;
+    let nativeId = options.nativeId;
+
+    const isHedera = options.issue.method === 'hedera';
+    if (isHedera) {
+      await this.ensureInitializedHedera();
+      if (!nativeId) {
+        if (!this.network || !this.operatorId) {
+          throw new Error(
+            'nativeId not provided and network/operatorId are not configured',
+          );
+        }
+        nativeId = toHederaCaip10(this.network, this.operatorId);
       }
-      nativeId = toHederaCaip10(this.network, this.operatorId);
+      if (!uid && proto === 'hcs-10' && this.network && this.operatorId) {
+        try {
+          if (!this.hcs10Client && this.operatorPrivateKey) {
+            this.hcs10Client = new HCS10Client({
+              network: this.network,
+              operatorId: this.operatorId,
+              operatorPrivateKey: this.operatorPrivateKey,
+              silent: true,
+            });
+          }
+          if (this.hcs10Client) {
+            uid = await this.hcs10Client.getOperatorId();
+          } else {
+            const h11 = new HCS11Client({
+              network: this.network,
+              auth: { operatorId: this.operatorId },
+              silent: true,
+            });
+            const fetched = await h11.fetchProfileByAccountId(
+              this.operatorId,
+              this.network,
+            );
+            const inbound = fetched?.topicInfo?.inboundTopic;
+            uid = inbound ? `${inbound}@${this.operatorId}` : this.operatorId;
+          }
+        } catch {
+          uid = this.operatorId;
+        }
+      }
     }
 
-    if (!uid && proto === 'hcs-10' && this.network && this.operatorId) {
-      try {
-        if (!this.hcs10Client && this.operatorPrivateKey) {
-          this.hcs10Client = new HCS10Client({
-            network: this.network,
-            operatorId: this.operatorId,
-            operatorPrivateKey: this.operatorPrivateKey,
-            silent: true,
-          });
-        }
-        if (this.hcs10Client) {
-          uid = await this.hcs10Client.getOperatorId();
-        } else {
-          const h11 = new HCS11Client({
-            network: this.network,
-            auth: { operatorId: this.operatorId },
-            silent: true,
-          });
-          const fetched = await h11.fetchProfileByAccountId(
-            this.operatorId,
-            this.network,
-          );
-          const inbound = fetched?.topicInfo?.inboundTopic;
-          uid = inbound ? `${inbound}@${this.operatorId}` : this.operatorId;
-        }
-      } catch {
-        uid = this.operatorId;
-      }
-    }
-    uid = uid ?? this.operatorId ?? '0';
-    const uaid = generateUaidDid(did, { uid, proto, nativeId });
+    uid = uid ?? '0';
+    const uaid = this.createUaid(did, {
+      uid,
+      proto,
+      nativeId,
+    });
     const parsed = parseHcs14Did(uaid);
     return { did, uaid, parsed };
   }

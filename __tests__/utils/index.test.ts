@@ -9,7 +9,6 @@ describe('Utils Index', () => {
   test('should export utility functions', () => {
     const expectedFunctions = [
       'sleep',
-      'isBrowser',
       'isSSREnvironment',
     ];
 
@@ -17,6 +16,9 @@ describe('Utils Index', () => {
       expect(utils).toHaveProperty(funcName);
       expect(typeof utils[funcName]).toBe('function');
     });
+
+    expect(utils).toHaveProperty('isBrowser');
+    expect(typeof (utils as any).isBrowser).toBe('boolean');
   });
 
   test('should export utility classes', () => {
