@@ -1,4 +1,3 @@
-import { Writable } from 'stream';
 import { inspect } from 'util';
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -40,29 +39,26 @@ export class Logger implements ILogger {
   private moduleContext: string;
   private silent: boolean;
   private prettyPrint: boolean;
-  private outputStream: Writable;
 
   constructor(options: LoggerOptions = {}) {
     if (loggerFactory) {
       return loggerFactory(options) as any;
     }
 
-    const globalDisable = process.env.DISABLE_LOGS === 'true';
-    const isTestEnv =
-      process.env.JEST_WORKER_ID !== undefined ||
-      process.env.NODE_ENV === 'test';
+    const globalDisable =
+      typeof process !== 'undefined' && process.env?.DISABLE_LOGS === 'true';
 
     this.silent = options.silent || globalDisable;
     this.level = this.silent ? 'silent' : options.level || 'info';
     this.moduleContext = options.module || 'app';
     this.prettyPrint = !this.silent && options.prettyPrint !== false;
-    this.outputStream = process.stdout;
   }
 
   static getInstance(options: LoggerOptions = {}): ILogger {
     const moduleKey = options.module || 'default';
 
-    const globalDisable = process.env.DISABLE_LOGS === 'true';
+    const globalDisable =
+      typeof process !== 'undefined' && process.env?.DISABLE_LOGS === 'true';
 
     if (globalDisable && Logger.instances.has(moduleKey)) {
       const existingLogger = Logger.instances.get(moduleKey)!;
@@ -132,40 +128,58 @@ export class Logger implements ILogger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    if (this.silent || this.level === 'silent') return false;
-    
+    if (this.silent || this.level === 'silent') {
+      return false;
+    }
+
     const levels = ['trace', 'debug', 'info', 'warn', 'error', 'silent'];
     const currentLevelIndex = levels.indexOf(this.level);
     const targetLevelIndex = levels.indexOf(level);
-    
+
     return targetLevelIndex >= currentLevelIndex;
   }
 
+  private getConsoleMethod(level: LogLevel): (...args: any[]) => void {
+    if (level === 'error') {
+      return console.error;
+    }
+    if (level === 'warn') {
+      return console.warn;
+    }
+    if (level === 'debug') {
+      return console.debug;
+    }
+    return console.log;
+  }
+
   private writeLog(level: LogLevel, ...args: any[]): void {
-    if (!this.shouldLog(level)) return;
+    if (!this.shouldLog(level)) {
+      return;
+    }
 
     const { msg, data } = this.formatArgs(args);
     const timestamp = new Date().toISOString();
-    
+    const consoleMethod = this.getConsoleMethod(level);
+
     if (this.prettyPrint) {
       const levelFormatted = level.toUpperCase().padEnd(5);
       let output = `${timestamp} ${levelFormatted} [${this.moduleContext}] ${msg}`;
-      
+
       if (data) {
         output += '\n' + inspect(data, { colors: true, depth: 3 });
       }
-      
-      this.outputStream.write(output + '\n');
+
+      consoleMethod(output);
     } else {
       const logObj = {
         timestamp,
         level,
         module: this.moduleContext,
         message: msg,
-        ...(data && { data })
+        ...(data && { data }),
       };
-      
-      this.outputStream.write(JSON.stringify(logObj) + '\n');
+
+      consoleMethod(JSON.stringify(logObj));
     }
   }
 

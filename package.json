@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.107",
+  "version": "0.1.109",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -86,13 +86,16 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
-    "@hashgraphonline/conversational-agent": "0.2.104",
+    "@hashgraphonline/conversational-agent": "0.2.203",
     "@swc/jest": "^0.2.37",
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.16",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^22.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
     "concurrently": "^8.2.2",
+    "eslint-plugin-sonarjs": "^3.0.5",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "json-to-plain-text": "^1.1.4",
@@ -109,12 +112,12 @@
     "vite-plugin-node-polyfills": "^0.24.0"
   },
   "dependencies": {
-    "@hiero-did-sdk/registrar": "^0.1.2",
-    "@hiero-did-sdk/resolver": "^0.1.2",
     "@hashgraph/hedera-wallet-connect": "^1.5.1-0",
     "@hashgraph/proto": "^2.22.0",
     "@hashgraph/sdk": "2.72.0",
-    "@hashgraphonline/hashinal-wc": "^1.0.103",
+    "@hashgraphonline/hashinal-wc": "^1.0.107",
+    "@hiero-did-sdk/registrar": "^0.1.2",
+    "@hiero-did-sdk/resolver": "^0.1.2",
     "@kiloscribe/inscription-sdk": "^1.0.60",
     "axios": "^1.10.0",
     "bignumber.js": "^9.3.1",
@@ -127,7 +130,6 @@
     "mime-types": "^2.1.35",
     "zod": "^3.24.2"
   },
-  "peerDependencies": {},
   "peerDependenciesMeta": {},
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
 }
