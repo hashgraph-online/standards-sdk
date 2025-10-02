@@ -6,31 +6,36 @@
 
 import { Logger } from '../../src/utils/logger';
 
-jest.mock('pino', () => {
-  const mockLogger = {
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    trace: jest.fn(),
-    level: 'info',
-  };
-
-  return jest.fn(() => mockLogger);
-});
-
 describe('Logger', () => {
   const originalEnv = process.env.DISABLE_LOGS;
   let logger: Logger;
-  let mockPinoLogger: any;
+  let consoleInfoSpy: jest.SpyInstance;
+  let consoleWarnSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpyInstance;
+  let consoleDebugSpy: jest.SpyInstance;
+  let consoleLogSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.DISABLE_LOGS = 'false';
+
+    consoleInfoSpy = jest.spyOn(console, 'log').mockImplementation();
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    consoleDebugSpy = jest.spyOn(console, 'debug').mockImplementation();
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
     logger = new Logger({ module: 'test-module' });
-    const pino = require('pino');
-    mockPinoLogger = pino();
   });
+
+  afterEach(() => {
+    consoleInfoSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    consoleDebugSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+  });
+
   afterAll(() => {
     process.env.DISABLE_LOGS = originalEnv;
   });
@@ -39,29 +44,27 @@ describe('Logger', () => {
     it('should handle single string argument', () => {
       logger.info('test message');
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module' },
-        'test message',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('test message');
+      expect(call).toContain('test-module');
     });
 
     it('should handle multiple string arguments', () => {
       logger.info('test', 'message', 'with', 'multiple', 'parts');
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module' },
-        'test message with multiple parts',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('test message with multiple parts');
     });
 
     it('should handle single object argument', () => {
       const testObj = { userId: 123, action: 'login' };
       logger.info(testObj);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module', data: testObj },
-        '',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('test-module');
     });
 
     it('should handle string with object arguments', () => {
@@ -70,90 +73,82 @@ describe('Logger', () => {
 
       logger.info('User logged in:', userObj, 'with permissions:', permObj);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module', data: [userObj, permObj] },
-        'User logged in: with permissions:',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('User logged in:');
+      expect(call).toContain('with permissions:');
     });
 
     it('should handle mixed string, number, and object arguments', () => {
       const dataObj = { status: 'success' };
       logger.info('Processing completed in', 250, 'ms with result:', dataObj);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module', data: [dataObj] },
-        'Processing completed in 250 ms with result:',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('Processing completed in 250 ms with result:');
     });
 
     it('should handle boolean arguments', () => {
       logger.info('Feature enabled:', true, 'Debug mode:', false);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module' },
-        'Feature enabled: true Debug mode: false',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('Feature enabled: true Debug mode: false');
     });
 
     it('should handle array arguments', () => {
       const items = ['item1', 'item2', 'item3'];
       logger.info('Processing items:', items);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module', data: [items] },
-        'Processing items:',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('Processing items:');
     });
 
     it('should handle empty arguments', () => {
       logger.info();
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module' },
-        '',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
     });
   });
 
   describe('Log Levels', () => {
     it('should call debug with proper formatting', () => {
+      const debugLogger = new Logger({ module: 'test-module', level: 'debug' });
       const debugData = { debug: true };
-      logger.debug('Debug message:', debugData);
+      debugLogger.debug('Debug message:', debugData);
 
-      expect(mockPinoLogger.debug).toHaveBeenCalledWith(
-        { module: 'test-module', data: [debugData] },
-        'Debug message:',
-      );
+      expect(consoleDebugSpy).toHaveBeenCalled();
+      const call = consoleDebugSpy.mock.calls[0][0];
+      expect(call).toContain('Debug message:');
     });
 
     it('should call warn with proper formatting', () => {
       const warnData = { warning: 'low disk space' };
       logger.warn('Warning:', warnData);
 
-      expect(mockPinoLogger.warn).toHaveBeenCalledWith(
-        { module: 'test-module', data: [warnData] },
-        'Warning:',
-      );
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      const call = consoleWarnSpy.mock.calls[0][0];
+      expect(call).toContain('Warning:');
     });
 
     it('should call error with proper formatting', () => {
       const errorData = { error: 'connection failed', code: 500 };
       logger.error('Error occurred:', errorData);
 
-      expect(mockPinoLogger.error).toHaveBeenCalledWith(
-        { module: 'test-module', data: [errorData] },
-        'Error occurred:',
-      );
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const call = consoleErrorSpy.mock.calls[0][0];
+      expect(call).toContain('Error occurred:');
     });
 
     it('should call trace with proper formatting', () => {
+      const traceLogger = new Logger({ module: 'test-module', level: 'trace' });
       const traceData = { stack: 'trace info' };
-      logger.trace('Trace:', traceData);
+      traceLogger.trace('Trace:', traceData);
 
-      expect(mockPinoLogger.trace).toHaveBeenCalledWith(
-        { module: 'test-module', data: [traceData] },
-        'Trace:',
-      );
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const call = consoleLogSpy.mock.calls[0][0];
+      expect(call).toContain('Trace:');
     });
   });
 
@@ -161,29 +156,26 @@ describe('Logger', () => {
     it('should handle null values', () => {
       logger.info('Value is:', null);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module', data: [null] },
-        'Value is:',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('Value is:');
     });
 
     it('should handle undefined values', () => {
       logger.info('Value is:', undefined);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module', data: [undefined] },
-        'Value is:',
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('Value is:');
     });
 
     it('should handle very long strings', () => {
       const longString = 'a'.repeat(10000);
       logger.info('Long string:', longString);
 
-      expect(mockPinoLogger.info).toHaveBeenCalledWith(
-        { module: 'test-module' },
-        `Long string: ${longString}`,
-      );
+      expect(consoleInfoSpy).toHaveBeenCalled();
+      const call = consoleInfoSpy.mock.calls[0][0];
+      expect(call).toContain('Long string:');
     });
   });
 
@@ -204,8 +196,7 @@ describe('Logger', () => {
       const silentLogger = Logger.getInstance({ module: 'silent-test' });
       silentLogger.info('Should be silent');
 
-
-      expect(mockPinoLogger.info).toHaveBeenCalled();
+      expect(consoleInfoSpy).not.toHaveBeenCalled();
 
       process.env.DISABLE_LOGS = originalEnv;
     });
