@@ -3,7 +3,11 @@
  */
 
 import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
-import { HederaClientConfig, InscriptionOptions, QuoteResult, NodeHederaClientConfig } from './types';
+import {
+  InscriptionOptions,
+  QuoteResult,
+  NodeHederaClientConfig,
+} from './types';
 
 interface CacheKey {
   inputHash: string;
