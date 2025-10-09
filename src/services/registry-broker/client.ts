@@ -51,6 +51,8 @@ const DEFAULT_USER_AGENT = '@hashgraphonline/standards-sdk/registry-broker-clien
 
 const normaliseHeaderName = (name: string): string => name.trim().toLowerCase();
 
+const isBrowserRuntime = (): boolean => typeof window !== 'undefined' && typeof window.fetch === 'function';
+
 const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 const JSON_CONTENT_TYPE = /application\/json/i;
 
@@ -363,7 +365,7 @@ export class RegistryBrokerClient {
     if (!headers.has('accept')) {
       headers.set('accept', 'application/json');
     }
-    if (!headers.has('user-agent')) {
+    if (!headers.has('user-agent') && !isBrowserRuntime()) {
       headers.set('user-agent', DEFAULT_USER_AGENT);
     }
 

@@ -4,6 +4,10 @@ import {
   AIAgentType,
   ProfileType,
 } from '../src/hcs-11/types';
+import {
+  LocalA2AAgentHandle,
+  startLocalA2AAgent,
+} from './utils/local-a2a-agent';
 
 interface DemoConfig {
   apiKey?: string;
@@ -19,6 +23,23 @@ interface RegisteredAgent {
 
 const OPENROUTER_DEFAULT_UAID =
   'uaid:aid:openrouter-adapter;uid=openrouter/auto;registry=openrouter;proto=openrouter-adapter';
+
+const localAgents: LocalA2AAgentHandle[] = [];
+
+const cleanupLocalAgents = async (): Promise<void> => {
+  if (localAgents.length === 0) {
+    return;
+  }
+  const agents = localAgents.splice(0, localAgents.length);
+  await Promise.allSettled(agents.map(agent => agent.stop()));
+};
+
+const handleSignal = () => {
+  cleanupLocalAgents().finally(() => process.exit(0));
+};
+
+process.once('SIGINT', handleSignal);
+process.once('SIGTERM', handleSignal);
 
 const createAgentProfile = (alias: string) => ({
   version: '1.0',
@@ -73,6 +94,57 @@ const runStep = async (title: string, action: () => Promise<void>) => {
   } catch (error) {
     console.log(`  ${title} failed: ${describeError(error)}`);
   }
+};
+
+const sendLocalA2AMessage = async (endpoint: string, message: string): Promise<string> => {
+  const rpcRequest = {
+    jsonrpc: '2.0',
+    method: 'message/send',
+    params: {
+      message: {
+        kind: 'message',
+        messageId: `demo-${Date.now()}`,
+        role: 'user',
+        parts: [
+          {
+            kind: 'text',
+            text: message,
+          },
+        ],
+      },
+      configuration: {
+        blocking: true,
+        acceptedOutputModes: ['text/plain'],
+      },
+    },
+    id: Date.now(),
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(rpcRequest),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`HTTP ${response.status} ${response.statusText}: ${body}`);
+  }
+
+  const payload = await response.json();
+  if (payload.error) {
+    throw new Error(payload.error.message ?? 'Unknown RPC error');
+  }
+
+  const result = payload.result;
+  const text = result?.parts?.[0]?.text;
+  if (typeof text === 'string' && text.length > 0) {
+    return text;
+  }
+  return JSON.stringify(result);
 };
 
 const registerDemoAgent = async (
@@ -230,17 +302,58 @@ const showcaseA2AConversation = async (
   console.log(`  Agent Two UAID: ${agentTwo.uaid}`);
 
   const greeting = 'Hello from Agent One! Please say hello back.';
-  const responseFromOne = await client.chat.sendMessage({
-    uaid: agentOne.uaid,
-    message: greeting,
-  });
-  console.log(`  Agent One replied: ${responseFromOne.message}`);
 
-  const responseFromTwo = await client.chat.sendMessage({
-    uaid: agentTwo.uaid,
-    message: `Agent One says: "${responseFromOne.message}". How do you respond?`,
-  });
-  console.log(`  Agent Two replied: ${responseFromTwo.message}`);
+  try {
+    const agentOneSession = await client.chat.createSession({
+      agentUrl: config.a2aAgentOneUrl,
+    });
+    let responseFromOneText = '';
+    try {
+      const responseFromOne = await client.chat.sendMessage({
+        agentUrl: config.a2aAgentOneUrl,
+        sessionId: agentOneSession.sessionId,
+        message: greeting,
+      });
+      console.log(`  Agent One replied: ${responseFromOne.message}`);
+      responseFromOneText = responseFromOne.message;
+    } catch (error) {
+      throw error;
+    } finally {
+      await client.chat.endSession(agentOneSession.sessionId).catch(() => undefined);
+    }
+
+    const agentTwoSession = await client.chat.createSession({
+      agentUrl: config.a2aAgentTwoUrl,
+    });
+    try {
+      const responseFromTwo = await client.chat.sendMessage({
+        agentUrl: config.a2aAgentTwoUrl,
+        sessionId: agentTwoSession.sessionId,
+        message: `Agent One says: "${responseFromOneText}". How do you respond?`,
+      });
+      console.log(`  Agent Two replied: ${responseFromTwo.message}`);
+    } finally {
+      await client.chat.endSession(agentTwoSession.sessionId).catch(() => undefined);
+    }
+  } catch (error) {
+    console.log(`  Broker-mediated chat unavailable: ${describeError(error)}`);
+    console.log('  Falling back to direct local A2A conversation.');
+    const agentOneHandle =
+      localAgents.find(agent => agent.a2aEndpoint === config.a2aAgentOneUrl) ?? null;
+    const agentTwoHandle =
+      localAgents.find(agent => agent.a2aEndpoint === config.a2aAgentTwoUrl) ?? null;
+
+    const responseFromOne = await sendLocalA2AMessage(
+      agentOneHandle?.localA2aEndpoint ?? config.a2aAgentOneUrl,
+      greeting,
+    );
+    console.log(`  Agent One replied (local): ${responseFromOne}`);
+    const responseFromTwo = await sendLocalA2AMessage(
+      agentTwoHandle?.localA2aEndpoint ?? config.a2aAgentTwoUrl,
+      `Agent One says: "${responseFromOne}". How do you respond?`,
+    );
+    console.log(`  Agent Two replied (local): ${responseFromTwo}`);
+  }
 };
 
 const showcaseOpenRouterChat = async (client: RegistryBrokerClient) => {
@@ -269,6 +382,25 @@ const main = async () => {
     console.log('No REGISTRY_BROKER_API_KEY set; some authenticated endpoints may fail.');
   }
 
+  if (!config.a2aAgentOneUrl || !config.a2aAgentTwoUrl) {
+    logSection('Local A2A Agent Setup');
+    const firstAgent = await startLocalA2AAgent({ agentId: 'local-demo-agent-one' });
+    const secondAgent = await startLocalA2AAgent({ agentId: 'local-demo-agent-two' });
+    console.log(
+      `  Started local agent one at ${firstAgent.localA2aEndpoint}${
+        firstAgent.publicUrl ? ` (public: ${firstAgent.a2aEndpoint})` : ''
+      }`,
+    );
+    console.log(
+      `  Started local agent two at ${secondAgent.localA2aEndpoint}${
+        secondAgent.publicUrl ? ` (public: ${secondAgent.a2aEndpoint})` : ''
+      }`,
+    );
+    localAgents.push(firstAgent, secondAgent);
+    config.a2aAgentOneUrl = firstAgent.a2aEndpoint;
+    config.a2aAgentTwoUrl = secondAgent.a2aEndpoint;
+  }
+
   logSection('Agent Registration');
   const alias = `sdk-demo-agent-${Date.now()}`;
   console.log(`Registering agent with alias: ${alias}`);
@@ -282,9 +414,18 @@ const main = async () => {
   await showcaseBroadcast(client);
   await showcaseA2AConversation(client, config);
   await showcaseOpenRouterChat(client);
+
+  await cleanupLocalAgents();
 };
 
-main().catch(error => {
-  console.error('Demo failed:', describeError(error));
-  process.exit(1);
-});
+main()
+  .catch(error => {
+    console.error('Demo failed:', describeError(error));
+    return 1;
+  })
+  .then(async exitCode => {
+    await cleanupLocalAgents();
+    if (exitCode) {
+      process.exit(exitCode);
+    }
+  });
