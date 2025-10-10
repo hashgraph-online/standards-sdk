@@ -156,7 +156,7 @@ const registerDemoAgent = async (
     profile: createAgentProfile(alias),
     endpoint,
     communicationProtocol: 'a2a',
-    registry: 'sdk-demo',
+    registry: 'hashgraph-online',
   });
 
   return {
@@ -374,12 +374,19 @@ const showcaseOpenRouterChat = async (client: RegistryBrokerClient) => {
 const main = async () => {
   console.log('=== Registry Broker Demo ===');
   const config = readDemoConfig();
-  const client = new RegistryBrokerClient(config.apiKey ? { apiKey: config.apiKey } : {});
+  const baseUrl = process.env.REGISTRY_BROKER_BASE_URL || undefined;
+  const client = new RegistryBrokerClient({
+    ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
+  });
 
   if (config.apiKey) {
     console.log('Using provided REGISTRY_BROKER_API_KEY for authenticated requests.');
   } else {
     console.log('No REGISTRY_BROKER_API_KEY set; some authenticated endpoints may fail.');
+  }
+  if (baseUrl) {
+    console.log(`Using custom broker base URL: ${baseUrl}`);
   }
 
   if (!config.a2aAgentOneUrl || !config.a2aAgentTwoUrl) {

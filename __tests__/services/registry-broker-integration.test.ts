@@ -53,7 +53,7 @@ describe('RegistryBrokerClient (integration)', () => {
       },
       endpoint: 'https://example.com/agent',
       communicationProtocol: 'a2a',
-      registry: 'tests',
+      registry: 'hashgraph-online',
     });
 
     expect(registration.success).toBe(true);
