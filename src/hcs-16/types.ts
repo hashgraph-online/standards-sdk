@@ -86,6 +86,27 @@ export enum FloraOperation {
 }
 
 /**
+ * Numeric operation codes for recommended memo encoding (hcs-16:op:<code>:<topicType>).
+ * These align with the specification's operation table.
+ * 0: flora_created (CTopic)
+ * 1: transaction (TTopic)
+ * 2: state_update (STopic)
+ * 3: flora_join_request (CTopic)
+ * 4: flora_join_vote (CTopic)
+ * 5: flora_join_accepted (STopic)
+ * 6: state_hash (STopic, emitted via HCS-17 envelope)
+ */
+export enum FloraOperationCode {
+  FLORA_CREATED = 0,
+  TRANSACTION = 1,
+  STATE_UPDATE = 2,
+  FLORA_JOIN_REQUEST = 3,
+  FLORA_JOIN_VOTE = 4,
+  FLORA_JOIN_ACCEPTED = 5,
+  STATE_HASH = 6,
+}
+
+/**
  * HCS-16 Message envelope
  */
 export interface FloraMessage {
