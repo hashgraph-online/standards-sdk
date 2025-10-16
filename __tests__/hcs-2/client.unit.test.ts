@@ -17,11 +17,20 @@ jest.mock('@hashgraph/sdk', () => {
   };
 });
 
-jest.mock('../../src/common/tx/tx-utils', () => ({
-  buildMessageTx: jest.fn(({ topicId, message }) => ({
-    execute: async () => ({ getReceipt: async () => ({ topicId: { toString: () => topicId }, topicSequenceNumber: { low: 7 } }) }),
-  })),
-}));
+jest.mock('../../src/common/tx/tx-utils', () => {
+  const buildMessageTx = jest.fn(
+    ({ topicId, message, transactionMemo }: { topicId: string; message: string; transactionMemo?: string }) => ({
+      execute: async () => ({
+        getReceipt: async () => ({
+          topicId: { toString: () => topicId },
+          topicSequenceNumber: { low: 7 },
+        }),
+      }),
+    }),
+  );
+
+  return { buildMessageTx };
+});
 
 jest.mock('../../src/hcs-2/tx', () => ({
   buildHcs2CreateRegistryTx: jest.fn(({ ttl }) => ({
@@ -59,6 +68,12 @@ describe('HCS2Client (unit)', () => {
     const res = await c.registerEntry('0.0.1', { targetTopicId: '0.0.2' });
     expect(res.success).toBe(true);
     expect(res.sequenceNumber).toBe(7);
+    const { buildMessageTx } = jest.requireMock('../../src/common/tx/tx-utils') as {
+      buildMessageTx: jest.Mock;
+    };
+    expect(buildMessageTx).toHaveBeenCalled();
+    const memoArg = buildMessageTx.mock.calls[0][0].transactionMemo;
+    expect(memoArg).toBe('hcs-2:op:0:0');
   });
 
   test('getRegistry parses memo and returns entries', async () => {

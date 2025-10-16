@@ -12,6 +12,7 @@ import { HCS2BaseClient } from './base-client';
 import {
   HCS2ClientConfig,
   HCS2Message,
+  HCS2Operation,
   HCS2RegistryType,
   TopicRegistrationResponse,
   RegistryOperationResponse,
@@ -42,9 +43,17 @@ export interface SDKHCS2ClientConfig extends HCS2ClientConfig {
  * SDK client for HCS-2 operations
  */
 export class HCS2Client extends HCS2BaseClient {
+  private static readonly operationAnalyticsCode: Record<HCS2Operation, number> = {
+    [HCS2Operation.REGISTER]: 0,
+    [HCS2Operation.UPDATE]: 1,
+    [HCS2Operation.DELETE]: 2,
+    [HCS2Operation.MIGRATE]: 3,
+  };
+
   private client: Client;
   private operatorId: AccountId;
   private operatorCtx: NodeOperatorContext;
+  private readonly registryTypeCache = new Map<string, HCS2RegistryType>();
 
   /**
    * Create a new HCS-2 client
@@ -187,6 +196,7 @@ export class HCS2Client extends HCS2BaseClient {
       }
 
       const topicIdStr = topicId.toString();
+      this.registryTypeCache.set(topicIdStr, registryType);
 
       this.logger.info(
         `Created registry topic: ${topicIdStr} (${registryType === HCS2RegistryType.INDEXED ? 'Indexed' : 'Non-indexed'}, TTL: ${ttl}s)`,
@@ -227,7 +237,19 @@ export class HCS2Client extends HCS2BaseClient {
         protocol,
       );
 
-      const receipt = await this.submitMessage(registryTopicId, message);
+      const registryType =
+        options.registryType ??
+        (await this.resolveRegistryType(registryTopicId));
+      this.registryTypeCache.set(registryTopicId, registryType);
+      const analyticsMemo =
+        options.analyticsMemo ??
+        this.buildAnalyticsMemo(HCS2Operation.REGISTER, registryType);
+
+      const receipt = await this.submitMessage(
+        registryTopicId,
+        message,
+        analyticsMemo,
+      );
 
       this.logger.info(
         `Registered entry in registry ${registryTopicId} pointing to topic ${options.targetTopicId} using protocol ${protocol}`,
@@ -275,7 +297,19 @@ export class HCS2Client extends HCS2BaseClient {
         options.memo,
       );
 
-      const receipt = await this.submitMessage(registryTopicId, message);
+      const registryType =
+        options.registryType ??
+        (await this.resolveRegistryType(registryTopicId));
+      this.registryTypeCache.set(registryTopicId, registryType);
+      const analyticsMemo =
+        options.analyticsMemo ??
+        this.buildAnalyticsMemo(HCS2Operation.UPDATE, registryType);
+
+      const receipt = await this.submitMessage(
+        registryTopicId,
+        message,
+        analyticsMemo,
+      );
 
       this.logger.info(
         `Updated entry with UID ${options.uid} in registry ${registryTopicId}`,
@@ -315,7 +349,19 @@ export class HCS2Client extends HCS2BaseClient {
 
       const message = this.createDeleteMessage(options.uid, options.memo);
 
-      const receipt = await this.submitMessage(registryTopicId, message);
+      const registryType =
+        options.registryType ??
+        (await this.resolveRegistryType(registryTopicId));
+      this.registryTypeCache.set(registryTopicId, registryType);
+      const analyticsMemo =
+        options.analyticsMemo ??
+        this.buildAnalyticsMemo(HCS2Operation.DELETE, registryType);
+
+      const receipt = await this.submitMessage(
+        registryTopicId,
+        message,
+        analyticsMemo,
+      );
 
       this.logger.info(
         `Deleted entry with UID ${options.uid} from registry ${registryTopicId}`,
@@ -350,7 +396,19 @@ export class HCS2Client extends HCS2BaseClient {
         options.memo,
       );
 
-      const receipt = await this.submitMessage(registryTopicId, message);
+      const registryType =
+        options.registryType ??
+        (await this.resolveRegistryType(registryTopicId));
+      this.registryTypeCache.set(registryTopicId, registryType);
+      const analyticsMemo =
+        options.analyticsMemo ??
+        this.buildAnalyticsMemo(HCS2Operation.MIGRATE, registryType);
+
+      const receipt = await this.submitMessage(
+        registryTopicId,
+        message,
+        analyticsMemo,
+      );
 
       this.logger.info(
         `Migrated registry ${registryTopicId} to ${options.targetTopicId}`,
@@ -481,6 +539,34 @@ export class HCS2Client extends HCS2BaseClient {
     }
   }
 
+  private buildAnalyticsMemo(
+    operation: HCS2Operation,
+    registryType: HCS2RegistryType,
+  ): string {
+    const opCode = HCS2Client.operationAnalyticsCode[operation];
+    return `hcs-2:op:${opCode}:${registryType}`;
+  }
+
+  private async resolveRegistryType(
+    topicId: string,
+  ): Promise<HCS2RegistryType> {
+    const cached = this.registryTypeCache.get(topicId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const topicInfo = await this.mirrorNode.getTopicInfo(topicId);
+    const memoInfo = this.parseRegistryTypeFromMemo(topicInfo.memo);
+    if (!memoInfo) {
+      throw new Error(
+        `Topic ${topicId} is not an HCS-2 registry (invalid memo format)`,
+      );
+    }
+
+    this.registryTypeCache.set(topicId, memoInfo.registryType);
+    return memoInfo.registryType;
+  }
+
   /**
    * Submit a message to a topic
    * @param topicId The topic ID to submit to
@@ -490,6 +576,7 @@ export class HCS2Client extends HCS2BaseClient {
   async submitMessage(
     topicId: string,
     payload: HCS2Message,
+    analyticsMemo?: string,
   ): Promise<TransactionReceipt> {
     try {
       await this.ensureInitialized();
@@ -501,6 +588,7 @@ export class HCS2Client extends HCS2BaseClient {
       const transaction = buildMessageTx({
         topicId,
         message: JSON.stringify(payload),
+        transactionMemo: analyticsMemo,
       });
 
       const txResponse = await transaction.execute(this.client);

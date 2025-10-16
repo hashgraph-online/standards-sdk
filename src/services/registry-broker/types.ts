@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  adaptersResponseSchema,
   createSessionResponseSchema,
   detectProtocolResponseSchema,
   dashboardStatsResponseSchema,
@@ -7,8 +8,11 @@ import {
   popularResponseSchema,
   protocolsResponseSchema,
   registerAgentResponseSchema,
+  registrationQuoteResponseSchema,
+  creditPurchaseResponseSchema,
   registriesResponseSchema,
   registrySearchByNamespaceSchema,
+  searchFacetsResponseSchema,
   vectorSearchRequestSchema,
   vectorSearchResponseSchema,
   resolveResponseSchema,
@@ -19,6 +23,8 @@ import {
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
   websocketStatsResponseSchema,
+  ledgerChallengeResponseSchema,
+  ledgerVerifyResponseSchema,
 } from './schemas';
 import { HCS11Profile } from '../../hcs-11/types';
 
@@ -49,6 +55,16 @@ export interface AgentRegistrationRequest {
   metadata?: AgentRegistrationRequestMetadata;
 }
 
+export interface AutoTopUpOptions {
+  accountId: string;
+  privateKey: string;
+  memo?: string;
+}
+
+export interface RegisterAgentOptions {
+  autoTopUp?: AutoTopUpOptions;
+}
+
 export type AgentSearchHit = z.infer<typeof searchResponseSchema>['hits'][number];
 
 export type AgentProfile = AgentSearchHit['profile'];
@@ -77,6 +93,26 @@ export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 
 export type RegisterAgentResponse = z.infer<typeof registerAgentResponseSchema>;
+export type RegisterAgentQuoteResponse = z.infer<typeof registrationQuoteResponseSchema>;
+export type CreditPurchaseResponse = z.infer<typeof creditPurchaseResponseSchema>;
+
+export interface LedgerChallengeRequest {
+  accountId: string;
+  network: 'mainnet' | 'testnet';
+}
+
+export type LedgerChallengeResponse = z.infer<
+  typeof ledgerChallengeResponseSchema
+>;
+
+export interface LedgerVerifyRequest extends LedgerChallengeRequest {
+  challengeId: string;
+  signature: string;
+  signatureKind?: 'raw' | 'map';
+  publicKey?: string;
+}
+
+export type LedgerVerifyResponse = z.infer<typeof ledgerVerifyResponseSchema>;
 
 export type ProtocolsResponse = z.infer<typeof protocolsResponseSchema>;
 
@@ -109,17 +145,35 @@ export type VectorSearchResponse = z.infer<typeof vectorSearchResponseSchema>;
 export type CreateSessionRequestPayload =
   | {
       uaid: string;
+      auth?: AgentAuthConfig;
     }
   | {
       agentUrl: string;
+      auth?: AgentAuthConfig;
     };
 
 export interface SendMessageBasePayload {
   message: string;
   streaming?: boolean;
+  auth?: AgentAuthConfig;
 }
 
 export type SendMessageRequestPayload =
   | (SendMessageBasePayload & { uaid: string })
   | (SendMessageBasePayload & { sessionId: string })
   | (SendMessageBasePayload & { agentUrl: string; sessionId?: string });
+export type AgentAuthType = 'bearer' | 'basic' | 'header' | 'apiKey';
+
+export interface AgentAuthConfig {
+  type?: AgentAuthType;
+  token?: string;
+  username?: string;
+  password?: string;
+  headerName?: string;
+  headerValue?: string;
+  headers?: Record<string, string>;
+}
+
+export type AdaptersResponse = z.infer<typeof adaptersResponseSchema>;
+
+export type SearchFacetsResponse = z.infer<typeof searchFacetsResponseSchema>;

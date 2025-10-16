@@ -4,6 +4,7 @@ import {
   RegistryBrokerError,
   RegistryBrokerParseError,
 } from '../../src/services/registry-broker';
+import type { AgentAuthConfig } from '../../src/services/registry-broker';
 
 const mockSearchResponse = {
   hits: [
@@ -52,6 +53,58 @@ const mockSessionResponse = {
     capabilities: {},
     skills: [],
   },
+};
+
+const baseProfile = {
+  version: '1.0',
+  type: 1,
+  display_name: 'Demo Agent',
+  aiAgent: {
+    type: 1,
+    capabilities: [0],
+    model: 'demo-model',
+  },
+};
+
+const mockRegisterResponse = {
+  success: true,
+  status: 'created' as const,
+  uaid: 'uaid:test',
+  agentId: 'agent-xyz',
+  message: 'Agent registered successfully',
+  agent: {
+    id: 'agent-xyz',
+    name: 'Demo Agent',
+    type: 'AI_AGENT',
+    capabilities: [],
+    registry: 'hashgraph-online',
+    protocol: 'a2a',
+    profile: baseProfile,
+    nativeId: 'demo-native',
+    metadata: {},
+  },
+  openConvAI: { compatible: true },
+  profile: { tId: '0.0.inline', sizeBytes: 512 },
+};
+
+const quoteNeedsCredits = {
+  accountId: '0.0.1234',
+  registry: 'hashgraph-online',
+  protocol: 'a2a',
+  requiredCredits: 120,
+  availableCredits: 20,
+  shortfallCredits: 100,
+  creditsPerHbar: 100,
+  estimatedHbar: 1,
+};
+
+const purchaseResponse = {
+  success: true,
+  purchaser: '0.0.1234',
+  credits: 100,
+  hbarAmount: 1,
+  transactionId: '0.0.1234@567',
+  consensusTimestamp: '1700000000.123456789',
 };
 
 const mockMessageResponse = {
@@ -197,6 +250,85 @@ describe('RegistryBrokerClient', () => {
     });
   });
 
+  it('retrieves a registration quote', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({ json: async () => quoteNeedsCredits }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const quote = await client.getRegistrationQuote({ profile: baseProfile });
+
+    expect(quote.requiredCredits).toBe(120);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/register/quote',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('automatically purchases credits when autoTopUp is provided', async () => {
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => quoteNeedsCredits }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => purchaseResponse }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            ...quoteNeedsCredits,
+            availableCredits: 120,
+            shortfallCredits: 0,
+            estimatedHbar: 0,
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => mockRegisterResponse }) as unknown as Response,
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.registerAgent(
+      { profile: baseProfile },
+      {
+        autoTopUp: {
+          accountId: '0.0.1234',
+          privateKey: '302e020100300506032b657004220420demo',
+        },
+      },
+    );
+
+    expect(result.agentId).toBe('agent-xyz');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/api/v1/register/quote',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/api/v1/credits/purchase',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      3,
+      'https://api.example.com/api/v1/register/quote',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      4,
+      'https://api.example.com/api/v1/register',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('allows internal request helper to return the raw response', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({}) as unknown as Response,
@@ -252,13 +384,18 @@ describe('RegistryBrokerClient', () => {
       fetchImplementation,
     });
 
-    const session = await client.chat.createSession({ agentUrl: 'https://demo.agent' });
+    const auth: AgentAuthConfig = { type: 'bearer', token: 'user-key' };
+    const session = await client.chat.createSession({
+      agentUrl: 'https://demo.agent',
+      auth,
+    });
     expect(session.sessionId).toBe('session-1');
 
     const message = await client.chat.sendMessage({
       agentUrl: 'https://demo.agent',
       sessionId: 'session-1',
       message: 'Hi',
+      auth,
     });
     expect(message.message).toBe('Hello');
 
@@ -269,11 +406,27 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/session',
       expect.objectContaining({ method: 'POST' }),
     );
+    const sessionRequestInit = fetchImplementation.mock.calls[0][1] as RequestInit;
+    expect(
+      JSON.parse(sessionRequestInit.body as string),
+    ).toEqual({
+      agentUrl: 'https://demo.agent',
+      auth: { type: 'bearer', token: 'user-key' },
+    });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       2,
       'https://api.example.com/api/v1/chat/message',
       expect.objectContaining({ method: 'POST' }),
     );
+    const messageRequestInit = fetchImplementation.mock.calls[1][1] as RequestInit;
+    expect(
+      JSON.parse(messageRequestInit.body as string),
+    ).toEqual({
+      agentUrl: 'https://demo.agent',
+      auth: { type: 'bearer', token: 'user-key' },
+      message: 'Hi',
+      sessionId: 'session-1',
+    });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       3,
       'https://api.example.com/api/v1/chat/session/session-1',
