@@ -16,7 +16,10 @@ describe('RegistryBrokerClient (integration)', () => {
     process.env.REGISTRY_BROKER_API_KEY ||
     process.env.RB_API_KEY ||
     'rbk_8875323d68cd4e7633d31996a5fbdefb6a16ae82225bf178ab12ded55a09d2c0';
-  const client = new RegistryBrokerClient({ apiKey });
+  const baseUrl = process.env.REGISTRY_BROKER_BASE_URL;
+  const client = new RegistryBrokerClient(
+    baseUrl ? { apiKey, baseUrl } : { apiKey },
+  );
   const openRouterUaid =
     'uaid:aid:openrouter-adapter;uid=openrouter/auto;registry=openrouter;proto=openrouter-adapter';
 

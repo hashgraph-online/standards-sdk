@@ -94,6 +94,31 @@ export const sendMessageResponseSchema = z.object({
   content: z.string().optional(),
 });
 
+export const ledgerChallengeResponseSchema = z.object({
+  challengeId: z.string(),
+  message: z.string(),
+  expiresAt: z.string(),
+});
+
+const ledgerApiKeySummarySchema = z.object({
+  id: z.string(),
+  label: z.string().optional(),
+  prefix: z.string(),
+  lastFour: z.string(),
+  createdAt: z.string(),
+  lastUsedAt: z.string().nullable().optional(),
+  ownerType: z.literal('ledger'),
+  ledgerAccountId: z.string().optional(),
+  ledgerNetwork: z.enum(['mainnet', 'testnet']).optional(),
+});
+
+export const ledgerVerifyResponseSchema = z.object({
+  key: z.string(),
+  apiKey: ledgerApiKeySummarySchema,
+  accountId: z.string(),
+  network: z.enum(['mainnet', 'testnet']),
+});
+
 export const protocolsResponseSchema = z.object({
   protocols: z.array(z.string()),
 });
@@ -290,4 +315,46 @@ export const registerAgentResponseSchema = z.object({
     .optional(),
   profile: registrationProfileInfoSchema.optional(),
   hcs10Registry: hcs10RegistrySchema.optional(),
+});
+
+export const registrationQuoteResponseSchema = z.object({
+  accountId: z.string().nullable().optional(),
+  registry: z.string().optional(),
+  protocol: z.string().optional(),
+  requiredCredits: z.number(),
+  availableCredits: z.number().nullable().optional(),
+  shortfallCredits: z.number().nullable().optional(),
+  creditsPerHbar: z.number().nullable().optional(),
+  estimatedHbar: z.number().nullable().optional(),
+});
+
+export const creditPurchaseResponseSchema = z.object({
+  success: z.boolean().optional(),
+  purchaser: z.string(),
+  credits: z.number(),
+  hbarAmount: z.number(),
+  transactionId: z.string(),
+  consensusTimestamp: z.string().nullable().optional(),
+});
+
+export const adaptersResponseSchema = z.object({
+  adapters: z.array(z.string()),
+});
+
+const metadataFacetOptionSchema = z.object({
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  label: z.string(),
+});
+
+const searchFacetSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  type: z.enum(['string', 'boolean', 'number']),
+  adapters: z.array(z.string()).optional(),
+  options: z.array(metadataFacetOptionSchema).optional(),
+});
+
+export const searchFacetsResponseSchema = z.object({
+  facets: z.array(searchFacetSchema),
 });

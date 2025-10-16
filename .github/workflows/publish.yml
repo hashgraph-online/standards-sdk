@@ -1,0 +1,97 @@
+name: Publish Standards SDK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'standards-sdk/**'
+  workflow_dispatch:
+
+concurrency:
+  group: standards-sdk-publish-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Release @hashgraphonline/standards-sdk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: standards-sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+          cache-dependency-path: standards-sdk/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Read package version
+        id: package
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version is already published
+        id: version_check
+        run: |
+          if npm view @hashgraphonline/standards-sdk@${{ steps.package.outputs.version }} version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine npm dist-tag
+        id: dist_tag
+        run: |
+          VERSION="${{ steps.package.outputs.version }}"
+          if [[ "$VERSION" == *"-"* ]]; then
+            PRE="${VERSION#*-}"
+            TAG="${PRE%%.*}"
+            if [[ -z "$TAG" ]]; then
+              TAG="latest"
+            fi
+          else
+            TAG="latest"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Publish package
+        if: steps.version_check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TAG="${{ steps.dist_tag.outputs.tag }}"
+          if [ "$TAG" = "latest" ]; then
+            pnpm publish --access public --no-git-checks
+          else
+            pnpm publish --access public --tag "$TAG" --no-git-checks
+          fi
+
+      - name: Skip publish (version already released)
+        if: steps.version_check.outputs.exists == 'true'
+        run: echo "Version ${{ steps.package.outputs.version }} already exists on npm; skipping publish."

@@ -147,6 +147,8 @@ export interface RegisterEntryOptions {
   targetTopicId: string;
   metadata?: string;
   memo?: string;
+  analyticsMemo?: string;
+  registryType?: HCS2RegistryType;
 }
 
 /**
@@ -157,6 +159,8 @@ export interface UpdateEntryOptions {
   uid: string;
   metadata?: string;
   memo?: string;
+  analyticsMemo?: string;
+  registryType?: HCS2RegistryType;
 }
 
 /**
@@ -165,6 +169,8 @@ export interface UpdateEntryOptions {
 export interface DeleteEntryOptions {
   uid: string;
   memo?: string;
+  analyticsMemo?: string;
+  registryType?: HCS2RegistryType;
 }
 
 /**
@@ -174,6 +180,8 @@ export interface MigrateTopicOptions {
   targetTopicId: string;
   metadata?: string;
   memo?: string;
+  analyticsMemo?: string;
+  registryType?: HCS2RegistryType;
 }
 
 /**

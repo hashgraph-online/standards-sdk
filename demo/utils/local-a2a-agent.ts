@@ -1,4 +1,9 @@
-import { createServer, IncomingMessage, Server as HttpServer, ServerResponse } from 'http';
+import {
+  createServer,
+  IncomingMessage,
+  Server as HttpServer,
+  ServerResponse,
+} from 'http';
 import localtunnel, { Tunnel } from 'localtunnel';
 
 export interface LocalA2AAgentOptions {
@@ -27,7 +32,11 @@ const collectRequestBody = (request: IncomingMessage): Promise<string> =>
     request.on('error', reject);
   });
 
-const jsonResponse = (response: ServerResponse, status: number, payload: unknown): void => {
+const jsonResponse = (
+  response: ServerResponse,
+  status: number,
+  payload: unknown,
+): void => {
   const body = JSON.stringify(payload);
   response.writeHead(status, {
     'Content-Type': 'application/json',
@@ -36,7 +45,10 @@ const jsonResponse = (response: ServerResponse, status: number, payload: unknown
   response.end(body);
 };
 
-const inferBaseUrl = (request: IncomingMessage, fallbackPort: number): string => {
+const inferBaseUrl = (
+  request: IncomingMessage,
+  fallbackPort: number,
+): string => {
   const hostHeader = request.headers.host;
   if (!hostHeader) {
     return `http://127.0.0.1:${fallbackPort}`;
@@ -45,14 +57,16 @@ const inferBaseUrl = (request: IncomingMessage, fallbackPort: number): string =>
   if (typeof forwardedProto === 'string') {
     return `${forwardedProto}://${hostHeader}`;
   }
-  const isSecureHost = /\.loca\.lt$/.test(hostHeader) || hostHeader.includes('ngrok.io');
+  const isSecureHost =
+    /\.loca\.lt$/.test(hostHeader) || hostHeader.includes('ngrok.io');
   return `${isSecureHost ? 'https' : 'http'}://${hostHeader}`;
 };
 
 const buildAgentCard = (agentId: string, baseUrl: string) => ({
   id: agentId,
   name: `Local Demo Agent (${agentId})`,
-  description: 'Local test agent created automatically by the standards-sdk demo.',
+  description:
+    'Local test agent created automatically by the standards-sdk demo.',
   version: '1.0.0',
   capabilities: {
     streaming: false,
@@ -74,7 +88,8 @@ const buildMessageResponse = (agentId: string, text: string) => ({
   parts: [
     {
       kind: 'text',
-      text: text.length > 0 ? text : `Agent ${agentId} received an empty message.`,
+      text:
+        text.length > 0 ? text : `Agent ${agentId} received an empty message.`,
     },
   ],
 });
@@ -144,7 +159,8 @@ export const startLocalA2AAgent = async (
       try {
         const rawBody = await collectRequestBody(request);
         const payload = rawBody ? JSON.parse(rawBody) : {};
-        const contentText: string = payload?.content ?? payload?.message ?? 'Task received.';
+        const contentText: string =
+          payload?.content ?? payload?.message ?? 'Task received.';
         jsonResponse(response, 200, {
           status: {
             state: 'completed',
@@ -162,7 +178,8 @@ export const startLocalA2AAgent = async (
         return;
       } catch (error) {
         jsonResponse(response, 500, {
-          error: error instanceof Error ? error.message : 'Failed to process task',
+          error:
+            error instanceof Error ? error.message : 'Failed to process task',
         });
         return;
       }
@@ -199,12 +216,16 @@ export const startLocalA2AAgent = async (
         }
 
         const messageText: string =
-          params?.message?.parts?.[0]?.text ?? 'Hello from the registry broker demo agent!';
+          params?.message?.parts?.[0]?.text ??
+          'Hello from the registry broker demo agent!';
 
         jsonResponse(response, 200, {
           jsonrpc: '2.0',
           id,
-          result: buildMessageResponse(agentId, `Agent ${agentId} says: ${messageText}`),
+          result: buildMessageResponse(
+            agentId,
+            `Agent ${agentId} says: ${messageText}`,
+          ),
         });
         return;
       } catch (error) {
@@ -248,7 +269,9 @@ export const startLocalA2AAgent = async (
         resolvedPort = address.port;
         resolve(address.port);
       } else {
-        reject(new Error('Failed to obtain listening port for local A2A agent'));
+        reject(
+          new Error('Failed to obtain listening port for local A2A agent'),
+        );
       }
     });
   });
