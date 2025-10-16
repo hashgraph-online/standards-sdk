@@ -1,5 +1,6 @@
 import { HederaMirrorNode } from '../services/mirror-node';
 import { KeyList, TopicCreateTransaction, PublicKey } from '@hashgraph/sdk';
+import { KeyTypeDetector, KeyType } from '../utils/key-type-detector';
 import { buildHcs16CreateFloraTopicTx } from './tx';
 import { Logger, ILogger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
@@ -15,18 +16,33 @@ export class HCS16BaseClient {
   public mirrorNode: HederaMirrorNode;
   protected readonly logger: ILogger;
 
-  constructor(params: { network: NetworkType; logger?: ILogger; mirrorNodeUrl?: string }) {
+  constructor(params: {
+    network: NetworkType;
+    logger?: ILogger;
+    mirrorNodeUrl?: string;
+  }) {
     this.network = params.network;
-    this.logger = params.logger || new Logger({ level: 'info', module: 'HCS-16' });
+    this.logger =
+      params.logger || new Logger({ level: 'info', module: 'HCS-16' });
     this.mirrorNode = new HederaMirrorNode(this.network, this.logger, {
       customUrl: params.mirrorNodeUrl,
     });
   }
 
-  async assembleKeyList(params: { members: string[]; threshold: number }): Promise<KeyList> {
+  async assembleKeyList(params: {
+    members: string[];
+    threshold: number;
+  }): Promise<KeyList> {
     const keys: PublicKey[] = [];
     for (const accountId of params.members) {
       const pub = await this.mirrorNode.getPublicKey(accountId);
+      // Enforce ECDSA: ED25519 keys are not supported for Flora membership
+      const detected = KeyTypeDetector.detect(pub.toString());
+      if (detected.type !== KeyType.ECDSA) {
+        throw new Error(
+          `HCS-16 requires ECDSA/secp256k1 keys for members. Account ${accountId} does not meet requirements.`,
+        );
+      }
       keys.push(pub);
     }
     return new KeyList(keys, params.threshold);
@@ -97,7 +113,11 @@ export class HCS16BaseClient {
   /**
    * Build a Flora message envelope by merging an operation body into the HCS‑16 envelope.
    */
-  protected createFloraMessage(op: FloraOperation, operatorId: string, body?: Record<string, unknown>): FloraMessage {
+  protected createFloraMessage(
+    op: FloraOperation,
+    operatorId: string,
+    body?: Record<string, unknown>,
+  ): FloraMessage {
     const payload: FloraMessage = {
       p: 'hcs-16',
       op,
@@ -112,7 +132,11 @@ export class HCS16BaseClient {
    */
   async getRecentMessages(
     topicId: string,
-    options?: { limit?: number; order?: 'asc' | 'desc'; opFilter?: FloraOperation | string },
+    options?: {
+      limit?: number;
+      order?: 'asc' | 'desc';
+      opFilter?: FloraOperation | string;
+    },
   ): Promise<
     Array<{
       message: FloraMessage;
@@ -123,10 +147,8 @@ export class HCS16BaseClient {
   > {
     const limit = options?.limit ?? 25;
     const order = options?.order ?? 'desc';
-    const items: HCSMessageWithCommonFields[] = await this.mirrorNode.getTopicMessages(
-      topicId,
-      { limit, order },
-    );
+    const items: HCSMessageWithCommonFields[] =
+      await this.mirrorNode.getTopicMessages(topicId, { limit, order });
 
     const results: Array<{
       message: FloraMessage;
@@ -177,11 +199,18 @@ export class HCS16BaseClient {
   /**
    * Return the latest valid HCS‑16 message on a topic, if any.
    */
-  async getLatestMessage(topicId: string, opFilter?: FloraOperation | string): Promise<
+  async getLatestMessage(
+    topicId: string,
+    opFilter?: FloraOperation | string,
+  ): Promise<
     | (FloraMessage & { consensus_timestamp?: string; sequence_number: number })
     | null
   > {
-    const items = await this.getRecentMessages(topicId, { limit: 1, order: 'desc', opFilter });
+    const items = await this.getRecentMessages(topicId, {
+      limit: 1,
+      order: 'desc',
+      opFilter,
+    });
     if (items.length === 0) {
       return null;
     }
@@ -190,5 +219,24 @@ export class HCS16BaseClient {
       consensus_timestamp: first.consensus_timestamp,
       sequence_number: first.sequence_number,
     });
+  }
+
+  /** Count flora_created acknowledgements on a communication topic. */
+  async getActivationAcks(communicationTopicId: string): Promise<number> {
+    const msgs = await this.getRecentMessages(communicationTopicId, {
+      limit: 100,
+      order: 'desc',
+      opFilter: 'flora_created',
+    });
+    return msgs.length;
+  }
+
+  /** Determine if Flora is activated by super-majority (≥T) acknowledgements. */
+  async isFloraActivated(params: {
+    communicationTopicId: string;
+    threshold: number;
+  }): Promise<boolean> {
+    const count = await this.getActivationAcks(params.communicationTopicId);
+    return count >= params.threshold;
   }
 }

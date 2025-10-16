@@ -163,19 +163,24 @@ async function main() {
   const h16 = new HCS16Client({ network, operatorId, operatorKey });
   const h16Base = new HCS16BaseClient({ network });
 
-  const { petalA, petalB, petalC } = await seq.run('Create Petal A/B/C accounts (HCS-15)', async () => {
-    const pa = await createPetal(h15, h10);
-    const pb = await createPetal(h15, h10);
-    const pc = await createPetal(h15, h10);
-    return { petalA: pa, petalB: pb, petalC: pc };
-  });
+  const { petalA, petalB, petalC } = await seq.run(
+    'Create Petal A/B/C accounts (HCS-15)',
+    async () => {
+      const pa = await createPetal(h15, h10);
+      const pb = await createPetal(h15, h10);
+      const pc = await createPetal(h15, h10);
+      return { petalA: pa, petalB: pb, petalC: pc };
+    },
+  );
 
   const discovery = new HCS18Client({
     network: network as NetworkType,
     operatorId,
     operatorKey,
   });
-  const createdDiscovery = await discovery.createDiscoveryTopic({ ttlSeconds: 300 });
+  const createdDiscovery = await discovery.createDiscoveryTopic({
+    ttlSeconds: 300,
+  });
   const discoveryTopicId = createdDiscovery.topicId;
 
   const dcA = new HCS18Client({
@@ -195,31 +200,93 @@ async function main() {
   });
 
   await seq.run('Announce A on discovery (HCS-18)', async () => {
-    await dcA.announce({ discoveryTopicId, data: { account: petalA.petalAccountId, petal: { name: 'A', priority: 600 }, capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] }, valid_for: 10000 } });
+    await dcA.announce({
+      discoveryTopicId,
+      data: {
+        account: petalA.petalAccountId,
+        petal: { name: 'A', priority: 600 },
+        capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] },
+        valid_for: 10000,
+      },
+    });
   });
   await seq.run('Announce B on discovery (HCS-18)', async () => {
-    await dcB.announce({ discoveryTopicId, data: { account: petalB.petalAccountId, petal: { name: 'B', priority: 500 }, capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] }, valid_for: 10000 } });
+    await dcB.announce({
+      discoveryTopicId,
+      data: {
+        account: petalB.petalAccountId,
+        petal: { name: 'B', priority: 500 },
+        capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] },
+        valid_for: 10000,
+      },
+    });
   });
   await seq.run('Announce C on discovery (HCS-18)', async () => {
-    await dcC.announce({ discoveryTopicId, data: { account: petalC.petalAccountId, petal: { name: 'C', priority: 500 }, capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] }, valid_for: 10000 } });
+    await dcC.announce({
+      discoveryTopicId,
+      data: {
+        account: petalC.petalAccountId,
+        petal: { name: 'C', priority: 500 },
+        capabilities: { protocols: ['hcs-16', 'hcs-17', 'hcs-18'] },
+        valid_for: 10000,
+      },
+    });
   });
 
-  const { sequenceNumber: proposalSeq } = await seq.run('Propose Flora formation (HCS-18)', async () => {
-    const r = await dcA.propose({ discoveryTopicId, data: { proposer: petalA.petalAccountId, members: [ { account: petalA.petalAccountId, priority: 600 }, { account: petalB.petalAccountId, priority: 500 }, { account: petalC.petalAccountId, priority: 500 } ], config: { name: 'Flora E2E', threshold: 2, purpose: 'E2E' } } });
-    return r;
-  });
+  const { sequenceNumber: proposalSeq } = await seq.run(
+    'Propose Flora formation (HCS-18)',
+    async () => {
+      const r = await dcA.propose({
+        discoveryTopicId,
+        data: {
+          proposer: petalA.petalAccountId,
+          members: [
+            { account: petalA.petalAccountId, priority: 600 },
+            { account: petalB.petalAccountId, priority: 500 },
+            { account: petalC.petalAccountId, priority: 500 },
+          ],
+          config: { name: 'Flora E2E', threshold: 2, purpose: 'E2E' },
+        },
+      });
+      return r;
+    },
+  );
 
   await seq.run('Respond B accept (HCS-18)', async () => {
-    await dcB.respond({ discoveryTopicId, data: { responder: petalB.petalAccountId, proposal_seq: proposalSeq, decision: 'accept' } });
+    await dcB.respond({
+      discoveryTopicId,
+      data: {
+        responder: petalB.petalAccountId,
+        proposal_seq: proposalSeq,
+        decision: 'accept',
+      },
+    });
   });
   await seq.run('Respond C accept (HCS-18)', async () => {
-    await dcC.respond({ discoveryTopicId, data: { responder: petalC.petalAccountId, proposal_seq: proposalSeq, decision: 'accept' } });
+    await dcC.respond({
+      discoveryTopicId,
+      data: {
+        responder: petalC.petalAccountId,
+        proposal_seq: proposalSeq,
+        decision: 'accept',
+      },
+    });
   });
 
-  const keyList = await seq.run('Create Flora account (2-of-3 keylist)', async () => {
-    const k = await h16.assembleKeyList({ members: [petalA.petalAccountId, petalB.petalAccountId, petalC.petalAccountId], threshold: 2 });
-    return k;
-  });
+  const keyList = await seq.run(
+    'Create Flora account (2-of-3 keylist)',
+    async () => {
+      const k = await h16.assembleKeyList({
+        members: [
+          petalA.petalAccountId,
+          petalB.petalAccountId,
+          petalC.petalAccountId,
+        ],
+        threshold: 2,
+      });
+      return k;
+    },
+  );
   const submitList = new KeyList([], 1) as any;
   for (const p of [petalA, petalB, petalC]) {
     const pub = await h16.mirrorNode.getPublicKey(p.petalAccountId);
@@ -239,7 +306,9 @@ async function main() {
   const floraAccountId = accRec.accountId.toString();
   console.log('Flora account:', floraAccountId);
 
-  await seq.run('Create C/T/S topics', async () => { return; });
+  await seq.run('Create C/T/S topics', async () => {
+    return;
+  });
   const commTx = buildHcs16CreateFloraTopicTx({
     floraAccountId,
     topicType: 0 as any,
@@ -318,10 +387,18 @@ async function main() {
     return;
   });
 
-  const scheduleId = await seq.run('Schedule transfer 1 HBAR to 0.0.800', async () => {
-    const id = await scheduleTransferFromFlora(nodeClient, floraAccountId, '0.0.800', 1);
-    return id || '';
-  });
+  const scheduleId = await seq.run(
+    'Schedule transfer 1 HBAR to 0.0.800',
+    async () => {
+      const id = await scheduleTransferFromFlora(
+        nodeClient,
+        floraAccountId,
+        '0.0.800',
+        1,
+      );
+      return id || '';
+    },
+  );
   if (scheduleId) {
     await seq.run('Post transaction with schedule_id (TTopic)', async () => {
       const { buildHcs16TransactionTx } = await import('../../src/hcs-16/tx');
@@ -349,31 +426,42 @@ async function main() {
   }
 
   console.log('Creating Petal D and issuing flora_join_request...');
-  const petalD = await seq.run('Create Petal D and post flora_join_request', async () => {
-    const pd = await createPetal(h15, h10);
-    const tx = buildHcs16FloraJoinRequestTx({
-      topicId: topics.communication,
-      operatorId: pd.petalAccountId,
-      candidateAccountId: pd.petalAccountId,
-    });
-    const frozen = await tx.freezeWith(nodeClient);
-    const signed = await frozen.sign(petalA.baseKey);
-    await (await signed.execute(nodeClient)).getReceipt(nodeClient);
-    return pd;
-  });
+  const petalD = await seq.run(
+    'Create Petal D and post flora_join_request',
+    async () => {
+      const pd = await createPetal(h15, h10);
+      const tx = buildHcs16FloraJoinRequestTx({
+        topicId: topics.communication,
+        operatorId: pd.petalAccountId,
+        accountId: pd.petalAccountId,
+        connectionRequestId: 51234,
+        connectionTopicId: '0.0.conn',
+        connectionSeq: 27,
+        memo: 'This account reached out and requested to join',
+      });
+      const frozen = await tx.freezeWith(nodeClient);
+      const signed = await frozen.sign(petalA.baseKey);
+      await (await signed.execute(nodeClient)).getReceipt(nodeClient);
+      return pd;
+    },
+  );
 
   await seq.run('Members A/B post flora_join_vote approvals', async () => {
     const v1 = buildHcs16FloraJoinVoteTx({
       topicId: topics.communication,
       operatorId: `${petalA.petalAccountId}@${floraAccountId}`,
-      candidateAccountId: petalD.petalAccountId,
+      accountId: petalD.petalAccountId,
       approve: true,
+      connectionRequestId: 51234,
+      connectionSeq: 27,
     });
     const v2 = buildHcs16FloraJoinVoteTx({
       topicId: topics.communication,
       operatorId: `${petalB.petalAccountId}@${floraAccountId}`,
-      candidateAccountId: petalD.petalAccountId,
+      accountId: petalD.petalAccountId,
       approve: true,
+      connectionRequestId: 51234,
+      connectionSeq: 27,
     });
     const f1 = await v1.freezeWith(nodeClient);
     const s1 = await f1.sign(petalA.baseKey);
@@ -395,6 +483,7 @@ async function main() {
         petalD.petalAccountId,
       ],
       epoch: 2,
+      memo: 'Membership updated to include D',
     });
     const f = await acc.freezeWith(nodeClient);
     const s = await f.sign(petalA.baseKey);
@@ -403,8 +492,14 @@ async function main() {
   });
 
   await seq.run('Mirror readback latest messages', async () => {
-    const latestCreated = await h16Base.getLatestMessage(topics.communication, 'flora_created');
-    const latestState = await h16Base.getLatestMessage(topics.state, 'state_update');
+    const latestCreated = await h16Base.getLatestMessage(
+      topics.communication,
+      'flora_created',
+    );
+    const latestState = await h16Base.getLatestMessage(
+      topics.state,
+      'state_update',
+    );
     log.info('Latest flora_created fetched');
     log.info('Latest state_update fetched');
     return { latestCreated, latestState };
