@@ -15,13 +15,14 @@ jobs:
     name: Release @hashgraphonline/standards-sdk
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -33,11 +34,22 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm run lint
+      - name: Auto-fix formatting
+        run: pnpm run lint:fix
+
+      - name: Commit formatting fixes
+        run: |
+          git add -A
+          git diff --staged --quiet || git commit -m "chore: auto-fix formatting [skip ci]"
+          git push || true
 
       - name: Test
         run: pnpm run test
@@ -45,46 +57,48 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Read package version
-        id: package
-        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+      - name: Bump version
+        id: version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check if version is already published
+          pnpm version patch --no-git-tag-version
+
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version already published
         id: version_check
         run: |
-          if npm view @hashgraphonline/standards-sdk@${{ steps.package.outputs.version }} version >/dev/null 2>&1; then
+          NEW_VERSION="${{ steps.version.outputs.new }}"
+          if npm view @hashgraphonline/standards-sdk@$NEW_VERSION version >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Version $NEW_VERSION already exists on npm"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Version $NEW_VERSION is new, will publish"
           fi
 
-      - name: Determine npm dist-tag
-        id: dist_tag
+      - name: Commit version bump
+        if: steps.version_check.outputs.exists == 'false'
         run: |
-          VERSION="${{ steps.package.outputs.version }}"
-          if [[ "$VERSION" == *"-"* ]]; then
-            PRE="${VERSION#*-}"
-            TAG="${PRE%%.*}"
-            if [[ -z "$TAG" ]]; then
-              TAG="latest"
-            fi
-          else
-            TAG="latest"
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }} [skip ci]"
+          git push
 
       - name: Publish package
         if: steps.version_check.outputs.exists == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          TAG="${{ steps.dist_tag.outputs.tag }}"
-          if [ "$TAG" = "latest" ]; then
-            pnpm publish --access public --no-git-checks --provenance
-          else
-            pnpm publish --access public --tag "$TAG" --no-git-checks --provenance
-          fi
+        run: pnpm publish --access public --no-git-checks --provenance
 
-      - name: Skip publish (version already released)
+      - name: Create Git tag
+        if: steps.version_check.outputs.exists == 'false'
+        run: |
+          git tag "v${{ steps.version.outputs.new }}"
+          git push --tags
+
+      - name: Skip publish (version already exists)
         if: steps.version_check.outputs.exists == 'true'
-        run: echo "Version ${{ steps.package.outputs.version }} already exists on npm; skipping publish."
+        run: echo "Version ${{ steps.version.outputs.new }} already exists on npm; skipping publish."
