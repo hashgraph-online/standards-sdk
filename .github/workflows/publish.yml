@@ -63,13 +63,6 @@ jobs:
             echo "Version $NEW_VERSION is new, will publish"
           fi
 
-      - name: Commit version bump
-        if: steps.version_check.outputs.exists == 'false'
-        run: |
-          git add package.json
-          git commit -m "chore: bump version to ${{ steps.version.outputs.new }} [skip ci]"
-          git push
-
       - name: Publish package
         if: steps.version_check.outputs.exists == 'false'
         env:
