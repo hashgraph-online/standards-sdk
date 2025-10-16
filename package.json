@@ -16,6 +16,10 @@
     "url": "https://github.com/hashgraph-online/standards-sdk/issues"
   },
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hashgraph-online/standards-sdk.git"
+  },
   "keywords": [
     "hashgraph online",
     "hcs",
