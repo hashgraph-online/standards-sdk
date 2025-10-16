@@ -34,25 +34,8 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Auto-fix formatting
-        run: pnpm run lint:fix
-
-      - name: Commit formatting fixes
-        run: |
-          git add -A
-          git diff --staged --quiet || git commit -m "chore: auto-fix formatting [skip ci]"
-          git push || true
-
-      - name: Test
-        run: pnpm run test
 
       - name: Build
         run: pnpm run build
