@@ -16,25 +16,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: standards-sdk
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -83,9 +80,9 @@ jobs:
         run: |
           TAG="${{ steps.dist_tag.outputs.tag }}"
           if [ "$TAG" = "latest" ]; then
-            pnpm publish --access public --no-git-checks
+            pnpm publish --access public --no-git-checks --provenance
           else
-            pnpm publish --access public --tag "$TAG" --no-git-checks
+            pnpm publish --access public --tag "$TAG" --no-git-checks --provenance
           fi
 
       - name: Skip publish (version already released)
