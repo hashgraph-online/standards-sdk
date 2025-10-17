@@ -1,6 +1,8 @@
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
+  RegistryBrokerParseError,
+  type ResolvedAgentResponse,
   type SendMessageResponse,
 } from '../src/services/registry-broker';
 import { PrivateKey } from '@hashgraph/sdk';
@@ -9,8 +11,11 @@ import {
   AIAgentCapability,
   AIAgentProfile,
   AIAgentType,
+  HCS11Profile,
+  MCPServerCapability,
   ProfileType,
 } from '../src/hcs-11/types';
+import { ZodError } from 'zod';
 import {
   LocalA2AAgentHandle,
   startLocalA2AAgent,
@@ -34,10 +39,33 @@ interface RegisteredAgent {
   agentId: string;
 }
 
+type DemoProfileMode = 'ai' | 'mcp';
+
+const resolveProfileMode = (): DemoProfileMode => {
+  const argProfile = process.argv
+    .map(arg => arg.trim())
+    .find(arg => arg.startsWith('--profile='));
+  const inlineFlag = process.argv.includes('--mcp')
+    ? 'mcp'
+    : process.argv.includes('--ai')
+      ? 'ai'
+      : undefined;
+
+  const candidate =
+    (argProfile ? argProfile.split('=')[1] : undefined) ??
+    inlineFlag ??
+    process.env.REGISTRY_BROKER_DEMO_PROFILE?.trim()?.toLowerCase();
+
+  return candidate === 'mcp' ? 'mcp' : 'ai';
+};
+
+const profileMode: DemoProfileMode = resolveProfileMode();
+
 const OPENROUTER_DEFAULT_UAID =
   'uaid:aid:openrouter-adapter;uid=openrouter/auto;registry=openrouter;proto=openrouter-adapter';
 
 const localAgents: LocalA2AAgentHandle[] = [];
+const skipOptionalDemos = process.env.SKIP_OPTIONAL_DEMOS === '1';
 
 const normaliseMessage = (response: SendMessageResponse): string => {
   const primary = response.message?.trim();
@@ -107,7 +135,7 @@ const handleSignal = () => {
 process.once('SIGINT', handleSignal);
 process.once('SIGTERM', handleSignal);
 
-const createAgentProfile = (alias: string): AIAgentProfile => ({
+const createAiAgentProfile = (alias: string): AIAgentProfile => ({
   version: '1.0',
   type: ProfileType.AI_AGENT,
   display_name: alias,
@@ -120,6 +148,37 @@ const createAgentProfile = (alias: string): AIAgentProfile => ({
     creator: 'sdk-demo',
   },
 });
+
+const createMcpServerProfile = (alias: string, url: string): HCS11Profile => {
+  const releaseDate = new Date().toISOString().split('T')[0];
+  return {
+    version: '1.0',
+    type: ProfileType.MCP_SERVER,
+    display_name: alias,
+    alias,
+    bio: `Temporary MCP server ${alias} created for the registry broker SDK demo`,
+    mcpServer: {
+      version: releaseDate,
+      description: `Demo MCP server ${alias}`,
+      connectionInfo: {
+        url,
+        transport: 'sse',
+      },
+      services: [
+        MCPServerCapability.RESOURCE_PROVIDER,
+        MCPServerCapability.TOOL_PROVIDER,
+        MCPServerCapability.API_INTEGRATION,
+      ],
+      capabilities: ['resources.get', 'resources.list', 'tools.invoke'],
+      docs: 'https://docs.hashgraphonline.com/mcp-demo',
+      repository: 'https://github.com/hashgraphonline/mcp-demo',
+      maintainer: 'Hashgraph Online Demo Team',
+      host: {
+        minVersion: '2024-11-05',
+      },
+    },
+  };
+};
 
 const describeError = (error: unknown): string => {
   if (error instanceof RegistryBrokerError) {
@@ -177,16 +236,44 @@ const runStep = async (title: string, action: () => Promise<void>) => {
 const registerDemoAgent = async (
   client: RegistryBrokerClient,
   alias: string,
-  endpoint: string,
+  endpointOrUrl: string | undefined,
+  mode: DemoProfileMode,
   autoTopUp?: { accountId: string; privateKey: string },
 ): Promise<RegisteredAgent> => {
-  const registration = await client.registerAgent(
-    {
-      profile: createAgentProfile(alias),
-      endpoint,
+  let registrationPayload:
+    | {
+        profile: AIAgentProfile;
+        endpoint: string;
+        communicationProtocol: 'a2a';
+        registry: string;
+      }
+    | {
+        profile: HCS11Profile;
+        communicationProtocol: 'mcp';
+        registry: string;
+      };
+
+  if (mode === 'ai') {
+    if (!endpointOrUrl) {
+      throw new Error('A2A endpoint required for AI agent registration');
+    }
+    registrationPayload = {
+      profile: createAiAgentProfile(alias),
+      endpoint: endpointOrUrl,
       communicationProtocol: 'a2a',
       registry: 'hashgraph-online',
-    },
+    };
+  } else {
+    const connectionUrl = endpointOrUrl ?? `https://demo-mcp.hashgraphonline.com/${alias}`;
+    registrationPayload = {
+      profile: createMcpServerProfile(alias, connectionUrl),
+      communicationProtocol: 'mcp',
+      registry: 'hashgraph-online',
+    };
+  }
+
+  const registration = await client.registerAgent(
+    registrationPayload,
     autoTopUp
       ? {
           autoTopUp: {
@@ -204,6 +291,241 @@ const registerDemoAgent = async (
     agentId: registration.agentId,
   };
 };
+
+const updateDemoAgent = async (
+  client: RegistryBrokerClient,
+  agent: RegisteredAgent,
+  config: DemoConfig,
+  mode: DemoProfileMode,
+  ledgerCredentials?: { accountId: string; privateKey: string } | null,
+) => {
+  logSection('Agent Update');
+
+  console.log('  Waiting for registry to surface agent before update...');
+  try {
+    await waitForAgentAvailability(client, agent.uaid, 120000);
+  } catch (error) {
+    console.log(
+      `  Agent not yet indexed after wait: ${describeError(error)}. Proceeding with retry logic...`,
+    );
+  }
+
+  const baseUrl =
+    process.env.REGISTRY_BROKER_BASE_URL?.trim() ??
+    'http://127.0.0.1:4000/api/v1';
+
+  const buildHeaders = () => {
+    const headers = new Headers();
+    const defaults = client.getDefaultHeaders();
+    Object.entries(defaults).forEach(([key, value]) => {
+      headers.set(key, value);
+    });
+    headers.set('content-type', 'application/json');
+    headers.set('accept', 'application/json');
+    return headers;
+  };
+
+  const buildUpdatePayload = (
+    current: ResolvedAgentResponse['agent'],
+  ):
+    | {
+        profile: HCS11Profile;
+        endpoint: string;
+        communicationProtocol: 'a2a';
+        registry: string;
+        metadata?: Record<string, unknown>;
+      }
+    | {
+        profile: HCS11Profile;
+        communicationProtocol: 'mcp';
+        registry: string;
+        metadata?: Record<string, unknown>;
+      } => {
+    if (!current.profile) {
+      throw new Error('Resolved agent did not include a profile');
+    }
+
+    const profileCopy = JSON.parse(JSON.stringify(current.profile)) as HCS11Profile;
+
+    if (mode === 'ai') {
+      profileCopy.bio = `Updated profile for ${agent.alias} via the registry broker demo`;
+      if (profileCopy.aiAgent) {
+        profileCopy.aiAgent.model = 'demo-model';
+      }
+
+      const primaryEndpoint =
+        typeof current.endpoints === 'object' && current.endpoints
+          ? Array.isArray(current.endpoints)
+            ? current.endpoints[0]
+            : (current.endpoints as Record<string, unknown>).primary as string | undefined
+          : undefined;
+      const baseEndpoint =
+        primaryEndpoint ??
+        config.a2aAgentOneUrl ??
+        'https://example.com/agent';
+      const updatedEndpoint = `${baseEndpoint.replace(/\/$/, '')}?refresh=${Date.now()}`;
+
+      return {
+        profile: profileCopy,
+        endpoint: updatedEndpoint,
+        communicationProtocol: 'a2a',
+        registry: current.registry ?? 'hashgraph-online',
+        metadata: {
+          provider: 'sdk-demo-update',
+        },
+      };
+    }
+
+    if (!profileCopy.mcpServer) {
+      throw new Error('Expected MCP server profile for update');
+    }
+    profileCopy.bio = `Updated MCP server profile for ${agent.alias}`;
+    profileCopy.mcpServer.description = `Updated MCP server description for ${agent.alias}`;
+    profileCopy.mcpServer.docs = 'https://docs.hashgraphonline.com/mcp-demo';
+
+    return {
+      profile: profileCopy,
+      communicationProtocol: 'mcp',
+      registry: current.registry ?? 'hashgraph-online',
+      metadata: {
+        provider: 'sdk-demo-mcp-update',
+      },
+    };
+  };
+
+  const submitUpdate = async (
+    payload:
+      | {
+          profile: HCS11Profile;
+          endpoint: string;
+          communicationProtocol: 'a2a';
+          registry: string;
+          metadata?: Record<string, unknown>;
+        }
+      | {
+          profile: HCS11Profile;
+          communicationProtocol: 'mcp';
+          registry: string;
+          metadata?: Record<string, unknown>;
+        },
+  ) => {
+    const response = await fetch(
+      `${baseUrl}/register/${encodeURIComponent(agent.uaid)}`,
+      {
+        method: 'PUT',
+        headers: buildHeaders(),
+        body: JSON.stringify(payload),
+      },
+    );
+    const body = await response.json().catch(() => null);
+    return { response, body };
+  };
+
+  const handleSuccess = (body: any) => {
+    console.log('  Agent update successful.');
+    console.log(`    New profile topic: ${body?.profile?.tId ?? 'unknown'}`);
+    if (body?.profileRegistry) {
+      console.log(
+        `    Profile registry topic: ${body.profileRegistry.topicId} (${body.profileRegistry.sequenceNumber ?? 'n/a'})`,
+      );
+    }
+  };
+
+  const maxAttempts = 10;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    let resolved: ResolvedAgentResponse;
+    try {
+      resolved = await client.resolveUaid(agent.uaid);
+    } catch (error) {
+      console.log(
+        `  Resolve attempt ${attempt + 1}/${maxAttempts} failed: ${describeError(error)}. Retrying in 10s...`,
+      );
+      await delay(10000);
+      continue;
+    }
+
+    let updatePayload: ReturnType<typeof buildUpdatePayload>;
+    try {
+      updatePayload = buildUpdatePayload(resolved.agent);
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+
+    const { response, body } = await submitUpdate(updatePayload);
+
+    if (response.status === 404) {
+      console.log(
+        `  Update attempt ${attempt + 1}/${maxAttempts} returned 404 (agent not yet indexed). Retrying in 10s...`,
+      );
+      await delay(10000);
+      continue;
+    }
+
+    if (response.status === 402) {
+      if (!ledgerCredentials) {
+        throw new Error('Agent update requires additional credits but ledger credentials were not provided.');
+      }
+      const shortfallCredits = Number(body?.shortfallCredits ?? 0);
+      const creditsPerHbar = Number(body?.creditsPerHbar ?? 0);
+      const estimatedHbar = Number(body?.estimatedHbar ?? 0);
+      if (shortfallCredits <= 0) {
+        throw new Error('Received insufficient credits response without shortfall details.');
+      }
+      const paddedCredits = shortfallCredits + 1;
+      const resolvedHbarAmount =
+        creditsPerHbar > 0
+          ? Math.ceil((paddedCredits / creditsPerHbar) * 1e8) / 1e8
+          : estimatedHbar > 0
+            ? estimatedHbar
+            : null;
+      if (!resolvedHbarAmount || resolvedHbarAmount <= 0) {
+        throw new Error('Unable to resolve HBAR amount for credit top-up.');
+      }
+      console.log(
+        `  Purchasing credits to cover update shortfall (${shortfallCredits} credits).`,
+      );
+      await client.purchaseCreditsWithHbar({
+        accountId: ledgerCredentials.accountId,
+        privateKey: ledgerCredentials.privateKey,
+        hbarAmount: resolvedHbarAmount,
+        memo: `registry-broker-demo:update:${agent.alias}`,
+        metadata: {
+          purpose: 'agent-update',
+          shortfallCredits,
+          requestedCredits: paddedCredits,
+        },
+      });
+      await delay(2000);
+      const retry = await submitUpdate(updatePayload);
+      if (retry.response.status === 404) {
+        console.log(
+          `  Update retry returned 404 (agent not yet indexed). Retrying in 10s...`,
+        );
+        await delay(10000);
+        continue;
+      }
+      if (!retry.response.ok) {
+        throw new Error(
+          `Update retry failed with status ${retry.response.status}: ${JSON.stringify(retry.body)}`,
+        );
+      }
+      handleSuccess(retry.body);
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Agent update failed with status ${response.status}: ${JSON.stringify(body)}`,
+      );
+    }
+
+    handleSuccess(body);
+    return;
+  }
+
+  throw new Error('Agent update failed after multiple retries');
+};
+
 
 const showcaseSearchAndDiscovery = async (
   client: RegistryBrokerClient,
@@ -336,6 +658,11 @@ const showcaseA2AConversation = async (
   config: DemoConfig,
   autoTopUp?: { accountId: string; privateKey: string },
 ) => {
+  if (skipOptionalDemos) {
+    logSection('A2A Conversation');
+    console.log('Skipping A2A conversation (SKIP_OPTIONAL_DEMOS=1).');
+    return;
+  }
   if (!config.a2aAgentOneUrl || !config.a2aAgentTwoUrl) {
     logSection('A2A Conversation');
     console.log(
@@ -353,12 +680,14 @@ const showcaseA2AConversation = async (
       client,
       `sdk-demo-agent-one-${timestamp}`,
       config.a2aAgentOneUrl,
+      'ai',
       autoTopUp,
     );
     agentTwo = await registerDemoAgent(
       client,
       `sdk-demo-agent-two-${timestamp}`,
       config.a2aAgentTwoUrl,
+      'ai',
       autoTopUp,
     );
   } catch (error) {
@@ -411,6 +740,11 @@ const showcaseA2AConversation = async (
 };
 
 const showcaseOpenRouterChat = async (client: RegistryBrokerClient) => {
+  if (skipOptionalDemos) {
+    logSection('OpenRouter UAID Chat');
+    console.log('Skipping OpenRouter UAID chat (SKIP_OPTIONAL_DEMOS=1).');
+    return;
+  }
   logSection('OpenRouter UAID Chat');
   try {
     const chatResponse = await client.chat.sendMessage({
@@ -428,6 +762,11 @@ const showcaseOpenRouterChat = async (client: RegistryBrokerClient) => {
 const showcaseOpenRouterAuthenticatedChat = async (
   client: RegistryBrokerClient,
 ) => {
+  if (skipOptionalDemos) {
+    logSection('OpenRouter Authenticated Chat');
+    console.log('Skipping authenticated OpenRouter chat (SKIP_OPTIONAL_DEMOS=1).');
+    return;
+  }
   logSection('OpenRouter Authenticated Chat');
 
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
@@ -470,6 +809,7 @@ const showcaseOpenRouterAuthenticatedChat = async (
 
 const main = async () => {
   console.log('=== Registry Broker Demo ===');
+  console.log(`Profile mode: ${profileMode.toUpperCase()}`);
   const config = readDemoConfig();
   const baseUrlEnv = process.env.REGISTRY_BROKER_BASE_URL?.trim();
   const baseUrl =
@@ -548,11 +888,13 @@ const main = async () => {
     console.log(`Using local broker base URL: ${baseUrl}`);
   }
 
-  await assertAdapterSupport(client, baseUrl, 'a2a-protocol-adapter');
+  const requiredAdapter =
+    profileMode === 'mcp' ? 'mcp-adapter' : 'a2a-protocol-adapter';
+  await assertAdapterSupport(client, baseUrl, requiredAdapter);
 
   let registeredAgent: RegisteredAgent | null = null;
 
-  if (!config.a2aAgentOneUrl || !config.a2aAgentTwoUrl) {
+  if (profileMode === 'ai' && (!config.a2aAgentOneUrl || !config.a2aAgentTwoUrl)) {
     logSection('Local A2A Agent Setup');
     const firstAgent = await startLocalA2AAgent({
       agentId: 'local-demo-agent-one',
@@ -578,10 +920,15 @@ const main = async () => {
   await runStep('Agent Registration', async () => {
     const alias = `sdk-demo-agent-${Date.now()}`;
     console.log(`Registering agent with alias: ${alias}`);
+    const registrationEndpoint =
+      profileMode === 'ai'
+        ? config.a2aAgentOneUrl ?? 'https://example.com/agent'
+        : `https://mcp-demo.hashgraphonline.com/${alias}`;
     const agent = await registerDemoAgent(
       client,
       alias,
-      config.a2aAgentOneUrl ?? 'https://example.com/agent',
+      registrationEndpoint,
+      profileMode,
       ledgerCredentials ?? undefined,
     );
     registeredAgent = agent;
@@ -600,7 +947,7 @@ const main = async () => {
     );
   }
 
-  if (registeredAgent) {
+  if (profileMode === 'ai' && registeredAgent) {
     await runStep('A2A Conversation', async () => {
       await showcaseA2AConversation(
         client,
@@ -608,13 +955,23 @@ const main = async () => {
         ledgerCredentials ?? undefined,
       );
     });
-  } else {
+  } else if (profileMode === 'ai') {
     console.log(
       'Skipping A2A conversation because no agent was registered.',
     );
+  } else {
+    console.log('Skipping A2A conversation (not applicable for MCP profile mode).');
   }
   await showcaseOpenRouterAuthenticatedChat(client);
   await showcaseOpenRouterChat(client);
+
+  if (registeredAgent) {
+    await runStep('Agent Profile Update', async () => {
+      await updateDemoAgent(client, registeredAgent, config, profileMode, ledgerCredentials);
+    });
+  } else {
+    console.log('Skipping agent update because no agent is registered.');
+  }
 
   await cleanupLocalAgents();
 };
