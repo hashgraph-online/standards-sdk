@@ -173,8 +173,6 @@ export class HCS11Client {
   private keyType: 'ed25519' | 'ecdsa';
   private operatorId: string;
   private operatorCtx?: NodeOperatorContext;
-  private inscriptionApiKey?: string;
-  private inscriptionBaseUrl?: string;
 
   constructor(config: HCS11ClientConfig) {
     this.client =
@@ -182,14 +180,6 @@ export class HCS11Client {
     this.auth = config.auth;
     this.network = config.network;
     this.operatorId = config.auth.operatorId;
-    const envApiKey =
-      process.env.INSCRIPTION_API_KEY ?? process.env.KILOSCRIBE_API_KEY;
-    const envBaseUrl =
-      process.env.INSCRIPTION_BASE_URL ?? process.env.KILOSCRIBE_BASE_URL;
-    this.inscriptionApiKey =
-      config.auth.inscriptionApiKey ?? envApiKey ?? undefined;
-    this.inscriptionBaseUrl =
-      config.auth.inscriptionBaseUrl ?? envBaseUrl ?? undefined;
 
     this.logger = Logger.getInstance({
       level: config.logLevel || 'info',
@@ -711,9 +701,6 @@ export class HCS11Client {
           });
         },
       };
-      if (this.inscriptionApiKey) {
-        inscriptionOptions.apiKey = this.inscriptionApiKey;
-      }
 
       progressReporter.submitting('Submitting profile to Hedera network', 30);
 
