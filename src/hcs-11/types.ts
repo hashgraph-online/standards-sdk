@@ -179,6 +179,8 @@ export interface HCS11Auth {
   operatorId: string;
   privateKey?: string;
   signer?: DAppSigner | Signer;
+  inscriptionApiKey?: string;
+  inscriptionBaseUrl?: string;
 }
 
 export interface HCS11ClientConfig {
