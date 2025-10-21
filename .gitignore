@@ -3,6 +3,6 @@ node_modules
 .env
 .DS_Store
 target
-scripts
+/scripts
 *.log
 coverage
