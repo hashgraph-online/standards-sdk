@@ -1,5 +1,6 @@
 import { PublicKey, Timestamp, AccountId } from '@hashgraph/sdk';
-import axios, { AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Logger, ILogger } from '../utils/logger';
 import { proto } from '@hashgraph/proto';
 import {
@@ -87,6 +88,7 @@ export class HederaMirrorNode {
   private isServerEnvironment: boolean;
   private apiKey?: string;
   private customHeaders: Record<string, string>;
+  private readonly httpClient: AxiosInstance;
 
   private maxRetries: number = 5;
   private initialDelayMs: number = 2000;
@@ -109,6 +111,7 @@ export class HederaMirrorNode {
         module: 'MirrorNode',
       });
     this.isServerEnvironment = typeof window === 'undefined';
+    this.httpClient = this.createHttpClient();
 
     if (config?.customUrl) {
       this.logger.info(`Using custom mirror node URL: ${config.customUrl}`);
@@ -426,14 +429,10 @@ export class HederaMirrorNode {
                 continue;
               }
 
-              messageJson.sequence_number = message.sequence_number;
               messages.push({
-                ...messageJson,
-                consensus_timestamp: message.consensus_timestamp,
-                sequence_number: message.sequence_number,
-                running_hash: message.running_hash,
-                running_hash_version: message.running_hash_version,
-                topic_id: message.topic_id,
+                ...message,
+                decoded_message: messageContent,
+                parsed_message: messageJson,
                 payer: message.payer_account_id,
                 created: new Date(Number(message.consensus_timestamp) * 1000),
               });
@@ -731,7 +730,7 @@ export class HederaMirrorNode {
 
     while (attempt < this.maxRetries) {
       try {
-        const response = await axios.get<T>(url, config);
+        const response = await this.httpClient.get<T>(url, config);
         return response.data;
       } catch (error: any) {
         attempt++;
@@ -767,6 +766,38 @@ export class HederaMirrorNode {
 
     throw new Error(
       `Failed to fetch data from ${url} after ${this.maxRetries} attempts.`,
+    );
+  }
+
+  private createHttpClient(): AxiosInstance {
+    const proxyUrl = this.detectProxyUrl();
+    if (proxyUrl) {
+      try {
+        const agent = new HttpsProxyAgent(proxyUrl);
+        this.logger.info(`Configuring mirror node proxy: ${proxyUrl}`);
+        return axios.create({
+          httpAgent: agent,
+          httpsAgent: agent,
+          proxy: false,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Failed to configure mirror node proxy ${proxyUrl}: ${error}`,
+        );
+      }
+    }
+    return axios.create();
+  }
+
+  private detectProxyUrl(): string | undefined {
+    if (typeof process === 'undefined') {
+      return undefined;
+    }
+    return (
+      process.env.HTTPS_PROXY ||
+      process.env.https_proxy ||
+      process.env.HTTP_PROXY ||
+      process.env.http_proxy
     );
   }
 
