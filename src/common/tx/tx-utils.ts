@@ -62,7 +62,10 @@ export function buildMessageTx(params: {
     .setTopicId(TopicId.fromString(params.topicId))
     .setMessage(params.message);
   if (params.transactionMemo) {
-    tx.setTransactionMemo(params.transactionMemo);
+    // setTransactionMemo may not exist on all installed SDK versions
+    if (typeof (tx as any).setTransactionMemo === 'function') {
+      (tx as any).setTransactionMemo(params.transactionMemo);
+    }
   }
   return tx;
 }

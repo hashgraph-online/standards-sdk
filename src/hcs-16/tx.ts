@@ -12,12 +12,20 @@ import {
   CustomFixedFee,
   TokenId,
 } from '@hashgraph/sdk';
+import * as Hashgraph from '@hashgraph/sdk';
 import {
   buildTopicCreateTx,
   buildMessageTx,
   type MaybeKey,
 } from '../common/tx/tx-utils';
-import { FloraOperation, FloraTopicType, type FloraMessage } from './types';
+import { buildHcs17MessageTx } from '../hcs-17/tx';
+import {
+  FloraOperation,
+  FloraTopicType,
+  FloraOperationCode,
+  type FloraMessage,
+} from './types';
+import { OpMemoParamsSchema } from './schemas';
 
 function encodeHcs16FloraMemo(params: {
   floraAccountId: string;
@@ -25,6 +33,8 @@ function encodeHcs16FloraMemo(params: {
 }): string {
   return `hcs-16:${params.floraAccountId}:${params.topicType}`;
 }
+
+const HCS17_STATE_HASH_MEMO = `hcs-17:op:${FloraOperationCode.STATE_HASH}:${FloraTopicType.STATE}`;
 
 /**
  * Build a TopicCreateTransaction for HCS‑16 Flora topics (communication/transaction/state).
@@ -170,6 +180,8 @@ export function buildHcs16MessageTx(params: {
   operatorId: string;
   op: FloraOperation;
   body?: Record<string, unknown>;
+  opCode?: FloraOperationCode;
+  topicTypeHint?: FloraTopicType;
 }): TopicMessageSubmitTransaction {
   const payload: FloraMessage = {
     p: 'hcs-16',
@@ -178,9 +190,26 @@ export function buildHcs16MessageTx(params: {
     ...(params.body || {}),
   } as FloraMessage;
 
+  let transactionMemo: string | undefined;
+  const parsed = OpMemoParamsSchema.safeParse({
+    opCode: params.opCode,
+    topicTypeHint: params.topicTypeHint,
+  });
+  if (
+    parsed.success &&
+    parsed.data.opCode !== undefined &&
+    parsed.data.topicTypeHint !== undefined
+  ) {
+    transactionMemo = encodeHcs16OpMemo(
+      parsed.data.opCode,
+      parsed.data.topicTypeHint,
+    );
+  }
+
   return buildMessageTx({
     topicId: params.topicId,
     message: JSON.stringify(payload),
+    transactionMemo,
   });
 }
 
@@ -197,6 +226,8 @@ export function buildHcs16FloraCreatedTx(params: {
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.FLORA_CREATED,
+    opCode: FloraOperationCode.FLORA_CREATED,
+    topicTypeHint: FloraTopicType.COMMUNICATION,
     body: {
       flora_account_id: params.floraAccountId,
       topics: params.topics,
@@ -217,6 +248,8 @@ export function buildHcs16TransactionTx(params: {
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.TRANSACTION,
+    opCode: FloraOperationCode.TRANSACTION,
+    topicTypeHint: FloraTopicType.TRANSACTION,
     body: {
       schedule_id: params.scheduleId,
       data: params.data,
@@ -224,8 +257,6 @@ export function buildHcs16TransactionTx(params: {
     },
   });
 }
-
- 
 
 /**
  * Build HCS‑16 state_update message.
@@ -240,6 +271,8 @@ export function buildHcs16StateUpdateTx(params: {
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.STATE_UPDATE,
+    opCode: FloraOperationCode.STATE_UPDATE,
+    topicTypeHint: FloraTopicType.STATE,
     body: {
       hash: params.hash,
       epoch: params.epoch,
@@ -249,19 +282,49 @@ export function buildHcs16StateUpdateTx(params: {
 }
 
 /**
+ * Build HCS-17 state_hash message for Flora state commitments.
+ */
+export function buildHcs16StateHashTx(params: {
+  topicId: string;
+  stateHash: string;
+  accountId: string;
+  topics: string[];
+  memo?: string;
+}): TopicMessageSubmitTransaction {
+  return buildHcs17MessageTx({
+    topicId: params.topicId,
+    stateHash: params.stateHash,
+    accountId: params.accountId,
+    topics: params.topics,
+    memo: params.memo,
+    transactionMemo: HCS17_STATE_HASH_MEMO,
+  });
+}
+
+/**
  * Build HCS‑16 flora_join_request message.
  */
 export function buildHcs16FloraJoinRequestTx(params: {
   topicId: string;
   operatorId: string;
-  candidateAccountId: string;
+  accountId: string;
+  connectionRequestId: number;
+  connectionTopicId: string;
+  connectionSeq: number;
+  memo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.FLORA_JOIN_REQUEST,
+    opCode: FloraOperationCode.FLORA_JOIN_REQUEST,
+    topicTypeHint: FloraTopicType.COMMUNICATION,
     body: {
-      candidate_account_id: params.candidateAccountId,
+      account_id: params.accountId,
+      connection_request_id: params.connectionRequestId,
+      connection_topic_id: params.connectionTopicId,
+      connection_seq: params.connectionSeq,
+      ...(params.memo ? { m: params.memo } : {}),
     },
   });
 }
@@ -272,16 +335,24 @@ export function buildHcs16FloraJoinRequestTx(params: {
 export function buildHcs16FloraJoinVoteTx(params: {
   topicId: string;
   operatorId: string;
-  candidateAccountId: string;
+  accountId: string;
   approve: boolean;
+  connectionRequestId: number;
+  connectionSeq: number;
+  memo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.FLORA_JOIN_VOTE,
+    opCode: FloraOperationCode.FLORA_JOIN_VOTE,
+    topicTypeHint: FloraTopicType.COMMUNICATION,
     body: {
-      candidate_account_id: params.candidateAccountId,
+      account_id: params.accountId,
       approve: params.approve,
+      connection_request_id: params.connectionRequestId,
+      connection_seq: params.connectionSeq,
+      ...(params.memo ? { m: params.memo } : {}),
     },
   });
 }
@@ -293,15 +364,59 @@ export function buildHcs16FloraJoinAcceptedTx(params: {
   topicId: string;
   operatorId: string;
   members: string[];
-  epoch?: number;
+  epoch: number;
+  memo?: string;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.FLORA_JOIN_ACCEPTED,
+    opCode: FloraOperationCode.FLORA_JOIN_ACCEPTED,
+    topicTypeHint: FloraTopicType.STATE,
     body: {
       members: params.members,
       epoch: params.epoch,
+      ...(params.memo ? { m: params.memo } : {}),
     },
   });
+}
+
+/** Encode recommended op memo hcs-16:op:<opEnum>:<topicType> */
+function encodeHcs16OpMemo(
+  opCode: FloraOperationCode,
+  topicType: FloraTopicType,
+): string {
+  return `hcs-16:op:${opCode}:${topicType}`;
+}
+
+/** Schedule delete of a Flora account (AccountDeleteTransaction). */
+export function buildHcs16ScheduleAccountDeleteTx(params: {
+  floraAccountId: string;
+  transferAccountId: string;
+  memo?: string;
+}): ScheduleCreateTransaction {
+  // Use real AccountDeleteTransaction; access via namespace import to avoid typing gaps in some SDK versions
+  const DeleteCtor = (Hashgraph as any).AccountDeleteTransaction;
+  if (!DeleteCtor) {
+    throw new Error(
+      'AccountDeleteTransaction is not available in @hashgraph/sdk',
+    );
+  }
+  const inner = new DeleteCtor();
+  inner.setAccountId(AccountId.fromString(params.floraAccountId));
+  inner.setTransferAccountId(AccountId.fromString(params.transferAccountId));
+  if (params.memo) {
+    inner.setTransactionMemo(params.memo);
+  }
+  return new ScheduleCreateTransaction().setScheduledTransaction(inner);
+}
+
+/** Build an AccountUpdateTransaction for updating Flora memo to reference an HCS-11 profile */
+export function buildHcs16UpdateFloraMemoToProfileTx(params: {
+  floraAccountId: string;
+  profileResource: string;
+}): AccountUpdateTransaction {
+  return new AccountUpdateTransaction()
+    .setAccountId(params.floraAccountId)
+    .setAccountMemo(`hcs-11:${params.profileResource}`);
 }
