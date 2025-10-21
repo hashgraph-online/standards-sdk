@@ -107,4 +107,26 @@ describe('HCS-8 poll state machine', () => {
     expect(state.results.optionWeight.get(0)).toBeUndefined();
     expect(state.results.optionWeight.get(1)).toBe(1);
   });
+
+  it('rejects votes that attempt to forge account identities', () => {
+    const machine = new PollStateMachine();
+    machine.apply(buildRegisterMessage(baseMetadata), '1');
+    machine.apply(buildManageMessage(baseMetadata.author, 'open'), '2');
+
+    const forgedVote = buildVoteMessage('0.0.2001', [
+      { accountId: '0.0.9999', optionId: 0, weight: 1 },
+    ]);
+    machine.apply(forgedVote, '3');
+
+    const state = machine.getState();
+    expect(state.results.totalWeight).toBe(0);
+    expect(state.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: 'vote',
+          reason: 'Vote entry account must match payer account',
+        }),
+      ]),
+    );
+  });
 });

@@ -182,6 +182,14 @@ export class PollStateMachine {
     }
 
     for (const vote of votes) {
+      if (vote.accountId !== voter) {
+        this.recordError(
+          message.op,
+          'Vote entry account must match payer account',
+          timestamp,
+        );
+        return;
+      }
       if (!this.state.metadata!.options.some((option) => option.id === vote.optionId)) {
         this.recordError(message.op, `Unknown option id ${vote.optionId}`, timestamp);
         return;
@@ -197,7 +205,8 @@ export class PollStateMachine {
       this.removeExistingVotes(voter);
     }
 
-    this.state.results = applyVotes(this.state.results, votes);
+    const normalizedVotes = votes.map((vote) => ({ ...vote, accountId: voter }));
+    this.state.results = applyVotes(this.state.results, normalizedVotes);
     this.state.updatedTimestamp = timestamp;
     this.recordOperation(message.op, voter, message.m, timestamp);
   }
