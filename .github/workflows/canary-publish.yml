@@ -1,0 +1,73 @@
+name: Publish Canary Standards SDK
+
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: standards-sdk-canary-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.repository == 'hashgraph-online/standards-sdk'
+    name: Publish canary release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Calculate canary version
+        id: canary
+        run: node ci/calc-canary-version.mjs "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT"
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Update package version
+        run: pnpm version "${{ steps.canary.outputs.version }}" --no-git-tag-version
+
+      - name: Check if version already published
+        id: version_check
+        run: |
+          VERSION="${{ steps.canary.outputs.version }}"
+          if npm view @hashgraphonline/standards-sdk@"$VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Canary version $VERSION already exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Canary version $VERSION is new, will publish"
+          fi
+
+      - name: Publish canary package
+        if: steps.version_check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --no-git-checks --provenance --tag "${{ steps.canary.outputs.tag }}"
+
+      - name: Skip publish (version already exists)
+        if: steps.version_check.outputs.exists == 'true'
+        run: echo "Version ${{ steps.canary.outputs.version }} already exists on npm; skipping publish."
