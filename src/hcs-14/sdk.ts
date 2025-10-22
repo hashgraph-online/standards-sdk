@@ -70,7 +70,11 @@ export class HCS14Client {
       options?.operatorId &&
       options?.privateKey
     ) {
-      this.configureHederaClient(options.network, options.operatorId, options.privateKey);
+      this.configureHederaClient(
+        options.network,
+        options.operatorId,
+        options.privateKey,
+      );
     }
     if (options?.privateKey) {
       this.operatorPrivateKey = options.privateKey;

@@ -1,6 +1,22 @@
 import { DidDocumentMinimal, DidResolver } from './types';
 import type { AdapterMeta } from '../adapters/types';
+import { optionalImport } from '../../utils/dynamic-import';
+
 type ResolveDID = typeof import('@hiero-did-sdk/resolver').resolveDID;
+type HieroResolverModule = typeof import('@hiero-did-sdk/resolver');
+
+const hieroResolverModuleId = ['@hiero-did-sdk', 'resolver'].join('/');
+
+let resolverPromise: Promise<ResolveDID | null> | null = null;
+
+async function loadResolveDID(): Promise<ResolveDID | null> {
+  if (!resolverPromise) {
+    resolverPromise = optionalImport<HieroResolverModule>(
+      hieroResolverModuleId,
+    ).then((mod) => mod?.resolveDID ?? null);
+  }
+  return resolverPromise;
+}
 
 export class HieroDidResolver implements DidResolver {
   readonly meta: AdapterMeta = {
@@ -17,8 +33,12 @@ export class HieroDidResolver implements DidResolver {
   }
 
   async resolve(did: string): Promise<DidDocumentMinimal | null> {
-    const mod = await import('@hiero-did-sdk/resolver');
-    const resolveDID: ResolveDID = mod.resolveDID;
+    const resolveDID = await loadResolveDID();
+    if (!resolveDID) {
+      throw new Error(
+        'Hiero resolver unavailable. Ensure @hiero-did-sdk/resolver is installed.',
+      );
+    }
     const res = await resolveDID(did as Parameters<ResolveDID>[0]);
     return res && typeof res.id === 'string' ? { id: res.id } : null;
   }

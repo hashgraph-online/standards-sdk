@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.116-canary.1",
+  "version": "0.1.117",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -97,13 +97,16 @@
     "@types/lodash": "^4.17.16",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^22.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "concurrently": "^8.2.2",
+    "eslint-plugin-sonarjs": "^3.0.5",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "json-to-plain-text": "^1.1.4",
+    "localtunnel": "^2.0.2",
     "nodemon": "^3.1.0",
     "openai": "^4.91.1",
-    "localtunnel": "^2.0.2",
     "prettier": "^3.1.0",
     "process": "^0.11.10",
     "rimraf": "^6.0.1",
@@ -115,12 +118,12 @@
     "vite-plugin-node-polyfills": "^0.24.0"
   },
   "dependencies": {
-    "@hiero-did-sdk/registrar": "^0.1.2",
-    "@hiero-did-sdk/resolver": "^0.1.2",
     "@hashgraph/hedera-wallet-connect": "^1.5.1-0",
-    "@hashgraph/proto": "^2.22.0",
+    "@hashgraph/proto": "^2.24.0",
     "@hashgraph/sdk": "2.72.0",
-    "@hashgraphonline/hashinal-wc": "^1.0.103",
+    "@hashgraphonline/hashinal-wc": "^1.0.108",
+    "@hiero-did-sdk/registrar": "0.1.2",
+    "@hiero-did-sdk/resolver": "0.1.2",
     "@kiloscribe/inscription-sdk": "^1.0.60",
     "axios": "^1.10.0",
     "bignumber.js": "^9.3.1",
@@ -131,11 +134,11 @@
     "file-type": "^20.4.1",
     "ioredis": "^5.6.0",
     "mime-types": "^2.1.35",
-    "pino": "^9.7.0",
-    "pino-pretty": "^13.0.0",
     "zod": "^3.24.2"
   },
-  "peerDependencies": {},
+  "resolutions": {
+    "@hashgraph/sdk": "2.72.0"
+  },
   "peerDependenciesMeta": {},
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
 }
