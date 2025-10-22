@@ -167,8 +167,8 @@ export function createNodeOperatorContext(
   const client: Client = params.client
     ? params.client
     : params.network === 'mainnet'
-    ? Client.forMainnet()
-    : Client.forTestnet();
+      ? Client.forMainnet()
+      : Client.forTestnet();
 
   const resolver = new NodeOperatorResolver({
     mirrorNode: params.mirrorNode,
@@ -184,7 +184,7 @@ export function createNodeOperatorContext(
   );
   currentKeyType = guess.keyType;
   currentPrivateKey = guess.privateKey;
-  client.setOperator(operatorId, currentPrivateKey);
+  client.setOperator(operatorId.toString(), currentPrivateKey);
 
   const initPromise = (async () => {
     try {
@@ -195,7 +195,7 @@ export function createNodeOperatorContext(
       );
       currentKeyType = resolved.keyType;
       currentPrivateKey = resolved.privateKey;
-      client.setOperator(operatorId, currentPrivateKey);
+      client.setOperator(operatorId.toString(), currentPrivateKey);
     } catch {}
   })();
 

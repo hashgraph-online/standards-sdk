@@ -776,7 +776,9 @@ export class HCS11Client {
     if (profile.uaid) {
       return;
     }
-    if (!isHederaNetwork(this.network)) return;
+    if (!isHederaNetwork(this.network)) {
+      return;
+    }
     try {
       const { HCS14Client } = await import('../hcs-14');
       const hcs14 = new HCS14Client({ client: this.client });
@@ -804,9 +806,10 @@ export class HCS11Client {
 
       const uaid = hcs14.createUaid(did, { proto: 'hcs-10', nativeId, uid });
       profile.uaid = uaid;
-    } catch {
+    } catch (e) {
       this.logger.warn(
         'Hiero registrar not available; skipping UAID generation for profile',
+        e,
       );
     }
   }
