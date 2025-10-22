@@ -1,7 +1,6 @@
-import { createRequire } from 'module';
 import { isBrowser } from './is-browser';
 
-let cachedRequire: NodeRequire | null | undefined;
+let nodeRequire: NodeRequire | null | undefined;
 
 function isModuleNotFound(specifier: string, error: unknown): boolean {
   if (!error || typeof error !== 'object') {
@@ -29,39 +28,62 @@ function isModuleNotFound(specifier: string, error: unknown): boolean {
   return false;
 }
 
-export async function optionalImport<T>(
-  specifier: string,
-): Promise<T | null> {
+async function resolveNodeRequire(): Promise<NodeRequire | null> {
+  if (nodeRequire !== undefined) {
+    return nodeRequire;
+  }
+
+  if (isBrowser) {
+    nodeRequire = null;
+    return nodeRequire;
+  }
+
   try {
-    const imported = (await import(/* webpackIgnore: true */ specifier)) as T;
-    return imported;
+    const globalObject =
+      typeof global !== 'undefined' ? (global as typeof globalThis) : globalThis;
+    const req =
+      globalObject.process?.mainModule?.require ??
+      (globalObject as { require?: NodeRequire }).require;
+
+    nodeRequire =
+      typeof req === 'function' && typeof (req as NodeRequire).resolve === 'function'
+        ? (req as NodeRequire)
+        : null;
+  } catch {
+    nodeRequire = null;
+  }
+
+  return nodeRequire;
+}
+
+async function dynamicImport<T>(specifier: string): Promise<T | null> {
+  try {
+    return (await import(specifier)) as T;
   } catch (error) {
     if (isModuleNotFound(specifier, error)) {
       return null;
     }
-    if (isBrowser) {
-      throw error as Error;
+    throw error as Error;
+  }
+}
+
+export async function optionalImport<T>(
+  specifier: string,
+): Promise<T | null> {
+  if (isBrowser) {
+    return dynamicImport<T>(specifier);
+  }
+
+  const requireFn = await resolveNodeRequire();
+  if (requireFn) {
+    try {
+      return requireFn(specifier) as T;
+    } catch (error) {
+      if (!isModuleNotFound(specifier, error)) {
+        throw error as Error;
+      }
     }
   }
 
-  if (!isBrowser) {
-    if (cachedRequire === undefined) {
-      try {
-        cachedRequire = createRequire(import.meta.url);
-      } catch {
-        cachedRequire = null;
-      }
-    }
-    if (cachedRequire) {
-      try {
-        return cachedRequire(specifier) as T;
-      } catch (error) {
-        if (!isModuleNotFound(specifier, error)) {
-          throw error as Error;
-        }
-      }
-    }
-  }
-
-  return null;
+  return dynamicImport<T>(specifier);
 }
