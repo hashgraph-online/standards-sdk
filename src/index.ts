@@ -1,3 +1,5 @@
+import './patches/topic-autorenew-patch';
+
 export * from './hcs-3/src';
 export * from './hcs-6';
 export * from './hcs-7';

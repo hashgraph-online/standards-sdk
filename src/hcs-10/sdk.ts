@@ -1,3 +1,5 @@
+import '../patches/topic-autorenew-patch';
+
 import {
   Client,
   AccountCreateTransaction,

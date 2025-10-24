@@ -19,7 +19,6 @@ import {
   searchResponseSchema,
   sendMessageResponseSchema,
   statsResponseSchema,
-  uaidBroadcastResponseSchema,
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
   websocketStatsResponseSchema,
@@ -129,8 +128,6 @@ export type WebsocketStatsResponse = z.infer<typeof websocketStatsResponseSchema
 export type MetricsSummaryResponse = z.infer<typeof metricsSummaryResponseSchema>;
 
 export type UaidValidationResponse = z.infer<typeof uaidValidationResponseSchema>;
-
-export type UaidBroadcastResponse = z.infer<typeof uaidBroadcastResponseSchema>;
 
 export type UaidConnectionStatus = z.infer<typeof uaidConnectionStatusSchema>;
 
