@@ -205,7 +205,10 @@ export class HCS11Client {
       this.client = this.operatorCtx.client;
       this.keyType = this.operatorCtx.keyType;
       void this.operatorCtx.ensureInitialized();
-      this.client.setOperator(this.operatorId, this.operatorCtx.operatorKey);
+      this.client.setOperator(
+        this.operatorId.toString(),
+        this.operatorCtx.operatorKey,
+      );
     } else {
       this.keyType = config.keyType || 'ed25519';
     }

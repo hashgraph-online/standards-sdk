@@ -209,17 +209,6 @@ export const uaidValidationResponseSchema = z.object({
   formats: z.array(z.string()),
 });
 
-export const uaidBroadcastResultSchema = z.object({
-  uaid: z.string(),
-  success: z.boolean(),
-  response: jsonValueSchema.optional(),
-  error: z.string().optional(),
-});
-
-export const uaidBroadcastResponseSchema = z.object({
-  results: z.array(uaidBroadcastResultSchema),
-});
-
 const adapterConnectionSchema = z.object({
   id: z.string(),
   agentId: z.string(),

@@ -28,10 +28,17 @@ async function main(): Promise<void> {
     'HEDERA_PRIVATE_KEY',
     process.env.HEDERA_PRIVATE_KEY,
   );
-  const hcs14 = new HCS14Client({ network, operatorId: accountId, privateKey: privateKeyStr });
+  const hcs14 = new HCS14Client({
+    network,
+    operatorId: accountId,
+    privateKey: privateKeyStr,
+  });
   const client = Client.forName(network);
   client.setOperator(accountId, privateKeyStr);
-  const { did, uaid, parsed } = await hcs14.createDidWithUaid({ issue: { method: 'hedera', client }, proto: 'hcs-10' });
+  const { did, uaid, parsed } = await hcs14.createDidWithUaid({
+    issue: { method: 'hedera', client },
+    proto: 'hcs-10',
+  });
 
   const output = { did, uaid, uaidParsed: parsed };
   process.stdout.write(JSON.stringify(output, null, 2) + '\n');

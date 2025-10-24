@@ -22,7 +22,6 @@ import {
   WebsocketStatsResponse,
   MetricsSummaryResponse,
   UaidValidationResponse,
-  UaidBroadcastResponse,
   UaidConnectionStatus,
   DashboardStatsResponse,
   JsonValue,
@@ -55,7 +54,6 @@ import {
   searchResponseSchema,
   sendMessageResponseSchema,
   statsResponseSchema,
-  uaidBroadcastResponseSchema,
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
   websocketStatsResponseSchema,
@@ -695,22 +693,6 @@ export class RegistryBrokerClient {
       raw,
       uaidValidationResponseSchema,
       'UAID validation response',
-    );
-  }
-
-  async broadcastToUaids(
-    uaids: string[],
-    message: JsonValue,
-  ): Promise<UaidBroadcastResponse> {
-    const raw = await this.requestJson<JsonValue>('/uaids/broadcast', {
-      method: 'POST',
-      body: { uaids, message },
-      headers: { 'content-type': 'application/json' },
-    });
-    return this.parseWithSchema(
-      raw,
-      uaidBroadcastResponseSchema,
-      'UAID broadcast response',
     );
   }
 

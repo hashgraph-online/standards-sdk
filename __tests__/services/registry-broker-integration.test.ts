@@ -96,12 +96,6 @@ describe('RegistryBrokerClient (integration)', () => {
     const connectionStatus = await client.getUaidConnectionStatus(openRouterUaid);
     expect(connectionStatus.adapter).toBe('openrouter-adapter');
 
-    const broadcast = await client.broadcastToUaids([
-      openRouterUaid,
-    ], 'Respond with ok for integration utilities test.');
-    expect(Array.isArray(broadcast.results)).toBe(true);
-    expect(broadcast.results.length).toBeGreaterThan(0);
-
     await expect(client.closeUaidConnection(openRouterUaid)).resolves.toBeUndefined();
 
     const dashboardStats = await client.dashboardStats();
