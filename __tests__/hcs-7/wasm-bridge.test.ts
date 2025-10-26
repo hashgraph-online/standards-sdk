@@ -1,5 +1,4 @@
 import { WasmBridge } from '../../src/hcs-7/wasm-bridge';
-import { Logger } from '../../src/utils/logger';
 
 const mockWebAssembly = {
   instantiate: jest.fn(),
@@ -17,13 +16,11 @@ const mockWebAssembly = {
 }));
 
 describe('WasmBridge', () => {
-  let logger: Logger;
   let bridge: WasmBridge;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    logger = new Logger({ module: 'WasmBridgeTest' });
-    bridge = new WasmBridge(logger);
+    bridge = new WasmBridge();
   });
 
   describe('constructor', () => {
@@ -126,6 +123,80 @@ describe('WasmBridge', () => {
       mockWebAssembly.instantiate.mockResolvedValue({ instance: mockInstance });
 
       expect(mockWebAssembly.instantiate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createStateData', () => {
+    test('maps nested Chainlink state data', () => {
+      const wasmConfig = {
+        c: {
+          inputType: {
+            stateData: {
+              answer: 'number',
+              startedAt: 'number',
+            },
+          },
+        },
+      } as any;
+      const state = bridge.createStateData(wasmConfig, {
+        latestRoundData: { answer: '42', startedAt: '1' },
+      });
+      expect(state.latestRoundData.answer).toBe('42');
+    });
+
+    test('falls back to default values', () => {
+      const wasmConfig = {
+        c: {
+          inputType: {
+            stateData: {
+              amount: 'number',
+              isActive: 'bool',
+              note: 'string',
+            },
+          },
+        },
+      } as any;
+      const state = bridge.createStateData(wasmConfig, {});
+      expect(state.amount).toBe('0');
+      expect(state.isActive).toBe('false');
+      expect(state.note).toBe('');
+    });
+  });
+
+  describe('wasm execution helpers', () => {
+    beforeEach(() => {
+      (bridge as any).wasm = {
+        process_state: jest.fn(),
+        get_params: jest.fn(),
+      };
+    });
+
+    test('executes wasm through shimmed function', () => {
+      const spy = jest
+        .spyOn(bridge as any, 'createWasmFunction')
+        .mockReturnValue(() => '0.0.1234');
+      const result = bridge.executeWasm({}, []);
+      expect(result).toBe('0.0.1234');
+      spy.mockRestore();
+    });
+
+    test('throws when wasm execution fails', () => {
+      const spy = jest
+        .spyOn(bridge as any, 'createWasmFunction')
+        .mockImplementation(() => {
+          throw new Error('bad wasm');
+        });
+      expect(() => bridge.executeWasm({}, [])).toThrow('bad wasm');
+      spy.mockRestore();
+    });
+
+    test('returns params via wasm shim', () => {
+      const spy = jest
+        .spyOn(bridge as any, 'createWasmFunction')
+        .mockReturnValue(() => '{"fields":{}}');
+      const params = bridge.getParams();
+      expect(params).toBe('{"fields":{}}');
+      spy.mockRestore();
     });
   });
 });

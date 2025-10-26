@@ -4,19 +4,28 @@ jest.mock('ethers', () => ({
   ethers: {
     Interface: jest.fn().mockImplementation(([_abi]: any[]) => ({
       encodeFunctionData: (_name: string) => '0xdeadbeef',
-      decodeFunctionResult: (_name: string, _data: string) => ['42', true, '0xABCDEF'],
+      decodeFunctionResult: (_name: string, _data: string) => [
+        '42',
+        true,
+        '0xABCDEF',
+      ],
     })),
   },
 }));
 
 jest.mock('@hashgraph/sdk', () => ({
-  ContractId: { fromSolidityAddress: (a: string) => ({ toSolidityAddress: () => a }) },
+  ContractId: {
+    fromSolidityAddress: (a: string) => ({ toSolidityAddress: () => a }),
+  },
   AccountId: { fromString: (s: string) => ({ toSolidityAddress: () => s }) },
 }));
 
 describe('EVMBridge (unit)', () => {
   const originalFetch = global.fetch as any;
-  const okResponse = { ok: true, json: async () => ({ result: '0x' + '0'.repeat(64) }) } as Response;
+  const okResponse = {
+    ok: true,
+    json: async () => ({ result: '0x' + '0'.repeat(64) }),
+  } as Response;
 
   beforeEach(() => {
     jest.resetModules();
@@ -32,7 +41,11 @@ describe('EVMBridge (unit)', () => {
     const cfg = {
       c: {
         contractAddress: '0x0000000000000000000000000000000000000001',
-        abi: { name: 'getCount', stateMutability: 'view', outputs: [{ name: 'count', type: 'uint256' }] },
+        abi: {
+          name: 'getCount',
+          stateMutability: 'view',
+          outputs: [{ name: 'count', type: 'uint256' }],
+        },
       },
     } as any;
 
@@ -47,12 +60,19 @@ describe('EVMBridge (unit)', () => {
   });
 
   test('executeCommands falls back gracefully on HTTP error', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 500 });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    });
     const bridge = new EVMBridge('testnet', 'mirrornode/api/v1/contracts/call');
     const cfg = {
       c: {
         contractAddress: '0x0000000000000000000000000000000000000002',
-        abi: { name: 'name', stateMutability: 'view', outputs: [{ name: 'name', type: 'string' }] },
+        abi: {
+          name: 'name',
+          stateMutability: 'view',
+          outputs: [{ name: 'name', type: 'string' }],
+        },
       },
     } as any;
     const { results } = await bridge.executeCommands([cfg]);
