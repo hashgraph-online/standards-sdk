@@ -279,9 +279,16 @@ export const startLocalA2AAgent = async (
   const baseUrl = `http://127.0.0.1:${listeningPort}`;
 
   try {
-    tunnel = await localtunnel({
-      port: listeningPort,
-    });
+    if (process.env.NO_TUNNEL === '1') {
+      tunnel = null;
+    } else {
+      tunnel = await localtunnel({ port: listeningPort });
+      tunnel.on('error', (err: unknown) => {
+        console.log(`  ⚠️  Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
+        try { tunnel && tunnel.close(); } catch {}
+        tunnel = null;
+      });
+    }
   } catch (error) {
     console.log(
       `  ⚠️  Unable to establish tunnel for ${agentId}: ${

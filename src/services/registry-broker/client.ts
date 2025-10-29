@@ -34,6 +34,11 @@ import {
   LedgerVerifyRequest,
   LedgerVerifyResponse,
   RegisterAgentOptions,
+  AutoTopUpOptions,
+  HistoryAutoTopUpOptions,
+  ChatHistorySnapshotResponse,
+  ChatHistoryCompactionResponse,
+  CompactHistoryRequestPayload,
 } from './types';
 import {
   adaptersResponseSchema,
@@ -53,6 +58,8 @@ import {
   resolveResponseSchema,
   searchResponseSchema,
   sendMessageResponseSchema,
+  chatHistorySnapshotResponseSchema,
+  chatHistoryCompactionResponseSchema,
   statsResponseSchema,
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
@@ -72,6 +79,8 @@ const isBrowserRuntime = (): boolean =>
 
 const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 const JSON_CONTENT_TYPE = /application\/json/i;
+const DEFAULT_HISTORY_TOP_UP_HBAR = 0.25;
+const MINIMUM_REGISTRATION_AUTO_TOP_UP_CREDITS = 1;
 
 const toJsonValue = (value: unknown): JsonValue => {
   if (value === null) {
@@ -171,6 +180,8 @@ export interface RegistryBrokerClientOptions {
   defaultHeaders?: Record<string, string>;
   apiKey?: string;
   ledgerApiKey?: string;
+  registrationAutoTopUp?: AutoTopUpOptions;
+  historyAutoTopUp?: HistoryAutoTopUpOptions;
 }
 
 interface RequestConfig {
@@ -240,6 +251,14 @@ function buildSearchQuery(params: SearchParams): string {
       query.append('capabilities', value);
     });
   }
+  if (params.adapters?.length) {
+    params.adapters.forEach(value => {
+      query.append('adapters', value);
+    });
+  }
+  if (params.sortBy) {
+    query.set('sortBy', params.sortBy);
+  }
   const queryString = query.toString();
   return queryString.length > 0 ? `?${queryString}` : '';
 }
@@ -253,11 +272,17 @@ export class RegistryBrokerClient {
       payload: SendMessageRequestPayload,
     ) => Promise<SendMessageResponse>;
     endSession: (sessionId: string) => Promise<void>;
+    getHistory: (sessionId: string) => Promise<ChatHistorySnapshotResponse>;
+    compactHistory: (
+      payload: CompactHistoryRequestPayload,
+    ) => Promise<ChatHistoryCompactionResponse>;
   };
 
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly defaultHeaders: Record<string, string>;
+  private readonly registrationAutoTopUp?: AutoTopUpOptions;
+  private readonly historyAutoTopUp?: HistoryAutoTopUpOptions;
 
   constructor(options: RegistryBrokerClientOptions = {}) {
     this.baseUrl = normaliseBaseUrl(options.baseUrl);
@@ -283,10 +308,15 @@ export class RegistryBrokerClient {
       this.setLedgerApiKey(options.ledgerApiKey);
     }
 
+    this.registrationAutoTopUp = options.registrationAutoTopUp;
+    this.historyAutoTopUp = options.historyAutoTopUp;
+
     this.chat = {
       createSession: payload => this.createSession(payload),
       sendMessage: payload => this.sendMessage(payload),
       endSession: sessionId => this.endSession(sessionId),
+      getHistory: sessionId => this.fetchHistorySnapshot(sessionId),
+      compactHistory: payload => this.compactHistory(payload),
     };
   }
 
@@ -382,7 +412,7 @@ export class RegistryBrokerClient {
     payload: AgentRegistrationRequest,
     options?: RegisterAgentOptions,
   ): Promise<RegisterAgentResponse> {
-    const autoTopUp = options?.autoTopUp;
+    const autoTopUp = options?.autoTopUp ?? this.registrationAutoTopUp;
 
     if (!autoTopUp) {
       return this.performRegisterAgent(payload);
@@ -457,15 +487,28 @@ export class RegistryBrokerClient {
   }
 
   private calculateHbarAmount(
-    shortfallCredits: number,
+    creditsToPurchase: number,
     creditsPerHbar: number,
   ): number {
     if (creditsPerHbar <= 0) {
       throw new Error('creditsPerHbar must be positive');
     }
-    const rawHbar = shortfallCredits / creditsPerHbar;
+    if (creditsToPurchase <= 0) {
+      throw new Error('creditsToPurchase must be positive');
+    }
+    const rawHbar = creditsToPurchase / creditsPerHbar;
     const tinybars = Math.ceil(rawHbar * 1e8);
     return tinybars / 1e8;
+  }
+
+  private resolveCreditsToPurchase(shortfallCredits: number): number {
+    if (!Number.isFinite(shortfallCredits) || shortfallCredits <= 0) {
+      return 0;
+    }
+    return Math.max(
+      Math.ceil(shortfallCredits),
+      MINIMUM_REGISTRATION_AUTO_TOP_UP_CREDITS,
+    );
   }
 
   private calculateHbarAmountParam(hbarAmount: number): number {
@@ -474,6 +517,65 @@ export class RegistryBrokerClient {
       throw new Error('Calculated purchase amount must be positive');
     }
     return tinybars / 1e8;
+  }
+
+  private shouldAutoTopUpHistory(
+    payload: CreateSessionRequestPayload,
+    error: unknown,
+  ): boolean {
+    if (!this.historyAutoTopUp || payload.historyTtlSeconds === undefined) {
+      return false;
+    }
+    if (!(error instanceof RegistryBrokerError)) {
+      return false;
+    }
+    if (error.status !== 402) {
+      return false;
+    }
+    const message = this.extractErrorMessage(error.body);
+    if (!message) {
+      return true;
+    }
+    const normalised = message.toLowerCase();
+    return (
+      normalised.includes('history') || normalised.includes('chat history')
+    );
+  }
+
+  private extractErrorMessage(body: JsonValue): string | undefined {
+    if (typeof body === 'string') {
+      return body;
+    }
+    if (isJsonObject(body) && typeof body.error === 'string') {
+      return body.error;
+    }
+    if (isJsonObject(body) && typeof body.message === 'string') {
+      return body.message;
+    }
+    return undefined;
+  }
+
+  private async executeHistoryAutoTopUp(reason: string): Promise<void> {
+    if (!this.historyAutoTopUp) {
+      return;
+    }
+    const hbarAmount =
+      this.historyAutoTopUp.hbarAmount &&
+      this.historyAutoTopUp.hbarAmount > 0
+        ? this.historyAutoTopUp.hbarAmount
+        : DEFAULT_HISTORY_TOP_UP_HBAR;
+    await this.purchaseCreditsWithHbar({
+      accountId: this.historyAutoTopUp.accountId,
+      privateKey: this.historyAutoTopUp.privateKey,
+      hbarAmount,
+      memo:
+        this.historyAutoTopUp.memo ??
+        'registry-broker-client:chat-history-topup',
+      metadata: {
+        purpose: 'chat-history',
+        reason,
+      },
+    });
   }
 
   private async ensureCreditsForRegistration(
@@ -499,13 +601,20 @@ export class RegistryBrokerClient {
       if (shortfall <= 0) {
         return;
       }
+      const creditsToPurchase = this.resolveCreditsToPurchase(shortfall);
+      if (creditsToPurchase <= 0) {
+        return;
+      }
 
       const creditsPerHbar = quote.creditsPerHbar ?? null;
       if (!creditsPerHbar || creditsPerHbar <= 0) {
         throw new Error('Unable to determine credits per HBAR for auto top-up');
       }
 
-      const hbarAmount = this.calculateHbarAmount(shortfall, creditsPerHbar);
+      const hbarAmount = this.calculateHbarAmount(
+        creditsToPurchase,
+        creditsPerHbar,
+      );
 
       await this.purchaseCreditsWithHbar({
         accountId: details.accountId.trim(),
@@ -515,6 +624,7 @@ export class RegistryBrokerClient {
         metadata: {
           shortfallCredits: shortfall,
           requiredCredits: quote.requiredCredits,
+          purchasedCredits: creditsToPurchase,
         },
       });
     }
@@ -756,6 +866,7 @@ export class RegistryBrokerClient {
 
   private async createSession(
     payload: CreateSessionRequestPayload,
+    allowHistoryAutoTopUp = true,
   ): Promise<CreateSessionResponse> {
     const body: JsonObject = {};
     if ('uaid' in payload) {
@@ -766,15 +877,77 @@ export class RegistryBrokerClient {
     if (payload.auth) {
       body.auth = serialiseAuthConfig(payload.auth);
     }
-    const raw = await this.requestJson<JsonValue>('/chat/session', {
-      method: 'POST',
-      body,
-      headers: { 'content-type': 'application/json' },
-    });
+    if (payload.historyTtlSeconds !== undefined) {
+      body.historyTtlSeconds = payload.historyTtlSeconds;
+    }
+    try {
+      const raw = await this.requestJson<JsonValue>('/chat/session', {
+        method: 'POST',
+        body,
+        headers: { 'content-type': 'application/json' },
+      });
+      return this.parseWithSchema(
+        raw,
+        createSessionResponseSchema,
+        'chat session response',
+      );
+    } catch (error) {
+      if (
+        allowHistoryAutoTopUp &&
+        this.shouldAutoTopUpHistory(payload, error)
+      ) {
+        await this.executeHistoryAutoTopUp('chat.session');
+        return this.createSession(payload, false);
+      }
+      throw error;
+    }
+  }
+
+  private async fetchHistorySnapshot(
+    sessionId: string,
+  ): Promise<ChatHistorySnapshotResponse> {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new Error('sessionId is required to fetch chat history');
+    }
+    const raw = await this.requestJson<JsonValue>(
+      `/chat/session/${encodeURIComponent(sessionId)}/history`,
+      {
+        method: 'GET',
+      },
+    );
     return this.parseWithSchema(
       raw,
-      createSessionResponseSchema,
-      'chat session response',
+      chatHistorySnapshotResponseSchema,
+      'chat history snapshot response',
+    );
+  }
+
+  private async compactHistory(
+    payload: CompactHistoryRequestPayload,
+  ): Promise<ChatHistoryCompactionResponse> {
+    if (!payload.sessionId || payload.sessionId.trim().length === 0) {
+      throw new Error('sessionId is required to compact chat history');
+    }
+    const body: JsonObject = {};
+    if (
+      typeof payload.preserveEntries === 'number' &&
+      Number.isFinite(payload.preserveEntries) &&
+      payload.preserveEntries >= 0
+    ) {
+      body.preserveEntries = Math.floor(payload.preserveEntries);
+    }
+    const raw = await this.requestJson<JsonValue>(
+      `/chat/session/${encodeURIComponent(payload.sessionId)}/compact`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      chatHistoryCompactionResponseSchema,
+      'chat history compaction response',
     );
   }
 

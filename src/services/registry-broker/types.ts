@@ -18,6 +18,8 @@ import {
   resolveResponseSchema,
   searchResponseSchema,
   sendMessageResponseSchema,
+  chatHistorySnapshotResponseSchema,
+  chatHistoryCompactionResponseSchema,
   statsResponseSchema,
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
@@ -32,6 +34,10 @@ export type JsonValue = JsonPrimitive | JsonValue[] | JsonObject;
 export interface JsonObject {
   [key: string]: JsonValue;
 }
+
+export type ChatHistoryEntry = z.infer<
+  typeof createSessionResponseSchema
+>['history'][number];
 
 export interface AgentRegistrationRequestMetadata {
   trustScore?: number;
@@ -60,6 +66,10 @@ export interface AutoTopUpOptions {
   memo?: string;
 }
 
+export interface HistoryAutoTopUpOptions extends AutoTopUpOptions {
+  hbarAmount?: number;
+}
+
 export interface RegisterAgentOptions {
   autoTopUp?: AutoTopUpOptions;
 }
@@ -77,6 +87,8 @@ export interface SearchParams {
   registry?: string;
   capabilities?: string[];
   minTrust?: number;
+  adapters?: string[];
+  sortBy?: string;
 }
 
 export type RegistryStatsResponse = z.infer<typeof statsResponseSchema>;
@@ -90,6 +102,8 @@ export type ResolvedAgentResponse = z.infer<typeof resolveResponseSchema>;
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
+export type ChatHistorySnapshotResponse = z.infer<typeof chatHistorySnapshotResponseSchema>;
+export type ChatHistoryCompactionResponse = z.infer<typeof chatHistoryCompactionResponseSchema>;
 
 export type RegisterAgentResponse = z.infer<typeof registerAgentResponseSchema>;
 export type RegisterAgentQuoteResponse = z.infer<typeof registrationQuoteResponseSchema>;
@@ -139,15 +153,19 @@ export type VectorSearchRequest = z.infer<typeof vectorSearchRequestSchema>;
 
 export type VectorSearchResponse = z.infer<typeof vectorSearchResponseSchema>;
 
+type CreateSessionBasePayload = {
+  auth?: AgentAuthConfig;
+  historyTtlSeconds?: number;
+};
+
 export type CreateSessionRequestPayload =
-  | {
-      uaid: string;
-      auth?: AgentAuthConfig;
-    }
-  | {
-      agentUrl: string;
-      auth?: AgentAuthConfig;
-    };
+  | (CreateSessionBasePayload & { uaid: string })
+  | (CreateSessionBasePayload & { agentUrl: string });
+
+export interface CompactHistoryRequestPayload {
+  sessionId: string;
+  preserveEntries?: number;
+}
 
 export interface SendMessageBasePayload {
   message: string;

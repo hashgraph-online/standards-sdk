@@ -13,6 +13,13 @@ const logger = new Logger({
 
 dotenv.config();
 
+const NETWORK =
+  (process.env.HEDERA_NETWORK ?? process.env.HCS10_NETWORK ?? 'testnet')
+    .trim()
+    .toLowerCase() === 'mainnet'
+    ? 'mainnet'
+    : 'testnet';
+
 const isJson = (str: string): boolean => {
   try {
     JSON.parse(str);
@@ -27,6 +34,36 @@ function extractAccountId(operatorId: string): string | null {
   const parts = operatorId.split('@');
   return parts.length === 2 ? parts[1] : null;
 }
+
+const deriveAgentReply = (candidate: unknown): string | null => {
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+  const payload = candidate as Record<string, unknown>;
+  const preferredFields = ['output', 'message', 'response'];
+  for (const field of preferredFields) {
+    const value = payload[field];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  if (Array.isArray(payload.notes)) {
+    const joined = payload.notes
+      .filter((entry): entry is string => typeof entry === 'string')
+      .join(' ')
+      .trim();
+    if (joined.length > 0) {
+      return joined;
+    }
+  }
+  if (typeof payload.rawToolOutput === 'string') {
+    const trimmed = payload.rawToolOutput.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+  return null;
+};
 
 async function handleConnectionRequest(
   agent: {
@@ -188,7 +225,7 @@ async function handleStandardMessage(
   const hederaAgent = new ConversationalAgent({
     accountId: process.env.HEDERA_ACCOUNT_ID!,
     privateKey: process.env.HEDERA_PRIVATE_KEY!,
-    network: 'testnet',
+    network: NETWORK,
     openAIApiKey: process.env.OPENAI_API_KEY!,
     operationalMode: 'returnBytes',
     userAccountId,
@@ -203,10 +240,12 @@ async function handleStandardMessage(
   try {
     logger.info(`Sending response to topic ${connectionTopicId}`);
 
-    if (response.response && !response?.transactionBytes) {
+    const agentReply = deriveAgentReply(response);
+
+    if (agentReply && !response?.transactionBytes) {
       await agent.client.sendMessage(
         connectionTopicId,
-        `[Reply to #${message.sequence_number}] ${response.response}`,
+        `[Reply to #${message.sequence_number}] ${agentReply}`,
       );
     }
 
@@ -246,7 +285,7 @@ async function main() {
     }
 
     const baseClient = new HCS10Client({
-      network: 'testnet',
+      network: NETWORK,
       operatorId: process.env.HEDERA_ACCOUNT_ID,
       operatorPrivateKey: process.env.HEDERA_PRIVATE_KEY,
       guardedRegistryBaseUrl: registryUrl,
