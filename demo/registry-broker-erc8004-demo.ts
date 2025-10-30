@@ -23,10 +23,7 @@ function isMatchingHost(tokenUriString: string, host: string): boolean {
     const hostname = urlObj.hostname.toLowerCase();
     const hostToMatch = host.toLowerCase();
     // Match exact host or subdomain (i.e., ends with '.host')
-    return (
-      hostname === hostToMatch ||
-      hostname.endsWith('.' + hostToMatch)
-    );
+    return hostname === hostToMatch || hostname.endsWith('.' + hostToMatch);
   } catch {
     // Not a valid URL
     return false;
@@ -48,9 +45,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
-const normaliseAgentHttpUrl = (
-  value: unknown,
-): string | null => {
+const normaliseAgentHttpUrl = (value: unknown): string | null => {
   if (typeof value !== 'string') {
     return null;
   }
@@ -94,7 +89,8 @@ const extractAgentUrl = (hit: AgentSearchHit): string | null => {
   // Fallback to registration.data.endpoints list
   if (registration) {
     const data = asRecord(registration.data);
-    const endpoints = data && Array.isArray(data.endpoints) ? data.endpoints : [];
+    const endpoints =
+      data && Array.isArray(data.endpoints) ? data.endpoints : [];
     for (const candidate of endpoints) {
       const record = asRecord(candidate);
       const endpoint = record && normaliseAgentHttpUrl(record.endpoint);
@@ -125,10 +121,7 @@ const extractReplyContent = (payload: SendMessageResponse): string => {
 const run = async () => {
   let activeClient = new RegistryBrokerClient({ baseUrl });
 
-  const performSearch = async (
-    client: RegistryBrokerClient,
-    query: string,
-  ) => {
+  const performSearch = async (client: RegistryBrokerClient, query: string) => {
     // Prefer adapter-scoped search on staging/production
     let result = await client.search({
       q: query,
@@ -138,9 +131,21 @@ const run = async () => {
     });
     if (result.total === 0 || result.hits.length === 0) {
       // Fallback to registry filter and a simpler query term
-      result = await client.search({ q: query, registry: 'erc-8004', limit: 200 });
-      if (result.total === 0 || result.hits.length === 0 && query.toLowerCase() !== 'defillama') {
-        result = await client.search({ q: 'defillama', adapters: ['erc8004-adapter'], sortBy: 'most-recent', limit: 200 });
+      result = await client.search({
+        q: query,
+        registry: 'erc-8004',
+        limit: 200,
+      });
+      if (
+        result.total === 0 ||
+        (result.hits.length === 0 && query.toLowerCase() !== 'defillama')
+      ) {
+        result = await client.search({
+          q: 'defillama',
+          adapters: ['erc8004-adapter'],
+          sortBy: 'most-recent',
+          limit: 200,
+        });
       }
     }
     return result;
@@ -150,9 +155,7 @@ const run = async () => {
   let agentName = 'ERC-8004 Agent';
 
   if (directAgentUrl) {
-    console.log(
-      `Using direct ERC8004 agent URL from env: ${directAgentUrl}`,
-    );
+    console.log(`Using direct ERC8004 agent URL from env: ${directAgentUrl}`);
     agentUrl = directAgentUrl;
   } else {
     console.log(
@@ -172,8 +175,7 @@ const run = async () => {
       console.log(`- ${hit.name} (${hit.uaid})`);
     });
     const agent =
-      (targetUaid &&
-        searchResult.hits.find(hit => hit.uaid === targetUaid)) ||
+      (targetUaid && searchResult.hits.find(hit => hit.uaid === targetUaid)) ||
       searchResult.hits.find(hit => {
         const metadata = asRecord(hit.metadata);
         const registration = metadata ? asRecord(metadata.registration) : null;
@@ -182,9 +184,7 @@ const run = async () => {
           typeof tokenUri === 'string' ? tokenUri.toLowerCase() : '';
         const name = hit.name.toLowerCase();
         return (
-          isMatchingHost(tokenUriString, 'ec2-3-88-34-252.compute-1.amazonaws.com') ||
-          tokenUriString.includes('defillama') ||
-          name.includes('defillama')
+          tokenUriString.includes('defillama') || name.includes('defillama')
         );
       }) ||
       searchResult.hits[0];
@@ -193,7 +193,9 @@ const run = async () => {
 
     const resolved = extractAgentUrl(agent);
     if (!resolved) {
-      throw new Error('Selected agent does not expose an HTTP-compatible endpoint');
+      throw new Error(
+        'Selected agent does not expose an HTTP-compatible endpoint',
+      );
     }
     agentUrl = resolved;
   }
@@ -228,9 +230,7 @@ const run = async () => {
   console.log('Follow-up reply:');
   console.log(extractReplyContent(secondResponse));
 
-  const historySnapshot = await activeClient.chat.getHistory(
-    session.sessionId,
-  );
+  const historySnapshot = await activeClient.chat.getHistory(session.sessionId);
   console.log('--- Conversation History Snapshot ---');
   historySnapshot.history.forEach(entry => {
     console.log(`  [${entry.role}] ${entry.content}`);
