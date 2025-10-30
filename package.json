@@ -20,6 +20,9 @@
     "type": "git",
     "url": "git+https://github.com/hashgraph-online/standards-sdk.git"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "hashgraph online",
     "hcs",
