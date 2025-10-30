@@ -1,4 +1,6 @@
 import 'dotenv/config';
+// For safe URL parsing and host validation
+// No additional npm package required as Node's built-in URL class is used
 import { RegistryBrokerClient } from '../src/services/registry-broker';
 import type {
   AgentSearchHit,
@@ -8,6 +10,28 @@ import type {
 const baseUrl =
   process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
   'https://registry.hashgraphonline.com/api/v1';
+
+/**
+ * Returns true if the provided URL string (tokenUri) has a hostname that equals, or is a subdomain of, the specified `host`.
+ * Host comparison is done case-insensitively.
+ */
+function isMatchingHost(tokenUriString: string, host: string): boolean {
+  if (!tokenUriString) return false;
+  try {
+    // Ensure valid URL -- must have protocol to be parsable by URL()
+    const urlObj = new URL(tokenUriString);
+    const hostname = urlObj.hostname.toLowerCase();
+    const hostToMatch = host.toLowerCase();
+    // Match exact host or subdomain (i.e., ends with '.host')
+    return (
+      hostname === hostToMatch ||
+      hostname.endsWith('.' + hostToMatch)
+    );
+  } catch {
+    // Not a valid URL
+    return false;
+  }
+}
 
 const targetUaid = process.env.ERC8004_AGENT_UAID?.trim() || null;
 const directAgentUrl = process.env.ERC8004_AGENT_URL?.trim() || null;
@@ -158,7 +182,7 @@ const run = async () => {
           typeof tokenUri === 'string' ? tokenUri.toLowerCase() : '';
         const name = hit.name.toLowerCase();
         return (
-          tokenUriString.includes('ec2-3-88-34-252.compute-1.amazonaws.com') ||
+          isMatchingHost(tokenUriString, 'ec2-3-88-34-252.compute-1.amazonaws.com') ||
           tokenUriString.includes('defillama') ||
           name.includes('defillama')
         );
