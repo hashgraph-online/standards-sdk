@@ -24,7 +24,10 @@ export const resolveNetwork = (baseUrl: string): SupportedNetwork => {
 
   try {
     const host = new URL(baseUrl).hostname.toLowerCase();
-    if (host.includes('registry.hashgraphonline.com')) {
+    if (
+      host === 'registry.hashgraphonline.com' ||
+      host.endsWith('.registry.hashgraphonline.com')
+    ) {
       return 'mainnet';
     }
     if (
