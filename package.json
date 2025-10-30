@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.124",
+  "version": "0.1.125",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -19,6 +19,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hashgraph-online/standards-sdk.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "hashgraph online",
@@ -82,6 +85,9 @@
     "demo:hcs-6:browser": "pnpm run build && pnpm --dir demo/hcs-6/browser i && pnpm --dir demo/hcs-6/browser dev",
     "demo:hcs-5": "tsx demo/hcs-5/mint-hashinal.ts",
     "demo:registry-broker": "tsx demo/registry-broker-demo.ts",
+    "demo:registry-broker-history": "tsx demo/registry-broker-history-demo.ts",
+    "demo:registry-broker-erc8004": "tsx demo/registry-broker-erc8004-demo.ts",
+    "demo:registry-broker-agentverse": "tsx demo/registry-broker-agentverse-demo.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest",
     "test:unit-list": "jest --listTests --testPathPattern __tests__/utils/ --testPathPattern __tests__/services/ --testPathPattern __tests__/content-store/ --testPathPattern __tests__/fees/ --testPathPattern __tests__/common/tx/",

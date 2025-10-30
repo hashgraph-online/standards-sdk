@@ -12,6 +12,13 @@ export const MIN_REQUIRED_HBAR_USD = 30.0;
 
 export const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
+const NETWORK_ENV: NetworkType =
+  (process.env.HEDERA_NETWORK ?? process.env.HCS10_NETWORK ?? 'testnet')
+    .trim()
+    .toLowerCase() === 'mainnet'
+    ? 'mainnet'
+    : 'testnet';
+
 export interface AgentData {
   accountId: string;
   inboundTopicId: string;
@@ -40,7 +47,7 @@ export async function ensureAgentHasEnoughHbar(
     logger.info(`${agentName} account ${accountId} has ${hbarBalance} HBAR`);
 
     try {
-      const mirrorNode = new HederaMirrorNode('testnet', logger);
+      const mirrorNode = new HederaMirrorNode(NETWORK_ENV, logger);
       const hbarPrice = await mirrorNode.getHBARPrice(new Date());
 
       if (hbarPrice) {
@@ -154,7 +161,7 @@ export async function getAgentFromEnv(
   logger.info(`${agentName} outbound topic ID: ${outboundTopicId}`);
 
   const client = new HCS10Client({
-    network: 'testnet',
+    network: NETWORK_ENV,
     operatorId: accountId,
     operatorPrivateKey: privateKey,
     guardedRegistryBaseUrl: process.env.REGISTRY_URL,
@@ -264,7 +271,7 @@ export async function createAgent(
 
     const currentBuilder = agentBuilder.setAlias(`${agentName}-${Date.now()}`);
 
-    const result = await baseClient[method](currentBuilder as any, {
+    const result = await baseClient[method](currentBuilder, {
       ...options,
       existingState: hasPartialState
         ? (existingState as AgentCreationState)
@@ -337,7 +344,8 @@ export async function createAgent(
     });
 
     if (!result.metadata) {
-      logger.error(`${agentName} agent creation failed`);
+      logger.info('result is', result);
+      logger.error(`${agentName} agent creation failed`, result);
       return null;
     }
 
@@ -349,7 +357,7 @@ export async function createAgent(
     logger.info(`${agentName} outbound topic ID: ${metadata.outboundTopicId}`);
 
     const client = new HCS10Client({
-      network: 'testnet',
+      network: NETWORK_ENV,
       operatorId: metadata.accountId,
       operatorPrivateKey: metadata.privateKey,
       guardedRegistryBaseUrl: process.env.REGISTRY_URL,
@@ -466,7 +474,7 @@ export function createBobBuilder(
     )
     .addProperty('version', '2.0.0')
     .addProperty('permissions', ['read_network'])
-    .setNetwork('testnet')
+    .setNetwork(NETWORK_ENV)
     .setInboundTopicType(InboundTopicType.PUBLIC);
 
   if (pfpBuffer) {
@@ -497,7 +505,7 @@ export async function createMCPServer(
   const mcpServerBuilder = new MCPServerBuilder()
     .setName(serverName)
     .setBio(serverName)
-    .setNetworkType('testnet')
+    .setNetworkType(NETWORK_ENV)
     .setServerDescription(serverName)
     .setExistingAccount(operator.accountId, operator.signer.toString())
     .setVersion('1.0.0')
@@ -552,13 +560,22 @@ export async function getOrCreateBob(
   }
   const bobBuilder = createBobBuilder(pfpForBuilder, randomSuffix);
 
-  return await createAgent(
+  const createdBob = await createAgent(
     logger,
     baseClient,
     agentName,
     bobBuilder,
     envPrefix,
   );
+
+  if (createdBob) {
+    return createdBob;
+  }
+
+  logger.warn(
+    'Bob agent creation returned no metadata; attempting to reload from environment.',
+  );
+  return await getAgentFromEnv(logger, baseClient, agentName, envPrefix);
 }
 
 export async function getOrCreateAlice(
@@ -610,7 +627,7 @@ export async function getOrCreateAlice(
     .addProperty('description', 'A test agent for data processing and analysis')
     .addProperty('version', '3.0.0')
     .addProperty('permissions', ['read_network', 'write_data'])
-    .setNetwork('testnet')
+    .setNetwork(NETWORK_ENV)
     .setInboundTopicType(InboundTopicType.PUBLIC);
 
   const enableImageCreation = process.env.ENABLE_DEMO_PFP === 'true';

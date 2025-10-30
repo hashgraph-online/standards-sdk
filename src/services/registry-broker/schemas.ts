@@ -30,6 +30,14 @@ const agentProfileSchema = z
   })
   .catchall(jsonValueSchema);
 
+const chatHistoryEntrySchema = z.object({
+  messageId: z.string(),
+  role: z.enum(['user', 'agent']),
+  content: z.string(),
+  timestamp: z.string(),
+  metadata: z.record(jsonValueSchema).optional(),
+});
+
 const searchHitSchema = z.object({
   id: z.string(),
   uaid: z.string(),
@@ -84,6 +92,8 @@ export const createSessionResponseSchema = z.object({
     capabilities: z.record(jsonValueSchema).nullable().optional(),
     skills: z.array(z.string()).optional(),
   }),
+  history: z.array(chatHistoryEntrySchema),
+  historyTtlSeconds: z.number().nullable().optional(),
 });
 
 export const sendMessageResponseSchema = z.object({
@@ -92,6 +102,30 @@ export const sendMessageResponseSchema = z.object({
   message: z.string(),
   timestamp: z.string(),
   content: z.string().optional(),
+  history: z.array(chatHistoryEntrySchema).optional(),
+  historyTtlSeconds: z.number().nullable().optional(),
+});
+
+export const chatHistorySnapshotResponseSchema = z.object({
+  sessionId: z.string(),
+  history: z.array(chatHistoryEntrySchema),
+  historyTtlSeconds: z.number(),
+});
+
+export const chatHistoryCompactionRequestSchema = z
+  .object({
+    preserveEntries: z.number().int().min(0).optional(),
+  })
+  .strict();
+
+export const chatHistoryCompactionResponseSchema = z.object({
+  sessionId: z.string(),
+  history: z.array(chatHistoryEntrySchema),
+  summaryEntry: chatHistoryEntrySchema,
+  preservedEntries: z.array(chatHistoryEntrySchema),
+  historyTtlSeconds: z.number(),
+  creditsDebited: z.number(),
+  metadata: z.record(jsonValueSchema).optional(),
 });
 
 export const ledgerChallengeResponseSchema = z.object({

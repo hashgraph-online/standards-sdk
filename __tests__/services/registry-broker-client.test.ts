@@ -53,6 +53,55 @@ const mockSessionResponse = {
     capabilities: {},
     skills: [],
   },
+  history: [],
+  historyTtlSeconds: 900,
+};
+
+const mockHistorySnapshot = {
+  sessionId: 'session-1',
+  history: [
+    {
+      messageId: 'm-1',
+      role: 'user' as const,
+      content: 'Hello there',
+      timestamp: '2025-01-01T00:00:00.000Z',
+    },
+  ],
+  historyTtlSeconds: 900,
+};
+
+const mockCompactionResponse = {
+  sessionId: 'session-1',
+  summaryEntry: {
+    messageId: 'summary-1',
+    role: 'agent' as const,
+    content: 'Summary text',
+    timestamp: '2025-01-01T00:05:00.000Z',
+    metadata: { summary: true },
+  },
+  preservedEntries: [
+    {
+      messageId: 'm-2',
+      role: 'user' as const,
+      content: 'Recent entry',
+      timestamp: '2025-01-01T00:04:00.000Z',
+    },
+  ],
+  history: [
+    {
+      messageId: 'summary-1',
+      role: 'agent' as const,
+      content: 'Summary text',
+      timestamp: '2025-01-01T00:05:00.000Z',
+      metadata: { summary: true },
+    },
+  ],
+  historyTtlSeconds: 900,
+  creditsDebited: 3,
+  metadata: {
+    summarizedEntries: 5,
+    preservedEntries: 1,
+  },
 };
 
 const baseProfile = {
@@ -270,63 +319,144 @@ describe('RegistryBrokerClient', () => {
   });
 
   it('automatically purchases credits when autoTopUp is provided', async () => {
-    fetchImplementation
-      .mockResolvedValueOnce(
-        createResponse({ json: async () => quoteNeedsCredits }) as unknown as Response,
-      )
-      .mockResolvedValueOnce(
-        createResponse({ json: async () => purchaseResponse }) as unknown as Response,
-      )
-      .mockResolvedValueOnce(
-        createResponse({
-          json: async () => ({
-            ...quoteNeedsCredits,
-            availableCredits: 120,
-            shortfallCredits: 0,
-            estimatedHbar: 0,
-          }),
-        }) as unknown as Response,
-      )
-      .mockResolvedValueOnce(
-        createResponse({ json: async () => mockRegisterResponse }) as unknown as Response,
-      );
-
     const client = new RegistryBrokerClient({
       baseUrl: 'https://api.example.com',
       fetchImplementation,
     });
 
+    const internal = client as unknown as {
+      ensureCreditsForRegistration: jest.Mock;
+      performRegisterAgent: jest.Mock;
+    };
+
+    const autoTopUp = {
+      accountId: '0.0.1234',
+      privateKey: '302e020100300506032b657004220420demo',
+    };
+
+    const ensureSpy = jest.fn().mockResolvedValue(undefined);
+    const insufficientError = new RegistryBrokerError(
+      'Insufficient credits for registration',
+      {
+        status: 402,
+        statusText: 'Payment Required',
+        body: { shortfallCredits: 25 },
+      },
+    );
+    const performSpy = jest
+      .fn()
+      .mockRejectedValueOnce(insufficientError)
+      .mockResolvedValueOnce(mockRegisterResponse as any);
+
+    internal.ensureCreditsForRegistration = ensureSpy;
+    internal.performRegisterAgent = performSpy;
+
     const result = await client.registerAgent(
       { profile: baseProfile },
       {
-        autoTopUp: {
-          accountId: '0.0.1234',
-          privateKey: '302e020100300506032b657004220420demo',
-        },
+        autoTopUp,
       },
     );
 
     expect(result.agentId).toBe('agent-xyz');
-    expect(fetchImplementation).toHaveBeenNthCalledWith(
+    expect(ensureSpy).toHaveBeenCalledTimes(2);
+    expect(ensureSpy).toHaveBeenNthCalledWith(
       1,
-      'https://api.example.com/api/v1/register/quote',
-      expect.objectContaining({ method: 'POST' }),
+      { profile: baseProfile },
+      expect.objectContaining(autoTopUp),
     );
-    expect(fetchImplementation).toHaveBeenNthCalledWith(
-      2,
-      'https://api.example.com/api/v1/credits/purchase',
-      expect.objectContaining({ method: 'POST' }),
+    expect(performSpy).toHaveBeenCalledTimes(2);
+    const [firstEnsureOrder] = ensureSpy.mock.invocationCallOrder;
+    const [firstPerformOrder] = performSpy.mock.invocationCallOrder;
+    expect(firstEnsureOrder).toBeLessThan(firstPerformOrder);
+  });
+
+  it('purchases at least one credit when the shortfall is fractional', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const autoTopUp = {
+      accountId: '0.0.1234',
+      privateKey: '302e020100300506032b657004220420demo',
+    };
+
+    const fractionalQuote = {
+      ...quoteNeedsCredits,
+      shortfallCredits: 0.04,
+      creditsPerHbar: 25,
+    };
+    const settledQuote = {
+      ...quoteNeedsCredits,
+      shortfallCredits: 0,
+      availableCredits: 101,
+    };
+
+    const quoteSpy = jest
+      .spyOn(client, 'getRegistrationQuote')
+      .mockResolvedValueOnce(fractionalQuote as any)
+      .mockResolvedValueOnce(settledQuote as any);
+
+    const purchaseSpy = jest
+      .spyOn(client, 'purchaseCreditsWithHbar')
+      .mockResolvedValue(purchaseResponse as any);
+
+    const internal = client as unknown as {
+      performRegisterAgent: jest.Mock;
+    };
+
+    internal.performRegisterAgent = jest
+      .fn()
+      .mockResolvedValue(mockRegisterResponse as any);
+
+    await client.registerAgent(
+      { profile: baseProfile },
+      {
+        autoTopUp,
+      },
     );
-    expect(fetchImplementation).toHaveBeenNthCalledWith(
-      3,
-      'https://api.example.com/api/v1/register/quote',
-      expect.objectContaining({ method: 'POST' }),
+
+    expect(purchaseSpy).toHaveBeenCalledTimes(1);
+    const expectedHbarAmount =
+      Math.ceil((1 / fractionalQuote.creditsPerHbar) * 1e8) / 1e8;
+    expect(purchaseSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: autoTopUp.accountId,
+        hbarAmount: expectedHbarAmount,
+      }),
     );
-    expect(fetchImplementation).toHaveBeenNthCalledWith(
-      4,
-      'https://api.example.com/api/v1/register',
-      expect.objectContaining({ method: 'POST' }),
+
+    purchaseSpy.mockRestore();
+    quoteSpy.mockRestore();
+  });
+
+  it('applies default registration auto top-up when options are omitted', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+      registrationAutoTopUp: {
+        accountId: '0.0.1234',
+        privateKey: '302e020100300506032b657004220420demo',
+      },
+    });
+
+    const internal = client as unknown as {
+      ensureCreditsForRegistration: jest.Mock;
+      performRegisterAgent: jest.Mock;
+    };
+    internal.ensureCreditsForRegistration = jest.fn().mockResolvedValue(undefined);
+    internal.performRegisterAgent = jest
+      .fn()
+      .mockResolvedValue(mockRegisterResponse as any);
+
+    await client.registerAgent({ profile: baseProfile });
+
+    expect(internal.ensureCreditsForRegistration).toHaveBeenCalledWith(
+      { profile: baseProfile },
+      expect.objectContaining({ accountId: '0.0.1234' }),
     );
+    expect(internal.performRegisterAgent).toHaveBeenCalledTimes(1);
   });
 
   it('allows internal request helper to return the raw response', async () => {
@@ -431,6 +561,103 @@ describe('RegistryBrokerClient', () => {
       3,
       'https://api.example.com/api/v1/chat/session/session-1',
       expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('retrieves chat history snapshot for a session', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({ json: async () => mockHistorySnapshot }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const snapshot = await client.chat.getHistory('session-1');
+
+    expect(snapshot.historyTtlSeconds).toBe(900);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/chat/session/session-1/history',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('compacts chat history via API', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({ json: async () => mockCompactionResponse }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const response = await client.chat.compactHistory({
+      sessionId: 'session-1',
+      preserveEntries: 2,
+    });
+
+    expect(response.summaryEntry.content).toBe('Summary text');
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/chat/session/session-1/compact',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('auto tops up chat history and retries the session once', async () => {
+    const extendedSession = { ...mockSessionResponse, historyTtlSeconds: 7200 };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({
+          ok: false,
+          status: 402,
+          statusText: 'Payment Required',
+          json: async () => ({
+            error: 'Insufficient credits for extended chat history',
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => purchaseResponse }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => extendedSession }) as unknown as Response,
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+      historyAutoTopUp: {
+        accountId: '0.0.9999',
+        privateKey: '302e020100300506032b657004220420history',
+        hbarAmount: 0.5,
+      },
+    });
+
+    const session = await client.chat.createSession({
+      agentUrl: 'https://demo.agent',
+      auth: { type: 'bearer', token: 'user-key' },
+      historyTtlSeconds: 7200,
+    });
+
+    expect(session.historyTtlSeconds).toBe(7200);
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/api/v1/chat/session',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/api/v1/credits/purchase',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const purchaseInit = fetchImplementation.mock.calls[1][1] as RequestInit;
+    expect(JSON.parse(purchaseInit.body as string).hbarAmount).toBe(0.5);
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      3,
+      'https://api.example.com/api/v1/chat/session',
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 
