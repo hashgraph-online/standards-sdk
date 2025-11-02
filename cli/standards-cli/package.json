@@ -6,9 +6,11 @@
   "bin": "build/cli.js",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch source/cli.ts",
-    "start": "tsx source/cli.ts",
-    "check": "tsc --noEmit"
+    "dev": "tsx watch src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "check": "tsc --noEmit",
+    "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
+    "lint:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\""
   },
   "dependencies": {
     "chalk": "^5.4.1",

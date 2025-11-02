@@ -11,13 +11,13 @@
     "moduleDetection": "force",
     "resolveJsonModule": true,
     "outDir": "build",
-    "rootDir": "source",
+    "rootDir": "src",
     "jsx": "react-jsx",
     "types": [
       "node"
     ]
   },
   "include": [
-    "source"
+    "src"
   ]
 }

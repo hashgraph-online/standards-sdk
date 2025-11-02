@@ -765,7 +765,7 @@ const DemoRunnerView = ({context, onComplete}: DemoRunnerViewProps): JSX.Element
 	useInput((input, key) => {
 		// Completely disable input processing when demo is running
 		if (status === 'running') return;
-		
+
 		if (status === 'ready') {
 			if (key.return) {
 				startDemo();
@@ -1022,7 +1022,7 @@ const AgentView = ({sdkRoot, onBack}: AgentViewProps): JSX.Element => {
 
 			setStatus('running');
 			try {
-				const child = execa(tsxPath, ['source/cli.ts', 'agent', ...args], {
+				const child = execa(tsxPath, ['src/cli.ts', 'agent', ...args], {
 					cwd: cliDir,
 					stdout: 'pipe',
 					stderr: 'pipe',
