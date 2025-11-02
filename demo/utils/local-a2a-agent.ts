@@ -5,6 +5,13 @@ import {
   ServerResponse,
 } from 'http';
 import localtunnel, { Tunnel } from 'localtunnel';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+
+interface TunnelHandle {
+  url: string;
+  close: () => Promise<void>;
+}
 
 export interface LocalA2AAgentOptions {
   agentId: string;
@@ -20,6 +27,120 @@ export interface LocalA2AAgentHandle {
   localA2aEndpoint: string;
   stop: () => Promise<void>;
 }
+
+const CLOUD_FLARE_URL_PATTERN = /https:\/\/[^\s]+trycloudflare\.com/;
+const CLOUD_FLARE_TIMEOUT_MS = 15_000;
+
+const detectCloudflared = async (): Promise<boolean> => {
+  return new Promise(resolve => {
+    const detector = spawn('cloudflared', ['--version']);
+
+    detector.once('error', error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        resolve(false);
+      } else {
+        resolve(false);
+      }
+    });
+
+    detector.once('exit', code => {
+      resolve(code === 0);
+    });
+  });
+};
+
+const startCloudflareTunnel = async (port: number): Promise<TunnelHandle> => {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    let stderrBuffer = '';
+
+    const child = spawn('cloudflared', [
+      'tunnel',
+      '--url',
+      `http://127.0.0.1:${port}`,
+      '--no-autoupdate',
+    ]);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      child.stdout?.off('data', onOutput);
+      child.stderr?.off('data', onOutput);
+      child.off('error', onError);
+      child.off('exit', onExit);
+    };
+
+    const resolveWithUrl = (url: string) => {
+      if (resolved) {
+        return;
+      }
+      resolved = true;
+      cleanup();
+      resolve({
+        url,
+        close: async () => {
+          if (child.exitCode !== null || child.signalCode) {
+            return;
+          }
+          child.kill();
+          try {
+            await once(child, 'exit');
+          } catch {
+            // ignore shutdown errors
+          }
+        },
+      });
+    };
+
+    const onOutput = (chunk: unknown) => {
+      const text = (chunk ?? '').toString();
+      const match = text.match(CLOUD_FLARE_URL_PATTERN);
+      if (match) {
+        resolveWithUrl(match[0]);
+      }
+      stderrBuffer += text;
+    };
+
+    const onError = (error: unknown) => {
+      if (resolved) {
+        return;
+      }
+      cleanup();
+      reject(
+        error instanceof Error
+          ? error
+          : new Error(`Failed to start cloudflared tunnel: ${String(error)}`),
+      );
+    };
+
+    const onExit = (code: number | null) => {
+      if (resolved) {
+        return;
+      }
+      cleanup();
+      reject(
+        new Error(
+          `Cloudflare tunnel exited before it was ready (code ${
+            code ?? 'unknown'
+          }): ${stderrBuffer.trim()}`,
+        ),
+      );
+    };
+
+    const timer = setTimeout(() => {
+      if (resolved) {
+        return;
+      }
+      cleanup();
+      child.kill();
+      reject(new Error('Cloudflare tunnel startup timed out'));
+    }, CLOUD_FLARE_TIMEOUT_MS);
+
+    child.stdout?.on('data', onOutput);
+    child.stderr?.on('data', onOutput);
+    child.once('error', onError);
+    child.once('exit', onExit);
+  });
+};
 
 const collectRequestBody = (request: IncomingMessage): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -99,7 +220,8 @@ export const startLocalA2AAgent = async (
 ): Promise<LocalA2AAgentHandle> => {
   const { agentId, port } = options;
   let resolvedPort: number | null = null;
-  let tunnel: Tunnel | null = null;
+  let tunnelHandle: TunnelHandle | null = null;
+  let localTunnelInstance: Tunnel | null = null;
 
   const server: HttpServer = createServer(async (request, response) => {
     const { method, url } = request;
@@ -278,27 +400,84 @@ export const startLocalA2AAgent = async (
 
   const baseUrl = `http://127.0.0.1:${listeningPort}`;
 
-  try {
-    if (process.env.NO_TUNNEL === '1') {
-      tunnel = null;
+  const tunnelPreferenceRaw =
+    process.env.REGISTRY_BROKER_DEMO_TUNNEL?.trim().toLowerCase();
+  const tunnelPreference =
+    tunnelPreferenceRaw &&
+    ['cloudflare', 'localtunnel', 'none', 'auto'].includes(tunnelPreferenceRaw)
+      ? tunnelPreferenceRaw
+      : 'auto';
+
+  const disableTunneling =
+    process.env.NO_TUNNEL === '1' || tunnelPreference === 'none';
+  const shouldTryCloudflare =
+    !disableTunneling &&
+    (tunnelPreference === 'auto' || tunnelPreference === 'cloudflare');
+  const shouldTryLocalTunnel =
+    !disableTunneling &&
+    (tunnelPreference === 'auto' || tunnelPreference === 'localtunnel');
+
+  if (shouldTryCloudflare) {
+    const cloudflaredAvailable = await detectCloudflared();
+    if (!cloudflaredAvailable) {
+      console.log(
+        '  ℹ️  Cloudflare tunnel skipped: install `cloudflared` (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) to enable this tunnel option.',
+      );
     } else {
-      tunnel = await localtunnel({ port: listeningPort });
-      tunnel.on('error', (err: unknown) => {
-        console.log(`  ⚠️  Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
-        try { tunnel && tunnel.close(); } catch {}
-        tunnel = null;
-      });
+      try {
+        tunnelHandle = await startCloudflareTunnel(listeningPort);
+        console.log(`  🌐 Cloudflare tunnel established: ${tunnelHandle.url}`);
+      } catch (error) {
+        console.log(
+          `  ⚠️  Cloudflare tunnel unavailable: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
-  } catch (error) {
-    console.log(
-      `  ⚠️  Unable to establish tunnel for ${agentId}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    tunnel = null;
   }
 
-  const publicUrl = tunnel?.url?.replace(/\/$/, '');
+  if (!tunnelHandle && shouldTryLocalTunnel) {
+    try {
+      localTunnelInstance = await localtunnel({ port: listeningPort });
+      localTunnelInstance.on('error', (err: unknown) => {
+        console.log(
+          `  ⚠️  Localtunnel error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        try {
+          localTunnelInstance?.close();
+        } catch {
+          // ignore close errors
+        }
+        localTunnelInstance = null;
+      });
+      const sanitizedUrl =
+        localTunnelInstance.url?.replace(/\/$/, '') ?? undefined;
+      if (sanitizedUrl) {
+        tunnelHandle = {
+          url: sanitizedUrl,
+          close: async () => {
+            if (localTunnelInstance) {
+              localTunnelInstance.close();
+              localTunnelInstance = null;
+            }
+          },
+        };
+        console.log(`  🌐 Localtunnel established: ${sanitizedUrl}`);
+      }
+    } catch (error) {
+      console.log(
+        `  ⚠️  Unable to establish localtunnel for ${agentId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      localTunnelInstance = null;
+    }
+  }
+
+  const publicUrl = tunnelHandle?.url;
   const endpointBase = publicUrl ?? baseUrl;
 
   return {
@@ -308,23 +487,27 @@ export const startLocalA2AAgent = async (
     publicUrl,
     a2aEndpoint: `${endpointBase}/a2a`,
     localA2aEndpoint: `${baseUrl}/a2a`,
-    stop: () =>
-      new Promise<void>((resolve, reject) => {
-        const closeServer = () =>
-          server.close(error => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          });
-
-        if (tunnel) {
-          tunnel.close();
-          tunnel = null;
+    stop: async () => {
+      if (tunnelHandle) {
+        try {
+          await tunnelHandle.close();
+        } catch {
+          // ignore shutdown errors
+        } finally {
+          tunnelHandle = null;
+          localTunnelInstance = null;
         }
+      }
 
-        closeServer();
-      }),
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    },
   };
 };

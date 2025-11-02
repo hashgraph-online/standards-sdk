@@ -35,7 +35,9 @@ describe('RegistryBrokerClient (integration)', () => {
     expect(typeof session.sessionId).toBe('string');
     expect(session.sessionId.length).toBeGreaterThan(0);
 
-    await expect(client.chat.endSession(session.sessionId)).resolves.toBeUndefined();
+    await expect(
+      client.chat.endSession(session.sessionId),
+    ).resolves.toBeUndefined();
   });
 
   it('registers an agent and returns registration metadata', async () => {
@@ -70,10 +72,16 @@ describe('RegistryBrokerClient (integration)', () => {
     const protocols = await client.listProtocols();
     expect(Array.isArray(protocols.protocols)).toBe(true);
 
-    const detection = await client.detectProtocol({ jsonrpc: '2.0', method: 'ping' });
+    const detection = await client.detectProtocol({
+      jsonrpc: '2.0',
+      method: 'ping',
+    });
     expect(detection).toHaveProperty('protocol');
 
-    const registrySearch = await client.registrySearchByNamespace('openrouter', 'meta');
+    const registrySearch = await client.registrySearchByNamespace(
+      'openrouter',
+      'meta',
+    );
     expect(Array.isArray(registrySearch.hits)).toBe(true);
 
     try {
@@ -93,10 +101,13 @@ describe('RegistryBrokerClient (integration)', () => {
     const validation = await client.validateUaid(openRouterUaid);
     expect(validation.valid).toBe(true);
 
-    const connectionStatus = await client.getUaidConnectionStatus(openRouterUaid);
+    const connectionStatus =
+      await client.getUaidConnectionStatus(openRouterUaid);
     expect(connectionStatus.adapter).toBe('openrouter-adapter');
 
-    await expect(client.closeUaidConnection(openRouterUaid)).resolves.toBeUndefined();
+    await expect(
+      client.closeUaidConnection(openRouterUaid),
+    ).resolves.toBeUndefined();
 
     const dashboardStats = await client.dashboardStats();
     expect(Array.isArray(dashboardStats.adapters)).toBe(true);

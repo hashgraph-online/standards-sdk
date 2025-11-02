@@ -1,4 +1,7 @@
-import { buildHcs18DiscoveryMemo, buildHcs18SubmitDiscoveryMessageTx } from '../src/hcs-18/tx';
+import {
+  buildHcs18DiscoveryMemo,
+  buildHcs18SubmitDiscoveryMessageTx,
+} from '../src/hcs-18/tx';
 import { DiscoveryOperation } from '../src/hcs-18/types';
 jest.mock('@hashgraph/sdk');
 

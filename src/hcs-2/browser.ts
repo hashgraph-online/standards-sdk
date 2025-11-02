@@ -432,9 +432,9 @@ export class BrowserHCS2Client extends HCS2BaseClient {
       throw error;
     }
   }
-  private async executeWithWallet<T extends TopicCreateTransaction | TopicMessageSubmitTransaction>(
-    transaction: T,
-  ): Promise<WalletExecuteResult> {
+  private async executeWithWallet<
+    T extends TopicCreateTransaction | TopicMessageSubmitTransaction,
+  >(transaction: T): Promise<WalletExecuteResult> {
     const maybeExec = (
       this.hwc as unknown as WalletExecuteSupport<
         TopicCreateTransaction | TopicMessageSubmitTransaction

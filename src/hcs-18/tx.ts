@@ -1,4 +1,8 @@
-import { TopicCreateTransaction, TopicMessageSubmitTransaction, PublicKey } from '@hashgraph/sdk';
+import {
+  TopicCreateTransaction,
+  TopicMessageSubmitTransaction,
+  PublicKey,
+} from '@hashgraph/sdk';
 import type {
   DiscoveryMessage,
   AnnounceData,
@@ -14,7 +18,10 @@ import { DiscoveryOperation } from './types';
 import type { MaybeKey } from '../common/tx/tx-utils';
 import { buildTopicCreateTx } from '../common/tx/tx-utils';
 
-export function buildHcs18DiscoveryMemo(ttlSeconds?: number, memoOverride?: string): string {
+export function buildHcs18DiscoveryMemo(
+  ttlSeconds?: number,
+  memoOverride?: string,
+): string {
   if (memoOverride && memoOverride.trim().length > 0) {
     return memoOverride;
   }
@@ -63,7 +70,8 @@ export function buildHcs18SubmitDiscoveryMessageTx(params: {
   transactionMemo?: string;
 }): TopicMessageSubmitTransaction {
   const memo =
-    typeof params.transactionMemo === 'string' && params.transactionMemo.length > 0
+    typeof params.transactionMemo === 'string' &&
+    params.transactionMemo.length > 0
       ? params.transactionMemo
       : `hcs-18:op:${opCode(params.message.op)}`;
   return new TopicMessageSubmitTransaction()
@@ -73,21 +81,45 @@ export function buildHcs18SubmitDiscoveryMessageTx(params: {
 }
 
 export function buildHcs18AnnounceMessage(data: AnnounceData): AnnounceMessage {
-  return { p: 'hcs-18', op: DiscoveryOperation.ANNOUNCE, data } as AnnounceMessage;
+  return {
+    p: 'hcs-18',
+    op: DiscoveryOperation.ANNOUNCE,
+    data,
+  } as AnnounceMessage;
 }
 
 export function buildHcs18ProposeMessage(data: ProposeData): ProposeMessage {
-  return { p: 'hcs-18', op: DiscoveryOperation.PROPOSE, data } as ProposeMessage;
+  return {
+    p: 'hcs-18',
+    op: DiscoveryOperation.PROPOSE,
+    data,
+  } as ProposeMessage;
 }
 
 export function buildHcs18RespondMessage(data: RespondData): RespondMessage {
-  return { p: 'hcs-18', op: DiscoveryOperation.RESPOND, data } as RespondMessage;
+  return {
+    p: 'hcs-18',
+    op: DiscoveryOperation.RESPOND,
+    data,
+  } as RespondMessage;
 }
 
-export function buildHcs18CompleteMessage(data: CompleteMessage['data']): CompleteMessage {
-  return { p: 'hcs-18', op: DiscoveryOperation.COMPLETE, data } as CompleteMessage;
+export function buildHcs18CompleteMessage(
+  data: CompleteMessage['data'],
+): CompleteMessage {
+  return {
+    p: 'hcs-18',
+    op: DiscoveryOperation.COMPLETE,
+    data,
+  } as CompleteMessage;
 }
 
-export function buildHcs18WithdrawMessage(data: WithdrawMessage['data']): WithdrawMessage {
-  return { p: 'hcs-18', op: DiscoveryOperation.WITHDRAW, data } as WithdrawMessage;
+export function buildHcs18WithdrawMessage(
+  data: WithdrawMessage['data'],
+): WithdrawMessage {
+  return {
+    p: 'hcs-18',
+    op: DiscoveryOperation.WITHDRAW,
+    data,
+  } as WithdrawMessage;
 }

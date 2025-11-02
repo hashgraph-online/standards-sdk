@@ -17,9 +17,9 @@ function isModuleNotFound(specifier: string, error: unknown): boolean {
   if (messageText) {
     const lowered = messageText.toLowerCase();
     if (
-      (lowered.includes('cannot find module') ||
-        lowered.includes('module not found') ||
-        lowered.includes('cannot find package'))
+      lowered.includes('cannot find module') ||
+      lowered.includes('module not found') ||
+      lowered.includes('cannot find package')
     ) {
       return lowered.includes(specifier.toLowerCase());
     }
@@ -40,13 +40,16 @@ async function resolveNodeRequire(): Promise<NodeRequire | null> {
 
   try {
     const globalObject =
-      typeof global !== 'undefined' ? (global as typeof globalThis) : globalThis;
+      typeof global !== 'undefined'
+        ? (global as typeof globalThis)
+        : globalThis;
     const req =
       globalObject.process?.mainModule?.require ??
       (globalObject as { require?: NodeRequire }).require;
 
     nodeRequire =
-      typeof req === 'function' && typeof (req as NodeRequire).resolve === 'function'
+      typeof req === 'function' &&
+      typeof (req as NodeRequire).resolve === 'function'
         ? (req as NodeRequire)
         : null;
   } catch {
@@ -67,9 +70,7 @@ async function dynamicImport<T>(specifier: string): Promise<T | null> {
   }
 }
 
-export async function optionalImport<T>(
-  specifier: string,
-): Promise<T | null> {
+export async function optionalImport<T>(specifier: string): Promise<T | null> {
   if (isBrowser) {
     return dynamicImport<T>(specifier);
   }

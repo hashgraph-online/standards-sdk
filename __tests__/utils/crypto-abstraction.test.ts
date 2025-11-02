@@ -24,7 +24,9 @@ jest.mock('crypto', () => {
         cb: (err: unknown, derivedKey: Buffer) => void,
       ) => cb(null, Buffer.alloc(keylen)),
     ),
-    timingSafeEqual: jest.fn((a: Buffer, b: Buffer) => Buffer.compare(a, b) === 0),
+    timingSafeEqual: jest.fn(
+      (a: Buffer, b: Buffer) => Buffer.compare(a, b) === 0,
+    ),
     webcrypto: { subtle: {} },
   };
 });
@@ -41,7 +43,10 @@ import {
 } from '../../src/utils/crypto-abstraction';
 
 describe('Crypto Abstraction Layer', () => {
-  const mockDetectCryptoEnvironment = detectCryptoEnvironment as jest.MockedFunction<typeof detectCryptoEnvironment>;
+  const mockDetectCryptoEnvironment =
+    detectCryptoEnvironment as jest.MockedFunction<
+      typeof detectCryptoEnvironment
+    >;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -57,7 +62,9 @@ describe('Crypto Abstraction Layer', () => {
     test('should create NodeCryptoAdapter successfully', () => {
       jest.isolateModules(() => {
         jest.doMock('crypto', () => mockCrypto, { virtual: true });
-        const { NodeCryptoAdapter: NCA } = require('../../src/utils/crypto-abstraction');
+        const {
+          NodeCryptoAdapter: NCA,
+        } = require('../../src/utils/crypto-abstraction');
         const adapter = new NCA();
         expect(adapter).toBeInstanceOf(NCA);
       });
@@ -130,11 +137,21 @@ describe('Crypto Abstraction Layer', () => {
       const mockKeyMaterial = {};
       const mockDerivedBits = new ArrayBuffer(32);
 
-      (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(mockKeyMaterial);
-      (global.crypto.subtle.deriveBits as jest.Mock).mockResolvedValue(mockDerivedBits);
+      (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(
+        mockKeyMaterial,
+      );
+      (global.crypto.subtle.deriveBits as jest.Mock).mockResolvedValue(
+        mockDerivedBits,
+      );
 
       const adapter = new WebCryptoAdapter();
-      const result = await adapter.pbkdf2('password', Buffer.from('salt'), 1000, 32, 'sha256');
+      const result = await adapter.pbkdf2(
+        'password',
+        Buffer.from('salt'),
+        1000,
+        32,
+        'sha256',
+      );
 
       expect(result).toBeInstanceOf(Buffer);
       expect(result.length).toBe(32);
@@ -183,7 +200,13 @@ describe('Crypto Abstraction Layer', () => {
 
     test('should perform PBKDF2', async () => {
       const adapter = new FallbackCryptoAdapter();
-      const result = await adapter.pbkdf2('password', Buffer.from('salt'), 100, 32, 'sha256');
+      const result = await adapter.pbkdf2(
+        'password',
+        Buffer.from('salt'),
+        100,
+        32,
+        'sha256',
+      );
 
       expect(result).toBeInstanceOf(Buffer);
       expect(result.length).toBe(32);
@@ -278,8 +301,12 @@ describe('Crypto Abstraction Layer', () => {
         const mockKey = {};
         const mockSignature = new ArrayBuffer(32);
 
-        (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(mockKey);
-        (global.crypto.subtle.sign as jest.Mock).mockResolvedValue(mockSignature);
+        (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(
+          mockKey,
+        );
+        (global.crypto.subtle.sign as jest.Mock).mockResolvedValue(
+          mockSignature,
+        );
 
         const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha256');
         adapter.update(Buffer.from('test data'));
@@ -294,8 +321,12 @@ describe('Crypto Abstraction Layer', () => {
         const mockSignature = new ArrayBuffer(4);
         new Uint8Array(mockSignature).set([0xab, 0xcd, 0xef, 0x12]);
 
-        (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(mockKey);
-        (global.crypto.subtle.sign as jest.Mock).mockResolvedValue(mockSignature);
+        (global.crypto.subtle.importKey as jest.Mock).mockResolvedValue(
+          mockKey,
+        );
+        (global.crypto.subtle.sign as jest.Mock).mockResolvedValue(
+          mockSignature,
+        );
 
         const adapter = new WebHmacAdapter(Buffer.from('key'), 'sha256');
 

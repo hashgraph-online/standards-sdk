@@ -4,7 +4,9 @@ import { Long } from '@hashgraph/sdk';
 
 describe('FileParser', () => {
   test('parseFileCreate encodes contents and keys', () => {
-    const keys: proto.IKeyList = { keys: [{ ed25519: Uint8Array.from([1, 2]) }] };
+    const keys: proto.IKeyList = {
+      keys: [{ ed25519: Uint8Array.from([1, 2]) }],
+    };
     const body: proto.IFileCreateTransactionBody = {
       expirationTime: { seconds: Long.fromValue(100), nanos: 1 },
       keys,
@@ -50,4 +52,3 @@ describe('FileParser', () => {
     expect(d.fileId).toBe('0.0.9');
   });
 });
-

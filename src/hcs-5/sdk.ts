@@ -10,7 +10,11 @@ import { Client, TokenId, PrivateKey, AccountId } from '@hashgraph/sdk';
 import { NetworkType } from '../utils/types';
 import { inscribe } from '../inscribe/inscriber';
 import { buildHcs5MintTx, buildHcs5MintWithHrlTx } from './tx';
-import { NodeOperatorResolver, createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
+import {
+  NodeOperatorResolver,
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 
 export class HCS5Client extends HCS5BaseClient {
   private client: Client;

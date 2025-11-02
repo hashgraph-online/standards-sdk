@@ -39,6 +39,7 @@ import {
   ChatHistorySnapshotResponse,
   ChatHistoryCompactionResponse,
   CompactHistoryRequestPayload,
+  AdapterDetailsResponse,
 } from './types';
 import {
   adaptersResponseSchema,
@@ -66,6 +67,7 @@ import {
   websocketStatsResponseSchema,
   ledgerChallengeResponseSchema,
   ledgerVerifyResponseSchema,
+  adapterDetailsResponseSchema,
 } from './schemas';
 import { ZodError, z } from 'zod';
 
@@ -168,6 +170,9 @@ const serialiseAgentRegistrationRequest = (
   if (payload.registry !== undefined) {
     body.registry = payload.registry;
   }
+  if (payload.additionalRegistries !== undefined) {
+    body.additionalRegistries = payload.additionalRegistries;
+  }
   if (payload.metadata !== undefined) {
     body.metadata = toJsonObject(payload.metadata);
   }
@@ -231,8 +236,25 @@ function normaliseBaseUrl(input?: string): string {
 
 function buildSearchQuery(params: SearchParams): string {
   const query = new URLSearchParams();
+  const appendList = (key: string, values?: string[]) => {
+    if (!values) {
+      return;
+    }
+    values.forEach(value => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed.length > 0) {
+          query.append(key, trimmed);
+        }
+      }
+    });
+  };
+
   if (params.q) {
-    query.set('q', params.q);
+    const trimmed = params.q.trim();
+    if (trimmed.length > 0) {
+      query.set('q', trimmed);
+    }
   }
   if (typeof params.page === 'number') {
     query.set('page', params.page.toString());
@@ -241,23 +263,64 @@ function buildSearchQuery(params: SearchParams): string {
     query.set('limit', params.limit.toString());
   }
   if (params.registry) {
-    query.set('registry', params.registry);
+    const trimmed = params.registry.trim();
+    if (trimmed.length > 0) {
+      query.set('registry', trimmed);
+    }
   }
+  appendList('registries', params.registries);
   if (typeof params.minTrust === 'number') {
     query.set('minTrust', params.minTrust.toString());
   }
-  if (params.capabilities?.length) {
-    params.capabilities.forEach(value => {
-      query.append('capabilities', value);
+  appendList('capabilities', params.capabilities);
+  appendList('protocols', params.protocols);
+  appendList('adapters', params.adapters);
+
+  if (params.metadata) {
+    Object.entries(params.metadata).forEach(([key, values]) => {
+      if (!key || !Array.isArray(values) || values.length === 0) {
+        return;
+      }
+      const trimmedKey = key.trim();
+      if (trimmedKey.length === 0) {
+        return;
+      }
+      values.forEach(value => {
+        if (value === undefined || value === null) {
+          return;
+        }
+        query.append(`metadata.${trimmedKey}`, String(value));
+      });
     });
   }
-  if (params.adapters?.length) {
-    params.adapters.forEach(value => {
-      query.append('adapters', value);
-    });
+
+  if (params.type) {
+    const trimmedType = params.type.trim();
+    if (trimmedType.length > 0 && trimmedType.toLowerCase() !== 'all') {
+      query.set('type', trimmedType);
+    }
   }
+
+  if (params.verified === true) {
+    query.set('verified', 'true');
+  }
+
+  if (params.online === true) {
+    query.set('online', 'true');
+  }
+
   if (params.sortBy) {
-    query.set('sortBy', params.sortBy);
+    const trimmedSort = params.sortBy.trim();
+    if (trimmedSort.length > 0) {
+      query.set('sortBy', trimmedSort);
+    }
+  }
+
+  if (params.sortOrder) {
+    const lowered = params.sortOrder.toLowerCase();
+    if (lowered === 'asc' || lowered === 'desc') {
+      query.set('sortOrder', lowered);
+    }
   }
   const queryString = query.toString();
   return queryString.length > 0 ? `?${queryString}` : '';
@@ -452,6 +515,26 @@ export class RegistryBrokerClient {
     );
   }
 
+  async updateAgent(
+    uaid: string,
+    payload: AgentRegistrationRequest,
+  ): Promise<RegisterAgentResponse> {
+    const raw = await this.requestJson<JsonValue>(
+      `/register/${encodeURIComponent(uaid)}`,
+      {
+        method: 'PUT',
+        body: serialiseAgentRegistrationRequest(payload),
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+
+    return this.parseWithSchema(
+      raw,
+      registerAgentResponseSchema,
+      'update agent response',
+    );
+  }
+
   async purchaseCreditsWithHbar(params: {
     accountId: string;
     privateKey: string;
@@ -560,8 +643,7 @@ export class RegistryBrokerClient {
       return;
     }
     const hbarAmount =
-      this.historyAutoTopUp.hbarAmount &&
-      this.historyAutoTopUp.hbarAmount > 0
+      this.historyAutoTopUp.hbarAmount && this.historyAutoTopUp.hbarAmount > 0
         ? this.historyAutoTopUp.hbarAmount
         : DEFAULT_HISTORY_TOP_UP_HBAR;
     await this.purchaseCreditsWithHbar({
@@ -767,6 +849,17 @@ export class RegistryBrokerClient {
       raw,
       vectorSearchResponseSchema,
       'vector search response',
+    );
+  }
+
+  async adaptersDetailed(): Promise<AdapterDetailsResponse> {
+    const raw = await this.requestJson<JsonValue>('/adapters/details', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      adapterDetailsResponseSchema,
+      'adapter details response',
     );
   }
 

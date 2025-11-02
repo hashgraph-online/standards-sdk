@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { PrivateKey } from '@hashgraph/sdk';
-import { RegistryBrokerClient } from '../src/services/registry-broker';
+import { RegistryBrokerClient } from '../../src/services/registry-broker';
 
 type LedgerNetwork = 'mainnet' | 'testnet';
 

@@ -31,7 +31,11 @@ describe('HCS-18 Client', () => {
   });
 
   it('propose convenience submits correct message', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
     await c.propose({
       discoveryTopicId: '0.0.999999',
       data: {
@@ -43,7 +47,8 @@ describe('HCS-18 Client', () => {
         config: { name: 'X', threshold: 2 },
       },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0].value;
+    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
+      .value;
     const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.PROPOSE);
@@ -52,12 +57,17 @@ describe('HCS-18 Client', () => {
   });
 
   it('respond convenience submits correct message', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
     await c.respond({
       discoveryTopicId: '0.0.999999',
       data: { responder: '0.0.1001', proposal_seq: 12345, decision: 'accept' },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0].value;
+    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
+      .value;
     const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.RESPOND);
@@ -66,17 +76,26 @@ describe('HCS-18 Client', () => {
   });
 
   it('complete convenience submits correct message', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
     await c.complete({
       discoveryTopicId: '0.0.999999',
       data: {
         proposer: '0.0.1001',
         proposal_seq: 12345,
         flora_account: '0.0.789012',
-        topics: { communication: '0.0.1', transaction: '0.0.2', state: '0.0.3' },
+        topics: {
+          communication: '0.0.1',
+          transaction: '0.0.2',
+          state: '0.0.3',
+        },
       },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0].value;
+    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
+      .value;
     const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.COMPLETE);
@@ -85,12 +104,17 @@ describe('HCS-18 Client', () => {
   });
 
   it('withdraw convenience submits correct message', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
     await c.withdraw({
       discoveryTopicId: '0.0.999999',
       data: { account: '0.0.1001', announce_seq: 10000, reason: 'maintenance' },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0].value;
+    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
+      .value;
     const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.WITHDRAW);

@@ -24,7 +24,8 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+const describeBlock =
+  process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
 
 describeBlock('HCS-12 Full Integration Tests', () => {
   let logger: Logger;

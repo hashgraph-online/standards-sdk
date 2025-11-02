@@ -1,4 +1,10 @@
-import { Client, PublicKey, KeyList, TransactionReceipt, AccountId } from '@hashgraph/sdk';
+import {
+  Client,
+  PublicKey,
+  KeyList,
+  TransactionReceipt,
+  AccountId,
+} from '@hashgraph/sdk';
 import { HCS17BaseClient } from './base-client';
 import {
   SDKHCS17ClientConfig,

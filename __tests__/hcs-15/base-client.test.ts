@@ -46,4 +46,3 @@ describe('HCS-15 base client', () => {
     expect(ok).toBe(false);
   });
 });
-

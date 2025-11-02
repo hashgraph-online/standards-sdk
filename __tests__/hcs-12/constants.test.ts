@@ -49,4 +49,3 @@ describe('HCS-12 Constants', () => {
     });
   });
 });
-

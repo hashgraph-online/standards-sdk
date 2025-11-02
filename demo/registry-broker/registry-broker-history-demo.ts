@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
-import { RegistryBrokerClient, RegistryBrokerError } from '../src/services/registry-broker';
+import {
+  RegistryBrokerClient,
+  RegistryBrokerError,
+} from '../../src/services/registry-broker';
 import { PrivateKey } from '@hashgraph/sdk';
 
 dotenv.config();
@@ -10,13 +13,20 @@ interface LedgerCredentials {
 }
 
 const resolveLedgerNetwork = (): 'mainnet' | 'testnet' =>
-  process.env.HEDERA_NETWORK?.trim()?.toLowerCase() === 'mainnet' ? 'mainnet' : 'testnet';
+  process.env.HEDERA_NETWORK?.trim()?.toLowerCase() === 'mainnet'
+    ? 'mainnet'
+    : 'testnet';
 
-const resolveLedgerValue = (network: 'mainnet' | 'testnet', key: 'ACCOUNT_ID' | 'PRIVATE_KEY'): string | undefined => {
+const resolveLedgerValue = (
+  network: 'mainnet' | 'testnet',
+  key: 'ACCOUNT_ID' | 'PRIVATE_KEY',
+): string | undefined => {
   const prefix = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
   const envKey = `${prefix}_HEDERA_${key}`;
   const raw = process.env[envKey];
-  return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : undefined;
+  return typeof raw === 'string' && raw.trim().length > 0
+    ? raw.trim()
+    : undefined;
 };
 
 const describeError = (error: unknown): string => {
@@ -73,7 +83,9 @@ const runLedgerAuthentication = async (
   console.log(`  Using Hedera account: ${accountId}`);
   const privateKey = PrivateKey.fromString(privateKeyRaw);
   const challenge = await client.createLedgerChallenge({ accountId, network });
-  const signatureBytes = await privateKey.sign(Buffer.from(challenge.message, 'utf8'));
+  const signatureBytes = await privateKey.sign(
+    Buffer.from(challenge.message, 'utf8'),
+  );
   const signature = Buffer.from(signatureBytes).toString('base64');
   const verification = await client.verifyLedgerChallenge({
     challengeId: challenge.challengeId,
@@ -106,8 +118,7 @@ const ensureDemoCredits = async (
     await client.purchaseCreditsWithHbar({
       accountId: ledgerCredentials.accountId,
       privateKey: ledgerCredentials.privateKey,
-      hbarAmount:
-        Number(process.env.DEMO_CREDIT_TOP_UP_HBAR ?? '0.25') || 0.25,
+      hbarAmount: Number(process.env.DEMO_CREDIT_TOP_UP_HBAR ?? '0.25') || 0.25,
       memo: 'registry-broker-history-demo:bootstrap',
       metadata: { purpose: 'history-demo' },
     });
@@ -134,10 +145,16 @@ const runHistoryFlow = async (
   const session = await client.chat.createSession({
     agentUrl,
     auth,
-    historyTtlSeconds: Number(process.env.CHAT_HISTORY_TTL_SECONDS ?? '1800') || 1800,
+    historyTtlSeconds:
+      Number(process.env.CHAT_HISTORY_TTL_SECONDS ?? '1800') || 1800,
   });
   console.log(`  Session established: ${session.sessionId}`);
-  await sendPrompt(client, session.sessionId, auth, 'Provide a concise description of your capabilities.');
+  await sendPrompt(
+    client,
+    session.sessionId,
+    auth,
+    'Provide a concise description of your capabilities.',
+  );
   await sendPrompt(
     client,
     session.sessionId,
@@ -175,9 +192,7 @@ const sendPrompt = async (
     auth,
     message,
   });
-  console.log(
-    `  Agent replied: ${truncate(response.message, 200)}`,
-  );
+  console.log(`  Agent replied: ${truncate(response.message, 200)}`);
 };
 
 const attemptHistoryCompaction = async (
@@ -200,11 +215,10 @@ const attemptHistoryCompaction = async (
   try {
     await runCompaction();
   } catch (error) {
-    if (
-      error instanceof RegistryBrokerError &&
-      error.status === 402
-    ) {
-      console.log('  Insufficient credits; purchasing top-up for compaction...');
+    if (error instanceof RegistryBrokerError && error.status === 402) {
+      console.log(
+        '  Insufficient credits; purchasing top-up for compaction...',
+      );
       await client.purchaseCreditsWithHbar({
         accountId: ledgerCredentials.accountId,
         privateKey: ledgerCredentials.privateKey,

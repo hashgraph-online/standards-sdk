@@ -26,7 +26,9 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
-    const { HieroDidResolver } = await import('../../src/hcs-14/resolvers/hiero');
+    const { HieroDidResolver } = await import(
+      '../../src/hcs-14/resolvers/hiero'
+    );
 
     const fakeLoader = async () => ({
       HcsDid: { fromString: (_did: string) => ({}) },
@@ -63,7 +65,9 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
-    const { HieroDidResolver } = await import('../../src/hcs-14/resolvers/hiero');
+    const { HieroDidResolver } = await import(
+      '../../src/hcs-14/resolvers/hiero'
+    );
 
     const registry = new ResolverRegistry();
     registry.register(new HieroDidResolver());
@@ -87,7 +91,9 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
       }),
       { virtual: true },
     );
-    const { HieroDidResolver } = await import('../../src/hcs-14/resolvers/hiero');
+    const { HieroDidResolver } = await import(
+      '../../src/hcs-14/resolvers/hiero'
+    );
     const resolver = new HieroDidResolver();
     const doc = await resolver.resolve('did:hedera:previewnet:zX');
     expect(doc!.id).toBe('did:hedera:previewnet:zX');
@@ -119,7 +125,9 @@ describe('HCS-14 resolver registry and Hiero resolver', () => {
       }),
       { virtual: true },
     );
-    const { HieroDidResolver } = await import('../../src/hcs-14/resolvers/hiero');
+    const { HieroDidResolver } = await import(
+      '../../src/hcs-14/resolvers/hiero'
+    );
     const resolver = new HieroDidResolver();
     const doc = await resolver.resolve('did:hedera:mainnet:zOk');
     expect(doc!.id).toBe('did:hedera:mainnet:zOk');

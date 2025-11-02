@@ -225,8 +225,6 @@ export function buildHcs16TransactionTx(params: {
   });
 }
 
- 
-
 /**
  * Build HCS‑16 state_update message.
  */

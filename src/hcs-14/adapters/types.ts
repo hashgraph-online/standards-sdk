@@ -22,4 +22,3 @@ export interface AdapterMeta {
   /** Optional semantic version for the adapter implementation. */
   version?: string;
 }
-

@@ -43,7 +43,9 @@ export abstract class HCS18BaseClient {
    * Determines if a proposal has sufficient acceptances to proceed.
    */
   public isProposalReady(proposal: TrackedProposal): boolean {
-    const acceptances = Array.from(proposal.responses.values()).filter(r => r.decision === 'accept');
+    const acceptances = Array.from(proposal.responses.values()).filter(
+      r => r.decision === 'accept',
+    );
     const requiredResponses = proposal.data.members.length - 1;
     return acceptances.length >= requiredResponses;
   }

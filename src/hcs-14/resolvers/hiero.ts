@@ -13,7 +13,7 @@ async function loadResolveDID(): Promise<ResolveDID | null> {
   if (!resolverPromise) {
     resolverPromise = optionalImport<HieroResolverModule>(
       hieroResolverModuleId,
-    ).then((mod) => mod?.resolveDID ?? null);
+    ).then(mod => mod?.resolveDID ?? null);
   }
   return resolverPromise;
 }
@@ -22,7 +22,12 @@ export class HieroDidResolver implements DidResolver {
   readonly meta: AdapterMeta = {
     id: 'hedera/hiero-resolver',
     didMethods: ['hedera'],
-    caip2Networks: ['hedera:mainnet', 'hedera:testnet', 'hedera:previewnet', 'hedera:devnet'],
+    caip2Networks: [
+      'hedera:mainnet',
+      'hedera:testnet',
+      'hedera:previewnet',
+      'hedera:devnet',
+    ],
     caip10Namespaces: ['hedera'],
     displayName: 'Hedera (Hiero Resolver)',
     description: 'Resolves did:hedera identifiers via Hiero DID resolver.',

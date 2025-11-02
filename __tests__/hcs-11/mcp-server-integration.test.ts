@@ -14,9 +14,9 @@ jest.mock('@hashgraph/sdk', () => {
     PrivateKey: {
       ...basePK,
       fromStringED25519: (s: string) =>
-        (basePK.fromString ? basePK.fromString(s) : basePK.fromStringECDSA(s)),
+        basePK.fromString ? basePK.fromString(s) : basePK.fromStringECDSA(s),
       fromStringECDSA: (s: string) =>
-        (basePK.fromString ? basePK.fromString(s) : basePK.fromStringECDSA(s)),
+        basePK.fromString ? basePK.fromString(s) : basePK.fromStringECDSA(s),
     },
   };
 });

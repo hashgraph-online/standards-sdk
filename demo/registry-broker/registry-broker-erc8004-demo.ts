@@ -1,11 +1,11 @@
 import 'dotenv/config';
 // For safe URL parsing and host validation
 // No additional npm package required as Node's built-in URL class is used
-import { RegistryBrokerClient } from '../src/services/registry-broker';
+import { RegistryBrokerClient } from '../../src/services/registry-broker';
 import type {
   AgentSearchHit,
   SendMessageResponse,
-} from '../src/services/registry-broker/types';
+} from '../../src/services/registry-broker/types';
 
 const baseUrl =
   process.env.REGISTRY_BROKER_BASE_URL?.trim() ||

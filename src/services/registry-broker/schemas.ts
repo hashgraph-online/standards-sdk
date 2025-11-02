@@ -1,13 +1,28 @@
 import { z } from 'zod';
 import { AIAgentCapability, AIAgentType } from '../../hcs-11/types';
 
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 const capabilitySchema = z.nativeEnum(AIAgentCapability);
 const capabilityValueSchema = z.union([capabilitySchema, z.string()]);
-const jsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const jsonPrimitiveSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]);
 const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([jsonPrimitiveSchema, z.array(jsonValueSchema), z.record(jsonValueSchema)]),
+  z.union([
+    jsonPrimitiveSchema,
+    z.array(jsonValueSchema),
+    z.record(jsonValueSchema),
+  ]),
 );
 
 const agentProfileSchema = z
@@ -233,7 +248,11 @@ export const metricsSummaryResponseSchema = z.object({
     failures: z.number(),
     duration: durationStatsSchema,
   }),
-  cache: z.object({ hits: z.number(), misses: z.number(), hitRate: z.number() }),
+  cache: z.object({
+    hits: z.number(),
+    misses: z.number(),
+    hitRate: z.number(),
+  }),
   websocket: z.object({ connections: z.number() }),
 });
 
@@ -306,6 +325,59 @@ const registrationProfileInfoSchema = z.object({
   sizeBytes: z.number().optional(),
 });
 
+const profileRegistrySchema = z.object({
+  topicId: z.string(),
+  sequenceNumber: z.number().optional(),
+  profileReference: z.string().optional(),
+  profileTopicId: z.string().optional(),
+});
+
+const additionalRegistryResultSchema = z.object({
+  registry: z.string(),
+  status: z.enum(['created', 'duplicate', 'skipped', 'error']),
+  agentId: z.string().nullable().optional(),
+  agentUri: z.string().nullable().optional(),
+  error: z.string().optional(),
+  metadata: z.record(jsonValueSchema).optional(),
+  registryKey: z.string().optional(),
+  networkId: z.string().optional(),
+  networkName: z.string().optional(),
+  chainId: z.number().optional(),
+  estimatedCredits: z.number().nullable().optional(),
+  gasEstimateCredits: z.number().nullable().optional(),
+  gasEstimateUsd: z.number().nullable().optional(),
+  gasPriceGwei: z.number().nullable().optional(),
+  gasLimit: z.number().nullable().optional(),
+  creditMode: z.enum(['fixed', 'gas']).nullable().optional(),
+  minCredits: z.number().nullable().optional(),
+  consumedCredits: z.number().nullable().optional(),
+  cost: z
+    .object({
+      credits: z.number(),
+      usd: z.number(),
+      eth: z.number(),
+      gasUsedWei: z.string(),
+      effectiveGasPriceWei: z.string().nullable().optional(),
+      transactions: z
+        .array(
+          z.object({
+            hash: z.string(),
+            gasUsedWei: z.string(),
+            effectiveGasPriceWei: z.string().nullable().optional(),
+            costWei: z.string(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
+});
+
+const registrationCreditsSchema = z.object({
+  base: z.number(),
+  additional: z.number(),
+  total: z.number(),
+});
+
 const hcs10RegistrySchema = z
   .object({
     status: z.string(),
@@ -337,7 +409,12 @@ export const registerAgentResponseSchema = z.object({
     })
     .optional(),
   profile: registrationProfileInfoSchema.optional(),
+  profileRegistry: profileRegistrySchema.optional(),
   hcs10Registry: hcs10RegistrySchema.optional(),
+  credits: registrationCreditsSchema.optional(),
+  additionalRegistries: z.array(additionalRegistryResultSchema).optional(),
+  additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
+  additionalRegistryCostPerRegistry: z.number().optional(),
 });
 
 export const registrationQuoteResponseSchema = z.object({
@@ -362,6 +439,42 @@ export const creditPurchaseResponseSchema = z.object({
 
 export const adaptersResponseSchema = z.object({
   adapters: z.array(z.string()),
+});
+
+export const adapterChatProfileSchema = z.object({
+  supportsChat: z.boolean(),
+  delivery: z.string().optional(),
+  transport: z.string().optional(),
+  streaming: z.boolean().optional(),
+  requiresAuth: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+const adapterCapabilitiesSchema = z.object({
+  discovery: z.boolean(),
+  routing: z.boolean(),
+  communication: z.boolean(),
+  translation: z.boolean(),
+  protocols: z.array(z.string()),
+});
+
+export const adapterDescriptorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.string(),
+  author: z.string(),
+  description: z.string(),
+  supportedProtocols: z.array(z.string()),
+  registryType: z.enum(['web2', 'web3', 'hybrid']),
+  chatProfile: adapterChatProfileSchema.optional(),
+  capabilities: adapterCapabilitiesSchema,
+  enabled: z.boolean(),
+  priority: z.number(),
+  status: z.enum(['running', 'stopped']),
+});
+
+export const adapterDetailsResponseSchema = z.object({
+  adapters: z.array(adapterDescriptorSchema),
 });
 
 const metadataFacetOptionSchema = z.object({

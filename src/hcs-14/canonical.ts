@@ -3,7 +3,11 @@
  */
 
 import { z } from 'zod';
-import { CanonicalAgentDataSchema, CanonicalAgentData, CanonicalizationResult } from './types';
+import {
+  CanonicalAgentDataSchema,
+  CanonicalAgentData,
+  CanonicalizationResult,
+} from './types';
 import { isHederaCaip10, isEip155Caip10 } from './caip';
 
 function normalizeString(value: string): string {

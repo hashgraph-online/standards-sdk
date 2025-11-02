@@ -2,9 +2,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import type {
   RegistryBrokerClient,
   SendMessageResponse,
@@ -85,7 +84,8 @@ export interface DemoHcs10AgentHandle {
 export const startDemoHcs10Agent = async (
   options: DemoHcs10AgentOptions,
 ): Promise<DemoHcs10AgentHandle> => {
-  const { registryUrl, hederaAccountId, hederaPrivateKey, hederaNetwork } = options;
+  const { registryUrl, hederaAccountId, hederaPrivateKey, hederaNetwork } =
+    options;
 
   if (!registryUrl) {
     throw new Error('registryUrl is required to start the HCS-10 agent demo');
@@ -96,9 +96,7 @@ export const startDemoHcs10Agent = async (
     );
   }
 
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const repoRoot = path.resolve(__dirname, '..', '..');
+  const repoRoot = process.cwd();
   const scriptPath = path.join(repoRoot, 'demo', 'hcs-10', 'transact-agent.ts');
 
   const childEnv: NodeJS.ProcessEnv = {

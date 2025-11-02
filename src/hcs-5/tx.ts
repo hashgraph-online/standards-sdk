@@ -27,4 +27,3 @@ export function buildHcs5MintWithHrlTx(params: {
     transactionMemo: params.transactionMemo,
   });
 }
-

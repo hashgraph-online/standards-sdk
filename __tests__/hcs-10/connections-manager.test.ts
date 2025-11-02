@@ -10,7 +10,6 @@ type HCSMessage = {
 };
 
 class MockHCS10Client {
-
   async submitPayload() {
     return { topicSequenceNumber: { toNumber: () => 123 } };
   }

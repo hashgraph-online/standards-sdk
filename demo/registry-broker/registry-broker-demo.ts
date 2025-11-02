@@ -1,30 +1,28 @@
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
+  RegistryBrokerParseError,
   type ResolvedAgentResponse,
   type ChatHistoryEntry,
   type SendMessageResponse,
-} from '../src/services/registry-broker';
+} from '../../src/services/registry-broker';
+import registerDemoAgent, {
+  type DemoProfileMode,
+  type RegisteredAgent,
+} from './register-agent';
 import { PrivateKey } from '@hashgraph/sdk';
 import { setTimeout as delay } from 'node:timers/promises';
-import {
-  AIAgentCapability,
-  AIAgentProfile,
-  AIAgentType,
-  HCS11Profile,
-  MCPServerCapability,
-  ProfileType,
-} from '../src/hcs-11/types';
+import { HCS11Profile } from '../../src/hcs-11/types';
 import { ZodError } from 'zod';
 import {
   LocalA2AAgentHandle,
   startLocalA2AAgent,
-} from './utils/local-a2a-agent';
+} from '../utils/local-a2a-agent';
 import {
   assertAdapterSupport,
   normaliseMessage,
   waitForAgentAvailability,
-} from './utils/registry-broker';
+} from '../utils/registry-broker';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -37,14 +35,6 @@ interface DemoConfig {
   ledgerPrivateKey?: string;
   ledgerNetwork?: 'mainnet' | 'testnet';
 }
-
-interface RegisteredAgent {
-  alias: string;
-  uaid: string;
-  agentId: string;
-}
-
-type DemoProfileMode = 'ai' | 'mcp';
 
 const resolveProfileMode = (): DemoProfileMode => {
   const argProfile = process.argv
@@ -90,7 +80,8 @@ const OPENROUTER_DEFAULT_UAID =
 
 const localAgents: LocalA2AAgentHandle[] = [];
 const skipOptionalDemos = process.env.SKIP_OPTIONAL_DEMOS === '1';
-const skipHistoryCompactionDemo = process.env.SKIP_HISTORY_COMPACTION_DEMO === '1';
+const skipHistoryCompactionDemo =
+  process.env.SKIP_HISTORY_COMPACTION_DEMO === '1';
 
 const cleanupLocalAgents = async (): Promise<void> => {
   if (localAgents.length === 0) {
@@ -107,51 +98,6 @@ const handleSignal = () => {
 process.once('SIGINT', handleSignal);
 process.once('SIGTERM', handleSignal);
 
-const createAiAgentProfile = (alias: string): AIAgentProfile => ({
-  version: '1.0',
-  type: ProfileType.AI_AGENT,
-  display_name: alias,
-  alias,
-  bio: `Temporary agent ${alias} created for the registry broker SDK demo`,
-  aiAgent: {
-    type: AIAgentType.MANUAL,
-    capabilities: [AIAgentCapability.TEXT_GENERATION],
-    model: 'demo-model',
-    creator: 'sdk-demo',
-  },
-});
-
-const createMcpServerProfile = (alias: string, url: string): HCS11Profile => {
-  const releaseDate = new Date().toISOString().split('T')[0];
-  return {
-    version: '1.0',
-    type: ProfileType.MCP_SERVER,
-    display_name: alias,
-    alias,
-    bio: `Temporary MCP server ${alias} created for the registry broker SDK demo`,
-    mcpServer: {
-      version: releaseDate,
-      description: `Demo MCP server ${alias}`,
-      connectionInfo: {
-        url,
-        transport: 'sse',
-      },
-      services: [
-        MCPServerCapability.RESOURCE_PROVIDER,
-        MCPServerCapability.TOOL_PROVIDER,
-        MCPServerCapability.API_INTEGRATION,
-      ],
-      capabilities: ['resources.get', 'resources.list', 'tools.invoke'],
-      docs: 'https://docs.hashgraphonline.com/mcp-demo',
-      repository: 'https://github.com/hashgraphonline/mcp-demo',
-      maintainer: 'Hashgraph Online Demo Team',
-      host: {
-        minVersion: '2024-11-05',
-      },
-    },
-  };
-};
-
 const describeError = (error: unknown): string => {
   if (error instanceof RegistryBrokerError) {
     const bodyMessage =
@@ -163,7 +109,14 @@ const describeError = (error: unknown): string => {
     return `Registry broker error ${error.status} (${error.statusText}): ${bodyMessage}`;
   }
 
+  if (error instanceof RegistryBrokerParseError) {
+    return `Registry broker parse error: ${error.message}`;
+  }
+
   if (error instanceof Error) {
+    if ('cause' in error && error.cause) {
+      return `${error.message}: ${String(error.cause)}`;
+    }
     return error.message;
   }
 
@@ -269,54 +222,6 @@ const getLatestAgentHistoryEntry = (
 const describeLatestAgentReply = (
   response: Pick<SendMessageResponse, 'history'>,
 ): ChatHistoryEntry | undefined => getLatestAgentHistoryEntry(response.history);
-
-const registerDemoAgent = async (
-  client: RegistryBrokerClient,
-  alias: string,
-  endpointOrUrl: string | undefined,
-  mode: DemoProfileMode,
-): Promise<RegisteredAgent> => {
-  let registrationPayload:
-    | {
-        profile: AIAgentProfile;
-        endpoint: string;
-        communicationProtocol: 'a2a';
-        registry: string;
-      }
-    | {
-        profile: HCS11Profile;
-        communicationProtocol: 'mcp';
-        registry: string;
-      };
-
-  if (mode === 'ai') {
-    if (!endpointOrUrl) {
-      throw new Error('A2A endpoint required for AI agent registration');
-    }
-    registrationPayload = {
-      profile: createAiAgentProfile(alias),
-      endpoint: endpointOrUrl,
-      communicationProtocol: 'a2a',
-      registry: 'hashgraph-online',
-    };
-  } else {
-    const connectionUrl =
-      endpointOrUrl ?? `https://demo-mcp.hashgraphonline.com/${alias}`;
-    registrationPayload = {
-      profile: createMcpServerProfile(alias, connectionUrl),
-      communicationProtocol: 'mcp',
-      registry: 'hashgraph-online',
-    };
-  }
-
-  const registration = await client.registerAgent(registrationPayload);
-
-  return {
-    alias,
-    uaid: registration.uaid,
-    agentId: registration.agentId,
-  };
-};
 
 const updateDemoAgent = async (
   client: RegistryBrokerClient,
@@ -694,12 +599,18 @@ const showcaseA2AConversation = async (
       `sdk-demo-agent-one-${timestamp}`,
       config.a2aAgentOneUrl,
       'ai',
+      {
+        skipAdditionalRegistryUpdate: true,
+      },
     );
     agentTwo = await registerDemoAgent(
       client,
       `sdk-demo-agent-two-${timestamp}`,
       config.a2aAgentTwoUrl,
       'ai',
+      {
+        skipAdditionalRegistryUpdate: true,
+      },
     );
   } catch (error) {
     console.log(
@@ -885,7 +796,11 @@ const showcaseOpenRouterAuthenticatedChat = async (
       );
     }
 
-    await showcaseHistoryCompaction(client, session.sessionId, ledgerCredentials);
+    await showcaseHistoryCompaction(
+      client,
+      session.sessionId,
+      ledgerCredentials,
+    );
   } catch (error) {
     console.log(
       `  Authenticated OpenRouter chat failed: ${describeError(error)}`,
@@ -899,13 +814,17 @@ const showcaseHistoryCompaction = async (
   ledgerCredentials?: { accountId: string; privateKey: string } | null,
 ) => {
   if (skipHistoryCompactionDemo) {
-    console.log('  Skipping history compaction (SKIP_HISTORY_COMPACTION_DEMO=1).');
+    console.log(
+      '  Skipping history compaction (SKIP_HISTORY_COMPACTION_DEMO=1).',
+    );
     return;
   }
 
   console.log('\n--- Chat History Compaction ---');
   try {
-    console.log('  Requesting compaction with the latest 4 entries preserved...');
+    console.log(
+      '  Requesting compaction with the latest 4 entries preserved...',
+    );
     await attemptHistoryCompaction(client, sessionId, ledgerCredentials);
   } catch (error) {
     console.log(`  History compaction unavailable: ${describeError(error)}`);
@@ -923,9 +842,7 @@ const attemptHistoryCompaction = async (
       preserveEntries: 4,
     });
     console.log('  Compaction successful.');
-    console.log(
-      `    Credits debited: ${compaction.creditsDebited ?? 'n/a'}`,
-    );
+    console.log(`    Credits debited: ${compaction.creditsDebited ?? 'n/a'}`);
     console.log(
       `    Summary entry: ${truncateHistoryContent(compaction.summaryEntry.content, 200)}`,
     );
@@ -944,7 +861,9 @@ const attemptHistoryCompaction = async (
       error.status === 402 &&
       ledgerCredentials
     ) {
-      console.log('  Insufficient credits; purchasing a top-up for compaction...');
+      console.log(
+        '  Insufficient credits; purchasing a top-up for compaction...',
+      );
       await client.purchaseCreditsWithHbar({
         accountId: ledgerCredentials.accountId,
         privateKey: ledgerCredentials.privateKey,
@@ -971,8 +890,7 @@ const ensureDemoCreditBalance = async (
     await client.purchaseCreditsWithHbar({
       accountId: ledgerCredentials.accountId,
       privateKey: ledgerCredentials.privateKey,
-      hbarAmount:
-        Number(process.env.DEMO_CREDIT_TOP_UP_HBAR ?? '0.25') || 0.25,
+      hbarAmount: Number(process.env.DEMO_CREDIT_TOP_UP_HBAR ?? '0.25') || 0.25,
       memo: 'registry-broker-demo:bootstrap-credits',
       metadata: { purpose: 'demo-bootstrap' },
     });
@@ -1033,38 +951,54 @@ const main = async () => {
     console.log(`  Using configured Hedera account: ${config.ledgerAccountId}`);
     const privateKey = PrivateKey.fromString(config.ledgerPrivateKey);
 
-    const challenge = await client.createLedgerChallenge({
-      accountId: config.ledgerAccountId,
-      network: config.ledgerNetwork ?? 'testnet',
-    });
+    let attemptError: unknown;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const challenge = await client.createLedgerChallenge({
+          accountId: config.ledgerAccountId,
+          network: config.ledgerNetwork ?? 'testnet',
+        });
 
-    const signatureBytes = await privateKey.sign(
-      Buffer.from(challenge.message, 'utf8'),
-    );
-    const signature = Buffer.from(signatureBytes).toString('base64');
-    const publicKey = privateKey.publicKey.toString();
+        const signatureBytes = await privateKey.sign(
+          Buffer.from(challenge.message, 'utf8'),
+        );
+        const signature = Buffer.from(signatureBytes).toString('base64');
+        const publicKey = privateKey.publicKey.toString();
 
-    const verification = await client.verifyLedgerChallenge({
-      challengeId: challenge.challengeId,
-      accountId: config.ledgerAccountId,
-      network: config.ledgerNetwork ?? 'testnet',
-      signature,
-      publicKey,
-    });
+        const verification = await client.verifyLedgerChallenge({
+          challengeId: challenge.challengeId,
+          accountId: config.ledgerAccountId,
+          network: config.ledgerNetwork ?? 'testnet',
+          signature,
+          publicKey,
+        });
 
-    console.log(
-      `  Ledger key issued for ${verification.accountId} on ${verification.network}.`,
-    );
-    console.log(
-      `  Ledger API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
-    );
+        console.log(
+          `  Ledger key issued for ${verification.accountId} on ${verification.network}.`,
+        );
+        console.log(
+          `  Ledger API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
+        );
 
-    ledgerCredentials = {
-      accountId: config.ledgerAccountId,
-      privateKey: config.ledgerPrivateKey,
-    };
-    client.setLedgerApiKey(verification.key);
-    client.setDefaultHeader('x-account-id', verification.accountId);
+        ledgerCredentials = {
+          accountId: config.ledgerAccountId,
+          privateKey: config.ledgerPrivateKey,
+        };
+        client.setLedgerApiKey(verification.key);
+        client.setDefaultHeader('x-account-id', verification.accountId);
+        return;
+      } catch (error) {
+        attemptError = error;
+        console.log(
+          `  Ledger auth attempt ${attempt + 1} failed: ${describeError(error)}`,
+        );
+        await delay(1000 * (attempt + 1));
+      }
+    }
+
+    throw attemptError instanceof Error
+      ? attemptError
+      : new Error(describeError(attemptError));
   });
 
   if (!ledgerCredentials) {
@@ -1127,6 +1061,10 @@ const main = async () => {
       alias,
       registrationEndpoint,
       profileMode,
+      {
+        ledgerAccountId: ledgerCredentials.accountId,
+        ledgerPrivateKey: ledgerCredentials.privateKey,
+      },
     );
     registeredAgent = agent;
     console.log('  Registration complete:');

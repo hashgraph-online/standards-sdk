@@ -46,8 +46,13 @@ jest.mock('@hashgraph/sdk', () => {
 });
 
 describe('Common TX Utils', () => {
-  const mockTopicCreateTransaction = TopicCreateTransaction as jest.MockedClass<typeof TopicCreateTransaction>;
-  const mockTopicMessageSubmitTransaction = TopicMessageSubmitTransaction as jest.MockedClass<typeof TopicMessageSubmitTransaction>;
+  const mockTopicCreateTransaction = TopicCreateTransaction as jest.MockedClass<
+    typeof TopicCreateTransaction
+  >;
+  const mockTopicMessageSubmitTransaction =
+    TopicMessageSubmitTransaction as jest.MockedClass<
+      typeof TopicMessageSubmitTransaction
+    >;
   const mockPublicKey = PublicKey as jest.Mocked<typeof PublicKey>;
   const mockTopicId = TopicId as jest.Mocked<typeof TopicId>;
 
@@ -69,7 +74,9 @@ describe('Common TX Utils', () => {
     };
 
     mockTopicCreateTransaction.mockReturnValue(mockTxInstance as any);
-    mockTopicMessageSubmitTransaction.mockReturnValue(mockMessageTxInstance as any);
+    mockTopicMessageSubmitTransaction.mockReturnValue(
+      mockMessageTxInstance as any,
+    );
   });
 
   describe('encodeHcs2RegistryMemo', () => {
@@ -124,7 +131,8 @@ describe('Common TX Utils', () => {
 
       const params = {
         memo: 'test-topic-memo',
-        submitKey: '302a300506032b6570032100114e6abc371b82dab5c15ea149f02d34a53',
+        submitKey:
+          '302a300506032b6570032100114e6abc371b82dab5c15ea149f02d34a53',
       };
 
       const result = buildTopicCreateTx(params);
@@ -277,7 +285,9 @@ describe('Common TX Utils', () => {
 
       const result = buildMessageTx(params);
 
-      expect(result.setTransactionMemo).toHaveBeenCalledWith('Test transaction');
+      expect(result.setTransactionMemo).toHaveBeenCalledWith(
+        'Test transaction',
+      );
     });
 
     test('should create message transaction with empty memo', () => {
@@ -299,11 +309,7 @@ describe('Common TX Utils', () => {
       const mockTopicIdInstance = {};
       mockTopicId.fromString.mockReturnValue(mockTopicIdInstance);
 
-      const testCases = [
-        '0.0.12345',
-        '1.2.34567',
-        '0.0.1',
-      ];
+      const testCases = ['0.0.12345', '1.2.34567', '0.0.1'];
 
       testCases.forEach(topicId => {
         mockTopicId.fromString.mockReturnValueOnce(mockTopicIdInstance);

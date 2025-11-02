@@ -16,9 +16,19 @@ import {
 } from '../common/node-operator-resolver';
 import { HederaMirrorNode } from '../services/mirror-node';
 import { HCS16BaseClient } from './base-client';
-import { buildHcs16CreateFloraTopicTx, buildHcs16FloraCreatedTx, buildHcs16TransactionTx, buildHcs16StateUpdateTx } from './tx';
+import {
+  buildHcs16CreateFloraTopicTx,
+  buildHcs16FloraCreatedTx,
+  buildHcs16TransactionTx,
+  buildHcs16StateUpdateTx,
+} from './tx';
 import { FloraTopicType } from './types';
-import { buildHcs16FloraJoinRequestTx, buildHcs16FloraJoinVoteTx, buildHcs16FloraJoinAcceptedTx, buildHcs16CreateAccountTx } from './tx';
+import {
+  buildHcs16FloraJoinRequestTx,
+  buildHcs16FloraJoinVoteTx,
+  buildHcs16FloraJoinAcceptedTx,
+  buildHcs16CreateAccountTx,
+} from './tx';
 
 export interface HCS16ClientConfig {
   network: NetworkType;
@@ -110,8 +120,13 @@ export class HCS16Client extends HCS16BaseClient {
    * Sign a scheduled transaction by ScheduleId entity using provided signer key (PrivateKey).
    * The signer must be a valid member key for the scheduled transaction to count toward threshold.
    */
-  async signSchedule(params: { scheduleId: string; signerKey: PrivateKey }): Promise<TransactionReceipt> {
-    const tx = await new ScheduleSignTransaction().setScheduleId(params.scheduleId).freezeWith(this.client);
+  async signSchedule(params: {
+    scheduleId: string;
+    signerKey: PrivateKey;
+  }): Promise<TransactionReceipt> {
+    const tx = await new ScheduleSignTransaction()
+      .setScheduleId(params.scheduleId)
+      .freezeWith(this.client);
     const signed = await tx.sign(params.signerKey);
     const resp = await signed.execute(this.client);
     return resp.getReceipt(this.client);
@@ -218,6 +233,4 @@ export class HCS16Client extends HCS16BaseClient {
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
   }
-
-  
 }

@@ -136,7 +136,9 @@ export interface InscriptionResponse {
   quote?: boolean;
 }
 
-function normalizeClientConfig(cfg: NodeHederaClientConfig): HederaClientConfig {
+function normalizeClientConfig(
+  cfg: NodeHederaClientConfig,
+): HederaClientConfig {
   return {
     accountId: cfg.accountId,
     privateKey:

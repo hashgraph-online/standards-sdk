@@ -23,8 +23,12 @@ describe('ScheduleParser', () => {
 
   describe('Schedule Create Parsing', () => {
     test('parseScheduleCreate - parses from transaction internals', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleCreate');
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleCreate');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleCreate',
+      );
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleCreate',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _scheduledTransaction: new Uint8Array([1, 2, 3, 4]),
@@ -36,7 +40,9 @@ describe('ScheduleParser', () => {
         constructor: { name: 'ScheduleCreateTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleCreate(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.scheduledTransactionBody).toBeDefined();
@@ -48,8 +54,12 @@ describe('ScheduleParser', () => {
     });
 
     test('parseScheduleCreate - parses from ScheduleCreateTransaction instance', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleCreate');
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleCreate');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleCreate',
+      );
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleCreate',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         constructor: { name: 'ScheduleCreateTransaction' },
@@ -61,7 +71,9 @@ describe('ScheduleParser', () => {
         _waitForExpiry: false,
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleCreate(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.scheduledTransactionBody).toBeDefined();
@@ -81,7 +93,9 @@ describe('ScheduleParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleCreate(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
 
@@ -92,15 +106,21 @@ describe('ScheduleParser', () => {
         constructor: { name: 'SomeOtherTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleCreate(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleCreate(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
   });
 
   describe('Schedule Sign Parsing', () => {
     test('parseScheduleSign - parses from transaction body', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleSign');
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleSign');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleSign',
+      );
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleSign',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
@@ -111,22 +131,30 @@ describe('ScheduleParser', () => {
         _scheduleId: { toString: () => '0.0.789' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleSign(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.789');
     });
 
     test('parseScheduleSign - parses from ScheduleSignTransaction instance', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleSign');
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleSign');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleSign',
+      );
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleSign',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         constructor: { name: 'ScheduleSignTransaction' },
         _scheduleId: { toString: () => '0.0.987' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleSign(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.987');
@@ -141,7 +169,9 @@ describe('ScheduleParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleSign(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
 
@@ -152,15 +182,21 @@ describe('ScheduleParser', () => {
         constructor: { name: 'SomeOtherTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleSign(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleSign(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
   });
 
   describe('Schedule Delete Parsing', () => {
     test('parseScheduleDelete - parses from transaction body', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleDelete');
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleDelete');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleDelete',
+      );
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleDelete',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _transactionBody: {
@@ -171,22 +207,30 @@ describe('ScheduleParser', () => {
         _scheduleId: { toString: () => '0.0.321' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleDelete(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.321');
     });
 
     test('parseScheduleDelete - parses from ScheduleDeleteTransaction instance', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleDelete');
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleDelete');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleDelete',
+      );
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleDelete',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         constructor: { name: 'ScheduleDeleteTransaction' },
         _scheduleId: { toString: () => '0.0.654' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleDelete(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.scheduleId).toBe('0.0.654');
@@ -201,7 +245,9 @@ describe('ScheduleParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleDelete(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
 
@@ -212,7 +258,9 @@ describe('ScheduleParser', () => {
         constructor: { name: 'SomeOtherTransaction' },
       };
 
-      const result = ScheduleParser.parseScheduleDelete(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.parseScheduleDelete(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
   });
@@ -226,7 +274,9 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.extractScheduleInfo(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result.isScheduled).toBe(true);
       expect(result.scheduleRef).toBe('0.0.111');
@@ -239,7 +289,9 @@ describe('ScheduleParser', () => {
         _scheduleId: { toString: () => '0.0.222' },
       };
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.extractScheduleInfo(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result.isScheduled).toBe(true);
       expect(result.scheduleRef).toBe('0.0.222');
@@ -253,7 +305,9 @@ describe('ScheduleParser', () => {
         },
       };
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.extractScheduleInfo(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result.isScheduled).toBe(false);
       expect(result.scheduleRef).toBeUndefined();
@@ -262,7 +316,9 @@ describe('ScheduleParser', () => {
     test('extractScheduleInfo - handles errors gracefully', () => {
       const mockTransaction = null as unknown;
 
-      const result = ScheduleParser.extractScheduleInfo(mockTransaction as unknown as Transaction);
+      const result = ScheduleParser.extractScheduleInfo(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result.isScheduled).toBe(false);
     });
@@ -270,7 +326,9 @@ describe('ScheduleParser', () => {
 
   describe('Schedule Transaction Main Parser', () => {
     test('parseScheduleTransaction - identifies schedule create', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleCreate');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleCreate',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _scheduledTransaction: new Uint8Array([1, 2, 3]),
@@ -287,7 +345,9 @@ describe('ScheduleParser', () => {
     });
 
     test('parseScheduleTransaction - identifies schedule sign', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleSign');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleSign',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _scheduleId: { toString: () => '0.0.333' },
@@ -303,7 +363,9 @@ describe('ScheduleParser', () => {
     });
 
     test('parseScheduleTransaction - identifies schedule delete', () => {
-      mockHasTransactionType.mockImplementation((_, type) => type === 'scheduleDelete');
+      mockHasTransactionType.mockImplementation(
+        (_, type) => type === 'scheduleDelete',
+      );
       const mockTransaction = {
         toBytes: jest.fn().mockReturnValue(new Uint8Array([1, 2, 3, 4])),
         _scheduleId: { toString: () => '0.0.444' },

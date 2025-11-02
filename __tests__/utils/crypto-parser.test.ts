@@ -1,7 +1,10 @@
 import { CryptoParser } from '../../src/utils/parsers/crypto-parser';
 import { proto } from '@hashgraph/proto';
 import { Long } from '@hashgraph/sdk';
-import type { AccountAmount, TokenAmount } from '../../src/utils/transaction-parser-types';
+import type {
+  AccountAmount,
+  TokenAmount,
+} from '../../src/utils/transaction-parser-types';
 
 describe('CryptoParser', () => {
   test('parseCryptoCreateAccount full shape', () => {
@@ -114,7 +117,10 @@ describe('CryptoParser', () => {
   });
 
   test('parseCryptoTransfers populates hbar and token', () => {
-    const result: { transfers: AccountAmount[]; tokenTransfers: TokenAmount[] } = {
+    const result: {
+      transfers: AccountAmount[];
+      tokenTransfers: TokenAmount[];
+    } = {
       transfers: [],
       tokenTransfers: [],
     };
@@ -122,16 +128,28 @@ describe('CryptoParser', () => {
       {
         transfers: {
           accountAmounts: [
-            { accountID: { shardNum: 0, realmNum: 0, accountNum: 1 }, amount: -100 },
-            { accountID: { shardNum: 0, realmNum: 0, accountNum: 2 }, amount: 100 },
+            {
+              accountID: { shardNum: 0, realmNum: 0, accountNum: 1 },
+              amount: -100,
+            },
+            {
+              accountID: { shardNum: 0, realmNum: 0, accountNum: 2 },
+              amount: 100,
+            },
           ],
         },
         tokenTransfers: [
           {
             token: { shardNum: 0, realmNum: 0, tokenNum: 9 },
             transfers: [
-              { accountID: { shardNum: 0, realmNum: 0, accountNum: 1 }, amount: -5 },
-              { accountID: { shardNum: 0, realmNum: 0, accountNum: 2 }, amount: 5 },
+              {
+                accountID: { shardNum: 0, realmNum: 0, accountNum: 1 },
+                amount: -5,
+              },
+              {
+                accountID: { shardNum: 0, realmNum: 0, accountNum: 2 },
+                amount: 5,
+              },
             ],
           },
         ],
@@ -142,4 +160,3 @@ describe('CryptoParser', () => {
     expect(result.tokenTransfers.length).toBe(2);
   });
 });
-

@@ -7,7 +7,9 @@ describe('HieroDidResolver', () => {
       '@hiero-did-sdk/resolver',
       () => ({
         resolveDID: async (arg: unknown) =>
-          typeof arg === 'string' ? { id: arg } : { id: (arg as { did: string }).did },
+          typeof arg === 'string'
+            ? { id: arg }
+            : { id: (arg as { did: string }).did },
       }),
       { virtual: true },
     );
@@ -24,7 +26,9 @@ describe('HieroDidResolver', () => {
       '@hiero-did-sdk/resolver',
       () => ({
         resolveDID: async (arg: unknown) =>
-          typeof arg === 'string' ? { id: arg } : { id: (arg as { did: string }).did },
+          typeof arg === 'string'
+            ? { id: arg }
+            : { id: (arg as { did: string }).did },
       }),
       { virtual: true },
     );

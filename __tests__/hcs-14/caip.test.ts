@@ -114,15 +114,27 @@ describe('HCS-14 CAIP Helpers', () => {
 
   describe('toHederaCaip10', () => {
     test('should convert valid inputs to CAIP-10 format', () => {
-      expect(toHederaCaip10('mainnet', '0.0.12345')).toBe('hedera:mainnet:0.0.12345');
-      expect(toHederaCaip10('testnet', '0.0.67890')).toBe('hedera:testnet:0.0.67890');
-      expect(toHederaCaip10('previewnet', '1.2.34567')).toBe('hedera:previewnet:1.2.34567');
-      expect(toHederaCaip10('devnet', '0.0.11111')).toBe('hedera:devnet:0.0.11111');
+      expect(toHederaCaip10('mainnet', '0.0.12345')).toBe(
+        'hedera:mainnet:0.0.12345',
+      );
+      expect(toHederaCaip10('testnet', '0.0.67890')).toBe(
+        'hedera:testnet:0.0.67890',
+      );
+      expect(toHederaCaip10('previewnet', '1.2.34567')).toBe(
+        'hedera:previewnet:1.2.34567',
+      );
+      expect(toHederaCaip10('devnet', '0.0.11111')).toBe(
+        'hedera:devnet:0.0.11111',
+      );
     });
 
     test('should handle account IDs with aliases', () => {
-      expect(toHederaCaip10('mainnet', '0.0.12345-abcde')).toBe('hedera:mainnet:0.0.12345-abcde');
-      expect(toHederaCaip10('testnet', '1.2.34567-xyz89')).toBe('hedera:testnet:1.2.34567-xyz89');
+      expect(toHederaCaip10('mainnet', '0.0.12345-abcde')).toBe(
+        'hedera:mainnet:0.0.12345-abcde',
+      );
+      expect(toHederaCaip10('testnet', '1.2.34567-xyz89')).toBe(
+        'hedera:testnet:1.2.34567-xyz89',
+      );
     });
 
     test('should return existing CAIP-10 identifier unchanged', () => {
@@ -131,8 +143,12 @@ describe('HCS-14 CAIP Helpers', () => {
     });
 
     test('should throw error for invalid network', () => {
-      expect(() => toHederaCaip10('invalid' as any, '0.0.12345')).toThrow('Invalid Hedera network');
-      expect(() => toHederaCaip10('ethereum' as any, '0.0.12345')).toThrow('Invalid Hedera network');
+      expect(() => toHederaCaip10('invalid' as any, '0.0.12345')).toThrow(
+        'Invalid Hedera network',
+      );
+      expect(() => toHederaCaip10('ethereum' as any, '0.0.12345')).toThrow(
+        'Invalid Hedera network',
+      );
     });
 
     test('should throw error for invalid account ID format', () => {
@@ -148,19 +164,29 @@ describe('HCS-14 CAIP Helpers', () => {
       ];
 
       invalidAccountIds.forEach(accountId => {
-        expect(() => toHederaCaip10('mainnet', accountId)).toThrow('Invalid Hedera accountId format');
+        expect(() => toHederaCaip10('mainnet', accountId)).toThrow(
+          'Invalid Hedera accountId format',
+        );
       });
     });
 
     test('should throw error for invalid existing CAIP-10', () => {
       const invalidCaip10 = 'hedera:invalid:0.0.12345';
-      expect(() => toHederaCaip10('mainnet', invalidCaip10)).toThrow('Invalid Hedera CAIP-10 account');
+      expect(() => toHederaCaip10('mainnet', invalidCaip10)).toThrow(
+        'Invalid Hedera CAIP-10 account',
+      );
     });
 
     test('should validate network parameter type', () => {
-      expect(() => toHederaCaip10('' as any, '0.0.12345')).toThrow('Invalid Hedera network');
-      expect(() => toHederaCaip10(null as any, '0.0.12345')).toThrow('Invalid Hedera network');
-      expect(() => toHederaCaip10(undefined as any, '0.0.12345')).toThrow('Invalid Hedera network');
+      expect(() => toHederaCaip10('' as any, '0.0.12345')).toThrow(
+        'Invalid Hedera network',
+      );
+      expect(() => toHederaCaip10(null as any, '0.0.12345')).toThrow(
+        'Invalid Hedera network',
+      );
+      expect(() => toHederaCaip10(undefined as any, '0.0.12345')).toThrow(
+        'Invalid Hedera network',
+      );
     });
   });
 
@@ -205,8 +231,12 @@ describe('HCS-14 CAIP Helpers', () => {
 
     test('should handle edge cases', () => {
       expect(() => parseHederaCaip10('')).toThrow('Invalid Hedera CAIP-10');
-      expect(() => parseHederaCaip10(null as any)).toThrow('Invalid Hedera CAIP-10');
-      expect(() => parseHederaCaip10(undefined as any)).toThrow('Invalid Hedera CAIP-10');
+      expect(() => parseHederaCaip10(null as any)).toThrow(
+        'Invalid Hedera CAIP-10',
+      );
+      expect(() => parseHederaCaip10(undefined as any)).toThrow(
+        'Invalid Hedera CAIP-10',
+      );
     });
 
     test('should parse account IDs with different formats', () => {
@@ -247,7 +277,12 @@ describe('HCS-14 CAIP Helpers', () => {
     });
 
     test('should handle all Hedera networks', () => {
-      const networks: HederaNetwork[] = ['mainnet', 'testnet', 'previewnet', 'devnet'];
+      const networks: HederaNetwork[] = [
+        'mainnet',
+        'testnet',
+        'previewnet',
+        'devnet',
+      ];
       const accountId = '0.0.12345';
 
       networks.forEach(network => {
@@ -264,15 +299,27 @@ describe('HCS-14 CAIP Helpers', () => {
 
   describe('error handling', () => {
     test('should provide clear error messages', () => {
-      expect(() => toHederaCaip10('invalid' as any, '0.0.12345')).toThrow('Invalid Hedera network');
-      expect(() => toHederaCaip10('mainnet', 'invalid')).toThrow('Invalid Hedera accountId format');
-      expect(() => parseHederaCaip10('invalid')).toThrow('Invalid Hedera CAIP-10');
+      expect(() => toHederaCaip10('invalid' as any, '0.0.12345')).toThrow(
+        'Invalid Hedera network',
+      );
+      expect(() => toHederaCaip10('mainnet', 'invalid')).toThrow(
+        'Invalid Hedera accountId format',
+      );
+      expect(() => parseHederaCaip10('invalid')).toThrow(
+        'Invalid Hedera CAIP-10',
+      );
     });
 
     test('should handle malformed inputs gracefully', () => {
-      expect(() => parseHederaCaip10('hedera:')).toThrow('Invalid Hedera CAIP-10');
-      expect(() => parseHederaCaip10('hedera:mainnet:')).toThrow('Invalid Hedera CAIP-10');
-      expect(() => parseHederaCaip10(':mainnet:0.0.12345')).toThrow('Invalid Hedera CAIP-10');
+      expect(() => parseHederaCaip10('hedera:')).toThrow(
+        'Invalid Hedera CAIP-10',
+      );
+      expect(() => parseHederaCaip10('hedera:mainnet:')).toThrow(
+        'Invalid Hedera CAIP-10',
+      );
+      expect(() => parseHederaCaip10(':mainnet:0.0.12345')).toThrow(
+        'Invalid Hedera CAIP-10',
+      );
     });
   });
 });

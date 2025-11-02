@@ -1,9 +1,9 @@
 import { createRequire } from 'node:module';
 
 type TopicCreateTransactionCtor =
-  typeof import('@hashgraph/sdk/lib/topic/TopicCreateTransaction')['default'];
+  (typeof import('@hashgraph/sdk/lib/topic/TopicCreateTransaction'))['default'];
 type AccountIdCtor =
-  typeof import('@hashgraph/sdk/lib/account/AccountId')['default'];
+  (typeof import('@hashgraph/sdk/lib/account/AccountId'))['default'];
 type AccountIdInstance = InstanceType<AccountIdCtor>;
 
 const require = createRequire(import.meta.url);
@@ -103,7 +103,10 @@ function patchTopicModule(
     this: TopicPrototype,
     client?: unknown,
   ) {
-    if (!this.getAutoRenewAccountId || typeof this.getAutoRenewAccountId !== 'function') {
+    if (
+      !this.getAutoRenewAccountId ||
+      typeof this.getAutoRenewAccountId !== 'function'
+    ) {
       return originalFreeze.call(this, client);
     }
 
@@ -233,9 +236,7 @@ function extractAccountIdString(value: unknown): string | null {
   return accountIdPattern.test(result) ? result : null;
 }
 
-function isProtoAccountId(
-  value: unknown,
-): value is {
+function isProtoAccountId(value: unknown): value is {
   shard: { toString: () => string };
   realm: { toString: () => string };
   num: { toString: () => string };
@@ -256,8 +257,8 @@ function isProtoAccountId(
 function hasToString(value: unknown): value is { toString: () => string } {
   return (
     typeof value === 'object' &&
-      value !== null &&
-      typeof (value as { toString?: unknown }).toString === 'function'
+    value !== null &&
+    typeof (value as { toString?: unknown }).toString === 'function'
   );
 }
 

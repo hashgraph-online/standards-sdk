@@ -28,4 +28,3 @@ export class ConnectionConfirmationError extends Error {
     this.name = 'ConnectionConfirmationError';
   }
 }
-

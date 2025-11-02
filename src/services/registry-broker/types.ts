@@ -13,6 +13,9 @@ import {
   registriesResponseSchema,
   registrySearchByNamespaceSchema,
   searchFacetsResponseSchema,
+  adapterDetailsResponseSchema,
+  adapterDescriptorSchema,
+  adapterChatProfileSchema,
   vectorSearchRequestSchema,
   vectorSearchResponseSchema,
   resolveResponseSchema,
@@ -57,6 +60,7 @@ export interface AgentRegistrationRequest {
   protocol?: string;
   communicationProtocol?: string;
   registry?: string;
+  additionalRegistries?: string[];
   metadata?: AgentRegistrationRequestMetadata;
 }
 
@@ -74,7 +78,9 @@ export interface RegisterAgentOptions {
   autoTopUp?: AutoTopUpOptions;
 }
 
-export type AgentSearchHit = z.infer<typeof searchResponseSchema>['hits'][number];
+export type AgentSearchHit = z.infer<
+  typeof searchResponseSchema
+>['hits'][number];
 
 export type AgentProfile = AgentSearchHit['profile'];
 
@@ -85,10 +91,17 @@ export interface SearchParams {
   page?: number;
   limit?: number;
   registry?: string;
+  registries?: string[];
   capabilities?: string[];
+  protocols?: string[];
   minTrust?: number;
   adapters?: string[];
   sortBy?: string;
+  sortOrder?: 'asc' | 'desc' | string;
+  type?: 'ai-agents' | 'mcp-servers' | 'all' | (string & {});
+  verified?: boolean;
+  online?: boolean;
+  metadata?: Record<string, Array<string | number | boolean>>;
 }
 
 export type RegistryStatsResponse = z.infer<typeof statsResponseSchema>;
@@ -102,12 +115,20 @@ export type ResolvedAgentResponse = z.infer<typeof resolveResponseSchema>;
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
-export type ChatHistorySnapshotResponse = z.infer<typeof chatHistorySnapshotResponseSchema>;
-export type ChatHistoryCompactionResponse = z.infer<typeof chatHistoryCompactionResponseSchema>;
+export type ChatHistorySnapshotResponse = z.infer<
+  typeof chatHistorySnapshotResponseSchema
+>;
+export type ChatHistoryCompactionResponse = z.infer<
+  typeof chatHistoryCompactionResponseSchema
+>;
 
 export type RegisterAgentResponse = z.infer<typeof registerAgentResponseSchema>;
-export type RegisterAgentQuoteResponse = z.infer<typeof registrationQuoteResponseSchema>;
-export type CreditPurchaseResponse = z.infer<typeof creditPurchaseResponseSchema>;
+export type RegisterAgentQuoteResponse = z.infer<
+  typeof registrationQuoteResponseSchema
+>;
+export type CreditPurchaseResponse = z.infer<
+  typeof creditPurchaseResponseSchema
+>;
 
 export interface LedgerChallengeRequest {
   accountId: string;
@@ -129,7 +150,9 @@ export type LedgerVerifyResponse = z.infer<typeof ledgerVerifyResponseSchema>;
 
 export type ProtocolsResponse = z.infer<typeof protocolsResponseSchema>;
 
-export type DetectProtocolResponse = z.infer<typeof detectProtocolResponseSchema>;
+export type DetectProtocolResponse = z.infer<
+  typeof detectProtocolResponseSchema
+>;
 
 export type ProtocolDetectionMessage = JsonObject;
 
@@ -137,17 +160,27 @@ export type RegistrySearchByNamespaceResponse = z.infer<
   typeof registrySearchByNamespaceSchema
 >;
 
-export type WebsocketStatsResponse = z.infer<typeof websocketStatsResponseSchema>;
+export type WebsocketStatsResponse = z.infer<
+  typeof websocketStatsResponseSchema
+>;
 
-export type MetricsSummaryResponse = z.infer<typeof metricsSummaryResponseSchema>;
+export type MetricsSummaryResponse = z.infer<
+  typeof metricsSummaryResponseSchema
+>;
 
-export type UaidValidationResponse = z.infer<typeof uaidValidationResponseSchema>;
+export type UaidValidationResponse = z.infer<
+  typeof uaidValidationResponseSchema
+>;
 
 export type UaidConnectionStatus = z.infer<typeof uaidConnectionStatusSchema>;
 
-export type DashboardStatsResponse = z.infer<typeof dashboardStatsResponseSchema>;
+export type DashboardStatsResponse = z.infer<
+  typeof dashboardStatsResponseSchema
+>;
 
-export type VectorSearchFilter = z.infer<typeof vectorSearchRequestSchema>['filter'];
+export type VectorSearchFilter = z.infer<
+  typeof vectorSearchRequestSchema
+>['filter'];
 
 export type VectorSearchRequest = z.infer<typeof vectorSearchRequestSchema>;
 

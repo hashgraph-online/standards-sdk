@@ -165,7 +165,9 @@ export function isDiscoveryMessage(value: unknown): value is DiscoveryMessage {
     return false;
   }
   const op = (value as Record<string, unknown>).op as string;
-  if (!['announce', 'propose', 'respond', 'complete', 'withdraw'].includes(op)) {
+  if (
+    !['announce', 'propose', 'respond', 'complete', 'withdraw'].includes(op)
+  ) {
     return false;
   }
   return 'data' in value;
@@ -240,7 +242,12 @@ export function isProposeMessage(value: unknown): value is ProposeMessage {
     if (!('priority' in mr) || !isNumber(mr.priority)) {
       return false;
     }
-    if ('announce_seq' in mr && mr.announce_seq !== undefined && mr.announce_seq !== null && !isNumber(mr.announce_seq)) {
+    if (
+      'announce_seq' in mr &&
+      mr.announce_seq !== undefined &&
+      mr.announce_seq !== null &&
+      !isNumber(mr.announce_seq)
+    ) {
       return false;
     }
     return true;
@@ -310,7 +317,11 @@ export function isCompleteMessage(value: unknown): value is CompleteMessage {
     return false;
   }
   const t = d.topics as Record<string, unknown>;
-  if (!isString(t.communication) || !isString(t.transaction) || !isString(t.state)) {
+  if (
+    !isString(t.communication) ||
+    !isString(t.transaction) ||
+    !isString(t.state)
+  ) {
     return false;
   }
   return true;
@@ -334,7 +345,12 @@ export function isWithdrawMessage(value: unknown): value is WithdrawMessage {
   if (!isNumber(d.announce_seq)) {
     return false;
   }
-  if ('reason' in d && d.reason !== undefined && d.reason !== null && !isString(d.reason)) {
+  if (
+    'reason' in d &&
+    d.reason !== undefined &&
+    d.reason !== null &&
+    !isString(d.reason)
+  ) {
     return false;
   }
   return true;
@@ -396,8 +412,13 @@ export interface FloraFormation {
  * Discovery event types for monitoring
  */
 export interface DiscoveryEvent {
-  type: 'announcement_received' | 'proposal_received' | 'response_received' | 
-        'formation_complete' | 'withdrawal_received' | 'discovery_timeout';
+  type:
+    | 'announcement_received'
+    | 'proposal_received'
+    | 'response_received'
+    | 'formation_complete'
+    | 'withdrawal_received'
+    | 'discovery_timeout';
   sequenceNumber?: number;
   timestamp: Date;
   data: any;
@@ -425,7 +446,10 @@ export interface DiscoveryConfig {
  * HCS-18 Errors
  */
 export class DiscoveryError extends Error {
-  constructor(message: string, public readonly code: string) {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
     super(message);
     this.name = 'DiscoveryError';
   }

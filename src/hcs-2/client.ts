@@ -26,7 +26,11 @@ import {
   RegistryEntry,
 } from './types';
 import { NetworkType } from '../utils/types';
-import { NodeOperatorResolver, createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
+import {
+  NodeOperatorResolver,
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import { buildMessageTx } from '../common/tx/tx-utils';
 import { buildHcs2CreateRegistryTx } from './tx';
 
@@ -43,7 +47,10 @@ export interface SDKHCS2ClientConfig extends HCS2ClientConfig {
  * SDK client for HCS-2 operations
  */
 export class HCS2Client extends HCS2BaseClient {
-  private static readonly operationAnalyticsCode: Record<HCS2Operation, number> = {
+  private static readonly operationAnalyticsCode: Record<
+    HCS2Operation,
+    number
+  > = {
     [HCS2Operation.REGISTER]: 0,
     [HCS2Operation.UPDATE]: 1,
     [HCS2Operation.DELETE]: 2,

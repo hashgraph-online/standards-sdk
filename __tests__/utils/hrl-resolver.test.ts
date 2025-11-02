@@ -1,5 +1,9 @@
 import axios from 'axios';
-import { HRLResolver, HRLResolutionOptions, HRLResolutionResult } from '../../src/utils/hrl-resolver';
+import {
+  HRLResolver,
+  HRLResolutionOptions,
+  HRLResolutionResult,
+} from '../../src/utils/hrl-resolver';
 import { HederaMirrorNode } from '../../src/services/mirror-node';
 import { Logger } from '../../src/utils/logger';
 
@@ -9,7 +13,9 @@ jest.mock('../../src/utils/logger');
 
 describe('HRLResolver', () => {
   const mockAxios = axios as jest.Mocked<typeof axios>;
-  const mockHederaMirrorNode = HederaMirrorNode as jest.MockedClass<typeof HederaMirrorNode>;
+  const mockHederaMirrorNode = HederaMirrorNode as jest.MockedClass<
+    typeof HederaMirrorNode
+  >;
   const mockLogger = {
     debug: jest.fn(),
     error: jest.fn(),
@@ -158,11 +164,7 @@ describe('HRLResolver', () => {
     });
 
     test('should validate correct topic IDs', () => {
-      const validTopicIds = [
-        '0.0.12345',
-        '1.2.34567',
-        '999.999.99999',
-      ];
+      const validTopicIds = ['0.0.12345', '1.2.34567', '999.999.99999'];
 
       validTopicIds.forEach(topicId => {
         expect(resolver.isValidTopicId(topicId)).toBe(true);
@@ -191,7 +193,9 @@ describe('HRLResolver', () => {
 
     beforeEach(() => {
       resolver = new HRLResolver();
-      mockMirrorNode = new HederaMirrorNode('testnet') as jest.Mocked<HederaMirrorNode>;
+      mockMirrorNode = new HederaMirrorNode(
+        'testnet',
+      ) as jest.Mocked<HederaMirrorNode>;
       mockHederaMirrorNode.mockImplementation(() => mockMirrorNode);
     });
 
@@ -206,7 +210,9 @@ describe('HRLResolver', () => {
         isBinary: false,
       };
 
-      const resolveHRLSpy = jest.spyOn(resolver as any, 'resolveHRL').mockResolvedValue(expectedResult);
+      const resolveHRLSpy = jest
+        .spyOn(resolver as any, 'resolveHRL')
+        .mockResolvedValue(expectedResult);
 
       const result = await resolver.resolve(hrl, options);
 
@@ -229,7 +235,9 @@ describe('HRLResolver', () => {
         isBinary: false,
       };
 
-      const resolveHRLSpy = jest.spyOn(resolver as any, 'resolveHRL').mockResolvedValue(expectedResult);
+      const resolveHRLSpy = jest
+        .spyOn(resolver as any, 'resolveHRL')
+        .mockResolvedValue(expectedResult);
 
       const result = await resolver.resolve(topicId, options);
 
@@ -254,7 +262,9 @@ describe('HRLResolver', () => {
         isBinary: false,
       };
 
-      const resolveHRLSpy = jest.spyOn(resolver as any, 'resolveHRL').mockResolvedValue(expectedResult);
+      const resolveHRLSpy = jest
+        .spyOn(resolver as any, 'resolveHRL')
+        .mockResolvedValue(expectedResult);
 
       const result = await resolver.resolve(topicId, options);
 
@@ -275,7 +285,9 @@ describe('HRLResolver', () => {
         isBinary: false,
       };
 
-      const resolveHRLSpy = jest.spyOn(resolver as any, 'resolveHRL').mockResolvedValue(expectedResult);
+      const resolveHRLSpy = jest
+        .spyOn(resolver as any, 'resolveHRL')
+        .mockResolvedValue(expectedResult);
 
       const result = await resolver.resolve(topicId, options);
 
@@ -289,7 +301,7 @@ describe('HRLResolver', () => {
       const options: HRLResolutionOptions = { network: 'testnet' };
 
       await expect(resolver.resolve(invalidInput, options)).rejects.toThrow(
-        'Invalid HRL or topic ID format: invalid-input'
+        'Invalid HRL or topic ID format: invalid-input',
       );
     });
   });
@@ -312,7 +324,9 @@ describe('HRLResolver', () => {
         isBinary: false,
       };
 
-      const resolveHRLSpy = jest.spyOn(resolver as any, 'resolveHRL').mockResolvedValue(expectedResult);
+      const resolveHRLSpy = jest
+        .spyOn(resolver as any, 'resolveHRL')
+        .mockResolvedValue(expectedResult);
 
       const result = await resolver.getContentWithType(hrl, options);
 
@@ -341,12 +355,12 @@ describe('HRLResolver', () => {
       const hrl = 'hcs://1/0.0.12345';
       const options: HRLResolutionOptions = { network: 'testnet' };
 
-      const resolveHRLSpy = jest.spyOn(resolver as any, 'resolveHRL').mockRejectedValue(
-        new Error('Resolution failed')
-      );
+      const resolveHRLSpy = jest
+        .spyOn(resolver as any, 'resolveHRL')
+        .mockRejectedValue(new Error('Resolution failed'));
 
       await expect(resolver.getContentWithType(hrl, options)).rejects.toThrow(
-        'Error resolving HRL for content and type: Resolution failed'
+        'Error resolving HRL for content and type: Resolution failed',
       );
 
       expect(mockLogger.error).toHaveBeenCalled();
@@ -380,10 +394,10 @@ describe('HRLResolver', () => {
       const result = await resolver.resolveHRL(hrl, options);
 
       expect(mockAxios.head).toHaveBeenCalledWith(
-        'https://kiloscribe.com/api/inscription-cdn/0.0.12345?network=testnet'
+        'https://kiloscribe.com/api/inscription-cdn/0.0.12345?network=testnet',
       );
       expect(mockAxios.get).toHaveBeenCalledWith(
-        'https://kiloscribe.com/api/inscription-cdn/0.0.12345?network=testnet'
+        'https://kiloscribe.com/api/inscription-cdn/0.0.12345?network=testnet',
       );
       expect(result).toEqual({
         content: 'Hello World',
@@ -441,7 +455,7 @@ describe('HRLResolver', () => {
 
       expect(mockAxios.get).toHaveBeenCalledWith(
         'https://kiloscribe.com/api/inscription-cdn/0.0.12345?network=testnet',
-        { responseType: 'arraybuffer' }
+        { responseType: 'arraybuffer' },
       );
       expect(result).toEqual({
         content: new ArrayBuffer(8),
@@ -474,7 +488,7 @@ describe('HRLResolver', () => {
       await resolver.resolveHRL(hrl, options);
 
       expect(mockAxios.head).toHaveBeenCalledWith(
-        'https://custom.cdn.com/api/0.0.12345?network=testnet'
+        'https://custom.cdn.com/api/0.0.12345?network=testnet',
       );
     });
 
@@ -527,7 +541,7 @@ describe('HRLResolver', () => {
 
       expect(mockAxios.get).toHaveBeenCalledWith(
         'https://kiloscribe.com/api/inscription-cdn/0.0.12345?network=testnet',
-        { responseType: 'arraybuffer' }
+        { responseType: 'arraybuffer' },
       );
       expect(result.isBinary).toBe(true);
     });
@@ -537,7 +551,7 @@ describe('HRLResolver', () => {
       const options: HRLResolutionOptions = { network: 'testnet' };
 
       await expect(resolver.resolveHRL(invalidHrl, options)).rejects.toThrow(
-        'Invalid HRL format: invalid-hrl'
+        'Invalid HRL format: invalid-hrl',
       );
     });
 
@@ -548,7 +562,7 @@ describe('HRLResolver', () => {
       mockAxios.head.mockRejectedValue(new Error('Network error'));
 
       await expect(resolver.resolveHRL(hrl, options)).rejects.toThrow(
-        'Error resolving HRL reference: Network error'
+        'Error resolving HRL reference: Network error',
       );
 
       expect(mockLogger.error).toHaveBeenCalled();
@@ -572,7 +586,7 @@ describe('HRLResolver', () => {
       mockAxios.get.mockResolvedValue(mockGetResponse);
 
       await expect(resolver.resolveHRL(hrl, options)).rejects.toThrow(
-        'Failed to fetch content from topic: 0.0.12345'
+        'Failed to fetch content from topic: 0.0.12345',
       );
     });
   });

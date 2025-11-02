@@ -32,7 +32,10 @@ async function main(): Promise<void> {
   });
 
   logger.info('Creating HCS-15 base account (ECDSA + alias) ...');
-  const base = await hcs15.createBaseAccount({ initialBalance: 1, accountMemo: 'HCS-15 Base' });
+  const base = await hcs15.createBaseAccount({
+    initialBalance: 1,
+    accountMemo: 'HCS-15 Base',
+  });
   logger.info('Base account created', {
     accountId: base.accountId,
     evm: base.evmAddress,
@@ -51,7 +54,6 @@ async function main(): Promise<void> {
     base.accountId,
   );
   logger.info('Petal verification result', { verified });
-
 
   logger.info('Inscribe HCS-11 agent profile for petal');
   const hcs10 = new HCS10Client({

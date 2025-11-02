@@ -67,10 +67,20 @@ describe('HTSParser', () => {
           tokenAirdrop: {
             tokenTransfers: [
               {
-                token: { toString: () => '0.0.123', shardNum: 0, realmNum: 0, tokenNum: 123 },
+                token: {
+                  toString: () => '0.0.123',
+                  shardNum: 0,
+                  realmNum: 0,
+                  tokenNum: 123,
+                },
                 transfers: [
                   {
-                    accountID: { toString: () => '0.0.456', shardNum: 0, realmNum: 0, accountNum: 456 },
+                    accountID: {
+                      toString: () => '0.0.456',
+                      shardNum: 0,
+                      realmNum: 0,
+                      accountNum: 456,
+                    },
                     amount: { toString: () => '100' },
                     serialNumbers: [] as number[],
                   },
@@ -81,7 +91,9 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseTokenAirdrop(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.tokenTransfers).toHaveLength(1);
@@ -107,7 +119,9 @@ describe('HTSParser', () => {
         ],
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseTokenAirdrop(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.tokenTransfers).toHaveLength(1);
@@ -126,7 +140,9 @@ describe('HTSParser', () => {
         constructor: { name: 'CryptoTransferTransaction' },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseTokenAirdrop(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
 
@@ -137,7 +153,9 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseTokenAirdrop(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toBeNull();
     });
 
@@ -164,7 +182,9 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseTokenAirdrop(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseTokenAirdrop(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result).not.toBeNull();
       expect(result!.tokenTransfers[0].transfers[0].serialNumbers).toEqual([
@@ -252,7 +272,9 @@ describe('HTSParser', () => {
         ],
       });
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseHTSTransaction(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result.type).toBe('TOKENAIRDROP');
       expect(result.humanReadableType).toBe('Token Airdrop');
@@ -276,7 +298,9 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseHTSTransaction(
+        mockTransaction as unknown as Transaction,
+      );
 
       expect(result.type).toBe('TOKENCREATE');
       expect(result.humanReadableType).toBe('Token Creation');
@@ -291,7 +315,9 @@ describe('HTSParser', () => {
         },
       };
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseHTSTransaction(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toEqual({});
     });
 
@@ -300,7 +326,9 @@ describe('HTSParser', () => {
         _transactionBody: null as unknown,
       };
 
-      const result = HTSParser.parseHTSTransaction(mockTransaction as unknown as Transaction);
+      const result = HTSParser.parseHTSTransaction(
+        mockTransaction as unknown as Transaction,
+      );
       expect(result).toEqual({});
     });
   });
@@ -324,7 +352,10 @@ describe('HTSParser', () => {
         memo: { value: 'mm' },
         expiry: { seconds: 10, nanos: 1 },
       } satisfies import('@hashgraph/proto').proto.ITokenUpdateTransactionBody;
-      const r = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUpdate(body);
+      const r =
+        require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUpdate(
+          body,
+        );
       expect(r?.tokenId).toBe('0.0.1');
       expect(r?.name).toBe('N');
       expect(r?.symbol).toBe('S');
@@ -358,12 +389,18 @@ describe('HTSParser', () => {
             feeCollectorAccountId: { shardNum: 0, realmNum: 0, accountNum: 7 },
             royaltyFee: {
               exchangeValueFraction: { numerator: 1, denominator: 10 },
-              fallbackFee: { amount: 3, denominatingTokenId: { shardNum: 0, realmNum: 0, tokenNum: 9 } },
+              fallbackFee: {
+                amount: 3,
+                denominatingTokenId: { shardNum: 0, realmNum: 0, tokenNum: 9 },
+              },
             },
           },
         ],
       } satisfies import('@hashgraph/proto').proto.ITokenFeeScheduleUpdateTransactionBody;
-      const r = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenFeeScheduleUpdate(body);
+      const r =
+        require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenFeeScheduleUpdate(
+          body,
+        );
       expect(r?.tokenId).toBe('0.0.9');
       expect(r?.customFees?.length).toBe(3);
       const fixed = r!.customFees![0];
@@ -382,7 +419,10 @@ describe('HTSParser', () => {
         account: { shardNum: 0, realmNum: 0, accountNum: 2 },
         amount: 10,
       } satisfies import('@hashgraph/proto').proto.ITokenWipeAccountTransactionBody;
-      const a = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenWipeAccount(withAmount);
+      const a =
+        require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenWipeAccount(
+          withAmount,
+        );
       expect(a?.amount).toBe('10');
 
       const withSerials = {
@@ -390,7 +430,10 @@ describe('HTSParser', () => {
         account: { shardNum: 0, realmNum: 0, accountNum: 2 },
         serialNumbers: [1, 2, 3],
       } satisfies import('@hashgraph/proto').proto.ITokenWipeAccountTransactionBody;
-      const b = require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenWipeAccount(withSerials);
+      const b =
+        require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenWipeAccount(
+          withSerials,
+        );
       expect(b?.serialNumbers).toEqual(['1', '2', '3']);
     });
   });
@@ -525,35 +568,67 @@ describe('HTSParser', () => {
 describe('HTSParser branches', () => {
   test('freeze/unfreeze/grantKyc/revokeKyc/pause/unpause/delete', () => {
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenFreeze)({ token: { shardNum: 0, realmNum: 0, tokenNum: 1 }, account: { shardNum: 0, realmNum: 0, accountNum: 2 } })?.tokenId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenFreeze({
+        token: { shardNum: 0, realmNum: 0, tokenNum: 1 },
+        account: { shardNum: 0, realmNum: 0, accountNum: 2 },
+      })?.tokenId,
     ).toBe('0.0.1');
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUnfreeze)({ token: { shardNum: 0, realmNum: 0, tokenNum: 1 }, account: { shardNum: 0, realmNum: 0, accountNum: 2 } })?.accountId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUnfreeze(
+        {
+          token: { shardNum: 0, realmNum: 0, tokenNum: 1 },
+          account: { shardNum: 0, realmNum: 0, accountNum: 2 },
+        },
+      )?.accountId,
     ).toBe('0.0.2');
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenGrantKyc)({ token: { shardNum: 0, realmNum: 0, tokenNum: 3 }, account: { shardNum: 0, realmNum: 0, accountNum: 4 } })?.tokenId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenGrantKyc(
+        {
+          token: { shardNum: 0, realmNum: 0, tokenNum: 3 },
+          account: { shardNum: 0, realmNum: 0, accountNum: 4 },
+        },
+      )?.tokenId,
     ).toBe('0.0.3');
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenRevokeKyc)({ token: { shardNum: 0, realmNum: 0, tokenNum: 3 }, account: { shardNum: 0, realmNum: 0, accountNum: 4 } })?.accountId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenRevokeKyc(
+        {
+          token: { shardNum: 0, realmNum: 0, tokenNum: 3 },
+          account: { shardNum: 0, realmNum: 0, accountNum: 4 },
+        },
+      )?.accountId,
     ).toBe('0.0.4');
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenPause)({ token: { shardNum: 0, realmNum: 0, tokenNum: 5 } })?.tokenId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenPause({
+        token: { shardNum: 0, realmNum: 0, tokenNum: 5 },
+      })?.tokenId,
     ).toBe('0.0.5');
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUnpause)({ token: { shardNum: 0, realmNum: 0, tokenNum: 6 } })?.tokenId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenUnpause(
+        { token: { shardNum: 0, realmNum: 0, tokenNum: 6 } },
+      )?.tokenId,
     ).toBe('0.0.6');
     expect(
-      (require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenDelete)({ token: { shardNum: 0, realmNum: 0, tokenNum: 7 } })?.tokenId,
+      require('../../src/utils/parsers/hts-parser').HTSParser.parseTokenDelete({
+        token: { shardNum: 0, realmNum: 0, tokenNum: 7 },
+      })?.tokenId,
     ).toBe('0.0.7');
   });
 
   test('mint metadata and burn serialNumbers branches', () => {
     const { HTSParser } = require('../../src/utils/parsers/hts-parser');
-    const m = HTSParser.parseTokenMint({ token: { shardNum: 0, realmNum: 0, tokenNum: 9 }, amount: 1, metadata: [new Uint8Array([1,2,3])] });
-    expect(m?.metadata?.[0]).toBe(Buffer.from([1,2,3]).toString('base64'));
+    const m = HTSParser.parseTokenMint({
+      token: { shardNum: 0, realmNum: 0, tokenNum: 9 },
+      amount: 1,
+      metadata: [new Uint8Array([1, 2, 3])],
+    });
+    expect(m?.metadata?.[0]).toBe(Buffer.from([1, 2, 3]).toString('base64'));
 
-    const b = HTSParser.parseTokenBurn({ token: { shardNum: 0, realmNum: 0, tokenNum: 9 }, amount: 0, serialNumbers: [1,2] });
-    expect(b?.serialNumbers).toEqual([1,2]);
+    const b = HTSParser.parseTokenBurn({
+      token: { shardNum: 0, realmNum: 0, tokenNum: 9 },
+      amount: 0,
+      serialNumbers: [1, 2],
+    });
+    expect(b?.serialNumbers).toEqual([1, 2]);
   });
 
   test('extractTokenCreationFromTransaction internal fields', () => {
@@ -579,7 +654,14 @@ describe('HTSParser branches', () => {
       _autoRenewPeriod: { toString: () => '10' },
       _expirationTime: { toString: () => '20' },
       _customFees: [
-        { fixedFee: { amount: 1, denominatingTokenId: { toString: () => '0.0.9' } }, allCollectorsAreExempt: true, feeCollectorAccountId: { toString: () => '0.0.5' } },
+        {
+          fixedFee: {
+            amount: 1,
+            denominatingTokenId: { toString: () => '0.0.9' },
+          },
+          allCollectorsAreExempt: true,
+          feeCollectorAccountId: { toString: () => '0.0.5' },
+        },
       ],
     } as unknown;
 
@@ -602,7 +684,11 @@ describe('HTSParser branches', () => {
         {
           tokenId: { toString: () => '0.0.9' },
           transfers: [
-            { accountId: { toString: () => '0.0.1' }, amount: { toString: () => '5' }, serialNumbers: [{ toString: () => '1' }] },
+            {
+              accountId: { toString: () => '0.0.1' },
+              amount: { toString: () => '5' },
+              serialNumbers: [{ toString: () => '1' }],
+            },
           ],
         },
       ],

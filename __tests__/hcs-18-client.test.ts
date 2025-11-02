@@ -1,4 +1,8 @@
-import { TopicCreateTransaction, TopicMessageSubmitTransaction, Client } from '@hashgraph/sdk';
+import {
+  TopicCreateTransaction,
+  TopicMessageSubmitTransaction,
+  Client,
+} from '@hashgraph/sdk';
 import { HCS18Client } from '../src/hcs-18';
 
 jest.mock('@hashgraph/sdk');
@@ -11,18 +15,16 @@ describe('HCS18Client', () => {
       .fn()
       .mockReturnValue(new Client());
 
-    (TopicCreateTransaction as unknown as jest.Mock).mockImplementation(
-      () => ({
-        setTopicMemo: jest.fn().mockReturnThis(),
-        setAdminKey: jest.fn().mockReturnThis(),
-        setSubmitKey: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({
-          getReceipt: jest.fn().mockResolvedValue({
-            topicId: { toString: () => '0.0.999999' },
-          }),
+    (TopicCreateTransaction as unknown as jest.Mock).mockImplementation(() => ({
+      setTopicMemo: jest.fn().mockReturnThis(),
+      setAdminKey: jest.fn().mockReturnThis(),
+      setSubmitKey: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({
+        getReceipt: jest.fn().mockResolvedValue({
+          topicId: { toString: () => '0.0.999999' },
         }),
       }),
-    );
+    }));
 
     (TopicMessageSubmitTransaction as unknown as jest.Mock).mockImplementation(
       () => ({
@@ -88,7 +90,11 @@ describe('HCS18Client', () => {
   });
 
   it('announce supports memo option', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
     await c.announce({
       discoveryTopicId: '0.0.999999',
       memo: 'test-memo',
@@ -98,29 +104,51 @@ describe('HCS18Client', () => {
         capabilities: { protocols: ['hcs-18'] },
       },
     });
-    const mockInstance = (TopicMessageSubmitTransaction as jest.Mock).mock.results.pop().value;
+    const mockInstance = (
+      TopicMessageSubmitTransaction as jest.Mock
+    ).mock.results.pop().value;
     expect(mockInstance.setTransactionMemo).toHaveBeenCalledWith('test-memo');
   });
 
   it('createDiscoveryTopic handles missing operator public key', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
     const opCtx = (c as any).operatorCtx;
     Object.defineProperty(opCtx, 'operatorKey', {
-      get: () => ({ get publicKey() { throw new Error('no key'); } }),
+      get: () => ({
+        get publicKey() {
+          throw new Error('no key');
+        },
+      }),
     });
     await c.createDiscoveryTopic();
-    const inst = (TopicCreateTransaction as unknown as jest.Mock).mock.results.pop().value;
+    const inst = (
+      TopicCreateTransaction as unknown as jest.Mock
+    ).mock.results.pop().value;
     expect(inst.setTopicMemo).toHaveBeenCalled();
   });
 
   it('createDiscoveryTopic throws when no topicId in receipt', async () => {
-    const c = new HCS18Client({ network: 'testnet', operatorId: '0.0.1001', operatorKey: '302e...' });
-    (TopicCreateTransaction as unknown as jest.Mock).mockImplementationOnce(() => ({
-      setTopicMemo: jest.fn().mockReturnThis(),
-      setAdminKey: jest.fn().mockReturnThis(),
-      setSubmitKey: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ getReceipt: jest.fn().mockResolvedValue({ topicId: undefined }) }),
-    }));
-    await expect(c.createDiscoveryTopic()).rejects.toThrow('Failed to create discovery topic');
+    const c = new HCS18Client({
+      network: 'testnet',
+      operatorId: '0.0.1001',
+      operatorKey: '302e...',
+    });
+    (TopicCreateTransaction as unknown as jest.Mock).mockImplementationOnce(
+      () => ({
+        setTopicMemo: jest.fn().mockReturnThis(),
+        setAdminKey: jest.fn().mockReturnThis(),
+        setSubmitKey: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({
+          getReceipt: jest.fn().mockResolvedValue({ topicId: undefined }),
+        }),
+      }),
+    );
+    await expect(c.createDiscoveryTopic()).rejects.toThrow(
+      'Failed to create discovery topic',
+    );
   });
 });

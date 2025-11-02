@@ -1,20 +1,46 @@
-import { buildHcs16FloraCreatedTx, buildHcs16TransactionTx, buildHcs16StateUpdateTx, buildHcs16FloraJoinRequestTx, buildHcs16FloraJoinVoteTx, buildHcs16FloraJoinAcceptedTx } from '../src/hcs-16/tx';
+import {
+  buildHcs16FloraCreatedTx,
+  buildHcs16TransactionTx,
+  buildHcs16StateUpdateTx,
+  buildHcs16FloraJoinRequestTx,
+  buildHcs16FloraJoinVoteTx,
+  buildHcs16FloraJoinAcceptedTx,
+} from '../src/hcs-16/tx';
 
 jest.mock('@hashgraph/sdk', () => ({
   TopicMessageSubmitTransaction: class {
     private _topicId: any;
     private _message: any;
-    setTopicId(id: any) { this._topicId = id; return this; }
-    setMessage(m: any) { this._message = m; return this; }
+    setTopicId(id: any) {
+      this._topicId = id;
+      return this;
+    }
+    setMessage(m: any) {
+      this._message = m;
+      return this;
+    }
   },
   TopicCreateTransaction: class {
     private _topicMemo: any;
-    setTopicMemo(m: any) { this._topicMemo = m; return this; }
-    setAdminKey() { return this; }
-    setSubmitKey() { return this; }
-    setFeeScheduleKey() { return this; }
-    setCustomFees() { return this; }
-    setAutoRenewAccountId() { return this; }
+    setTopicMemo(m: any) {
+      this._topicMemo = m;
+      return this;
+    }
+    setAdminKey() {
+      return this;
+    }
+    setSubmitKey() {
+      return this;
+    }
+    setFeeScheduleKey() {
+      return this;
+    }
+    setCustomFees() {
+      return this;
+    }
+    setAutoRenewAccountId() {
+      return this;
+    }
   },
   AccountCreateTransaction: class {},
   TopicId: { fromString: (s: string) => ({ toString: () => s }) },
@@ -123,7 +149,10 @@ describe('HCS-16 tx builders', () => {
 
   it('builds Flora topic memo correctly', () => {
     const { buildHcs16CreateFloraTopicTx } = require('../src/hcs-16/tx');
-    const tx: any = buildHcs16CreateFloraTopicTx({ floraAccountId: '0.0.fl', topicType: 2 });
+    const tx: any = buildHcs16CreateFloraTopicTx({
+      floraAccountId: '0.0.fl',
+      topicType: 2,
+    });
     expect(tx._topicMemo).toBe('hcs-16:0.0.fl:2');
   });
 });

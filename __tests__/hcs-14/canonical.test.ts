@@ -7,7 +7,6 @@ import {
   CanonicalAgentData,
 } from '../../src/hcs-14/types';
 
-
 describe('HCS-14 Canonical Agent Data', () => {
   beforeEach(() => {
     jest.clearAllMocks();

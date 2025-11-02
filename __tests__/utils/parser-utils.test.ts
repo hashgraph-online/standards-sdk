@@ -74,4 +74,3 @@ describe('parser-utils.parseKey', () => {
     expect(parseKey(key)).toBe('Unknown or Unset Key Type');
   });
 });
-

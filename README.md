@@ -15,6 +15,16 @@ For complete documentation, examples, and API references, visit:
 
 - [Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)
 
+## Interactive CLI
+
+Prefer a guided experience? Launch the bundled CLI to browse demos, review configuration, and run Cloudflare helpers:
+
+```bash
+pnpm run cli
+```
+
+See [cli/standards-cli/README.md](cli/standards-cli/README.md) for advanced usage and non-interactive commands.
+
 ## Supported Standards
 
 - **HCS-1**: File Storage
@@ -59,7 +69,7 @@ The SDK includes demo implementations that showcase various features. Follow the
 
    **Note**: The SDK automatically saves agent creation progress to the `.env` file. If agent creation is interrupted, it will resume from the last successful step when you run the demo again. See `.env.example` for details on the auto-generated agent state variables.
 
-5. Run the demos:
+5. Run the demos (or use `pnpm run cli` for an interactive launcher):
 
    The following demo showcases inscribing a file.
 
