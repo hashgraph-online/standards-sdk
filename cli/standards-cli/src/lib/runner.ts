@@ -1,8 +1,9 @@
 import {execa} from 'execa';
 import chalk from 'chalk';
+import path from 'node:path';
+import {existsSync} from 'node:fs';
 import type {DemoDefinition} from './demos.js';
 import {CLI_ROOT} from './paths.js';
-import { findSdkRoot } from './paths.js';
 
 export interface RunDemoOptions {
 	sdkRoot: string;
@@ -33,19 +34,19 @@ export const describeDemoExecution = (demo: DemoDefinition, args: string[] = [])
  */
 const loadSdkEnvironment = async (sdkRoot: string): Promise<NodeJS.ProcessEnv> => {
 	try {
-		// Try to load dotenv from the SDK root
-		const { default: dotenv } = await import('dotenv');
-		const path = await import('path');
-		
-		const envPath = path.join(sdkRoot, '.env');
-		if (require('fs').existsSync(envPath)) {
-			dotenv.config({ path: envPath });
+		const dotenv = await import('dotenv');
+		const candidates = ['.env.local', '.env'];
+		for (const candidate of candidates) {
+			const envPath = path.join(sdkRoot, candidate);
+			if (existsSync(envPath)) {
+				dotenv.config({path: envPath});
+			}
 		}
-	} catch (error) {
-		// dotenv not available or file doesn't exist, continue without it
+	} catch {
+		// optional dependency or file missing – ignore and continue
 	}
-	
-	return { ...process.env };
+
+	return {...process.env};
 };
 
 export const runDemo = async (
