@@ -31,4 +31,3 @@ describe('HCS-10 Error classes', () => {
     expect(err.message).toBe('timeout');
   });
 });
-

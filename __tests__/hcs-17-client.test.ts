@@ -1,25 +1,50 @@
 jest.mock('@hashgraph/sdk', () => {
   class TopicCreateTransactionMock {
     _memo?: string;
-    setTopicMemo(m: string) { this._memo = m; return this; }
-    setAdminKey() { return this; }
-    setSubmitKey() { return this; }
-    async execute() { return { getReceipt: async () => ({ topicId: { toString: () => '0.0.12345' } }) }; }
+    setTopicMemo(m: string) {
+      this._memo = m;
+      return this;
+    }
+    setAdminKey() {
+      return this;
+    }
+    setSubmitKey() {
+      return this;
+    }
+    async execute() {
+      return {
+        getReceipt: async () => ({ topicId: { toString: () => '0.0.12345' } }),
+      };
+    }
   }
   class TopicMessageSubmitTransactionMock {
-    setTopicId() { return this; }
-    setMessage() { return this; }
-    async execute() { return { getReceipt: async () => ({ status: 'SUCCESS' }) }; }
+    setTopicId() {
+      return this;
+    }
+    setMessage() {
+      return this;
+    }
+    async execute() {
+      return { getReceipt: async () => ({ status: 'SUCCESS' }) };
+    }
   }
   return {
     PrivateKey: {
-      fromStringED25519: jest.fn(() => ({ publicKey: { toString: () => 'pk' } })),
+      fromStringED25519: jest.fn(() => ({
+        publicKey: { toString: () => 'pk' },
+      })),
       fromStringECDSA: jest.fn(() => ({ publicKey: { toString: () => 'pk' } })),
     },
     AccountId: { fromString: (s: string) => ({ toString: () => s }) },
     Client: {
-      forTestnet: jest.fn(() => ({ setOperator: jest.fn(), operatorPublicKey: {} })),
-      forMainnet: jest.fn(() => ({ setOperator: jest.fn(), operatorPublicKey: {} })),
+      forTestnet: jest.fn(() => ({
+        setOperator: jest.fn(),
+        operatorPublicKey: {},
+      })),
+      forMainnet: jest.fn(() => ({
+        setOperator: jest.fn(),
+        operatorPublicKey: {},
+      })),
     },
     TopicCreateTransaction: TopicCreateTransactionMock,
     TopicMessageSubmitTransaction: TopicMessageSubmitTransactionMock,
@@ -37,7 +62,13 @@ jest.mock('../src/services/mirror-node', () => ({
         sequence_number: 1,
         payer_account_id: '0.0.1000',
         message: Buffer.from(
-          JSON.stringify({ p: 'hcs-17', op: 'state_hash', state_hash: 'x', topics: [], account_id: '0.0.0' }),
+          JSON.stringify({
+            p: 'hcs-17',
+            op: 'state_hash',
+            state_hash: 'x',
+            topics: [],
+            account_id: '0.0.0',
+          }),
         ).toString('base64'),
         running_hash: 'rhash',
         running_hash_version: 3,

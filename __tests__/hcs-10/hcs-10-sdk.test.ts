@@ -1,4 +1,8 @@
-import { HCS10Client, HCS10BaseClient, ConnectionsManager } from '../../src/hcs-10/sdk';
+import {
+  HCS10Client,
+  HCS10BaseClient,
+  ConnectionsManager,
+} from '../../src/hcs-10/sdk';
 import {
   HCSClientConfig,
   CreateAgentResponse,
@@ -15,7 +19,9 @@ jest.mock('@hashgraph/sdk', () => {
   } as any;
 
   const PrivateKey = Object.assign(MockPrivateKey, {
-    fromString: jest.fn().mockImplementation(() => new (MockPrivateKey as any)()),
+    fromString: jest
+      .fn()
+      .mockImplementation(() => new (MockPrivateKey as any)()),
     fromStringED25519: jest
       .fn()
       .mockImplementation(() => new (MockPrivateKey as any)()),
@@ -38,15 +44,19 @@ jest.mock('@hashgraph/sdk', () => {
     this.toString = jest.fn().mockReturnValue(value ?? 'mock-public-key');
   } as any;
 
-  PublicKey.fromString = jest.fn().mockImplementation(
-    (s: string) => new (PublicKey as any)(s),
-  );
+  PublicKey.fromString = jest
+    .fn()
+    .mockImplementation((s: string) => new (PublicKey as any)(s));
   PublicKey.fromBytesED25519 = jest
     .fn()
-    .mockImplementation((b: Buffer) => new (PublicKey as any)(b.toString('hex')));
+    .mockImplementation(
+      (b: Buffer) => new (PublicKey as any)(b.toString('hex')),
+    );
   PublicKey.fromBytesECDSA = jest
     .fn()
-    .mockImplementation((b: Buffer) => new (PublicKey as any)(b.toString('hex')));
+    .mockImplementation(
+      (b: Buffer) => new (PublicKey as any)(b.toString('hex')),
+    );
 
   const Hbar = function (this: any, amount?: number) {
     this.toString = () => String(amount ?? 0);
@@ -69,7 +79,9 @@ jest.mock('@hashgraph/sdk', () => {
     PublicKey,
     AccountId,
     TopicId: {
-      fromString: jest.fn().mockImplementation((s: string) => ({ toString: () => s })),
+      fromString: jest
+        .fn()
+        .mockImplementation((s: string) => ({ toString: () => s })),
     },
     Hbar,
     KeyList: function (keys: any[], threshold: number) {
@@ -117,16 +129,20 @@ jest.mock('@hashgraph/sdk', () => {
         setTopicId: jest.fn().mockReturnValue(undefined),
       };
       tx.setTopicId = jest.fn().mockReturnValue(tx);
-      tx.setMessage = jest.fn().mockImplementation((msg: string | Uint8Array) => {
-        messageBuffer =
-          typeof msg === 'string' ? Buffer.from(msg) : new Uint8Array(msg);
-        return tx;
-      });
+      tx.setMessage = jest
+        .fn()
+        .mockImplementation((msg: string | Uint8Array) => {
+          messageBuffer =
+            typeof msg === 'string' ? Buffer.from(msg) : new Uint8Array(msg);
+          return tx;
+        });
       tx.getMessage = jest.fn(() => messageBuffer);
       tx.setTransactionMemo = jest.fn().mockReturnValue(tx);
       tx.setMaxTransactionFee = jest.fn().mockReturnValue(tx);
       tx.freezeWith = jest.fn().mockReturnValue(tx);
-      tx.sign = jest.fn().mockImplementation(() => ({ execute: jest.fn().mockResolvedValue(executionResult) }));
+      tx.sign = jest.fn().mockImplementation(() => ({
+        execute: jest.fn().mockResolvedValue(executionResult),
+      }));
       tx.execute = jest.fn().mockResolvedValue(executionResult);
       return tx;
     }),
@@ -330,12 +346,11 @@ describe('HCS10Client', () => {
   describe('handleConnectionRequest', () => {
     test('should handle connection request successfully', async () => {
       const createTopicSpy = jest.spyOn(client as any, 'createTopic');
-      jest
-        .spyOn(client, 'confirmConnection')
-        .mockResolvedValue(42);
-      jest
-        .spyOn(client, 'retrieveCommunicationTopics')
-        .mockResolvedValue({ inboundTopic: '0.0.100', outboundTopic: '0.0.200' } as any);
+      jest.spyOn(client, 'confirmConnection').mockResolvedValue(42);
+      jest.spyOn(client, 'retrieveCommunicationTopics').mockResolvedValue({
+        inboundTopic: '0.0.100',
+        outboundTopic: '0.0.200',
+      } as any);
       jest
         .spyOn((client as any).mirrorNode, 'getPublicKey')
         .mockResolvedValue({ toString: () => 'pk' } as any);
@@ -371,11 +386,18 @@ describe('HCS10Client', () => {
           },
         ]);
 
-      jest
-        .spyOn(client, 'retrieveCommunicationTopics')
-        .mockResolvedValue({ inboundTopic: '0.0.100', outboundTopic: '0.0.200' } as any);
+      jest.spyOn(client, 'retrieveCommunicationTopics').mockResolvedValue({
+        inboundTopic: '0.0.100',
+        outboundTopic: '0.0.200',
+      } as any);
 
-      const result = await client.waitForConnectionConfirmation('0.0.100', 7, 1, 1, false);
+      const result = await client.waitForConnectionConfirmation(
+        '0.0.100',
+        7,
+        1,
+        1,
+        false,
+      );
 
       expect(result).toMatchObject({
         connectionTopicId: '0.0.55555',
@@ -394,10 +416,11 @@ describe('HCS10Client', () => {
     });
   });
 
-
   describe('transaction builder integration', () => {
     beforeEach(() => {
-      (client as any).ensureInitialized = jest.fn().mockResolvedValue(undefined);
+      (client as any).ensureInitialized = jest
+        .fn()
+        .mockResolvedValue(undefined);
       (client as any).operatorCtx = {
         ensureInitialized: jest.fn().mockResolvedValue(undefined),
         operatorKey: {
@@ -494,11 +517,13 @@ describe('HCS10Client', () => {
     test('submitConnectionRequest utilizes request builders', async () => {
       await client.submitConnectionRequest('0.0.inbound', 'hello');
 
-      expect(mockedTx.buildHcs10SubmitConnectionRequestTx).toHaveBeenCalledWith({
-        inboundTopicId: '0.0.inbound',
-        operatorId: '0.0.100@0.0.200',
-        memo: 'hello',
-      });
+      expect(mockedTx.buildHcs10SubmitConnectionRequestTx).toHaveBeenCalledWith(
+        {
+          inboundTopicId: '0.0.inbound',
+          operatorId: '0.0.100@0.0.200',
+          memo: 'hello',
+        },
+      );
 
       expect(
         mockedTx.buildHcs10OutboundConnectionRequestRecordTx,
@@ -535,7 +560,6 @@ describe('HCS10Client', () => {
     });
   });
 
-
   describe('error handling', () => {
     test('should surface network errors', () => {
       const mockClient = require('@hashgraph/sdk').Client;
@@ -546,10 +570,11 @@ describe('HCS10Client', () => {
         close: jest.fn(),
       });
 
-      expect(() => new HCS10Client(mockConfig)).toThrow('Network connection failed');
+      expect(() => new HCS10Client(mockConfig)).toThrow(
+        'Network connection failed',
+      );
     });
   });
-
 
   describe('progress callbacks', () => {
     beforeEach(() => {
@@ -563,7 +588,11 @@ describe('HCS10Client', () => {
         });
       jest
         .spyOn(HCS10Client.prototype as any, 'storeHCS11Profile')
-        .mockResolvedValue({ profileTopicId: '0.0.300', success: true, transactionId: 'tx' });
+        .mockResolvedValue({
+          profileTopicId: '0.0.300',
+          success: true,
+          transactionId: 'tx',
+        });
     });
 
     test('should call progress callback during agent creation', async () => {
@@ -582,7 +611,6 @@ describe('HCS10Client', () => {
     });
   });
 });
-
 
 describe('ConnectionsManager', () => {
   let connectionsManager: ConnectionsManager;
@@ -606,16 +634,26 @@ describe('ConnectionsManager', () => {
     expect(typeof connectionsManager.processInboundMessages).toBe('function');
     expect(typeof connectionsManager.getAllConnections).toBe('function');
     expect(typeof connectionsManager.getActiveConnections).toBe('function');
-    expect(typeof connectionsManager.getConnectionsNeedingConfirmation).toBe('function');
+    expect(typeof connectionsManager.getConnectionsNeedingConfirmation).toBe(
+      'function',
+    );
     expect(typeof connectionsManager.getConnectionByTopicId).toBe('function');
-    expect(typeof connectionsManager.getConnectionsByAccountId).toBe('function');
+    expect(typeof connectionsManager.getConnectionsByAccountId).toBe(
+      'function',
+    );
     expect(typeof connectionsManager.addProfileInfo).toBe('function');
     expect(typeof connectionsManager.updateOrAddConnection).toBe('function');
     expect(typeof connectionsManager.clearAll).toBe('function');
-    expect(typeof connectionsManager.isConnectionRequestProcessed).toBe('function');
-    expect(typeof connectionsManager.markConnectionRequestProcessed).toBe('function');
+    expect(typeof connectionsManager.isConnectionRequestProcessed).toBe(
+      'function',
+    );
+    expect(typeof connectionsManager.markConnectionRequestProcessed).toBe(
+      'function',
+    );
     expect(typeof connectionsManager.getPendingTransactions).toBe('function');
-    expect(typeof connectionsManager.getScheduledTransactionStatus).toBe('function');
+    expect(typeof connectionsManager.getScheduledTransactionStatus).toBe(
+      'function',
+    );
     expect(typeof connectionsManager.getLastOperatorActivity).toBe('function');
   });
 });

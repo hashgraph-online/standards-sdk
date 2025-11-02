@@ -23,8 +23,14 @@ interface TransactionResponseStub {
 
 class TopicMessageSubmitTransactionDouble {
   private readonly response: TransactionResponseStub;
-  readonly freezeWith: jest.Mock<TopicMessageSubmitTransactionDouble, [unknown?]>;
-  readonly sign: jest.Mock<Promise<TopicMessageSubmitTransactionDouble>, [unknown?]>;
+  readonly freezeWith: jest.Mock<
+    TopicMessageSubmitTransactionDouble,
+    [unknown?]
+  >;
+  readonly sign: jest.Mock<
+    Promise<TopicMessageSubmitTransactionDouble>,
+    [unknown?]
+  >;
   readonly execute: jest.Mock<Promise<TransactionResponseStub>, [unknown?]>;
 
   constructor(response: TransactionResponseStub) {
@@ -32,9 +38,10 @@ class TopicMessageSubmitTransactionDouble {
     this.freezeWith = jest.fn<TopicMessageSubmitTransactionDouble, [unknown?]>(
       () => this,
     );
-    this.sign = jest.fn<Promise<TopicMessageSubmitTransactionDouble>, [unknown?]>(
-      async () => this,
-    );
+    this.sign = jest.fn<
+      Promise<TopicMessageSubmitTransactionDouble>,
+      [unknown?]
+    >(async () => this);
     this.execute = jest.fn<Promise<TransactionResponseStub>, [unknown?]>(
       async () => this.response,
     );
@@ -66,7 +73,9 @@ const setClientTopics = (
 };
 
 type MintPointsOptionsWithTopic = MintPointsOptions & { topicId: string };
-type TransferPointsOptionsWithTopic = TransferPointsOptions & { topicId: string };
+type TransferPointsOptionsWithTopic = TransferPointsOptions & {
+  topicId: string;
+};
 type BurnPointsOptionsWithTopic = BurnPointsOptions & { topicId: string };
 
 describe('HCS20Client transaction builders', () => {
@@ -188,7 +197,9 @@ describe('HCS20Client transaction builders', () => {
           return { key: { _type: 'ED25519' } };
         }
 
-        async getTopicMessages(): Promise<Array<{ consensus_timestamp: string }>> {
+        async getTopicMessages(): Promise<
+          Array<{ consensus_timestamp: string }>
+        > {
           return [{ consensus_timestamp: '123456.000000001' }];
         }
       },

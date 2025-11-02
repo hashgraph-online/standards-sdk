@@ -134,7 +134,9 @@ export function generateHCS17Memo(ttl: number): string {
 /**
  * Parse an HCS‑17 memo into `{ type, ttl }` if valid.
  */
-export function parseHCS17Memo(memo: string): { type: HCS17TopicType; ttl: number } | undefined {
+export function parseHCS17Memo(
+  memo: string,
+): { type: HCS17TopicType; ttl: number } | undefined {
   try {
     const match = memo.match(/^hcs-17:(\d+):(\d+)$/);
     if (!match) {

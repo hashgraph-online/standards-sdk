@@ -1110,7 +1110,8 @@ export class HCS10Client extends HCS10BaseClient {
       adminKey: adminKey,
       submitKey: submitKey,
       operatorPublicKey:
-        this.client.operatorPublicKey || this.operatorCtx.operatorKey?.publicKey,
+        this.client.operatorPublicKey ||
+        this.operatorCtx.operatorKey?.publicKey,
     });
 
     const { topicId } = await this.executeTopicCreateTransaction({
@@ -1133,8 +1134,7 @@ export class HCS10Client extends HCS10BaseClient {
         undefined;
 
     if (isTransaction) {
-      const transaction =
-        topicOrTransaction as TopicMessageSubmitTransaction;
+      const transaction = topicOrTransaction as TopicMessageSubmitTransaction;
 
       const messageBytes = transaction.getMessage();
       if (!messageBytes) {
@@ -2141,9 +2141,10 @@ export class HCS10Client extends HCS10BaseClient {
         submitKey: true,
         operatorPublicKey,
       });
-      const { topicId: outboundTopicId } = await this.executeTopicCreateTransaction({
-        transaction: outboundTopicTx,
-      });
+      const { topicId: outboundTopicId } =
+        await this.executeTopicCreateTransaction({
+          transaction: outboundTopicTx,
+        });
       state.outboundTopicId = outboundTopicId;
       if (state.createdResources)
         state.createdResources.push(`outbound:${state.outboundTopicId}`);
@@ -2167,9 +2168,10 @@ export class HCS10Client extends HCS10BaseClient {
         operatorPublicKey,
       });
 
-      const { topicId: inboundTopicId } = await this.executeTopicCreateTransaction({
-        transaction: inboundTopicTx,
-      });
+      const { topicId: inboundTopicId } =
+        await this.executeTopicCreateTransaction({
+          transaction: inboundTopicTx,
+        });
       state.inboundTopicId = inboundTopicId;
       if (state.createdResources)
         state.createdResources.push(`inbound:${state.inboundTopicId}`);

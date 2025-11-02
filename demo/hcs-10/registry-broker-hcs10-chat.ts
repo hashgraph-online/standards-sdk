@@ -77,7 +77,6 @@ const readConfig = (): DemoConfig => {
   };
 };
 
-
 const describeError = (error: unknown): string => {
   if (error instanceof RegistryBrokerError) {
     const statusSuffix = error.status ? ` status=${error.status}` : '';
@@ -528,7 +527,12 @@ const run = async (): Promise<void> => {
       );
     }
 
-    await ensureLedgerAuth(userClient, ledgerAccountId, ledgerPrivateKey, network);
+    await ensureLedgerAuth(
+      userClient,
+      ledgerAccountId,
+      ledgerPrivateKey,
+      network,
+    );
 
     const resolvedAgent = await withRequestTimeout(
       userClient.resolveUaid(registryUaid),

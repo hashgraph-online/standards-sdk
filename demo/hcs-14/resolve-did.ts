@@ -3,7 +3,8 @@ import { HCS14Client } from '../../src/hcs-14';
 import { HCS11Client, HCS11Profile } from '../../src/hcs-11';
 
 function required(name: string, value: string | undefined): string {
-  if (!value || !value.trim()) throw new Error(`${name} is required in environment`);
+  if (!value || !value.trim())
+    throw new Error(`${name} is required in environment`);
   return value.trim();
 }
 
@@ -13,13 +14,24 @@ function asNetwork(value: string | undefined): 'mainnet' | 'testnet' {
 
 async function main(): Promise<void> {
   const network = asNetwork(process.env.HEDERA_NETWORK);
-  const accountId = required('HEDERA_ACCOUNT_ID', process.env.HEDERA_ACCOUNT_ID);
-  const privateKey = required('HEDERA_PRIVATE_KEY', process.env.HEDERA_PRIVATE_KEY);
+  const accountId = required(
+    'HEDERA_ACCOUNT_ID',
+    process.env.HEDERA_ACCOUNT_ID,
+  );
+  const privateKey = required(
+    'HEDERA_PRIVATE_KEY',
+    process.env.HEDERA_PRIVATE_KEY,
+  );
 
-  const hcs11 = new HCS11Client({ network, auth: { operatorId: accountId, privateKey } });
+  const hcs11 = new HCS11Client({
+    network,
+    auth: { operatorId: accountId, privateKey },
+  });
   const fetched = await hcs11.fetchProfileByAccountId(accountId, network);
   if (!fetched.success || !fetched.profile) {
-    throw new Error(`Failed to fetch HCS-11 profile for ${accountId}: ${fetched.error || 'unknown error'}`);
+    throw new Error(
+      `Failed to fetch HCS-11 profile for ${accountId}: ${fetched.error || 'unknown error'}`,
+    );
   }
 
   const profile: HCS11Profile = fetched.profile as HCS11Profile;
@@ -40,6 +52,8 @@ async function main(): Promise<void> {
 main()
   .then(() => process.exit(0))
   .catch(err => {
-    process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(
+      `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     process.exit(1);
   });

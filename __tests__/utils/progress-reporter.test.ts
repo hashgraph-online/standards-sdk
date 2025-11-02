@@ -186,7 +186,7 @@ describe('ProgressReporter', () => {
           stage: 'preparing',
           message: 'Test message',
           progressPercent: 50, // 20 + (50-0) * (90-10)/(100-0) = 50
-        })
+        }),
       );
     });
 
@@ -206,7 +206,7 @@ describe('ProgressReporter', () => {
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'SubTask: Test message',
-        })
+        }),
       );
     });
   });
@@ -235,7 +235,7 @@ describe('ProgressReporter', () => {
       expect(callback).toHaveBeenCalledWith(progressData);
       expect(mockLogger.debug).toHaveBeenCalledWith(
         '[Progress] [PREPARING] Test progress (50.0%)',
-        undefined
+        undefined,
       );
     });
 
@@ -251,7 +251,7 @@ describe('ProgressReporter', () => {
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
         '[Progress] [SUBMITTING] Submitting data (75.0%)',
-        { key: 'value' }
+        { key: 'value' },
       );
     });
 
@@ -280,7 +280,7 @@ describe('ProgressReporter', () => {
       });
 
       expect(callback).toHaveBeenCalledWith(
-        expect.objectContaining({ progressPercent: 0 })
+        expect.objectContaining({ progressPercent: 0 }),
       );
 
       reporter.report({
@@ -290,7 +290,7 @@ describe('ProgressReporter', () => {
       });
 
       expect(callback).toHaveBeenCalledWith(
-        expect.objectContaining({ progressPercent: 100 })
+        expect.objectContaining({ progressPercent: 100 }),
       );
     });
 
@@ -347,7 +347,7 @@ describe('ProgressReporter', () => {
       reporterWithError.report(progressData);
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Error in progress callback: Error: Callback error'
+        'Error in progress callback: Error: Callback error',
       );
     });
   });

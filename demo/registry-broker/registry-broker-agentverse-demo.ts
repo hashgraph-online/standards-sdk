@@ -5,9 +5,12 @@ import {
   RegistryBrokerClient,
   type SendMessageResponse,
   type ChatHistoryEntry,
-} from '../src/services/registry-broker';
-import { startLocalA2AAgent, type LocalA2AAgentHandle } from './utils/local-a2a-agent';
-import { HCS14Client } from '../src/hcs-14/sdk';
+} from '../../src/services/registry-broker';
+import {
+  startLocalA2AAgent,
+  type LocalA2AAgentHandle,
+} from '../utils/local-a2a-agent';
+import { HCS14Client } from '../../src/hcs-14/sdk';
 import fetch from 'node-fetch';
 
 const log = (msg: string) => console.log(msg);
@@ -32,7 +35,8 @@ const describeHistory = (history?: ChatHistoryEntry[]) => {
 };
 
 async function run(): Promise<void> {
-  const brokerBase = process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
+  const brokerBase =
+    process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
     process.env.BROKER_URL?.trim() ||
     'http://localhost:4000/api/v1';
   const client = new RegistryBrokerClient({ baseUrl: brokerBase });
@@ -101,13 +105,17 @@ async function run(): Promise<void> {
   const envCandidates = process.env.AGENTVERSE_CANDIDATES?.split(',')
     .map(s => s.trim())
     .filter(s => s.length > 0);
-  const avCandidates = envCandidates && envCandidates.length > 0
-    ? envCandidates
-    : [targetUaid];
+  const avCandidates =
+    envCandidates && envCandidates.length > 0 ? envCandidates : [targetUaid];
   let usedAddress: string | null = null;
 
-  const isEmptyMessage = (m?: string) => !m || m.trim() === '' || m.trim() === '{}' || m.trim() === '[]';
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const isEmptyMessage = (m?: string) =>
+    !m || m.trim() === '' || m.trim() === '{}' || m.trim() === '[]';
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   const isEcho = (m: string, inputs: string[]) => {
     const nm = normalize(m);
     return inputs.some(inp => normalize(inp) === nm);
@@ -167,15 +175,40 @@ async function run(): Promise<void> {
         usedAddress = addressOrUaid;
       }
       // If empty, wait for a non-empty mailbox/event reply in history
-      if (isEmptyMessage(avReply.message) || isEcho(avReply.message || '', userInputs) || (avReply.message || '').length < 60) {
-        const nonEmpty = await waitForNonEmptyHistory(sessionId, avReply.history?.length || 0, 30000, userInputs, 60);
+      if (
+        isEmptyMessage(avReply.message) ||
+        isEcho(avReply.message || '', userInputs) ||
+        (avReply.message || '').length < 60
+      ) {
+        const nonEmpty = await waitForNonEmptyHistory(
+          sessionId,
+          avReply.history?.length || 0,
+          30000,
+          userInputs,
+          60,
+        );
         if (nonEmpty) {
           avReply = { ...avReply, message: nonEmpty } as SendMessageResponse;
         } else {
-          const hinted = await client.chat.sendMessage({ uaid, sessionId, message: 'Track AA123' });
+          const hinted = await client.chat.sendMessage({
+            uaid,
+            sessionId,
+            message: 'Track AA123',
+          });
           userInputs.push('Track AA123');
-          if (!hinted.error && (isEmptyMessage(hinted.message) || isEcho(hinted.message || '', userInputs) || (hinted.message || '').length < 60)) {
-            const late = await waitForNonEmptyHistory(sessionId, hinted.history?.length || 0, 30000, userInputs, 60);
+          if (
+            !hinted.error &&
+            (isEmptyMessage(hinted.message) ||
+              isEcho(hinted.message || '', userInputs) ||
+              (hinted.message || '').length < 60)
+          ) {
+            const late = await waitForNonEmptyHistory(
+              sessionId,
+              hinted.history?.length || 0,
+              30000,
+              userInputs,
+              60,
+            );
             if (late) {
               avReply = { ...hinted, message: late } as SendMessageResponse;
             } else {
@@ -207,8 +240,18 @@ async function run(): Promise<void> {
         message: followUp,
       });
       userInputs.push(followUp);
-      if (isEmptyMessage(avReply2.message) || isEcho(avReply2.message || '', userInputs) || (avReply2.message || '').length < 60) {
-        const nonEmpty2 = await waitForNonEmptyHistory(sessionId, avReply2.history?.length || 0, 30000, userInputs, 60);
+      if (
+        isEmptyMessage(avReply2.message) ||
+        isEcho(avReply2.message || '', userInputs) ||
+        (avReply2.message || '').length < 60
+      ) {
+        const nonEmpty2 = await waitForNonEmptyHistory(
+          sessionId,
+          avReply2.history?.length || 0,
+          30000,
+          userInputs,
+          60,
+        );
         if (nonEmpty2) {
           avReply2 = { ...avReply2, message: nonEmpty2 } as SendMessageResponse;
         }
@@ -217,7 +260,9 @@ async function run(): Promise<void> {
       describeHistory(avReply2.history);
       break;
     } catch (error) {
-      log(`  AgentVerse candidate failed: ${error instanceof Error ? error.message : String(error)}`);
+      log(
+        `  AgentVerse candidate failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

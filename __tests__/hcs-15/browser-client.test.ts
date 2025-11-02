@@ -3,16 +3,30 @@ import { describe, it, expect, jest } from '@jest/globals';
 jest.mock('@hashgraph/sdk', () => {
   class AccountCreateTransaction {
     private _isBase = false;
-    setECDSAKeyWithAlias() { this._isBase = true; return this; }
-    setKeyWithoutAlias() { this._isBase = false; return this; }
-    setInitialBalance() { return this; }
-    setMaxAutomaticTokenAssociations() { return this; }
-    setAccountMemo() { return this; }
+    setECDSAKeyWithAlias() {
+      this._isBase = true;
+      return this;
+    }
+    setKeyWithoutAlias() {
+      this._isBase = false;
+      return this;
+    }
+    setInitialBalance() {
+      return this;
+    }
+    setMaxAutomaticTokenAssociations() {
+      return this;
+    }
+    setAccountMemo() {
+      return this;
+    }
     async freezeWithSigner() {
       const id = this._isBase ? '0.0.7100001' : '0.0.7100002';
       return {
         executeWithSigner: async () => ({
-          getReceiptWithSigner: async () => ({ accountId: { toString: () => id } }),
+          getReceiptWithSigner: async () => ({
+            accountId: { toString: () => id },
+          }),
         }),
       } as any;
     }
@@ -23,11 +37,17 @@ jest.mock('@hashgraph/sdk', () => {
       generateECDSA: jest.fn(() => ({
         toString: () => 'priv-hex-abcdef1234',
         toStringRaw: () => 'priv-raw',
-        publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub-abcdef1234' },
+        publicKey: {
+          toEvmAddress: () => 'deadbeef',
+          toString: () => 'pub-abcdef1234',
+        },
       })),
       fromStringECDSA: jest.fn((s: string) => ({
         toString: () => s,
-        publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub-abcdef1234' },
+        publicKey: {
+          toEvmAddress: () => 'deadbeef',
+          toString: () => 'pub-abcdef1234',
+        },
       })),
     },
     Hbar: jest.fn((v: any) => v),
@@ -52,7 +72,10 @@ jest.mock('@hashgraph/sdk', () => ({
 
 describe('HCS-15 Browser client', () => {
   it('creates base account via signer', async () => {
-    const client = new HCS15BrowserClient({ network: 'testnet', signer: new FakeSigner() as never });
+    const client = new HCS15BrowserClient({
+      network: 'testnet',
+      signer: new FakeSigner() as never,
+    });
     const res = await client.createBaseAccount({ initialBalance: 1 });
     expect(res.accountId).toBe('0.0.7100001');
     expect(res.privateKey.toString().length).toBeGreaterThan(10);
@@ -62,8 +85,14 @@ describe('HCS-15 Browser client', () => {
 
   it('creates petal account via signer', async () => {
     const baseKey = PrivateKey.generateECDSA().toString();
-    const client = new HCS15BrowserClient({ network: 'testnet', signer: new FakeSigner() as never });
-    const res = await client.createPetalAccount({ basePrivateKey: baseKey, initialBalance: 0.5 });
+    const client = new HCS15BrowserClient({
+      network: 'testnet',
+      signer: new FakeSigner() as never,
+    });
+    const res = await client.createPetalAccount({
+      basePrivateKey: baseKey,
+      initialBalance: 0.5,
+    });
     expect(res.accountId).toBe('0.0.7100002');
   });
 });

@@ -1,5 +1,10 @@
 import { HCS5BaseClient } from './base-client';
-import { HCS5CreateHashinalOptions, HCS5MintOptions, HCS5MintResponse, buildHcs1Hrl } from './types';
+import {
+  HCS5CreateHashinalOptions,
+  HCS5MintOptions,
+  HCS5MintResponse,
+  buildHcs1Hrl,
+} from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import { PrivateKey, TransactionReceipt } from '@hashgraph/sdk';

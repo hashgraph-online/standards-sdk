@@ -17,6 +17,8 @@ async function main(): Promise<void> {
 main()
   .then(() => process.exit(0))
   .catch(err => {
-    process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(
+      `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     process.exit(1);
   });

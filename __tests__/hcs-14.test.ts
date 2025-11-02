@@ -4,8 +4,9 @@ import * as cryptoAbstraction from '../src/utils/crypto-abstraction';
 
 describe('HCS-14 AID/UAID', () => {
   it('generates deterministic AID for HCS-10 agent and matches manual hash', async () => {
-    const { createUaid, parseHcs14Did, canonicalizeAgentData } =
-      await import('../src/hcs-14');
+    const { createUaid, parseHcs14Did, canonicalizeAgentData } = await import(
+      '../src/hcs-14'
+    );
     const input = {
       registry: 'hol',
       name: 'Support Agent',
@@ -111,8 +112,9 @@ describe('HCS-14 AID/UAID', () => {
   });
 
   it('throws for invalid inputs and unsupported DIDs', async () => {
-    const { canonicalizeAgentData, createUaid, parseHcs14Did } =
-      await import('../src/hcs-14');
+    const { canonicalizeAgentData, createUaid, parseHcs14Did } = await import(
+      '../src/hcs-14'
+    );
     const bad: unknown = {
       registry: '',
       name: '',

@@ -245,9 +245,8 @@ export class HCS20Client extends HCS20BaseClient {
         memo: options.topicMemo,
       });
 
-      const { transactionId: deployTxId } = await this.submitPayload(
-        deployTransaction,
-      );
+      const { transactionId: deployTxId } =
+        await this.submitPayload(deployTransaction);
 
       progressCallback?.({
         stage: 'confirming',
@@ -320,9 +319,8 @@ export class HCS20Client extends HCS20BaseClient {
         memo: options.memo,
       });
 
-      const { transactionId: mintTxId } = await this.submitPayload(
-        mintTransaction,
-      );
+      const { transactionId: mintTxId } =
+        await this.submitPayload(mintTransaction);
 
       progressCallback?.({
         stage: 'confirming',
@@ -408,9 +406,8 @@ export class HCS20Client extends HCS20BaseClient {
         memo: options.memo,
       });
 
-      const { transactionId: transferTxId } = await this.submitPayload(
-        transferTransaction,
-      );
+      const { transactionId: transferTxId } =
+        await this.submitPayload(transferTransaction);
 
       progressCallback?.({
         stage: 'confirming',
@@ -492,9 +489,8 @@ export class HCS20Client extends HCS20BaseClient {
         memo: options.memo,
       });
 
-      const { transactionId: burnTxId } = await this.submitPayload(
-        burnTransaction,
-      );
+      const { transactionId: burnTxId } =
+        await this.submitPayload(burnTransaction);
 
       progressCallback?.({
         stage: 'confirming',

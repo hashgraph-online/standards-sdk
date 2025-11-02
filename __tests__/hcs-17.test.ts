@@ -19,7 +19,10 @@ describe('HCS17BaseClient calculations', () => {
 
   beforeEach(() => {
     process.env.DISABLE_LOGS = 'true';
-    calculator = new HCS17BaseClient({ network: 'testnet' as const, logLevel: 'error' as const });
+    calculator = new HCS17BaseClient({
+      network: 'testnet' as const,
+      logLevel: 'error' as const,
+    });
   });
 
   describe('calculateAccountStateHash', () => {

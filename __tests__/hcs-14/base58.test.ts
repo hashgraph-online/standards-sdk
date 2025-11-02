@@ -119,7 +119,11 @@ describe('HCS-14 Base58 Encoding', () => {
     });
 
     test('should encode power-of-2 values', () => {
-      const cases = [new Uint8Array([128]), new Uint8Array([64]), new Uint8Array([32])];
+      const cases = [
+        new Uint8Array([128]),
+        new Uint8Array([64]),
+        new Uint8Array([32]),
+      ];
       for (const c of cases) {
         const enc = base58Encode(c);
         const dec = base58Decode(enc);
@@ -163,10 +167,3 @@ describe('HCS-14 Base58 Encoding', () => {
     });
   });
 });
-
-
-
-
-
-
-

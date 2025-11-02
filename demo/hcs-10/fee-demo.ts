@@ -1,5 +1,12 @@
 import * as dotenv from 'dotenv';
-import { Logger, NetworkType, AgentBuilder, FeeConfigBuilder, AIAgentCapability, InboundTopicType } from '../../src';
+import {
+  Logger,
+  NetworkType,
+  AgentBuilder,
+  FeeConfigBuilder,
+  AIAgentCapability,
+  InboundTopicType,
+} from '../../src';
 import { HCS10Client } from '../../src/hcs-10/sdk';
 import {
   ensureAgentHasEnoughHbar,

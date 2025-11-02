@@ -2,7 +2,9 @@ import { describe, it, expect } from '@jest/globals';
 
 describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () => {
   it('IssuerRegistry list and filters work as expected', async () => {
-    const { IssuerRegistry } = await import('../../src/hcs-14/issuers/registry');
+    const { IssuerRegistry } = await import(
+      '../../src/hcs-14/issuers/registry'
+    );
     const registry = new IssuerRegistry();
 
     const webIssuer = {
@@ -50,29 +52,33 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
   });
 
   it('ResolverRegistry list and filters work as expected', async () => {
-    const { ResolverRegistry } = await import('../../src/hcs-14/resolvers/registry');
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
     const { DidResolver } = await import('../../src/hcs-14/resolvers/types');
     const registry = new ResolverRegistry();
 
-    const webResolver: import('../../src/hcs-14/resolvers/types').DidResolver = {
-      meta: { id: 'web/custom-resolver', didMethods: ['web'] },
-      supports(did: string) {
-        return did.startsWith('did:web:');
-      },
-      async resolve(did: string) {
-        return this.supports(did) ? { id: did } : null;
-      },
-    };
+    const webResolver: import('../../src/hcs-14/resolvers/types').DidResolver =
+      {
+        meta: { id: 'web/custom-resolver', didMethods: ['web'] },
+        supports(did: string) {
+          return did.startsWith('did:web:');
+        },
+        async resolve(did: string) {
+          return this.supports(did) ? { id: did } : null;
+        },
+      };
 
-    const hederaResolver: import('../../src/hcs-14/resolvers/types').DidResolver = {
-      meta: { id: 'hedera/mock-resolver', didMethods: ['hedera'] },
-      supports(did: string) {
-        return did.startsWith('did:hedera:');
-      },
-      async resolve(did: string) {
-        return this.supports(did) ? { id: did } : null;
-      },
-    };
+    const hederaResolver: import('../../src/hcs-14/resolvers/types').DidResolver =
+      {
+        meta: { id: 'hedera/mock-resolver', didMethods: ['hedera'] },
+        supports(did: string) {
+          return did.startsWith('did:hedera:');
+        },
+        async resolve(did: string) {
+          return this.supports(did) ? { id: did } : null;
+        },
+      };
 
     registry.register(webResolver);
     registry.register(hederaResolver);
@@ -94,9 +100,9 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
     expect(issuers.length).toBeGreaterThan(0);
     const hederaIssuers = client.filterIssuersByMethod('hedera');
     expect(hederaIssuers.length).toBeGreaterThan(0);
-    expect(
-      hederaIssuers.some(i => i.meta.didMethods.includes('hedera')),
-    ).toBe(true);
+    expect(hederaIssuers.some(i => i.meta.didMethods.includes('hedera'))).toBe(
+      true,
+    );
 
     const resolvers = client.listResolvers();
     expect(resolvers.length).toBeGreaterThan(0);

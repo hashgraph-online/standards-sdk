@@ -27,7 +27,10 @@ describe('HCS-17 Specification Compliance', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    calculator = new HCS17BaseClient({ network: 'testnet' as const, logger: mockLogger });
+    calculator = new HCS17BaseClient({
+      network: 'testnet' as const,
+      logger: mockLogger,
+    });
   });
 
   describe('State Hash Calculation Methodology (Spec Section: State Hash Calculation Methodology)', () => {

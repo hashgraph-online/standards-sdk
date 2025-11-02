@@ -197,7 +197,9 @@ type FetchResponse = {
 };
 
 describe('RegistryBrokerClient', () => {
-  const createResponse = (overrides: Partial<FetchResponse>): FetchResponse => ({
+  const createResponse = (
+    overrides: Partial<FetchResponse>,
+  ): FetchResponse => ({
     ok: true,
     status: 200,
     statusText: 'OK',
@@ -215,7 +217,9 @@ describe('RegistryBrokerClient', () => {
 
   it('normalises base URL and appends version suffix', async () => {
     fetchImplementation.mockResolvedValueOnce(
-      createResponse({ json: async () => mockSearchResponse }) as unknown as Response,
+      createResponse({
+        json: async () => mockSearchResponse,
+      }) as unknown as Response,
     );
 
     const client = new RegistryBrokerClient({
@@ -301,7 +305,9 @@ describe('RegistryBrokerClient', () => {
 
   it('retrieves a registration quote', async () => {
     fetchImplementation.mockResolvedValueOnce(
-      createResponse({ json: async () => quoteNeedsCredits }) as unknown as Response,
+      createResponse({
+        json: async () => quoteNeedsCredits,
+      }) as unknown as Response,
     );
 
     const client = new RegistryBrokerClient({
@@ -445,7 +451,9 @@ describe('RegistryBrokerClient', () => {
       ensureCreditsForRegistration: jest.Mock;
       performRegisterAgent: jest.Mock;
     };
-    internal.ensureCreditsForRegistration = jest.fn().mockResolvedValue(undefined);
+    internal.ensureCreditsForRegistration = jest
+      .fn()
+      .mockResolvedValue(undefined);
     internal.performRegisterAgent = jest
       .fn()
       .mockResolvedValue(mockRegisterResponse as any);
@@ -470,7 +478,10 @@ describe('RegistryBrokerClient', () => {
     });
 
     const internal = client as unknown as {
-      request: (path: string, config: Record<string, unknown>) => Promise<Response>;
+      request: (
+        path: string,
+        config: Record<string, unknown>,
+      ) => Promise<Response>;
     };
 
     const response = await internal.request('/health', { method: 'GET' });
@@ -495,10 +506,14 @@ describe('RegistryBrokerClient', () => {
   it('supports chat session flow and endSession', async () => {
     fetchImplementation
       .mockResolvedValueOnce(
-        createResponse({ json: async () => mockSessionResponse }) as unknown as Response,
+        createResponse({
+          json: async () => mockSessionResponse,
+        }) as unknown as Response,
       )
       .mockResolvedValueOnce(
-        createResponse({ json: async () => mockMessageResponse }) as unknown as Response,
+        createResponse({
+          json: async () => mockMessageResponse,
+        }) as unknown as Response,
       )
       .mockResolvedValueOnce(
         createResponse({
@@ -536,10 +551,9 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/session',
       expect.objectContaining({ method: 'POST' }),
     );
-    const sessionRequestInit = fetchImplementation.mock.calls[0][1] as RequestInit;
-    expect(
-      JSON.parse(sessionRequestInit.body as string),
-    ).toEqual({
+    const sessionRequestInit = fetchImplementation.mock
+      .calls[0][1] as RequestInit;
+    expect(JSON.parse(sessionRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
     });
@@ -548,10 +562,9 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/message',
       expect.objectContaining({ method: 'POST' }),
     );
-    const messageRequestInit = fetchImplementation.mock.calls[1][1] as RequestInit;
-    expect(
-      JSON.parse(messageRequestInit.body as string),
-    ).toEqual({
+    const messageRequestInit = fetchImplementation.mock
+      .calls[1][1] as RequestInit;
+    expect(JSON.parse(messageRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
       message: 'Hi',
@@ -566,7 +579,9 @@ describe('RegistryBrokerClient', () => {
 
   it('retrieves chat history snapshot for a session', async () => {
     fetchImplementation.mockResolvedValueOnce(
-      createResponse({ json: async () => mockHistorySnapshot }) as unknown as Response,
+      createResponse({
+        json: async () => mockHistorySnapshot,
+      }) as unknown as Response,
     );
 
     const client = new RegistryBrokerClient({
@@ -585,7 +600,9 @@ describe('RegistryBrokerClient', () => {
 
   it('compacts chat history via API', async () => {
     fetchImplementation.mockResolvedValueOnce(
-      createResponse({ json: async () => mockCompactionResponse }) as unknown as Response,
+      createResponse({
+        json: async () => mockCompactionResponse,
+      }) as unknown as Response,
     );
 
     const client = new RegistryBrokerClient({
@@ -619,10 +636,14 @@ describe('RegistryBrokerClient', () => {
         }) as unknown as Response,
       )
       .mockResolvedValueOnce(
-        createResponse({ json: async () => purchaseResponse }) as unknown as Response,
+        createResponse({
+          json: async () => purchaseResponse,
+        }) as unknown as Response,
       )
       .mockResolvedValueOnce(
-        createResponse({ json: async () => extendedSession }) as unknown as Response,
+        createResponse({
+          json: async () => extendedSession,
+        }) as unknown as Response,
       );
 
     const client = new RegistryBrokerClient({
@@ -663,7 +684,9 @@ describe('RegistryBrokerClient', () => {
 
   it('defaults to production registry broker base URL', async () => {
     fetchImplementation.mockResolvedValueOnce(
-      createResponse({ json: async () => mockSearchResponse }) as unknown as Response,
+      createResponse({
+        json: async () => mockSearchResponse,
+      }) as unknown as Response,
     );
 
     const client = new RegistryBrokerClient({ fetchImplementation });
@@ -678,7 +701,9 @@ describe('RegistryBrokerClient', () => {
 
   it('builds search queries with optional filters', async () => {
     fetchImplementation.mockResolvedValueOnce(
-      createResponse({ json: async () => mockSearchResponse }) as unknown as Response,
+      createResponse({
+        json: async () => mockSearchResponse,
+      }) as unknown as Response,
     );
 
     const client = new RegistryBrokerClient({
@@ -704,16 +729,24 @@ describe('RegistryBrokerClient', () => {
   it('retrieves stats, registries, popular searches, and resolves UAIDs', async () => {
     fetchImplementation
       .mockResolvedValueOnce(
-        createResponse({ json: async () => mockStatsResponse }) as unknown as Response,
+        createResponse({
+          json: async () => mockStatsResponse,
+        }) as unknown as Response,
       )
       .mockResolvedValueOnce(
-        createResponse({ json: async () => mockRegistriesResponse }) as unknown as Response,
+        createResponse({
+          json: async () => mockRegistriesResponse,
+        }) as unknown as Response,
       )
       .mockResolvedValueOnce(
-        createResponse({ json: async () => mockPopularResponse }) as unknown as Response,
+        createResponse({
+          json: async () => mockPopularResponse,
+        }) as unknown as Response,
       )
       .mockResolvedValueOnce(
-        createResponse({ json: async () => mockResolveResponse }) as unknown as Response,
+        createResponse({
+          json: async () => mockResolveResponse,
+        }) as unknown as Response,
       );
 
     const client = new RegistryBrokerClient({
@@ -747,7 +780,9 @@ describe('RegistryBrokerClient', () => {
       fetchImplementation,
     });
 
-    await expect(client.stats()).rejects.toBeInstanceOf(RegistryBrokerParseError);
+    await expect(client.stats()).rejects.toBeInstanceOf(
+      RegistryBrokerParseError,
+    );
   });
 
   it('requires a fetch implementation when none is available globally', () => {

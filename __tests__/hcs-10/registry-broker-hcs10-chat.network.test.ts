@@ -12,8 +12,13 @@ const networkEnvKeys = [
   'TESTNET_HEDERA_PRIVATE_KEY',
 ] as const;
 
-const snapshotEnv = (): Record<(typeof networkEnvKeys)[number], string | undefined> => {
-  return networkEnvKeys.reduce<Record<(typeof networkEnvKeys)[number], string | undefined>>(
+const snapshotEnv = (): Record<
+  (typeof networkEnvKeys)[number],
+  string | undefined
+> => {
+  return networkEnvKeys.reduce<
+    Record<(typeof networkEnvKeys)[number], string | undefined>
+  >(
     (acc, key) => {
       acc[key] = process.env[key];
       return acc;
@@ -73,15 +78,15 @@ describe('HCS-10 chat demo network resolution', () => {
     });
 
     it('infers production hostnames as mainnet', () => {
-      expect(resolveNetwork('https://registry.hashgraphonline.com/api/v1')).toBe(
-        'mainnet',
-      );
+      expect(
+        resolveNetwork('https://registry.hashgraphonline.com/api/v1'),
+      ).toBe('mainnet');
     });
 
     it('treats staging and localhost hosts as testnet', () => {
-      expect(resolveNetwork('https://registry-staging.hashgraphonline.com/api/v1')).toBe(
-        'testnet',
-      );
+      expect(
+        resolveNetwork('https://registry-staging.hashgraphonline.com/api/v1'),
+      ).toBe('testnet');
       expect(resolveNetwork('http://localhost:4000/api/v1')).toBe('testnet');
       expect(resolveNetwork('http://127.0.0.1:4000/api/v1')).toBe('testnet');
     });
@@ -91,12 +96,12 @@ describe('HCS-10 chat demo network resolution', () => {
     it('returns scoped env values when defined', () => {
       process.env.MAINNET_HEDERA_ACCOUNT_ID = ' 0.0.123 ';
       process.env.TESTNET_HEDERA_PRIVATE_KEY = ' 302e... ';
-      expect(
-        resolveNetworkScopedLedgerValue('mainnet', 'ACCOUNT_ID'),
-      ).toBe('0.0.123');
-      expect(
-        resolveNetworkScopedLedgerValue('testnet', 'PRIVATE_KEY'),
-      ).toBe('302e...');
+      expect(resolveNetworkScopedLedgerValue('mainnet', 'ACCOUNT_ID')).toBe(
+        '0.0.123',
+      );
+      expect(resolveNetworkScopedLedgerValue('testnet', 'PRIVATE_KEY')).toBe(
+        '302e...',
+      );
     });
 
     it('returns undefined when scoped values are missing or blank', () => {

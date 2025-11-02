@@ -1,0 +1,36 @@
+{
+  "name": "@hashgraphonline/standards-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": "build/cli.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "check": "tsc --noEmit",
+    "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
+    "lint:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\""
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "cloudflared": "^0.7.1",
+    "dotenv": "^16.6.1",
+    "env-paths": "^3.0.0",
+    "execa": "^9.5.1",
+    "ink": "^5.0.1",
+    "ink-select-input": "^6.0.0",
+    "pastel": "^3.0.0",
+    "pluralize": "^8.0.0",
+    "react": "^18.3.1",
+    "strip-ansi": "^7.1.0",
+    "terminal-link": "^3.0.0",
+    "zod": "^3.25.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.6",
+    "@types/react": "^18.3.12",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

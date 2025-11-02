@@ -44,4 +44,3 @@ describe('AgentBuilder', () => {
     expect(cfg.metadata?.creator).toBe('me');
   });
 });
-

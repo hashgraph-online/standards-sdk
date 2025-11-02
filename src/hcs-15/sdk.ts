@@ -46,8 +46,7 @@ export class HCS15Client extends HCS15BaseClient {
   public async close(): Promise<void> {
     try {
       this.client.close();
-    } catch {
-    }
+    } catch {}
   }
 
   /**
@@ -120,5 +119,4 @@ export class HCS15Client extends HCS15BaseClient {
     this.logger.info('Created HCS-15 petal account', { accountId });
     return { accountId, receipt };
   }
-
 }

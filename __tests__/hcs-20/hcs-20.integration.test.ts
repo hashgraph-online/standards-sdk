@@ -10,7 +10,8 @@ import { describe, it, beforeAll, expect } from '@jest/globals';
 
 dotenv.config();
 
-const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+const describeBlock =
+  process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
 
 describeBlock('HCS-20 Integration Tests', () => {
   let HCS20Client: any;
@@ -22,8 +23,8 @@ describeBlock('HCS-20 Integration Tests', () => {
   let deployedTopicId: string;
 
   beforeAll(async () => {
-    ;({ HCS20Client } = await import('../../src/hcs-20/sdk'));
-    ;({ HCS20PointsIndexer } = await import('../../src/hcs-20/points-indexer'));
+    ({ HCS20Client } = await import('../../src/hcs-20/sdk'));
+    ({ HCS20PointsIndexer } = await import('../../src/hcs-20/points-indexer'));
     ({ HederaMirrorNode } = await import('../../src/services/mirror-node'));
     operatorId = process.env.HEDERA_ACCOUNT_ID!;
     const operatorKey = process.env.HEDERA_PRIVATE_KEY!;

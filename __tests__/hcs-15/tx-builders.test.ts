@@ -20,9 +20,9 @@ describe('HCS-15 tx builders', () => {
     expect(!!(tx as AccountCreateTransaction).key).toBe(true);
     expect(!!(tx as AccountCreateTransaction).alias).toBe(true);
     expect(!!(tx as AccountCreateTransaction).initialBalance).toBe(true);
-    expect(!!(tx as AccountCreateTransaction).maxAutomaticTokenAssociations).toBe(
-      true,
-    );
+    expect(
+      !!(tx as AccountCreateTransaction).maxAutomaticTokenAssociations,
+    ).toBe(true);
   });
 
   it('builds petal account create tx with shared key and no alias', () => {
@@ -39,9 +39,9 @@ describe('HCS-15 tx builders', () => {
     expect(!!(tx as AccountCreateTransaction).key).toBe(true);
     expect(!!(tx as AccountCreateTransaction).alias).toBe(false);
     expect(!!(tx as AccountCreateTransaction).initialBalance).toBe(true);
-    expect(!!(tx as AccountCreateTransaction).maxAutomaticTokenAssociations).toBe(
-      true,
-    );
+    expect(
+      !!(tx as AccountCreateTransaction).maxAutomaticTokenAssociations,
+    ).toBe(true);
   });
 
   it('base account tx omits optional fields when undefined', () => {

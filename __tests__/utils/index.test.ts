@@ -7,10 +7,7 @@ describe('Utils Index', () => {
   });
 
   test('should export utility functions', () => {
-    const expectedFunctions = [
-      'sleep',
-      'isSSREnvironment',
-    ];
+    const expectedFunctions = ['sleep', 'isSSREnvironment'];
 
     expectedFunctions.forEach(funcName => {
       expect(utils).toHaveProperty(funcName);

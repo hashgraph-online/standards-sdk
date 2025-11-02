@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "outDir": "build",
+    "rootDir": "src",
+    "jsx": "react-jsx",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src"
+  ]
+}

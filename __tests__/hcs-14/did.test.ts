@@ -197,12 +197,8 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
 
     test('should throw error for invalid DID format', () => {
-      expect(() => createUaid('invalid-did')).toThrow(
-        'Invalid DID format',
-      );
-      expect(() => createUaid('did:invalid')).toThrow(
-        'Invalid DID format',
-      );
+      expect(() => createUaid('invalid-did')).toThrow('Invalid DID format');
+      expect(() => createUaid('did:invalid')).toThrow('Invalid DID format');
       expect(() => createUaid('not-a-did')).toThrow('Invalid DID format');
     });
 
@@ -363,7 +359,3 @@ describe('HCS-14 DID Generation and Parsing', () => {
     });
   });
 });
-
-
-
-

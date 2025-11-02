@@ -14,13 +14,17 @@ import { HederaMirrorNode } from '../../src/services/mirror-node';
 async function main(): Promise<void> {
   const logger = Logger.getInstance({ module: 'HCS-6 Demo' });
 
-  const network = (process.env.HEDERA_NETWORK || 'testnet') as 'testnet' | 'mainnet';
+  const network = (process.env.HEDERA_NETWORK || 'testnet') as
+    | 'testnet'
+    | 'mainnet';
   const operatorId = process.env.HEDERA_ACCOUNT_ID || '';
   const operatorKey = process.env.HEDERA_PRIVATE_KEY || '';
   let tokenId = process.env.HCS6_TOKEN_ID || '';
 
   if (!operatorId || !operatorKey) {
-    throw new Error('Please set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env');
+    throw new Error(
+      'Please set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env',
+    );
   }
 
   const hcs6 = new HCS6Client({
@@ -32,7 +36,12 @@ async function main(): Promise<void> {
 
   if (!tokenId) {
     logger.info('HCS6_TOKEN_ID not set, creating a demo NFT token');
-    tokenId = await createDemoNftToken(network, operatorId, operatorKey, logger);
+    tokenId = await createDemoNftToken(
+      network,
+      operatorId,
+      operatorKey,
+      logger,
+    );
     logger.info('Created demo token', { tokenId });
   }
 
@@ -99,7 +108,8 @@ async function createDemoNftToken(
   operatorKey: string,
   logger: ReturnType<typeof Logger.getInstance>,
 ): Promise<string> {
-  const client = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+  const client =
+    network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
   const operatorAccountId = AccountId.fromString(operatorId);
   const mirror = new HederaMirrorNode(network, logger);
   let privateKey: PrivateKey;
@@ -132,7 +142,9 @@ async function createDemoNftToken(
   if (!receipt.tokenId) {
     throw new Error('Failed to create demo NFT token');
   }
-  logger.info('Created NFT token for demo', { tokenId: receipt.tokenId.toString() });
+  logger.info('Created NFT token for demo', {
+    tokenId: receipt.tokenId.toString(),
+  });
   return receipt.tokenId.toString();
 }
 

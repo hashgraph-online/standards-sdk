@@ -69,19 +69,27 @@ jest.mock('../../src/services', () => ({
   })),
 }));
 
-jest.mock('../../../src/inscribe/inscriber', () => ({
-  inscribe: jest.fn(),
-}), { virtual: true });
-jest.mock('../../../src/utils/progress-reporter', () => ({
-  ProgressReporter: jest.fn(() => ({
-    preparing: jest.fn(),
-    completed: jest.fn(),
-    failed: jest.fn(),
-    createSubProgress: jest.fn(() => ({
-      report: jest.fn(),
+jest.mock(
+  '../../../src/inscribe/inscriber',
+  () => ({
+    inscribe: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock(
+  '../../../src/utils/progress-reporter',
+  () => ({
+    ProgressReporter: jest.fn(() => ({
+      preparing: jest.fn(),
+      completed: jest.fn(),
+      failed: jest.fn(),
+      createSubProgress: jest.fn(() => ({
+        report: jest.fn(),
+      })),
     })),
-  })),
-}), { virtual: true });
+  }),
+  { virtual: true },
+);
 
 const RUN_HCS10_CREATE = process.env.RUN_HCS10_CREATE === 'true';
 const describeBlock = RUN_HCS10_CREATE ? describe : describe.skip;

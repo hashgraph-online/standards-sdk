@@ -5,4 +5,3 @@ describe('isBrowser', () => {
     expect(isBrowser).toBe(false);
   });
 });
-

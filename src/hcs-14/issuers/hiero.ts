@@ -13,7 +13,7 @@ async function loadCreateDID(): Promise<CreateDID | null> {
   if (!registrarPromise) {
     registrarPromise = optionalImport<HieroRegistrarModule>(
       hieroRegistrarModuleId,
-    ).then((mod) => mod?.createDID ?? null);
+    ).then(mod => mod?.createDID ?? null);
   }
   return registrarPromise;
 }

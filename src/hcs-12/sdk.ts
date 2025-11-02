@@ -10,7 +10,10 @@ import {
 } from '@hashgraph/sdk';
 import { HCS12BaseClient, HCS12Config } from './base-client';
 import { Logger } from '../utils';
-import { createNodeOperatorContext, type NodeOperatorContext } from '../common/node-operator-resolver';
+import {
+  createNodeOperatorContext,
+  type NodeOperatorContext,
+} from '../common/node-operator-resolver';
 import {
   ActionRegistry,
   BlockLoader,
@@ -62,7 +65,10 @@ export class HCS12Client extends HCS12BaseClient {
       keyType: config.keyType,
       mirrorNode: this.mirrorNode,
       logger: this.logger,
-      client: config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet(),
+      client:
+        config.network === 'mainnet'
+          ? Client.forMainnet()
+          : Client.forTestnet(),
     });
     this.client = this.operatorCtx.client;
 

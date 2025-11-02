@@ -10,7 +10,8 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const describeBlock = process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
+const describeBlock =
+  process.env.RUN_INTEGRATION === '1' ? describe : describe.skip;
 
 describeBlock('HCS11Client - inscribeProfile Integration Tests', () => {
   let HCS11Client: any;
@@ -23,13 +24,9 @@ describeBlock('HCS11Client - inscribeProfile Integration Tests', () => {
   let operatorKey: string;
 
   beforeAll(async () => {
-    ;({ HCS11Client } = await import('../../../src/hcs-11/client'));
-    ({
-      ProfileType,
-      PersonalProfile,
-      AIAgentType,
-      AIAgentCapability,
-    } = await import('../../../src/hcs-11/types'));
+    ({ HCS11Client } = await import('../../../src/hcs-11/client'));
+    ({ ProfileType, PersonalProfile, AIAgentType, AIAgentCapability } =
+      await import('../../../src/hcs-11/types'));
     operatorId = process.env.HEDERA_ACCOUNT_ID!;
     operatorKey = process.env.HEDERA_PRIVATE_KEY!;
 

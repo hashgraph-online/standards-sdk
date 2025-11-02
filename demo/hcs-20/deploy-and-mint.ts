@@ -149,8 +149,8 @@ async function main() {
         },
       });
 
-    console.log('\n✅ Points transferred successfully!');
-    console.log('Transaction:', transferTx);
+      console.log('\n✅ Points transferred successfully!');
+      console.log('Transaction:', transferTx);
     } else {
       console.log('\n⚠️  Skipping transfer (no BOB_ACCOUNT_ID set)');
     }
@@ -196,7 +196,10 @@ async function main() {
 
     const normalizedTick = tick.toLowerCase();
     const indexedPointsInfo = await indexer.getPointsInfo(normalizedTick);
-    const operatorBalance = await indexer.getBalance(normalizedTick, operatorId);
+    const operatorBalance = await indexer.getBalance(
+      normalizedTick,
+      operatorId,
+    );
     const recipientBalance = recipientAccount
       ? await indexer.getBalance(normalizedTick, recipientAccount)
       : '0';

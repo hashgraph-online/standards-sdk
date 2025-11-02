@@ -35,11 +35,26 @@ describe('HederaMirrorNode', () => {
       setSilent: jest.fn(),
     };
     mirrorNode = new HederaMirrorNode('testnet', logger);
-    mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+    mirrorNode.configureRetry({
+      maxRetries: 1,
+      initialDelayMs: 0,
+      maxDelayMs: 0,
+      backoffFactor: 1,
+    });
 
-    mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+    mirrorNode.configureRetry({
+      maxRetries: 1,
+      initialDelayMs: 0,
+      maxDelayMs: 0,
+      backoffFactor: 1,
+    });
 
-    mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+    mirrorNode.configureRetry({
+      maxRetries: 1,
+      initialDelayMs: 0,
+      maxDelayMs: 0,
+      backoffFactor: 1,
+    });
 
     axiosGet = axios.get as jest.MockedFunction<typeof axios.get>;
     axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
@@ -51,13 +66,24 @@ describe('HederaMirrorNode', () => {
       await expect(mirrorNode.getAccountMemo('0.0.10')).resolves.toBe('hi');
 
       axiosGet.mockResolvedValueOnce({ data: { airdrops: [{ id: 1 }] } });
-      const out = await mirrorNode.getOutstandingTokenAirdrops('0.0.1', { limit: 2, order: 'desc', receiverId: '0.0.2', serialNumber: '3', tokenId: '0.0.4' });
+      const out = await mirrorNode.getOutstandingTokenAirdrops('0.0.1', {
+        limit: 2,
+        order: 'desc',
+        receiverId: '0.0.2',
+        serialNumber: '3',
+        tokenId: '0.0.4',
+      });
       expect(out?.length).toBe(1);
     });
 
     test('blocks and contracts endpoints', async () => {
       axiosGet.mockResolvedValueOnce({ data: { blocks: [{ number: 1 }] } });
-      const blocks = await mirrorNode.getBlocks({ limit: 1, order: 'asc', timestamp: 'gte:1', blockNumber: '5' });
+      const blocks = await mirrorNode.getBlocks({
+        limit: 1,
+        order: 'asc',
+        timestamp: 'gte:1',
+        blockNumber: '5',
+      });
       expect(blocks?.length).toBe(1);
 
       axiosGet.mockResolvedValueOnce({ data: { id: 'c1' } });
@@ -70,7 +96,9 @@ describe('HederaMirrorNode', () => {
       const rs = await mirrorNode.getContractResults({ limit: 1 });
       expect(rs?.length).toBe(1);
 
-      axiosGet.mockResolvedValueOnce({ data: { state: [{ key: '0x00', value: '0x01' }] } });
+      axiosGet.mockResolvedValueOnce({
+        data: { state: [{ key: '0x00', value: '0x01' }] },
+      });
       const st = await mirrorNode.getContractState('0.0.5', { limit: 1 });
       expect(st?.length).toBe(1);
 
@@ -84,7 +112,18 @@ describe('HederaMirrorNode', () => {
     });
 
     test('nft endpoints and network info', async () => {
-      axiosGet.mockResolvedValueOnce({ data: { nfts: [{ token_id: '0.0.9', serial_number: 1, metadata: Buffer.from('ipfs://x').toString('base64') }], links: { next: null } } });
+      axiosGet.mockResolvedValueOnce({
+        data: {
+          nfts: [
+            {
+              token_id: '0.0.9',
+              serial_number: 1,
+              metadata: Buffer.from('ipfs://x').toString('base64'),
+            },
+          ],
+          links: { next: null },
+        },
+      });
       const nfts = await mirrorNode.getAccountNfts('0.0.1', '0.0.9');
       expect(nfts?.[0].token_uri).toContain('ipfs://');
 
@@ -163,7 +202,12 @@ describe('HederaMirrorNode', () => {
     });
 
     test('handles network errors with retry', async () => {
-      mirrorNode.configureRetry({ maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({
+        maxRetries: 2,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
       axiosGet
         .mockRejectedValueOnce(new Error('Network timeout'))
         .mockResolvedValueOnce({ data: mockAccountResponse });
@@ -219,14 +263,18 @@ describe('HederaMirrorNode', () => {
       messages: [
         {
           consensus_timestamp: '1234567890.000000000',
-          message: Buffer.from(JSON.stringify({ p: 'hcs-20', op: 'register' })).toString('base64'),
+          message: Buffer.from(
+            JSON.stringify({ p: 'hcs-20', op: 'register' }),
+          ).toString('base64'),
           running_hash: 'hash1',
           sequence_number: '1',
           topic_id: '0.0.12345',
         },
         {
           consensus_timestamp: '1234567891.000000000',
-          message: Buffer.from(JSON.stringify({ any: 'json' })).toString('base64'),
+          message: Buffer.from(JSON.stringify({ any: 'json' })).toString(
+            'base64',
+          ),
           running_hash: 'hash2',
           sequence_number: '2',
           topic_id: '0.0.12345',
@@ -238,7 +286,12 @@ describe('HederaMirrorNode', () => {
     };
 
     test('successfully retrieves topic messages', async () => {
-      mirrorNode.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({
+        maxRetries: 1,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
       axiosGet.mockResolvedValue({ data: mockMessagesResponse });
 
       const result = await mirrorNode.getTopicMessages('0.0.12345');
@@ -257,7 +310,12 @@ describe('HederaMirrorNode', () => {
     });
 
     test('applies query parameters correctly', async () => {
-      mirrorNode.configureRetry({ maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({
+        maxRetries: 2,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
       axiosGet.mockResolvedValue({ data: mockMessagesResponse });
 
       await mirrorNode.getTopicMessages('0.0.12345', {
@@ -272,7 +330,12 @@ describe('HederaMirrorNode', () => {
     });
 
     test('handles empty message list', async () => {
-      mirrorNode.configureRetry({ maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({
+        maxRetries: 2,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
       const emptyResponse = {
         messages: [],
         links: { next: null },
@@ -424,7 +487,12 @@ describe('HederaMirrorNode', () => {
         apiKey: 'test-api-key-123',
       });
 
-      mirrorWithApiKey.configureRetry({ maxRetries: 1, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorWithApiKey.configureRetry({
+        maxRetries: 1,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
 
       axiosGet.mockResolvedValue({ data: { account: '0.0.12345' } });
 
@@ -439,7 +507,12 @@ describe('HederaMirrorNode', () => {
 
   describe('retry logic', () => {
     test('retries on transient errors', async () => {
-      mirrorNode.configureRetry({ maxRetries: 3, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({
+        maxRetries: 3,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
       axiosGet
         .mockRejectedValueOnce(new Error('ECONNRESET'))
         .mockRejectedValueOnce(new Error('ETIMEDOUT'))
@@ -452,14 +525,21 @@ describe('HederaMirrorNode', () => {
     });
 
     test('respects max retry limit', async () => {
-      mirrorNode.configureRetry({ maxRetries: 3, initialDelayMs: 0, maxDelayMs: 0, backoffFactor: 1 });
+      mirrorNode.configureRetry({
+        maxRetries: 3,
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        backoffFactor: 1,
+      });
       axiosGet.mockRejectedValue(new Error('ECONNRESET'));
       await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow();
       expect(axiosGet).toHaveBeenCalledTimes(3); // Max attempts
     });
 
     test('does not retry on 4xx errors except 429', async () => {
-      const notFoundError = Object.assign(new Error('Not found'), { response: { status: 409 } });
+      const notFoundError = Object.assign(new Error('Not found'), {
+        response: { status: 409 },
+      });
       axiosGet.mockRejectedValue(notFoundError);
 
       await expect(mirrorNode.requestAccount('0.0.12345')).rejects.toThrow();

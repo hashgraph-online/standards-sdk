@@ -28,7 +28,10 @@ describe('HCS7BrowserClient', () => {
 
   it('rejects invalid TTL values', async () => {
     const hwc = createMockHwc();
-    const client = new HCS7BrowserClient({ hwc: hwc as any, network: 'testnet' });
+    const client = new HCS7BrowserClient({
+      hwc: hwc as any,
+      network: 'testnet',
+    });
     const res = await client.createRegistry({ ttl: 10 });
     expect(res.success).toBe(false);
     expect(res.error).toContain('TTL');
@@ -36,7 +39,10 @@ describe('HCS7BrowserClient', () => {
 
   it('submits config registrations through wallet', async () => {
     const hwc = createMockHwc();
-    const client = new HCS7BrowserClient({ hwc: hwc as any, network: 'testnet' });
+    const client = new HCS7BrowserClient({
+      hwc: hwc as any,
+      network: 'testnet',
+    });
     const options: HCS7RegisterConfigOptions = {
       registryTopicId: '0.0.5000',
       memo: 'minted',
@@ -54,16 +60,17 @@ describe('HCS7BrowserClient', () => {
     };
     const res = await client.registerConfig(options);
     expect(res.success).toBe(true);
-    const payload = JSON.parse(
-      hwc.submitMessageToTopic.mock.calls[0][1],
-    );
+    const payload = JSON.parse(hwc.submitMessageToTopic.mock.calls[0][1]);
     expect(payload.p).toBe('hcs-7');
     expect(payload.op).toBe('register-config');
   });
 
   it('submits metadata registrations', async () => {
     const hwc = createMockHwc();
-    const client = new HCS7BrowserClient({ hwc: hwc as any, network: 'testnet' });
+    const client = new HCS7BrowserClient({
+      hwc: hwc as any,
+      network: 'testnet',
+    });
     const res = await client.registerMetadata({
       registryTopicId: '0.0.5000',
       metadataTopicId: '0.0.7000',
@@ -72,9 +79,7 @@ describe('HCS7BrowserClient', () => {
       tags: ['odd'],
     });
     expect(res.success).toBe(true);
-    const payload = JSON.parse(
-      hwc.submitMessageToTopic.mock.calls[0][1],
-    );
+    const payload = JSON.parse(hwc.submitMessageToTopic.mock.calls[0][1]);
     expect(payload.op).toBe('register');
     expect(payload.t_id).toBe('0.0.7000');
   });
@@ -82,7 +87,10 @@ describe('HCS7BrowserClient', () => {
   it('surfaces wallet connection errors', async () => {
     const hwc = createMockHwc();
     hwc.getAccountInfo.mockReturnValue(undefined);
-    const client = new HCS7BrowserClient({ hwc: hwc as any, network: 'testnet' });
+    const client = new HCS7BrowserClient({
+      hwc: hwc as any,
+      network: 'testnet',
+    });
     const res = await client.registerMetadata({
       registryTopicId: '0.0.1',
       metadataTopicId: '0.0.2',

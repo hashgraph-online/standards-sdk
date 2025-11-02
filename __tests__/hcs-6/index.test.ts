@@ -24,10 +24,7 @@ describe('HCS-6 Index', () => {
   });
 
   test('should export HCS-6 types', () => {
-    const expectedTypes = [
-      'HCS6Operation',
-      'HCS6RegistryType',
-    ];
+    const expectedTypes = ['HCS6Operation', 'HCS6RegistryType'];
 
     expectedTypes.forEach(typeName => {
       expect(hcs6).toHaveProperty(typeName);

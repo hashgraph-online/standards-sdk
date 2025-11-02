@@ -101,4 +101,3 @@ describe('HCS-20 Error classes', () => {
     expect(e.message).toMatch(/amount/);
   });
 });
-

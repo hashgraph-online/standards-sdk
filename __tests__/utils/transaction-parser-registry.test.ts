@@ -122,7 +122,9 @@ describe('Transaction Parser Registry', () => {
         expect(transactionParserRegistry[type]).toHaveProperty('resultField');
         expect(typeof transactionParserRegistry[type].bodyField).toBe('string');
         expect(typeof transactionParserRegistry[type].parser).toBe('function');
-        expect(typeof transactionParserRegistry[type].resultField).toBe('string');
+        expect(typeof transactionParserRegistry[type].resultField).toBe(
+          'string',
+        );
       });
     });
 
@@ -150,9 +152,9 @@ describe('Transaction Parser Registry', () => {
     });
 
     test('should handle spreadResult flag correctly', () => {
-      const spreadResultEntries = Object.entries(transactionParserRegistry).filter(
-        ([, config]) => config.spreadResult === true
-      );
+      const spreadResultEntries = Object.entries(
+        transactionParserRegistry,
+      ).filter(([, config]) => config.spreadResult === true);
 
       expect(spreadResultEntries.length).toBeGreaterThan(0);
 
@@ -163,14 +165,18 @@ describe('Transaction Parser Registry', () => {
     });
 
     test('should have mostly unique bodyField values', () => {
-      const bodyFields = Object.values(transactionParserRegistry).map(config => config.bodyField);
+      const bodyFields = Object.values(transactionParserRegistry).map(
+        config => config.bodyField,
+      );
       const uniqueBodyFields = new Set(bodyFields);
 
       expect(uniqueBodyFields.size).toBeGreaterThan(bodyFields.length - 2);
     });
 
     test('should have mostly unique resultField values', () => {
-      const resultFields = Object.values(transactionParserRegistry).map(config => config.resultField);
+      const resultFields = Object.values(transactionParserRegistry).map(
+        config => config.resultField,
+      );
       const uniqueResultFields = new Set(resultFields);
 
       expect(uniqueResultFields.size).toBeGreaterThan(resultFields.length - 2);
@@ -183,22 +189,37 @@ describe('Transaction Parser Registry', () => {
       expect(htsTypes.length).toBeGreaterThan(10);
 
       const hcsTypes = types.filter(type =>
-        ['TOPICCREATE', 'CONSENSUSSUBMITMESSAGE', 'TOPICUPDATE', 'TOPICDELETE'].includes(type)
+        [
+          'TOPICCREATE',
+          'CONSENSUSSUBMITMESSAGE',
+          'TOPICUPDATE',
+          'TOPICDELETE',
+        ].includes(type),
       );
       expect(hcsTypes.length).toBeGreaterThanOrEqual(4);
 
       const cryptoTypes = types.filter(type =>
-        ['ACCOUNTCREATE', 'ACCOUNTUPDATE', 'ACCOUNTDELETE', 'CRYPTOTRANSFER'].includes(type)
+        [
+          'ACCOUNTCREATE',
+          'ACCOUNTUPDATE',
+          'ACCOUNTDELETE',
+          'CRYPTOTRANSFER',
+        ].includes(type),
       );
       expect(cryptoTypes.length).toBeGreaterThanOrEqual(4);
 
       const fileTypes = types.filter(type =>
-        ['FILECREATE', 'FILEUPDATE', 'FILEDELETE', 'FILEAPPEND'].includes(type)
+        ['FILECREATE', 'FILEUPDATE', 'FILEDELETE', 'FILEAPPEND'].includes(type),
       );
       expect(fileTypes.length).toBeGreaterThanOrEqual(4);
 
       const contractTypes = types.filter(type =>
-        ['CONTRACTCREATE', 'CONTRACTUPDATE', 'CONTRACTDELETE', 'CONTRACTCALL'].includes(type)
+        [
+          'CONTRACTCREATE',
+          'CONTRACTUPDATE',
+          'CONTRACTDELETE',
+          'CONTRACTCALL',
+        ].includes(type),
       );
       expect(contractTypes.length).toBeGreaterThanOrEqual(4);
     });

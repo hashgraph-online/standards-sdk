@@ -152,7 +152,9 @@ export class HCS6Client extends HCS6BaseClient {
         payload,
         submitKey,
       );
-      const sequenceNumber = (receipt as TransactionReceipt).topicSequenceNumber?.toNumber();
+      const sequenceNumber = (
+        receipt as TransactionReceipt
+      ).topicSequenceNumber?.toNumber();
       return { success: true, receipt, sequenceNumber };
     } catch (error) {
       this.logger.error(`Failed to register HCS-6 entry: ${error}`);
@@ -249,12 +251,12 @@ export class HCS6Client extends HCS6BaseClient {
     }
     const ttl = parseInt(match[2]);
     const regType = parseInt(match[1]) as HCS6RegistryType;
-    const messages = (await this.mirrorNode.getTopicMessages(topicId, {
+    const messages = await this.mirrorNode.getTopicMessages(topicId, {
       sequenceNumber:
         options.skip && options.skip > 0 ? `gt:${options.skip}` : undefined,
       limit: options.limit ?? 100,
       order: options.order ?? 'asc',
-    }));
+    });
     const entries = messages
       .map(m => {
         try {
@@ -263,7 +265,9 @@ export class HCS6Client extends HCS6BaseClient {
             sequence_number: number;
             payer?: string;
           };
-          const { valid } = this.validateMessage(decoded as unknown as HCS6Message);
+          const { valid } = this.validateMessage(
+            decoded as unknown as HCS6Message,
+          );
           if (!valid) return null;
           return {
             topicId,
@@ -279,7 +283,9 @@ export class HCS6Client extends HCS6BaseClient {
         }
       })
       .filter(
-        (v): v is {
+        (
+          v,
+        ): v is {
           topicId: string;
           sequence: number;
           timestamp: string;

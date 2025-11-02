@@ -8,16 +8,14 @@ import { Logger } from '../../src/utils/logger';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import * as readline from 'readline/promises';
+import { createInteractiveTerminal } from '../../src/utils/interactive-terminal';
+import chalk from 'chalk';
 import { NetworkType } from '../../src/utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+const prompt = createInteractiveTerminal();
 
 async function createRegistry() {
   try {
@@ -32,8 +30,8 @@ async function createRegistry() {
 
     console.log(`Account ID: ${operatorId}`);
 
-    const operatorKeyInput = await rl.question(
-      `Private key (press Enter to use .env default): `,
+    const operatorKeyInput = await prompt.question(
+      'Private key (press Enter to use .env default)',
     );
     const operatorKey = operatorKeyInput.trim() || defaultOperatorKey;
 
@@ -43,17 +41,18 @@ async function createRegistry() {
       );
     }
 
-    const networkInput = await rl.question(
-      'Network (testnet/mainnet) [testnet]: ',
-    );
+    const networkInput = await prompt.question('Network (testnet/mainnet)', {
+      default: 'testnet',
+    });
     const network = networkInput.trim() || 'testnet';
 
     if (network !== 'testnet' && network !== 'mainnet') {
       throw new Error('Network must be "testnet" or "mainnet"');
     }
 
-    const registryTypeInput = await rl.question(
-      'Registry type (indexed/non-indexed) [indexed]: ',
+    const registryTypeInput = await prompt.question(
+      'Registry type (indexed/non-indexed)',
+      { default: 'indexed' },
     );
     const registryTypeStr = registryTypeInput.trim() || 'indexed';
 
@@ -66,16 +65,22 @@ async function createRegistry() {
         ? HCS2RegistryType.INDEXED
         : HCS2RegistryType.NON_INDEXED;
 
-    const adminKeyInput = await rl.question('Add admin key? (y/n) [n]: ');
+    const adminKeyInput = await prompt.question('Add admin key? (y/n)', {
+      default: 'n',
+    });
     const adminKey = adminKeyInput.toLowerCase().startsWith('y');
 
-    const submitKeyInput = await rl.question('Add submit key? (y/n) [n]: ');
+    const submitKeyInput = await prompt.question('Add submit key? (y/n)', {
+      default: 'n',
+    });
     const submitKey = submitKeyInput.toLowerCase().startsWith('y');
 
-    const ttlInput = await rl.question('TTL in seconds [86400]: ');
+    const ttlInput = await prompt.question('TTL in seconds', {
+      default: '86400',
+    });
     const ttl = parseInt(ttlInput.trim()) || 86400;
 
-    rl.close();
+    prompt.close();
 
     console.log('\n📊 Creating registry with configuration:');
     console.log(`   Network: ${network}`);
@@ -83,6 +88,10 @@ async function createRegistry() {
     console.log(`   Admin Key: ${adminKey ? 'Yes' : 'No'}`);
     console.log(`   Submit Key: ${submitKey ? 'Yes' : 'No'}`);
     console.log(`   TTL: ${ttl} seconds\n`);
+
+    console.log(
+      chalk.dim('⏳ Initializing client and connecting to network...'),
+    );
 
     const logger = new Logger({
       module: 'HCS2Demo',
@@ -96,6 +105,10 @@ async function createRegistry() {
       logger,
     });
 
+    console.log(
+      chalk.dim('⏳ Creating registry (this typically takes 3-5 seconds)...'),
+    );
+
     const result = await client.createRegistry({
       registryType,
       ttl,
@@ -104,21 +117,45 @@ async function createRegistry() {
     });
 
     if (result.success) {
-      console.log('✅ Registry created successfully!');
+      console.log('\n✅ Registry created successfully!');
       console.log(`   Topic ID: ${result.topicId}`);
       console.log(`   Transaction ID: ${result.transactionId}`);
       console.log(
         `   View on HashScan: https://hashscan.io/${network}/topic/${result.topicId}`,
       );
+      console.log(
+        '\n════════════════════════════════════════════════════════════',
+      );
+      console.log('✓ Demo completed successfully!');
+      console.log(
+        '════════════════════════════════════════════════════════════',
+      );
     } else {
-      console.error('❌ Failed to create registry:', result.error);
+      console.error('\n❌ Failed to create registry:', result.error);
+      console.log(
+        '\n════════════════════════════════════════════════════════════',
+      );
+      console.log('✗ Demo failed');
+      console.log(
+        '════════════════════════════════════════════════════════════',
+      );
       process.exit(1);
     }
 
     client.close();
+
+    // Reset terminal state to prevent conflicts with parent CLI
+    process.stdout.write('\x1b[?0h'); // Reset terminal to normal mode
+    process.stdout.write('\n'); // Add spacing for clean transition
+
     process.exit(0);
   } catch (error) {
     console.error('💥 Error:', error instanceof Error ? error.message : error);
+
+    // Reset terminal state to prevent conflicts with parent CLI
+    process.stdout.write('\x1b[?0h'); // Reset terminal to normal mode
+    process.stdout.write('\n'); // Add spacing for clean transition
+
     process.exit(1);
   }
 }

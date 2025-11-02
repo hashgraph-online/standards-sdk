@@ -1,15 +1,23 @@
 jest.mock('@hashgraph/sdk', () => {
   class TopicCreateTransactionMock {
-    setTopicMemo() { return this; }
+    setTopicMemo() {
+      return this;
+    }
     freezeWithSigner = jest.fn(async (_signer: any) => this);
     executeWithSigner = jest.fn(async (_signer: any) => ({
-      getReceiptWithSigner: async () => ({ topicId: { toString: () => '0.0.222' } }),
+      getReceiptWithSigner: async () => ({
+        topicId: { toString: () => '0.0.222' },
+      }),
       transactionId: { toString: () => 'tx-create' },
     }));
   }
   class TopicMessageSubmitTransactionMock {
-    setTopicId() { return this; }
-    setMessage() { return this; }
+    setTopicId() {
+      return this;
+    }
+    setMessage() {
+      return this;
+    }
     freezeWithSigner = jest.fn(async (_signer: any) => this);
     executeWithSigner = jest.fn(async (_signer: any) => ({
       getReceiptWithSigner: async () => ({}),
@@ -50,7 +58,12 @@ describe('HCS-17 Browser client', () => {
   it('submits a state hash message via wallet', async () => {
     const client = new HCS17BrowserClient({ network: 'testnet', signer });
     const res = await client.submitMessage('0.0.222', {
-      p: 'hcs-17', op: 'state_hash', state_hash: 'x', topics: [], account_id: '0.0.1', timestamp: new Date().toISOString(),
+      p: 'hcs-17',
+      op: 'state_hash',
+      state_hash: 'x',
+      topics: [],
+      account_id: '0.0.1',
+      timestamp: new Date().toISOString(),
     });
     expect(typeof res).toBe('object');
   });

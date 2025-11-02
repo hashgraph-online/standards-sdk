@@ -430,7 +430,10 @@ describe('HCS6Client', () => {
         m: 'Test memo',
       };
 
-      const result = await (client as any).submitMessageWithKey('0.0.98765', message);
+      const result = await (client as any).submitMessageWithKey(
+        '0.0.98765',
+        message,
+      );
 
       expect(result).toBe(mockReceipt);
     });
@@ -461,7 +464,7 @@ describe('HCS6Client', () => {
       await expect(
         (client as any).submitMessageWithKey('0.0.98765', message),
       ).rejects.toThrow('Transaction failed');
-  });
+    });
   });
 
   describe.skip('createHashinal', () => {
@@ -608,7 +611,6 @@ describe('HCS6Client', () => {
   });
 
   describe('Utility Methods', () => {
-
     it('should get key type', () => {
       expect(client.getKeyType()).toBeDefined();
       expect(['ed25519', 'ecdsa']).toContain(client.getKeyType());

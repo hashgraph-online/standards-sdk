@@ -96,4 +96,3 @@ describe('SCSParser', () => {
     expect(res.functionName).toBe('transfer');
   });
 });
-

@@ -3,12 +3,17 @@ import { HCS17Client } from '../../src/hcs-17';
 import { Client } from '@hashgraph/sdk';
 
 async function main() {
-  const network = (process.env.HEDERA_NETWORK as 'testnet' | 'mainnet') || 'testnet';
-  const operatorId = process.env.HEDERA_OPERATOR_ID || process.env.HEDERA_ACCOUNT_ID;
-  const operatorKey = process.env.HEDERA_OPERATOR_KEY || process.env.HEDERA_PRIVATE_KEY;
+  const network =
+    (process.env.HEDERA_NETWORK as 'testnet' | 'mainnet') || 'testnet';
+  const operatorId =
+    process.env.HEDERA_OPERATOR_ID || process.env.HEDERA_ACCOUNT_ID;
+  const operatorKey =
+    process.env.HEDERA_OPERATOR_KEY || process.env.HEDERA_PRIVATE_KEY;
 
   if (!operatorId || !operatorKey) {
-    console.error('Missing HEDERA_OPERATOR_ID/HEDERA_OPERATOR_KEY in environment');
+    console.error(
+      'Missing HEDERA_OPERATOR_ID/HEDERA_OPERATOR_KEY in environment',
+    );
     process.exit(1);
   }
 
@@ -37,7 +42,11 @@ async function main() {
   // Validate querying helpers (allow brief mirror-node delay)
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
   let recentCount = 0;
-  let recentMsgs: Array<{ message: any; consensus_timestamp?: string; sequence_number: number }> = [];
+  let recentMsgs: Array<{
+    message: any;
+    consensus_timestamp?: string;
+    sequence_number: number;
+  }> = [];
   for (let i = 0; i < 3; i++) {
     const recent = await client.getRecentMessages(publishTopicId, {
       limit: 1,
