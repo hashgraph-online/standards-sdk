@@ -16,6 +16,7 @@ import {
   adapterDetailsResponseSchema,
   adapterDescriptorSchema,
   adapterChatProfileSchema,
+  additionalRegistryCatalogResponseSchema,
   vectorSearchRequestSchema,
   vectorSearchResponseSchema,
   resolveResponseSchema,
@@ -29,6 +30,12 @@ import {
   websocketStatsResponseSchema,
   ledgerChallengeResponseSchema,
   ledgerVerifyResponseSchema,
+  registerAgentPendingResponseSchema,
+  registerAgentPartialResponseSchema,
+  registerAgentSuccessResponseSchema,
+  registrationProgressAdditionalEntrySchema,
+  registrationProgressRecordSchema,
+  registrationProgressResponseSchema,
 } from './schemas';
 import { HCS11Profile } from '../../hcs-11/types';
 
@@ -78,6 +85,14 @@ export interface RegisterAgentOptions {
   autoTopUp?: AutoTopUpOptions;
 }
 
+export interface RegistrationProgressWaitOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+  throwOnFailure?: boolean;
+  onProgress?: (progress: RegistrationProgressRecord) => void;
+  signal?: AbortSignal;
+}
+
 export type AgentSearchHit = z.infer<
   typeof searchResponseSchema
 >['hits'][number];
@@ -122,13 +137,39 @@ export type ChatHistoryCompactionResponse = z.infer<
   typeof chatHistoryCompactionResponseSchema
 >;
 
+export type RegisterAgentSuccessResponse = z.infer<
+  typeof registerAgentSuccessResponseSchema
+>;
+export type RegisterAgentPendingResponse = z.infer<
+  typeof registerAgentPendingResponseSchema
+>;
+export type RegisterAgentPartialResponse = z.infer<
+  typeof registerAgentPartialResponseSchema
+>;
 export type RegisterAgentResponse = z.infer<typeof registerAgentResponseSchema>;
+
+export type RegistrationProgressAdditionalEntry = z.infer<
+  typeof registrationProgressAdditionalEntrySchema
+>;
+export type RegistrationProgressRecord = z.infer<
+  typeof registrationProgressRecordSchema
+>;
+export type RegistrationProgressResponse = z.infer<
+  typeof registrationProgressResponseSchema
+>;
 export type RegisterAgentQuoteResponse = z.infer<
   typeof registrationQuoteResponseSchema
 >;
 export type CreditPurchaseResponse = z.infer<
   typeof creditPurchaseResponseSchema
 >;
+export type AdditionalRegistryCatalogResponse = z.infer<
+  typeof additionalRegistryCatalogResponseSchema
+>;
+export type AdditionalRegistryDescriptor =
+  AdditionalRegistryCatalogResponse['registries'][number];
+export type AdditionalRegistryNetworkDescriptor =
+  AdditionalRegistryDescriptor['networks'][number];
 
 export interface LedgerChallengeRequest {
   accountId: string;
@@ -139,11 +180,27 @@ export type LedgerChallengeResponse = z.infer<
   typeof ledgerChallengeResponseSchema
 >;
 
+export interface LedgerAuthenticationSignerResult {
+  signature: string;
+  signatureKind?: 'raw' | 'map';
+  publicKey?: string;
+}
+
+export interface LedgerAuthenticationOptions extends LedgerChallengeRequest {
+  sign: (
+    message: string,
+  ) =>
+    | LedgerAuthenticationSignerResult
+    | Promise<LedgerAuthenticationSignerResult>;
+  expiresInMinutes?: number;
+}
+
 export interface LedgerVerifyRequest extends LedgerChallengeRequest {
   challengeId: string;
   signature: string;
   signatureKind?: 'raw' | 'map';
   publicKey?: string;
+  expiresInMinutes?: number;
 }
 
 export type LedgerVerifyResponse = z.infer<typeof ledgerVerifyResponseSchema>;

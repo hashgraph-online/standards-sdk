@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.125",
+  "version": "0.1.126",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -91,6 +91,7 @@
     "demo:registry-broker-history": "tsx demo/registry-broker/registry-broker-history-demo.ts",
     "demo:registry-broker-erc8004": "tsx demo/registry-broker/registry-broker-erc8004-demo.ts",
     "demo:registry-broker-agentverse": "tsx demo/registry-broker/registry-broker-agentverse-demo.ts",
+    "demo:registry-broker-x402": "tsx demo/registry-broker/registry-broker-x402-demo.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest",
     "test:unit-list": "jest --listTests --testPathPattern __tests__/utils/ --testPathPattern __tests__/services/ --testPathPattern __tests__/content-store/ --testPathPattern __tests__/fees/ --testPathPattern __tests__/common/tx/",

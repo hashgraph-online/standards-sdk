@@ -4,10 +4,12 @@ import { PrivateKey } from '@hashgraph/sdk';
 import registerDemoAgent, {
   type DemoProfileMode,
   type RegisterAgentOptions,
+  type RegisteredAgent,
 } from './register-agent';
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
+  RegistryBrokerParseError,
 } from '../../src/services/registry-broker';
 import {
   startLocalA2AAgent,
@@ -16,6 +18,46 @@ import {
 
 const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 const DEFAULT_MODE: DemoProfileMode = 'ai';
+const DEFAULT_ERC8004_NETWORKS = ['ethereum-sepolia', 'base-sepolia'];
+
+const resolvePreferredErc8004Selections = (): string[] => {
+  const raw = process.env.REGISTRY_BROKER_DEMO_ERC8004_NETWORKS?.trim();
+  const entries =
+    raw && raw.length > 0
+      ? raw
+          .split(/[,\s]+/)
+          .map(value => value.trim())
+          .filter(Boolean)
+      : DEFAULT_ERC8004_NETWORKS;
+  return Array.from(
+    new Set(
+      entries.map(entry =>
+        entry.includes(':')
+          ? entry.toLowerCase()
+          : `erc-8004:${entry.toLowerCase()}`,
+      ),
+    ),
+  );
+};
+
+const summariseProgressAdditionalRegistries = (
+  registered: RegisteredAgent,
+): Array<Record<string, unknown>> | undefined => {
+  const progressSource =
+    registered.updateProgress ?? registered.registrationProgress;
+  if (!progressSource) {
+    return undefined;
+  }
+
+  return Object.values(progressSource.additionalRegistries).map(entry => ({
+    registry: entry.registryId,
+    registryKey: entry.registryKey,
+    status: entry.status,
+    agentId: entry.agentId ?? undefined,
+    agentUri: entry.agentUri ?? undefined,
+    credits: entry.credits ?? undefined,
+  }));
+};
 
 const headersTimeoutMs = Number(
   process.env.REGISTRY_BROKER_DEMO_HEADERS_TIMEOUT_MS ?? '600000',
@@ -153,33 +195,47 @@ const main = async (): Promise<void> => {
 
   if (preferLedger) {
     console.log(`Authenticating ledger account on ${ledgerNetwork}…`);
-    const privateKey = PrivateKey.fromString(privateKeyRaw!);
-    const challenge = await client.createLedgerChallenge({
-      accountId: accountId!,
-      network: ledgerNetwork!,
-    });
-    const signature = Buffer.from(
-      await privateKey.sign(Buffer.from(challenge.message, 'utf8')),
-    ).toString('base64');
-    const publicKey = privateKey.publicKey.toString();
-    const verification = await client.verifyLedgerChallenge({
-      challengeId: challenge.challengeId,
-      accountId: accountId!,
-      network: ledgerNetwork!,
-      signature,
-      publicKey,
-    });
+    try {
+      const privateKey = PrivateKey.fromString(privateKeyRaw!);
+      const challenge = await client.createLedgerChallenge({
+        accountId: accountId!,
+        network: ledgerNetwork!,
+      });
+      const signature = Buffer.from(
+        await privateKey.sign(Buffer.from(challenge.message, 'utf8')),
+      ).toString('base64');
+      const publicKey = privateKey.publicKey.toString();
+      const verification = await client.verifyLedgerChallenge({
+        challengeId: challenge.challengeId,
+        accountId: accountId!,
+        network: ledgerNetwork!,
+        signature,
+        publicKey,
+      });
 
-    client.setDefaultHeader('x-account-id', verification.accountId);
-    console.log(
-      `Ledger authentication complete. Issued API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
-    );
+      client.setDefaultHeader('x-account-id', verification.accountId);
+      console.log(
+        `Ledger authentication complete. Issued API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
+      );
+    } catch (error) {
+      if (error instanceof RegistryBrokerError) {
+        console.error(
+          `Ledger authentication failed (${error.status} ${error.statusText}): ${JSON.stringify(error.body)}`,
+        );
+      }
+      throw error;
+    }
   } else {
     console.log('Using provided REGISTRY_BROKER_API_KEY for authentication.');
   }
 
   const alias =
     process.argv[2]?.trim() || `sdk-erc8004-demo-${Date.now().toString(36)}`;
+
+  const erc8004Selections =
+    process.env.REGISTRY_BROKER_DEMO_SKIP_ERC8004 === '1'
+      ? []
+      : resolvePreferredErc8004Selections();
 
   const registerOptions: RegisterAgentOptions = {
     ...(preferLedger
@@ -189,13 +245,19 @@ const main = async (): Promise<void> => {
         }
       : {}),
     additionalRegistries: [],
-    updateAdditionalRegistries:
-      process.env.REGISTRY_BROKER_DEMO_SKIP_ERC8004 === '1' ? [] : ['erc-8004'],
+    updateAdditionalRegistries: erc8004Selections,
   };
 
   console.log(
     `Preparing to register agent "${alias}" via ${baseUrl} (mode: ${DEFAULT_MODE}).`,
   );
+  if (registerOptions.updateAdditionalRegistries.length > 0) {
+    console.log(
+      `  Targeting ERC-8004 networks: ${registerOptions.updateAdditionalRegistries.join(', ')}`,
+    );
+  } else {
+    console.log('  ERC-8004 update disabled for this demo run.');
+  }
   let localAgentHandle: LocalA2AAgentHandle | null = null;
   let registered;
 
@@ -238,6 +300,20 @@ const main = async (): Promise<void> => {
           'Hint: ensure the ledger account has credits/HBAR or rerun with REGISTRY_BROKER_DEMO_AUTO_TOP_UP=0 after manually funding.',
         );
       }
+    } else if (error instanceof RegistryBrokerParseError) {
+      console.error('Failed to register agent: response parse error.');
+      if (error.cause instanceof Error) {
+        console.error(error.cause);
+      } else if (error.cause) {
+        try {
+          console.error(
+            'Parse error details:',
+            JSON.stringify(error.cause, null, 2),
+          );
+        } catch {
+          console.error('Parse error details:', error.cause);
+        }
+      }
     } else if (error instanceof Error) {
       console.error('Failed to register agent:', error.message);
     } else {
@@ -246,12 +322,16 @@ const main = async (): Promise<void> => {
     throw error;
   }
 
+  const progressAdditionalRegistries =
+    summariseProgressAdditionalRegistries(registered);
+
   const summary = {
     uaid: registered.uaid,
     agentId: registered.agentId,
     endpoint: localAgentHandle?.publicUrl ?? localAgentHandle?.a2aEndpoint,
     localEndpoint: localAgentHandle?.localA2aEndpoint,
     additionalRegistries:
+      progressAdditionalRegistries ??
       registered.updateResponse?.additionalRegistries ??
       registered.registrationResponse.additionalRegistries ??
       [],
@@ -290,9 +370,11 @@ main()
       (async () => {
         try {
           await dispatcher.close();
+          process.exit(0);
         } catch {
           // ignore shutdown errors
         }
       })(),
     ]);
+    process.exit(0);
   });

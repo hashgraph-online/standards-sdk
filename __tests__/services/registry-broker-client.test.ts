@@ -3,8 +3,15 @@ import {
   RegistryBrokerClient,
   RegistryBrokerError,
   RegistryBrokerParseError,
+  isPendingRegisterAgentResponse,
+  isPartialRegisterAgentResponse,
+  isSuccessRegisterAgentResponse,
 } from '../../src/services/registry-broker';
-import type { AgentAuthConfig } from '../../src/services/registry-broker';
+import type {
+  AgentAuthConfig,
+  RegisterAgentResponse,
+  RegistrationProgressRecord,
+} from '../../src/services/registry-broker';
 
 const mockSearchResponse = {
   hits: [
@@ -161,6 +168,12 @@ const mockMessageResponse = {
   uaid: null,
   message: 'Hello',
   timestamp: '2025-01-01T00:00:00.000Z',
+  rawResponse: {
+    status: 200,
+    headers: {
+      'x-payment-status': 'SETTLED',
+    },
+  },
 };
 
 const mockStatsResponse = {
@@ -185,6 +198,143 @@ const mockPopularResponse = {
 
 const mockResolveResponse = {
   agent: mockSearchResponse.hits[0],
+};
+
+const mockAdditionalRegistryCatalog = {
+  registries: [
+    {
+      id: 'erc-8004',
+      label: 'ERC-8004',
+      networks: [
+        {
+          key: 'erc-8004:ethereum-sepolia',
+          networkId: 'ethereum-sepolia',
+          name: 'Ethereum Sepolia',
+          label: 'Ethereum Sepolia',
+          chainId: 11155111,
+          estimatedCredits: 10.25,
+          creditMode: 'gas',
+        },
+      ],
+    },
+  ],
+};
+
+const pendingRegisterResponse = {
+  success: true,
+  status: 'pending' as const,
+  message:
+    'Primary registry published. Additional registries are being processed in the background.',
+  uaid: 'uaid:aid:pending;uid=agent-pending;registry=hol;proto=a2a;nativeId=agent-pending',
+  agentId: 'agent-pending',
+  registry: 'hol',
+  attemptId: 'attempt-pending',
+  agent: {
+    id: 'agent-pending',
+    name: 'Pending Agent',
+    type: 'ai_agent',
+    endpoint: 'https://pending.example.com/a2a',
+    capabilities: ['text_generation'],
+    registry: 'hol',
+    protocol: 'a2a',
+    profile: JSON.parse(JSON.stringify(baseProfile)) as typeof baseProfile,
+    nativeId: 'agent-pending',
+  },
+  profile: {
+    tId: '0.0.6000',
+    sizeBytes: 512,
+  },
+  profileRegistry: null,
+  hcs10Registry: {
+    status: 'created',
+    uaid: 'uaid:aid:pending;uid=agent-pending;registry=hol;proto=a2a;nativeId=agent-pending',
+    transactionId: '0.0.5005@123',
+    consensusTimestamp: '1700000000.123456789',
+    registryTopicId: '0.0.5005',
+    topicSequenceNumber: 42,
+    payloadHash: 'payload123',
+    profileReference: 'hcs-11:hcs://1/0.0.6000',
+    tId: '0.0.6000',
+    profileSizeBytes: 512,
+  },
+  credits: {
+    base: 100,
+    additional: 10.1016,
+    total: 110.1016,
+  },
+  additionalRegistries: [
+    {
+      registry: 'erc-8004',
+      registryKey: 'erc-8004:ethereum-sepolia',
+      networkId: 'ethereum-sepolia',
+      networkName: 'Ethereum Sepolia',
+      chainId: 11155111,
+      status: 'pending' as const,
+    },
+  ],
+  additionalRegistryCredits: [
+    {
+      registry: 'erc-8004',
+      registryKey: 'erc-8004:ethereum-sepolia',
+      networkId: 'ethereum-sepolia',
+      networkName: 'Ethereum Sepolia',
+      chainId: 11155111,
+      status: 'pending' as const,
+      estimatedCredits: 10.1016,
+    },
+  ],
+} satisfies RegisterAgentResponse;
+
+const registrationProgressCompleted: RegistrationProgressRecord = {
+  attemptId: 'attempt-pending',
+  mode: 'register',
+  status: 'completed',
+  uaid: 'uaid:aid:pending;uid=agent-pending;registry=hol;proto=a2a;nativeId=agent-pending',
+  agentId: 'agent-pending',
+  registryNamespace: 'hol',
+  accountId: '0.0.1234',
+  startedAt: '2025-01-01T00:00:00.000Z',
+  completedAt: '2025-01-01T00:00:30.000Z',
+  primary: {
+    status: 'completed',
+    finishedAt: '2025-01-01T00:00:30.000Z',
+  },
+  additionalRegistries: {
+    'erc-8004:ethereum-sepolia': {
+      registryId: 'erc-8004',
+      registryKey: 'erc-8004:ethereum-sepolia',
+      networkId: 'ethereum-sepolia',
+      networkName: 'Ethereum Sepolia',
+      chainId: 11155111,
+      label: 'Ethereum Sepolia',
+      status: 'completed',
+      credits: 10.1016,
+      agentId: '11155111:820',
+      agentUri: 'ipfs://agent-pending',
+      metadata: {
+        registryKey: 'erc-8004:ethereum-sepolia',
+      },
+      lastUpdated: '2025-01-01T00:00:30.000Z',
+    },
+  },
+};
+
+const registrationProgressFailed: RegistrationProgressRecord = {
+  ...registrationProgressCompleted,
+  status: 'failed',
+  primary: {
+    status: 'failed',
+    error: 'registry_failure',
+  },
+  additionalRegistries: {
+    'erc-8004:ethereum-sepolia': {
+      ...registrationProgressCompleted.additionalRegistries[
+        'erc-8004:ethereum-sepolia'
+      ],
+      status: 'failed',
+      error: 'network_error',
+    },
+  },
 };
 
 type FetchResponse = {
@@ -322,6 +472,135 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/register/quote',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('fetches the additional registry catalog', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => mockAdditionalRegistryCatalog,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const catalog = await client.getAdditionalRegistries();
+
+    expect(catalog.registries).toHaveLength(1);
+    expect(catalog.registries[0]?.id).toBe('erc-8004');
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/register/additional-registries',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('parses pending register response and exposes type guards', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => pendingRegisterResponse,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.registerAgent({ profile: baseProfile });
+
+    expect(isPendingRegisterAgentResponse(result)).toBe(true);
+    expect(isSuccessRegisterAgentResponse(result)).toBe(false);
+    expect(result.attemptId).toBe('attempt-pending');
+  });
+
+  it('retrieves registration progress records', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({ progress: registrationProgressCompleted }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const progress = await client.getRegistrationProgress('attempt-pending');
+
+    expect(progress).not.toBeNull();
+    expect(progress?.status).toBe('completed');
+  });
+
+  it('waits for registration completion until progress resolves', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const progressSequence: Array<RegistrationProgressRecord | null> = [
+      null,
+      {
+        ...registrationProgressCompleted,
+        status: 'pending',
+        completedAt: undefined,
+        primary: { status: 'pending' },
+      },
+      registrationProgressCompleted,
+    ];
+
+    const getSpy = jest
+      .spyOn(client, 'getRegistrationProgress')
+      .mockImplementation(
+        async () => progressSequence.shift() ?? registrationProgressCompleted,
+      );
+    const delaySpy = jest
+      .spyOn(
+        client as unknown as {
+          delay: (ms: number, signal?: AbortSignal) => Promise<void>;
+        },
+        'delay',
+      )
+      .mockResolvedValue(undefined);
+
+    const result = await client.waitForRegistrationCompletion(
+      'attempt-pending',
+      { intervalMs: 5, timeoutMs: 500, throwOnFailure: false },
+    );
+
+    expect(result.status).toBe('completed');
+    expect(getSpy).toHaveBeenCalled();
+
+    delaySpy.mockRestore();
+    getSpy.mockRestore();
+  });
+
+  it('throws when registration completion fails and throwOnFailure is enabled', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    jest
+      .spyOn(client, 'getRegistrationProgress')
+      .mockResolvedValue(registrationProgressFailed);
+    jest
+      .spyOn(
+        client as unknown as {
+          delay: (ms: number, signal?: AbortSignal) => Promise<void>;
+        },
+        'delay',
+      )
+      .mockResolvedValue(undefined);
+
+    await expect(
+      client.waitForRegistrationCompletion('attempt-pending', {
+        intervalMs: 5,
+        timeoutMs: 500,
+        throwOnFailure: true,
+      }),
+    ).rejects.toBeInstanceOf(RegistryBrokerError);
   });
 
   it('automatically purchases credits when autoTopUp is provided', async () => {
@@ -543,6 +822,7 @@ describe('RegistryBrokerClient', () => {
       auth,
     });
     expect(message.message).toBe('Hello');
+    expect(message.rawResponse).toEqual(mockMessageResponse.rawResponse);
 
     await expect(client.chat.endSession('session-1')).resolves.toBeUndefined();
 

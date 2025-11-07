@@ -4,9 +4,13 @@ import {
   RegistryBrokerClient,
   RegistryBrokerError,
   RegistryBrokerParseError,
+  isPendingRegisterAgentResponse,
+  isPartialRegisterAgentResponse,
   type AgentRegistrationRequest,
   type AgentRegistrationRequestMetadata,
   type RegisterAgentResponse,
+  type AdditionalRegistryCatalogResponse,
+  type RegistrationProgressRecord,
 } from '../../src/services/registry-broker';
 import {
   AIAgentCapability,
@@ -37,6 +41,8 @@ export interface RegisteredAgent {
   additionalRegistryCostPerRegistry?: number;
   registrationResponse: RegisterAgentResponse;
   updateResponse?: RegisterAgentResponse;
+  registrationProgress?: RegistrationProgressRecord;
+  updateProgress?: RegistrationProgressRecord;
 }
 
 export interface RegisterAgentOptions {
@@ -93,6 +99,64 @@ const parseUpdateRegistriesFromEnv = (): string[] => {
       ? false
       : true;
   return enableErc8004After ? ['erc-8004'] : [];
+};
+
+const normaliseSelectionValue = (value: string): string =>
+  value.trim().toLowerCase();
+
+const collectSelectionMatches = (
+  selection: string,
+  catalog: AdditionalRegistryCatalogResponse,
+): string[] => {
+  const normalized = normaliseSelectionValue(selection);
+  if (!normalized) {
+    return [];
+  }
+  const matches: string[] = [];
+  for (const descriptor of catalog.registries) {
+    const descriptorId = descriptor.id.toLowerCase();
+    if (normalized === descriptorId) {
+      descriptor.networks.forEach(network => matches.push(network.key));
+      continue;
+    }
+    for (const network of descriptor.networks) {
+      const keyLower = network.key.toLowerCase();
+      const networkIdLower = network.networkId.toLowerCase();
+      const labelLower = network.label.toLowerCase();
+      const nameLower = network.name.toLowerCase();
+      if (
+        normalized === keyLower ||
+        normalized === networkIdLower ||
+        normalized === labelLower ||
+        normalized === nameLower ||
+        normalized === `${descriptorId}:${networkIdLower}`
+      ) {
+        matches.push(network.key);
+      }
+    }
+  }
+  return Array.from(new Set(matches));
+};
+
+const resolveAdditionalRegistrySelections = (
+  selections: string[],
+  catalog: AdditionalRegistryCatalogResponse,
+): { resolved: string[]; missing: string[] } => {
+  const resolvedKeys = new Set<string>();
+  const missing: string[] = [];
+  for (const entry of selections) {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const matches = collectSelectionMatches(trimmed, catalog);
+    if (matches.length === 0) {
+      missing.push(trimmed);
+      continue;
+    }
+    matches.forEach(key => resolvedKeys.add(key));
+  }
+  return { resolved: Array.from(resolvedKeys), missing };
 };
 
 const cloneProfile = <T>(value: T): T => {
@@ -172,19 +236,54 @@ const buildMcpProfile = (alias: string, endpoint: string): HCS11Profile => {
 
 const logAdditionalRegistryResults = (
   response: RegisterAgentResponse,
+  progress?: RegistrationProgressRecord,
 ): void => {
+  const progressEntries = progress
+    ? Object.values(progress.additionalRegistries)
+    : undefined;
+
+  if (progressEntries && progressEntries.length > 0) {
+    console.log('  Additional registry results:');
+    progressEntries.forEach(entry => {
+      const detailParts: string[] = [];
+      if (entry.agentId) {
+        detailParts.push(`agentId: ${entry.agentId}`);
+      }
+      if (entry.agentUri) {
+        detailParts.push(`uri: ${entry.agentUri}`);
+      }
+      if (typeof entry.credits === 'number') {
+        detailParts.push(`credits: ${entry.credits}`);
+      }
+      if (entry.error) {
+        detailParts.push(`error: ${entry.error}`);
+      }
+      const detail =
+        detailParts.length > 0 ? ` (${detailParts.join('; ')})` : '';
+      console.log(`    ${entry.registryKey}: ${entry.status}${detail}`);
+    });
+    return;
+  }
+
   if (
     !response.additionalRegistries ||
     response.additionalRegistries.length === 0
   ) {
+    console.log('  Additional registry results: none requested.');
     return;
   }
 
   console.log('  Additional registry results:');
   response.additionalRegistries.forEach(entry => {
     const detailParts: string[] = [];
-    if (entry.agentId) {
-      detailParts.push(`agentId: ${entry.agentId}`);
+    const agentIdDisplay =
+      typeof entry.agentIdFull === 'string' && entry.agentIdFull.length > 0
+        ? entry.agentIdFull
+        : entry.agentId !== undefined
+          ? String(entry.agentId)
+          : null;
+    if (agentIdDisplay) {
+      detailParts.push(`agentId: ${agentIdDisplay}`);
     }
     if (entry.agentUri) {
       detailParts.push(`uri: ${entry.agentUri}`);
@@ -250,39 +349,182 @@ const describeError = (error: unknown): string => {
   }
 };
 
+const waitForAdditionalRegistryProcessing = async (
+  client: RegistryBrokerClient,
+  response: RegisterAgentResponse,
+  context: 'registration' | 'update',
+  options: { throwOnFailure?: boolean } = {},
+): Promise<RegistrationProgressRecord | undefined> => {
+  if (!isPendingRegisterAgentResponse(response) || !response.attemptId) {
+    return undefined;
+  }
+
+  const throwOnFailure = options.throwOnFailure ?? true;
+  const seenStatuses = new Set<string>();
+  const contextLabel = `${context.slice(0, 1).toUpperCase()}${context.slice(1)}`;
+
+  console.log(
+    `  ${contextLabel} additional registries queued (attempt ${response.attemptId}). Polling progress...`,
+  );
+
+  const progress = await client.waitForRegistrationCompletion(
+    response.attemptId,
+    {
+      intervalMs: 2_000,
+      throwOnFailure: false,
+      onProgress: latest => {
+        const summary = Object.values(latest.additionalRegistries)
+          .map(entry => `${entry.registryKey}:${entry.status}`)
+          .join(', ');
+        const key = `${latest.status}:${summary}`;
+        if (!seenStatuses.has(key)) {
+          const summaryText = summary.length > 0 ? ` (${summary})` : '';
+          console.log(`    Progress status → ${latest.status}${summaryText}`);
+          seenStatuses.add(key);
+        }
+      },
+    },
+  );
+
+  console.log(`  ${contextLabel} progress final status: ${progress.status}`);
+
+  if (
+    throwOnFailure &&
+    (progress.status === 'partial' || progress.status === 'failed')
+  ) {
+    throw new Error(
+      `${contextLabel} additional registries completed with status ${progress.status}`,
+    );
+  }
+
+  return progress;
+};
+
 interface Erc8004VerificationConfig {
   rpcUrl: string;
   chainId: number;
-  signer: string;
+  signer?: string;
+  networkId?: string;
+  registryKey?: string;
+  identityRegistry?: string;
+  reputationRegistry?: string;
+  validationRegistry?: string;
+  subgraphUrl?: string;
 }
 
-const resolveErc8004VerificationConfig =
-  (): Erc8004VerificationConfig | null => {
-    const rpcUrl = process.env.ERC8004_RPC_URL?.trim() || '';
-    if (!rpcUrl) {
-      return null;
-    }
-    const signer = process.env.ETH_PK?.trim();
-    if (!signer) {
-      return null;
-    }
-    const chainIdRaw =
-      process.env.ERC8004_CHAIN_ID ??
-      process.env.ERC8004_DEFAULT_CHAIN_ID ??
-      '';
-    const parsedChainId = chainIdRaw ? Number(chainIdRaw) : NaN;
-    const chainId = Number.isFinite(parsedChainId)
-      ? parsedChainId
-      : DEFAULT_ERC8004_CHAIN_ID;
-    return {
-      rpcUrl,
-      signer,
-      chainId,
-    };
+const formatNetworkEnvKey = (value: string): string =>
+  value.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+
+const resolveNetworkScopedEnvValue = (
+  baseKey: string,
+  networkId?: string,
+): string | undefined => {
+  const formatted = networkId ? formatNetworkEnvKey(networkId) : undefined;
+  const legacySuffixMap: Record<string, string> = {
+    ERC8004_RPC_URL: 'RPC_URL',
+    ERC8004_CHAIN_ID: 'CHAIN_ID',
+    ERC8004_IDENTITY_REGISTRY: 'IDENTITY_REGISTRY',
+    ERC8004_REPUTATION_REGISTRY: 'REPUTATION_REGISTRY',
+    ERC8004_VALIDATION_REGISTRY: 'VALIDATION_REGISTRY',
+    ERC8004_SUBGRAPH_URL: 'SUBGRAPH_URL',
+    ERC8004_SIGNER: 'SIGNER',
+    ERC8004_AGENT_WALLET: 'AGENT_WALLET',
+    ERC8004_RPC_FALLBACK_URLS: 'RPC_FALLBACK_URLS',
   };
 
-const verifyErc8004Registration = async (agentId: string): Promise<void> => {
-  const config = resolveErc8004VerificationConfig();
+  const lookup = (key: string | undefined): string | undefined => {
+    if (!key) {
+      return undefined;
+    }
+    const value = process.env[key]?.trim();
+    return value && value.length > 0 ? value : undefined;
+  };
+
+  if (formatted) {
+    const scopedKey = `${baseKey}__${formatted}`;
+    const scopedValue = lookup(scopedKey);
+    if (scopedValue) {
+      return scopedValue;
+    }
+
+    const legacySuffix = legacySuffixMap[baseKey];
+    if (legacySuffix) {
+      const legacyKey = `ERC8004_${formatted}_${legacySuffix}`;
+      const legacyValue = lookup(legacyKey);
+      if (legacyValue) {
+        return legacyValue;
+      }
+    }
+  }
+
+  return lookup(baseKey);
+};
+
+const resolveErc8004VerificationConfig = (
+  networkId?: string,
+  chainIdOverride?: number,
+  registryKey?: string,
+): Erc8004VerificationConfig | null => {
+  const rpcUrl = resolveNetworkScopedEnvValue('ERC8004_RPC_URL', networkId);
+  if (!rpcUrl) {
+    return null;
+  }
+  const scopedSigner = resolveNetworkScopedEnvValue(
+    'ERC8004_SIGNER',
+    networkId,
+  );
+  const signerCandidate = scopedSigner ?? process.env.ETH_PK;
+  const signer =
+    signerCandidate && signerCandidate.trim().length > 0
+      ? signerCandidate.trim()
+      : undefined;
+  const chainIdValue = resolveNetworkScopedEnvValue(
+    'ERC8004_CHAIN_ID',
+    networkId,
+  );
+  const parsedChainId =
+    chainIdOverride ?? (chainIdValue ? Number(chainIdValue) : undefined);
+  const chainId = Number.isFinite(parsedChainId)
+    ? Number(parsedChainId)
+    : DEFAULT_ERC8004_CHAIN_ID;
+  const identityRegistry = resolveNetworkScopedEnvValue(
+    'ERC8004_IDENTITY_REGISTRY',
+    networkId,
+  );
+  const reputationRegistry = resolveNetworkScopedEnvValue(
+    'ERC8004_REPUTATION_REGISTRY',
+    networkId,
+  );
+  const validationRegistry = resolveNetworkScopedEnvValue(
+    'ERC8004_VALIDATION_REGISTRY',
+    networkId,
+  );
+  const subgraphUrl = resolveNetworkScopedEnvValue(
+    'ERC8004_SUBGRAPH_URL',
+    networkId,
+  );
+  return {
+    rpcUrl,
+    chainId,
+    networkId,
+    registryKey,
+    signer,
+    identityRegistry: identityRegistry ?? undefined,
+    reputationRegistry: reputationRegistry ?? undefined,
+    validationRegistry: validationRegistry ?? undefined,
+    subgraphUrl: subgraphUrl ?? undefined,
+  };
+};
+
+const verifyErc8004Registration = async (
+  agentId: string,
+  network?: { networkId?: string; chainId?: number; registryKey?: string },
+): Promise<void> => {
+  const config = resolveErc8004VerificationConfig(
+    network?.networkId,
+    network?.chainId,
+    network?.registryKey,
+  );
   if (!config) {
     console.log(
       '  Skipping ERC-8004 on-chain verification (missing ERC8004_RPC_URL and signer configuration).',
@@ -295,19 +537,55 @@ const verifyErc8004Registration = async (agentId: string): Promise<void> => {
   }
 
   const Agent0Sdk = await loadAgent0Sdk();
+  const registryOverrideEntries: Record<string, string> = {};
+  if (config.identityRegistry) {
+    registryOverrideEntries.IDENTITY = config.identityRegistry;
+  }
+  if (config.reputationRegistry) {
+    registryOverrideEntries.REPUTATION = config.reputationRegistry;
+  }
+  if (config.validationRegistry) {
+    registryOverrideEntries.VALIDATION = config.validationRegistry;
+  }
+  const registryOverrides =
+    Object.keys(registryOverrideEntries).length > 0
+      ? { [config.chainId]: registryOverrideEntries }
+      : undefined;
   const sdk = new Agent0Sdk({
     chainId: config.chainId,
     rpcUrl: config.rpcUrl,
-    signer: config.signer,
+    ...(config.signer ? { signer: config.signer } : {}),
+    ...(registryOverrides ? { registryOverrides } : {}),
+    ...(config.subgraphUrl ? { subgraphUrl: config.subgraphUrl } : {}),
   });
 
   let attemptError: unknown;
   const maxAttempts = 10;
+  const networkLabel =
+    config.networkId ?? config.registryKey ?? `chain ${config.chainId}`;
+
+  const handleVerificationFailure = (error: unknown): 'skip' | 'retry' => {
+    const message = describeError(error);
+    if (
+      message.includes('is not on current chain') ||
+      message.includes('Subgraph client required')
+    ) {
+      console.log(
+        `  ⚠️  Skipping ERC-8004 verification on ${networkLabel}: ${message}`,
+      );
+      return 'skip';
+    }
+    attemptError = error;
+    return 'retry';
+  };
+
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const summary = await sdk.getAgent(agentId);
       if (summary) {
-        console.log('  Confirmed ERC-8004 registration via agent0 SDK.');
+        console.log(
+          `  Confirmed ERC-8004 registration via agent0 SDK on ${networkLabel}.`,
+        );
         console.log(`    Agent ID: ${summary.agentId}`);
         const primaryOwner =
           Array.isArray(summary.owners) && summary.owners.length > 0
@@ -325,9 +603,18 @@ const verifyErc8004Registration = async (agentId: string): Promise<void> => {
         }
         return;
       }
+    } catch (error) {
+      const decision = handleVerificationFailure(error);
+      if (decision === 'skip') {
+        return;
+      }
+    }
 
+    try {
       const agentRecord = await sdk.loadAgent(agentId);
-      console.log('  Loaded ERC-8004 registration via agent0 SDK.');
+      console.log(
+        `  Loaded ERC-8004 registration via agent0 SDK on ${networkLabel}.`,
+      );
       console.log(`    Agent ID: ${agentId}`);
       if (agentRecord.walletAddress) {
         console.log(`    Wallet: ${agentRecord.walletAddress}`);
@@ -349,18 +636,28 @@ const verifyErc8004Registration = async (agentId: string): Promise<void> => {
       }
       return;
     } catch (error) {
-      attemptError = error;
-      const delayMs = 5000 * (attempt + 1);
-      console.log(
-        `  ERC-8004 verification attempt ${attempt + 1}/${maxAttempts} failed: ${describeError(error)}. Retrying in ${delayMs}ms...`,
-      );
-      await delay(delayMs);
+      const decision = handleVerificationFailure(error);
+      if (decision === 'skip') {
+        return;
+      }
     }
+
+    const delayMs = 5000 * (attempt + 1);
+    const message =
+      attemptError instanceof Error
+        ? describeError(attemptError)
+        : 'Unknown verification failure';
+    console.log(
+      `  ERC-8004 verification attempt ${attempt + 1}/${maxAttempts} failed: ${message}. Retrying in ${delayMs}ms...`,
+    );
+    await delay(delayMs);
   }
 
-  throw attemptError instanceof Error
-    ? attemptError
-    : new Error(describeError(attemptError));
+  if (attemptError) {
+    console.log(
+      `  ⚠️  Unable to verify ERC-8004 registration on ${networkLabel}: ${describeError(attemptError)}.`,
+    );
+  }
 };
 
 export default async function registerDemoAgent(
@@ -376,13 +673,71 @@ export default async function registerDemoAgent(
     ...(options.metadata ?? {}),
   };
 
-  const additionalRegistries =
+  const rawAdditionalRegistries =
     options.additionalRegistries ?? defaultAdditionalRegistries;
-  const updateAdditionalRegistries =
+  const rawUpdateAdditionalRegistries =
     options.skipAdditionalRegistryUpdate === true
       ? []
       : (options.updateAdditionalRegistries ??
         defaultUpdateAdditionalRegistries);
+  let additionalRegistryCatalog: AdditionalRegistryCatalogResponse | null =
+    null;
+
+  const prepareAdditionalRegistrySelections = async (
+    selections: string[],
+  ): Promise<{ resolved: string[]; missing: string[] }> => {
+    if (selections.length === 0) {
+      return { resolved: [], missing: [] };
+    }
+
+    const normalisedSelections = selections
+      .map(value => value.trim())
+      .filter(Boolean);
+
+    if (!additionalRegistryCatalog) {
+      try {
+        additionalRegistryCatalog = await client.getAdditionalRegistries();
+      } catch (error) {
+        console.error(
+          `  ❌ Failed to load additional registry catalog: ${describeError(error)}`,
+        );
+        throw error;
+      }
+    }
+
+    return resolveAdditionalRegistrySelections(
+      normalisedSelections,
+      additionalRegistryCatalog,
+    );
+  };
+
+  const resolvedInitialSelections = await prepareAdditionalRegistrySelections(
+    rawAdditionalRegistries,
+  );
+  const resolvedUpdateSelections = await prepareAdditionalRegistrySelections(
+    rawUpdateAdditionalRegistries,
+  );
+
+  if (resolvedInitialSelections.missing.length > 0) {
+    console.log(
+      `  Skipping unavailable additional registries: ${resolvedInitialSelections.missing.join(', ')}`,
+    );
+  }
+  if (resolvedUpdateSelections.missing.length > 0) {
+    console.log(
+      `  Skipping unavailable additional registries during update: ${resolvedUpdateSelections.missing.join(', ')}`,
+    );
+  }
+  if (resolvedInitialSelections.resolved.length > 0) {
+    console.log(
+      `  Resolved additional registries for registration: ${resolvedInitialSelections.resolved.join(', ')}`,
+    );
+  }
+  if (resolvedUpdateSelections.resolved.length > 0) {
+    console.log(
+      `  Resolved additional registries for update: ${resolvedUpdateSelections.resolved.join(', ')}`,
+    );
+  }
 
   const payload: AgentRegistrationRequest = {
     profile:
@@ -398,27 +753,69 @@ export default async function registerDemoAgent(
     payload.endpoint = endpoint;
   }
 
-  if (additionalRegistries.length > 0) {
-    payload.additionalRegistries = additionalRegistries;
+  if (resolvedInitialSelections.resolved.length > 0) {
+    payload.additionalRegistries = resolvedInitialSelections.resolved;
   }
 
-  const response = await client.registerAgent(payload);
+  let response: RegisterAgentResponse | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await client.registerAgent(payload);
+      break;
+    } catch (error) {
+      if (
+        error instanceof RegistryBrokerError &&
+        error.status >= 500 &&
+        error.status < 600
+      ) {
+        const attemptIndex = attempt + 1;
+        console.warn(
+          `  Register attempt ${attemptIndex} timed out (${error.status} ${error.statusText ?? ''}). Retrying…`.trim(),
+        );
+        await delay(4000 * attemptIndex);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (!response) {
+    throw new Error(
+      'Registration request did not complete after multiple retries; aborting.',
+    );
+  }
 
   logCreditSummary(response);
-  logAdditionalRegistryResults(response);
+
+  const registrationProgress = await waitForAdditionalRegistryProcessing(
+    client,
+    response,
+    'registration',
+  );
+
+  if (isPartialRegisterAgentResponse(response)) {
+    console.warn(
+      '  Warning: additional registries completed with partial failures.',
+    );
+  }
+
+  logAdditionalRegistryResults(response, registrationProgress);
 
   const initialAdditionalRegistrySet = new Set(
     (payload.additionalRegistries ?? [])
       .map(value => value.trim().toLowerCase())
       .filter(Boolean),
   );
-  const updateTargets = updateAdditionalRegistries
-    .map(value => value.trim().toLowerCase())
-    .filter(value => value.length > 0)
-    .filter(value => !initialAdditionalRegistrySet.has(value));
+  const updateTargets = resolvedUpdateSelections.resolved.filter(value => {
+    const normalised = value.trim().toLowerCase();
+    return (
+      normalised.length > 0 && !initialAdditionalRegistrySet.has(normalised)
+    );
+  });
 
   let finalResponse = response;
   let updateResponse: RegisterAgentResponse | undefined;
+  let updateProgress: RegistrationProgressRecord | undefined;
 
   if (updateTargets.length > 0) {
     console.log(
@@ -453,15 +850,118 @@ export default async function registerDemoAgent(
       }
       try {
         updateResponse = await client.updateAgent(response.uaid, updatePayload);
-        logCreditSummary(updateResponse);
-        logAdditionalRegistryResults(updateResponse);
-        finalResponse = updateResponse;
 
-        const erc8004Result = updateResponse.additionalRegistries?.find(
-          entry => entry.registry === 'erc-8004' && entry.status !== 'error',
+        const pendingUpdateProgress = await waitForAdditionalRegistryProcessing(
+          client,
+          updateResponse,
+          'update',
         );
-        if (erc8004Result?.agentId) {
-          await verifyErc8004Registration(erc8004Result.agentId);
+
+        if (isPartialRegisterAgentResponse(updateResponse)) {
+          console.warn(
+            '  Warning: additional registries update completed with partial failures.',
+          );
+        }
+
+        logCreditSummary(updateResponse);
+        logAdditionalRegistryResults(updateResponse, pendingUpdateProgress);
+        finalResponse = updateResponse;
+        updateProgress = pendingUpdateProgress ?? updateProgress;
+
+        const verificationEntries: Array<{
+          registryKey?: string;
+          networkId?: string;
+          chainId?: number;
+          agentIdentifier?: string;
+        }> = [];
+
+        if (pendingUpdateProgress) {
+          Object.values(pendingUpdateProgress.additionalRegistries).forEach(
+            entry => {
+              if (
+                entry.registryId !== 'erc-8004' ||
+                entry.status === 'failed'
+              ) {
+                return;
+              }
+              if (
+                typeof entry.agentId === 'string' &&
+                entry.agentId.length > 0
+              ) {
+                verificationEntries.push({
+                  registryKey: entry.registryKey,
+                  networkId: entry.networkId,
+                  chainId: entry.chainId,
+                  agentIdentifier: entry.agentId,
+                });
+              } else if (
+                typeof entry.agentId === 'number' &&
+                Number.isFinite(entry.agentId) &&
+                entry.chainId !== undefined
+              ) {
+                verificationEntries.push({
+                  registryKey: entry.registryKey,
+                  networkId: entry.networkId,
+                  chainId: entry.chainId,
+                  agentIdentifier: `${entry.chainId}:${entry.agentId}`,
+                });
+              }
+            },
+          );
+        } else if (updateResponse.additionalRegistries) {
+          updateResponse.additionalRegistries.forEach(entry => {
+            if (
+              entry.registry !== 'erc-8004' ||
+              entry.status === 'error' ||
+              entry.status === 'pending'
+            ) {
+              return;
+            }
+            if (
+              typeof entry.agentIdFull === 'string' &&
+              entry.agentIdFull.length > 0
+            ) {
+              verificationEntries.push({
+                registryKey: entry.registryKey ?? undefined,
+                networkId: entry.networkId ?? undefined,
+                chainId: entry.chainId ?? undefined,
+                agentIdentifier: entry.agentIdFull,
+              });
+              return;
+            }
+            if (typeof entry.agentId === 'string' && entry.agentId.length > 0) {
+              verificationEntries.push({
+                registryKey: entry.registryKey ?? undefined,
+                networkId: entry.networkId ?? undefined,
+                chainId: entry.chainId ?? undefined,
+                agentIdentifier: entry.agentId,
+              });
+              return;
+            }
+            if (
+              typeof entry.agentId === 'number' &&
+              Number.isFinite(entry.agentId) &&
+              entry.chainId !== undefined
+            ) {
+              verificationEntries.push({
+                registryKey: entry.registryKey ?? undefined,
+                networkId: entry.networkId ?? undefined,
+                chainId: entry.chainId,
+                agentIdentifier: `${entry.chainId}:${entry.agentId}`,
+              });
+            }
+          });
+        }
+
+        for (const entry of verificationEntries) {
+          if (!entry.agentIdentifier) {
+            continue;
+          }
+          await verifyErc8004Registration(entry.agentIdentifier, {
+            networkId: entry.networkId,
+            chainId: entry.chainId,
+            registryKey: entry.registryKey,
+          });
         }
         break;
       } catch (error) {
@@ -528,7 +1028,7 @@ export default async function registerDemoAgent(
       throw failure;
     }
   } else if (
-    updateAdditionalRegistries.length > 0 &&
+    rawUpdateAdditionalRegistries.length > 0 &&
     options.skipAdditionalRegistryUpdate !== true
   ) {
     console.log(
@@ -553,5 +1053,7 @@ export default async function registerDemoAgent(
       undefined,
     registrationResponse: response,
     updateResponse,
+    registrationProgress,
+    updateProgress,
   };
 }

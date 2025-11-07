@@ -137,14 +137,13 @@ const runHistoryFlow = async (
   ledgerCredentials: LedgerCredentials,
 ) => {
   console.log('\n=== Chat history flow ===');
-  const agentUrl = openRouterModel.startsWith('openrouter://')
-    ? openRouterModel
-    : `openrouter://${openRouterModel}`;
+  const registry = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
 
   const auth = { type: 'bearer' as const, token: openRouterApiKey };
   const session = await client.chat.createSession({
-    agentUrl,
-    auth,
+    agentUrl: openRouterModel.startsWith('openrouter://')
+      ? openRouterModel
+      : `openrouter://${openRouterModel}`,
     historyTtlSeconds:
       Number(process.env.CHAT_HISTORY_TTL_SECONDS ?? '1800') || 1800,
   });
