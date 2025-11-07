@@ -1,102 +1,44 @@
 import 'dotenv/config';
-import { PrivateKey } from '@hashgraph/sdk';
 import { RegistryBrokerClient } from '../../src/services/registry-broker';
-
-type LedgerNetwork = 'mainnet' | 'testnet';
 
 const baseUrl =
   process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
   'http://127.0.0.1:4000/api/v1';
-const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-if (!apiKey) {
-  throw new Error('OPENROUTER_API_KEY is required for this demo');
-}
 
-const modelId =
-  process.env.OPENROUTER_MODEL_ID?.trim() || 'anthropic/claude-3.5-sonnet';
-const agentUrl = modelId.startsWith('openrouter://')
-  ? modelId
-  : `openrouter://${modelId}`;
+const run = async (): Promise<void> => {
+  const registryApiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
+  const client = new RegistryBrokerClient({
+    baseUrl,
+    apiKey: registryApiKey,
+  });
 
-const isLocalBroker = (url: string): boolean => {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-  } catch {
-    return url.includes('localhost') || url.includes('127.0.0.1');
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!openRouterApiKey) {
+    throw new Error('OPENROUTER_API_KEY is required for this demo.');
   }
-};
 
-const resolvePreferredNetwork = (): LedgerNetwork => {
-  const declared =
-    process.env.HEDERA_NETWORK?.trim().toLowerCase() === 'mainnet'
-      ? 'mainnet'
-      : 'testnet';
-  if (isLocalBroker(baseUrl) && declared === 'mainnet') {
-    return 'testnet';
-  }
-  return declared;
-};
+  const modelId =
+    process.env.OPENROUTER_MODEL_ID?.trim() || 'anthropic/claude-3.5-sonnet';
+  const registry = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
+  const auth = { type: 'bearer' as const, token: openRouterApiKey };
 
-const ledgerNetwork = resolvePreferredNetwork();
-const ledgerEnvLabel = ledgerNetwork === 'mainnet' ? 'MAINNET' : 'TESTNET';
+  const searchResult = await client.search({
+    q: modelId,
+    registries: [registry],
+    limit: 1,
+  });
 
-const resolveLedgerCredential = (
-  kind: 'ACCOUNT_ID' | 'PRIVATE_KEY',
-): string | undefined => {
-  const prefix = ledgerNetwork === 'mainnet' ? 'MAINNET' : 'TESTNET';
-  const scopedKey = `${prefix}_HEDERA_${kind}` as keyof NodeJS.ProcessEnv;
-  const scoped = process.env[scopedKey];
-  if (typeof scoped === 'string' && scoped.trim().length > 0) {
-    return scoped.trim();
-  }
-  const genericKey = `HEDERA_${kind}` as keyof NodeJS.ProcessEnv;
-  const generic = process.env[genericKey];
-  if (typeof generic === 'string' && generic.trim().length > 0) {
-    return generic.trim();
-  }
-  return undefined;
-};
-
-const ledgerAccountId = resolveLedgerCredential('ACCOUNT_ID');
-const ledgerPrivateKey = resolveLedgerCredential('PRIVATE_KEY');
-
-const run = async () => {
-  const client = new RegistryBrokerClient({ baseUrl });
-  if (!ledgerAccountId || !ledgerPrivateKey) {
+  if (searchResult.hits.length === 0) {
     throw new Error(
-      `Set ${ledgerEnvLabel}_HEDERA_ACCOUNT_ID and ${ledgerEnvLabel}_HEDERA_PRIVATE_KEY (or matching HEDERA_ACCOUNT_ID / HEDERA_PRIVATE_KEY) for the ${ledgerNetwork} network.`,
+      `Unable to locate model "${modelId}" in registry "${registry}".`,
     );
   }
 
-  console.log(
-    `Authenticating with ledger account ${ledgerAccountId} on ${ledgerNetwork}`,
-  );
+  const { uaid } = searchResult.hits[0];
+  console.log('Using UAID discovered via search:', uaid);
 
-  const challenge = await client.createLedgerChallenge({
-    accountId: ledgerAccountId,
-    network: ledgerNetwork,
-  });
-  const key = PrivateKey.fromString(ledgerPrivateKey);
-  const signature = Buffer.from(
-    key.sign(Buffer.from(challenge.message, 'utf8')),
-  ).toString('base64');
-  const verify = await client.verifyLedgerChallenge({
-    challengeId: challenge.challengeId,
-    accountId: ledgerAccountId,
-    network: ledgerNetwork,
-    signature,
-    signatureKind: 'raw',
-    publicKey: key.publicKey.toString(),
-    expiresInMinutes: 10,
-  });
-  client.setLedgerApiKey(verify.key);
-
-  const auth = { type: 'bearer' as const, token: apiKey };
-
-  console.log('Creating session with', agentUrl);
   const session = await client.chat.createSession({
-    agentUrl,
+    uaid,
     auth,
     historyTtlSeconds: 900,
   });

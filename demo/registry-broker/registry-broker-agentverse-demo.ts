@@ -35,10 +35,7 @@ const describeHistory = (history?: ChatHistoryEntry[]) => {
 };
 
 async function run(): Promise<void> {
-  const brokerBase =
-    process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-    process.env.BROKER_URL?.trim() ||
-    'http://localhost:4000/api/v1';
+  const brokerBase = process.env.REGISTRY_BROKER_BASE_URL?.trim();
   const client = new RegistryBrokerClient({ baseUrl: brokerBase });
 
   // Wait for broker to be ready

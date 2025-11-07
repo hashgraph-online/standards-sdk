@@ -5,6 +5,9 @@ import {
   AgentRegistrationRequest,
   RegisterAgentResponse,
   RegisterAgentQuoteResponse,
+  RegisterAgentPendingResponse,
+  RegisterAgentPartialResponse,
+  RegisterAgentSuccessResponse,
   CreditPurchaseResponse,
   PopularSearchesResponse,
   RegistriesResponse,
@@ -33,13 +36,18 @@ import {
   LedgerChallengeResponse,
   LedgerVerifyRequest,
   LedgerVerifyResponse,
+  LedgerAuthenticationOptions,
   RegisterAgentOptions,
   AutoTopUpOptions,
   HistoryAutoTopUpOptions,
+  RegistrationProgressRecord,
+  RegistrationProgressResponse,
+  RegistrationProgressWaitOptions,
   ChatHistorySnapshotResponse,
   ChatHistoryCompactionResponse,
   CompactHistoryRequestPayload,
   AdapterDetailsResponse,
+  AdditionalRegistryCatalogResponse,
 } from './types';
 import {
   adaptersResponseSchema,
@@ -68,11 +76,21 @@ import {
   ledgerChallengeResponseSchema,
   ledgerVerifyResponseSchema,
   adapterDetailsResponseSchema,
+  additionalRegistryCatalogResponseSchema,
+  registrationProgressResponseSchema,
 } from './schemas';
 import { ZodError, z } from 'zod';
 
 const DEFAULT_USER_AGENT =
   '@hashgraphonline/standards-sdk/registry-broker-client';
+
+const DEFAULT_PROGRESS_INTERVAL_MS = 1_500;
+const DEFAULT_PROGRESS_TIMEOUT_MS = 5 * 60 * 1_000;
+
+const createAbortError = (): Error =>
+  typeof DOMException === 'function'
+    ? new DOMException('Aborted', 'AbortError')
+    : new Error('The operation was aborted');
 
 const normaliseHeaderName = (name: string): string => name.trim().toLowerCase();
 
@@ -431,6 +449,20 @@ export class RegistryBrokerClient {
     );
   }
 
+  async getAdditionalRegistries(): Promise<AdditionalRegistryCatalogResponse> {
+    const raw = await this.requestJson<JsonValue>(
+      '/register/additional-registries',
+      {
+        method: 'GET',
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      additionalRegistryCatalogResponseSchema,
+      'additional registry catalog response',
+    );
+  }
+
   async popularSearches(): Promise<PopularSearchesResponse> {
     const raw = await this.requestJson<JsonValue>('/popular', {
       method: 'GET',
@@ -533,6 +565,92 @@ export class RegistryBrokerClient {
       registerAgentResponseSchema,
       'update agent response',
     );
+  }
+
+  async getRegistrationProgress(
+    attemptId: string,
+  ): Promise<RegistrationProgressRecord | null> {
+    const normalisedAttemptId = attemptId.trim();
+    if (!normalisedAttemptId) {
+      throw new Error('attemptId is required');
+    }
+
+    try {
+      const raw = await this.requestJson<JsonValue>(
+        `/register/progress/${encodeURIComponent(normalisedAttemptId)}`,
+        { method: 'GET' },
+      );
+
+      const parsed = this.parseWithSchema(
+        raw,
+        registrationProgressResponseSchema,
+        'registration progress response',
+      );
+
+      return parsed.progress;
+    } catch (error) {
+      if (error instanceof RegistryBrokerError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async waitForRegistrationCompletion(
+    attemptId: string,
+    options: RegistrationProgressWaitOptions = {},
+  ): Promise<RegistrationProgressRecord> {
+    const normalisedAttemptId = attemptId.trim();
+    if (!normalisedAttemptId) {
+      throw new Error('attemptId is required');
+    }
+
+    const interval = Math.max(
+      250,
+      options.intervalMs ?? DEFAULT_PROGRESS_INTERVAL_MS,
+    );
+    const timeoutMs = options.timeoutMs ?? DEFAULT_PROGRESS_TIMEOUT_MS;
+    const throwOnFailure = options.throwOnFailure ?? true;
+    const signal = options.signal;
+    const startedAt = Date.now();
+
+    while (true) {
+      if (signal?.aborted) {
+        throw createAbortError();
+      }
+
+      const progress = await this.getRegistrationProgress(normalisedAttemptId);
+
+      if (progress) {
+        options.onProgress?.(progress);
+
+        if (progress.status === 'completed') {
+          return progress;
+        }
+
+        if (progress.status === 'partial' || progress.status === 'failed') {
+          if (throwOnFailure) {
+            throw new RegistryBrokerError(
+              'Registration did not complete successfully',
+              {
+                status: 409,
+                statusText: progress.status,
+                body: progress,
+              },
+            );
+          }
+          return progress;
+        }
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        throw new Error(
+          `Registration progress polling timed out after ${timeoutMs}ms`,
+        );
+      }
+
+      await this.delay(interval, signal);
+    }
   }
 
   async purchaseCreditsWithHbar(params: {
@@ -772,6 +890,9 @@ export class RegistryBrokerClient {
     if (payload.publicKey) {
       body.publicKey = payload.publicKey;
     }
+    if (typeof payload.expiresInMinutes === 'number') {
+      body.expiresInMinutes = payload.expiresInMinutes;
+    }
 
     const raw = await this.requestJson<JsonValue>('/auth/ledger/verify', {
       method: 'POST',
@@ -787,6 +908,26 @@ export class RegistryBrokerClient {
 
     this.setLedgerApiKey(result.key);
     return result;
+  }
+
+  async authenticateWithLedger(
+    options: LedgerAuthenticationOptions,
+  ): Promise<LedgerVerifyResponse> {
+    const challenge = await this.createLedgerChallenge({
+      accountId: options.accountId,
+      network: options.network,
+    });
+    const signed = await options.sign(challenge.message);
+    const verification = await this.verifyLedgerChallenge({
+      challengeId: challenge.challengeId,
+      accountId: options.accountId,
+      network: options.network,
+      signature: signed.signature,
+      signatureKind: signed.signatureKind,
+      publicKey: signed.publicKey,
+      expiresInMinutes: options.expiresInMinutes,
+    });
+    return verification;
   }
 
   async listProtocols(): Promise<ProtocolsResponse> {
@@ -1133,6 +1274,39 @@ export class RegistryBrokerClient {
     });
   };
 
+  private async delay(ms: number, signal?: AbortSignal): Promise<void> {
+    if (ms <= 0) {
+      if (signal?.aborted) {
+        throw createAbortError();
+      }
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+        resolve();
+      }, ms);
+
+      const onAbort = (): void => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+        reject(createAbortError());
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          clearTimeout(timer);
+          reject(createAbortError());
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    });
+  }
+
   private async requestJson<T extends JsonValue = JsonValue>(
     path: string,
     config: RequestConfig,
@@ -1182,3 +1356,17 @@ export class RegistryBrokerClient {
     }
   }
 }
+
+export const isPendingRegisterAgentResponse = (
+  response: RegisterAgentResponse,
+): response is RegisterAgentPendingResponse => response.status === 'pending';
+
+export const isPartialRegisterAgentResponse = (
+  response: RegisterAgentResponse,
+): response is RegisterAgentPartialResponse =>
+  response.status === 'partial' && response.success === false;
+
+export const isSuccessRegisterAgentResponse = (
+  response: RegisterAgentResponse,
+): response is RegisterAgentSuccessResponse =>
+  response.success === true && response.status !== 'pending';

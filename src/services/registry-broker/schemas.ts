@@ -116,6 +116,7 @@ export const sendMessageResponseSchema = z.object({
   uaid: z.string().nullable().optional(),
   message: z.string(),
   timestamp: z.string(),
+  rawResponse: jsonValueSchema.optional(),
   content: z.string().optional(),
   history: z.array(chatHistoryEntrySchema).optional(),
   historyTtlSeconds: z.number().nullable().optional(),
@@ -325,16 +326,27 @@ const registrationProfileInfoSchema = z.object({
   sizeBytes: z.number().optional(),
 });
 
-const profileRegistrySchema = z.object({
-  topicId: z.string(),
-  sequenceNumber: z.number().optional(),
-  profileReference: z.string().optional(),
-  profileTopicId: z.string().optional(),
-});
+const profileRegistrySchema = z
+  .object({
+    topicId: z.string().optional(),
+    sequenceNumber: z.number().optional(),
+    profileReference: z.string().optional(),
+    profileTopicId: z.string().optional(),
+  })
+  .passthrough()
+  .nullable()
+  .optional();
 
 const additionalRegistryResultSchema = z.object({
   registry: z.string(),
-  status: z.enum(['created', 'duplicate', 'skipped', 'error']),
+  status: z.enum([
+    'created',
+    'duplicate',
+    'skipped',
+    'error',
+    'updated',
+    'pending',
+  ]),
   agentId: z.string().nullable().optional(),
   agentUri: z.string().nullable().optional(),
   error: z.string().optional(),
@@ -394,12 +406,45 @@ const hcs10RegistrySchema = z
   })
   .passthrough();
 
-export const registerAgentResponseSchema = z.object({
+const additionalRegistryNetworkSchema = z
+  .object({
+    key: z.string(),
+    registryId: z.string().optional(),
+    networkId: z.string().optional(),
+    name: z.string().optional(),
+    chainId: z.number().optional(),
+    label: z.string().optional(),
+    estimatedCredits: z.number().nullable().optional(),
+    baseCredits: z.number().nullable().optional(),
+    gasPortionCredits: z.number().nullable().optional(),
+    gasPortionUsd: z.number().nullable().optional(),
+    gasEstimateCredits: z.number().nullable().optional(),
+    gasEstimateUsd: z.number().nullable().optional(),
+    gasPriceGwei: z.number().nullable().optional(),
+    gasLimit: z.number().nullable().optional(),
+    minCredits: z.number().nullable().optional(),
+    creditMode: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const additionalRegistryDescriptorSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  networks: z.array(additionalRegistryNetworkSchema),
+});
+
+export const additionalRegistryCatalogResponseSchema = z.object({
+  registries: z.array(additionalRegistryDescriptorSchema),
+});
+
+const registerAgentSuccessResponse = z.object({
   success: z.literal(true),
-  status: z.enum(['created', 'duplicate']).optional(),
+  status: z.enum(['created', 'duplicate', 'updated']).optional(),
   uaid: z.string(),
   agentId: z.string(),
-  message: z.string(),
+  message: z.string().optional(),
+  registry: z.string().optional(),
+  attemptId: z.string().nullable().optional(),
   agent: registrationAgentSchema,
   openConvAI: z
     .object({
@@ -409,13 +454,127 @@ export const registerAgentResponseSchema = z.object({
     })
     .optional(),
   profile: registrationProfileInfoSchema.optional(),
-  profileRegistry: profileRegistrySchema.optional(),
-  hcs10Registry: hcs10RegistrySchema.optional(),
+  profileRegistry: profileRegistrySchema.nullable().optional(),
+  hcs10Registry: hcs10RegistrySchema.nullable().optional(),
   credits: registrationCreditsSchema.optional(),
   additionalRegistries: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCostPerRegistry: z.number().optional(),
 });
+
+const registerAgentPendingResponse = z.object({
+  success: z.literal(true),
+  status: z.literal('pending'),
+  message: z.string(),
+  uaid: z.string(),
+  agentId: z.string(),
+  registry: z.string().optional(),
+  attemptId: z.string().nullable(),
+  agent: registrationAgentSchema,
+  openConvAI: z
+    .object({
+      compatible: z.boolean(),
+      hcs11Profile: agentProfileSchema.optional(),
+      bridgeEndpoint: z.string().optional(),
+    })
+    .optional(),
+  profile: registrationProfileInfoSchema.optional(),
+  profileRegistry: profileRegistrySchema.nullable().optional(),
+  hcs10Registry: hcs10RegistrySchema.nullable().optional(),
+  credits: registrationCreditsSchema,
+  additionalRegistries: z.array(additionalRegistryResultSchema),
+  additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
+  additionalRegistryCostPerRegistry: z.number().optional(),
+});
+
+const registerAgentPartialResponse = z.object({
+  success: z.literal(false),
+  status: z.literal('partial'),
+  message: z.string(),
+  uaid: z.string(),
+  agentId: z.string(),
+  registry: z.string().optional(),
+  attemptId: z.string().nullable().optional(),
+  agent: registrationAgentSchema,
+  openConvAI: z
+    .object({
+      compatible: z.boolean(),
+      hcs11Profile: agentProfileSchema.optional(),
+      bridgeEndpoint: z.string().optional(),
+    })
+    .optional(),
+  profile: registrationProfileInfoSchema.optional(),
+  profileRegistry: profileRegistrySchema.nullable().optional(),
+  hcs10Registry: hcs10RegistrySchema.nullable().optional(),
+  credits: registrationCreditsSchema.optional(),
+  additionalRegistries: z.array(additionalRegistryResultSchema).optional(),
+  additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
+  additionalRegistryCostPerRegistry: z.number().optional(),
+  errors: z
+    .array(
+      z.object({
+        registry: z.string(),
+        registryKey: z.string().nullable().optional(),
+        error: z.string(),
+      }),
+    )
+    .min(1),
+});
+
+export const registerAgentSuccessResponseSchema = registerAgentSuccessResponse;
+export const registerAgentPendingResponseSchema = registerAgentPendingResponse;
+export const registerAgentPartialResponseSchema = registerAgentPartialResponse;
+export const registerAgentResponseSchema = z.union([
+  registerAgentSuccessResponse,
+  registerAgentPendingResponse,
+  registerAgentPartialResponse,
+]);
+
+const registrationProgressAdditionalEntry = z.object({
+  registryId: z.string(),
+  registryKey: z.string(),
+  networkId: z.string().optional(),
+  networkName: z.string().optional(),
+  chainId: z.number().optional(),
+  label: z.string().optional(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'failed']),
+  error: z.string().optional(),
+  credits: z.number().nullable().optional(),
+  agentId: z.string().nullable().optional(),
+  agentUri: z.string().nullable().optional(),
+  metadata: z.record(jsonValueSchema).optional(),
+  lastUpdated: z.string(),
+});
+
+const registrationProgressRecord = z.object({
+  attemptId: z.string(),
+  mode: z.enum(['register', 'update']),
+  status: z.enum(['pending', 'partial', 'completed', 'failed']),
+  uaid: z.string().optional(),
+  agentId: z.string().optional(),
+  registryNamespace: z.string(),
+  accountId: z.string().optional(),
+  startedAt: z.string(),
+  completedAt: z.string().optional(),
+  primary: z.object({
+    status: z.enum(['pending', 'completed', 'failed']),
+    finishedAt: z.string().optional(),
+    error: z.string().optional(),
+  }),
+  additionalRegistries: z.record(
+    z.string(),
+    registrationProgressAdditionalEntry,
+  ),
+  errors: z.array(z.string()).optional(),
+});
+
+export const registrationProgressResponseSchema = z.object({
+  progress: registrationProgressRecord,
+});
+
+export const registrationProgressAdditionalEntrySchema =
+  registrationProgressAdditionalEntry;
+export const registrationProgressRecordSchema = registrationProgressRecord;
 
 export const registrationQuoteResponseSchema = z.object({
   accountId: z.string().nullable().optional(),

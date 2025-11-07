@@ -16,6 +16,7 @@ interface TunnelHandle {
 export interface LocalA2AAgentOptions {
   agentId: string;
   port?: number;
+  bindAddress?: string;
 }
 
 export interface LocalA2AAgentHandle {
@@ -218,7 +219,7 @@ const buildMessageResponse = (agentId: string, text: string) => ({
 export const startLocalA2AAgent = async (
   options: LocalA2AAgentOptions,
 ): Promise<LocalA2AAgentHandle> => {
-  const { agentId, port } = options;
+  const { agentId, port, bindAddress = '0.0.0.0' } = options;
   let resolvedPort: number | null = null;
   let tunnelHandle: TunnelHandle | null = null;
   let localTunnelInstance: Tunnel | null = null;
@@ -385,7 +386,7 @@ export const startLocalA2AAgent = async (
 
   const listeningPort = await new Promise<number>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port ?? 0, '127.0.0.1', () => {
+    server.listen(port ?? 0, bindAddress, () => {
       const address = server.address();
       if (address && typeof address === 'object') {
         resolvedPort = address.port;

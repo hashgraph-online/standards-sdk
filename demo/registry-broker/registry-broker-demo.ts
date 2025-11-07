@@ -704,9 +704,7 @@ const showcaseOpenRouterAuthenticatedChat = async (
 
   const modelId =
     process.env.OPENROUTER_MODEL_ID?.trim() || 'anthropic/claude-3.5-sonnet';
-  const agentUrl = modelId.startsWith('openrouter://')
-    ? modelId
-    : `openrouter://${modelId}`;
+  const adapter = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
   const auth = { type: 'bearer' as const, token: apiKey };
 
   try {
