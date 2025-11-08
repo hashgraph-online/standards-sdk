@@ -348,7 +348,7 @@ const resolveFacilitatorAdapterBase = (
 const waitForBrokerAlignment = async (
   facilitator: LocalX402FacilitatorHandle,
 ): Promise<void> => {
-  if (process.env.X402_DEMO_AUTO_CONTINUE === '1') {
+  if (process.env.CREDITS_AUTO_CONTINUE === '1') {
     return;
   }
   const adapterBase = resolveFacilitatorAdapterBase(facilitator);
@@ -496,9 +496,9 @@ const runServerOnly = async (facilitator: LocalX402FacilitatorHandle) => {
 const runDemo = async () => {
   const brokerBaseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-    'http://127.0.0.1:4000/api/v1';
+    'https://registry.hashgraphonline.com/api/v1';
   const prompt =
-    process.env.X402_DEMO_PROMPT?.trim() ||
+    process.env.CREDITS_PROMPT?.trim() ||
     'latest Hedera ecosystem funding signals';
   const localA2APort = Number(process.env.A2A_LOCAL_PORT ?? '6102') || 6102;
   const localPort = Number(process.env.X402_LOCAL_PORT ?? '4102') || 4102;

@@ -168,9 +168,7 @@ export type CreditPurchaseResponse = z.infer<
 export type X402CreditPurchaseResponse = z.infer<
   typeof x402CreditPurchaseResponseSchema
 >;
-export type X402MinimumsResponse = z.infer<
-  typeof x402MinimumsResponseSchema
->;
+export type X402MinimumsResponse = z.infer<typeof x402MinimumsResponseSchema>;
 export type AdditionalRegistryCatalogResponse = z.infer<
   typeof additionalRegistryCatalogResponseSchema
 >;
@@ -178,6 +176,10 @@ export type AdditionalRegistryDescriptor =
   AdditionalRegistryCatalogResponse['registries'][number];
 export type AdditionalRegistryNetworkDescriptor =
   AdditionalRegistryDescriptor['networks'][number];
+
+export type AdapterDetailsResponse = z.infer<
+  typeof adapterDetailsResponseSchema
+>;
 
 export interface LedgerChallengeRequest {
   accountId: string;

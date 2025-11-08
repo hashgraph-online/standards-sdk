@@ -52,6 +52,9 @@ import {
   X402MinimumsResponse,
 } from './types';
 import axios from 'axios';
+import { createWalletClient, http, type Chain } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base, baseSepolia } from 'viem/chains';
 import {
   withPaymentInterceptor,
   decodeXPaymentResponse,
@@ -232,6 +235,46 @@ interface PurchaseCreditsWithX402Params {
   metadata?: JsonObject;
   walletClient: Signer | MultiNetworkSigner;
 }
+
+type X402NetworkId = 'base' | 'base-sepolia';
+
+interface BuyCreditsWithX402Params {
+  accountId: string;
+  credits: number;
+  usdAmount?: number;
+  description?: string;
+  metadata?: JsonObject;
+  evmPrivateKey: string;
+  network?: X402NetworkId;
+  rpcUrl?: string;
+}
+
+const X402_NETWORK_CONFIG: Record<
+  X402NetworkId,
+  {
+    rpcUrl: string;
+    chain: Chain;
+  }
+> = {
+  base: {
+    rpcUrl: 'https://mainnet.base.org',
+    chain: base,
+  },
+  'base-sepolia': {
+    rpcUrl: 'https://sepolia.base.org',
+    chain: baseSepolia,
+  },
+};
+
+const normalizeHexPrivateKey = (value: string): `0x${string}` => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error('evmPrivateKey is required');
+  }
+  return trimmed.startsWith('0x')
+    ? (trimmed as `0x${string}`)
+    : (`0x${trimmed}` as `0x${string}`);
+};
 
 type X402PurchaseResult = X402CreditPurchaseResponse & {
   paymentResponseHeader?: string;
@@ -765,10 +808,7 @@ export class RegistryBrokerClient {
       params.walletClient,
     );
 
-    const response = await paymentClient.post(
-      '/credits/purchase/x402',
-      body,
-    );
+    const response = await paymentClient.post('/credits/purchase/x402', body);
 
     const parsed = this.parseWithSchema(
       response.data,
@@ -790,6 +830,30 @@ export class RegistryBrokerClient {
       paymentResponseHeader: paymentHeader,
       paymentResponse: decodedPayment,
     };
+  }
+
+  async buyCreditsWithX402(
+    params: BuyCreditsWithX402Params,
+  ): Promise<X402PurchaseResult> {
+    const network: X402NetworkId = params.network ?? 'base';
+    const config = X402_NETWORK_CONFIG[network];
+    const rpcUrl = params.rpcUrl?.trim() || config.rpcUrl;
+    const normalizedKey = normalizeHexPrivateKey(params.evmPrivateKey);
+    const account = privateKeyToAccount(normalizedKey);
+    const walletClient = createWalletClient({
+      account,
+      chain: config.chain,
+      transport: http(rpcUrl),
+    });
+
+    return this.purchaseCreditsWithX402({
+      accountId: params.accountId,
+      credits: params.credits,
+      usdAmount: params.usdAmount,
+      description: params.description,
+      metadata: params.metadata,
+      walletClient,
+    });
   }
 
   private calculateHbarAmount(

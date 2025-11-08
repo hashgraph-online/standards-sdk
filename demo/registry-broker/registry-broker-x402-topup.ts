@@ -1,22 +1,17 @@
 import 'dotenv/config';
 import { PrivateKey } from '@hashgraph/sdk';
-import { privateKeyToAccount } from 'viem/accounts';
-import { createWalletClient, http } from 'viem';
-import { base, baseSepolia } from 'viem/chains';
 import { RegistryBrokerClient } from '../../src/services/registry-broker/client';
 
-const DEFAULT_CREDIT_UNIT_USD = Number(
-  process.env.X402_DEMO_CREDIT_UNIT_USD || '0.01',
-);
+const DEFAULT_CREDIT_UNIT_USD = Number(process.env.CREDIT_UNIT_USD || '0.01');
 const DEFAULT_BROKER_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 
 const resolveAccountId = (): string => {
   const account =
-    process.env.X402_DEMO_ACCOUNT_ID?.trim() ||
+    process.env.CREDITS_ACCOUNT_ID?.trim() ||
     process.env.HEDERA_ACCOUNT_ID?.trim();
   if (!account) {
     throw new Error(
-      'Set X402_DEMO_ACCOUNT_ID or HEDERA_ACCOUNT_ID to choose which credit account to top up.',
+      'Set CREDITS_ACCOUNT_ID or HEDERA_ACCOUNT_ID to choose which credit account to top up.',
     );
   }
   return account;
@@ -24,12 +19,13 @@ const resolveAccountId = (): string => {
 
 const resolveLedgerAccountId = (): string => {
   const account =
-    process.env.X402_DEMO_LEDGER_ACCOUNT_ID?.trim() ||
+    process.env.LEDGER_ACCOUNT_ID?.trim() ||
+    process.env.CREDITS_ACCOUNT_ID?.trim() ||
     process.env.HEDERA_ACCOUNT_ID?.trim() ||
     process.env.TESTNET_HEDERA_ACCOUNT_ID?.trim();
   if (!account) {
     throw new Error(
-      'Set X402_DEMO_LEDGER_ACCOUNT_ID or HEDERA_ACCOUNT_ID for ledger auth.',
+      'Set LEDGER_ACCOUNT_ID or HEDERA_ACCOUNT_ID for ledger auth.',
     );
   }
   return account;
@@ -37,12 +33,12 @@ const resolveLedgerAccountId = (): string => {
 
 const resolveLedgerPrivateKey = (): string => {
   const key =
-    process.env.X402_DEMO_LEDGER_PRIVATE_KEY?.trim() ||
+    process.env.LEDGER_PRIVATE_KEY?.trim() ||
     process.env.HEDERA_PRIVATE_KEY?.trim() ||
     process.env.TESTNET_HEDERA_PRIVATE_KEY?.trim();
   if (!key) {
     throw new Error(
-      'Set X402_DEMO_LEDGER_PRIVATE_KEY or HEDERA_PRIVATE_KEY for ledger auth.',
+      'Set LEDGER_PRIVATE_KEY or HEDERA_PRIVATE_KEY for ledger auth.',
     );
   }
   return key;
@@ -50,12 +46,10 @@ const resolveLedgerPrivateKey = (): string => {
 
 const resolveLedgerNetwork = (): 'mainnet' | 'testnet' => {
   const network =
-    process.env.X402_DEMO_LEDGER_NETWORK?.trim() ||
+    process.env.LEDGER_NETWORK?.trim() ||
     process.env.HEDERA_NETWORK ||
     'mainnet';
-  const normalized = network
-    .trim()
-    .toLowerCase();
+  const normalized = network.trim().toLowerCase();
   return normalized === 'testnet' ? 'testnet' : 'mainnet';
 };
 
@@ -68,28 +62,27 @@ const resolveWalletPrivateKey = (): `0x${string}` => {
 };
 
 const resolveNetwork = () => {
-  const network = (process.env.X402_DEMO_NETWORK || 'base-sepolia')
+  const network = (process.env.CREDITS_ETH_NETWORK || 'base-sepolia')
     .trim()
     .toLowerCase();
   switch (network) {
     case 'base':
-      return { id: 'base', chain: base, rpc: 'https://mainnet.base.org' };
+      return { id: 'base' as const, rpc: 'https://mainnet.base.org' };
     case 'base-sepolia':
     default:
       return {
-        id: 'base-sepolia',
-        chain: baseSepolia,
+        id: 'base-sepolia' as const,
         rpc: 'https://sepolia.base.org',
       };
   }
 };
 
 const resolveCredits = (): number => {
-  const value = process.env.X402_DEMO_CREDITS
-    ? Number(process.env.X402_DEMO_CREDITS)
+  const value = process.env.CREDITS_AMOUNT
+    ? Number(process.env.CREDITS_AMOUNT)
     : 100;
   if (!Number.isFinite(value) || value <= 0) {
-    throw new Error('X402_DEMO_CREDITS must be a positive number.');
+    throw new Error('CREDITS_AMOUNT must be a positive number.');
   }
   return value;
 };
@@ -107,10 +100,12 @@ const main = async () => {
   const ledgerNetwork = resolveLedgerNetwork();
   const requestedCredits = resolveCredits();
   const network = resolveNetwork();
-  const rpcUrl = process.env.X402_DEMO_RPC_URL?.trim() || network.rpc;
+  const rpcUrl = process.env.CREDITS_ETH_RPC_URL?.trim() || network.rpc;
   const walletPrivateKey = resolveWalletPrivateKey();
 
-  console.log(`🔐 Authenticating ledger account ${ledgerAccountId} (${ledgerNetwork})...`);
+  console.log(
+    `🔐 Authenticating ledger account ${ledgerAccountId} (${ledgerNetwork})...`,
+  );
   const ledgerKey = PrivateKey.fromString(ledgerPrivateKey);
   await client.authenticateWithLedger({
     accountId: ledgerAccountId,
@@ -143,24 +138,19 @@ const main = async () => {
     );
   }
 
-  const payer = privateKeyToAccount(walletPrivateKey);
-  const walletClient = createWalletClient({
-    account: payer,
-    chain: network.chain,
-    transport: http(rpcUrl),
-  });
-
   console.log(`🔐 Purchasing credits via x402 (${network.id})...`);
   console.log(`• Account: ${accountId}`);
   console.log(`• Credits: ${credits}`);
   console.log(`• Broker:  ${brokerBaseUrl}`);
 
-  const response = await client.purchaseCreditsWithX402({
+  const response = await client.buyCreditsWithX402({
     accountId,
     credits,
     description: 'x402 demo credit top-up',
     metadata: { demo: 'registry-broker-x402-topup' },
-    walletClient,
+    evmPrivateKey: walletPrivateKey,
+    network: network.id,
+    rpcUrl,
   });
 
   console.log('✅ Purchase settled');

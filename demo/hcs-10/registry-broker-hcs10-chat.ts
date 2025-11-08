@@ -35,7 +35,7 @@ interface DemoConfig {
   adapterCheck: string;
 }
 
-const DEFAULT_BASE_URL = 'http://127.0.0.1:4000/api/v1';
+const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 const TARGET_REGISTRY = 'openconvai';
 
 const REQUEST_TIMEOUT_MS =
@@ -199,6 +199,50 @@ const attemptWithCreditTopup = async <T>(
   }
 };
 
+type LedgerSigner = (message: string) =>
+  | {
+      signature: string;
+      signatureKind: 'raw';
+      publicKey: string;
+    }
+  | Promise<{
+      signature: string;
+      signatureKind: 'raw';
+      publicKey: string;
+    }>;
+
+const createLedgerSigner = (privateKey: string): LedgerSigner => {
+  const key = PrivateKey.fromString(privateKey);
+  const publicKey = key.publicKey.toString();
+  return (message: string) => {
+    const signature = key.sign(Buffer.from(message, 'utf8'));
+    return {
+      signature: Buffer.from(signature).toString('base64'),
+      signatureKind: 'raw' as const,
+      publicKey,
+    };
+  };
+};
+
+const authenticateClientWithLedger = async (
+  client: RegistryBrokerClient,
+  accountId: string,
+  network: 'mainnet' | 'testnet',
+  signer: LedgerSigner,
+  label: string,
+): Promise<void> => {
+  logger.info(
+    `Authenticating ledger account ${accountId} (${network}) for ${label}...`,
+  );
+  await client.authenticateWithLedger({
+    accountId,
+    network,
+    expiresInMinutes: 30,
+    sign: signer,
+  });
+  logger.info(`Ledger authentication complete for ${label}.`);
+};
+
 const resolveDockerReachableUrl = (raw: string): string => {
   try {
     const url = new URL(raw);
@@ -212,53 +256,6 @@ const resolveDockerReachableUrl = (raw: string): string => {
     return raw;
   }
   return raw;
-};
-
-const ensureLedgerAuth = async (
-  client: RegistryBrokerClient,
-  accountId: string,
-  privateKey: string,
-  network: 'mainnet' | 'testnet',
-): Promise<void> => {
-  if (!accountId || !privateKey) {
-    logger.warn(
-      'Ledger auth skipped: ledger account or private key not provided.',
-    );
-    return;
-  }
-
-  const headers = client.getDefaultHeaders();
-  if (headers['x-ledger-api-key']) {
-    return;
-  }
-
-  logger.info(`Requesting ledger challenge for ${accountId} (${network})...`);
-  const challenge = await withRequestTimeout(
-    client.createLedgerChallenge({ accountId, network }),
-    'createLedgerChallenge',
-  );
-
-  const key = PrivateKey.fromString(privateKey);
-  const signature = Buffer.from(
-    key.sign(Buffer.from(challenge.message, 'utf8')),
-  ).toString('base64');
-
-  const verification = await withRequestTimeout(
-    client.verifyLedgerChallenge({
-      challengeId: challenge.challengeId,
-      accountId,
-      network,
-      signature,
-      signatureKind: 'raw',
-      publicKey: key.publicKey.toString(),
-      expiresInMinutes: 30,
-    }),
-    'verifyLedgerChallenge',
-  );
-
-  logger.info(
-    `Ledger authentication complete (api key ${verification.apiKey?.prefix ?? 'unknown'}••${verification.apiKey?.lastFour ?? '????'})`,
-  );
 };
 
 const ensureAgentRegistration = async ({
@@ -404,6 +401,7 @@ const run = async (): Promise<void> => {
 
   const hederaAccountId = ledgerAccountId;
   const hederaPrivateKey = ledgerPrivateKey;
+  const ledgerSigner = createLedgerSigner(ledgerPrivateKey);
 
   const clientOptions = {
     baseUrl: config.baseUrl,
@@ -476,11 +474,12 @@ const run = async (): Promise<void> => {
         network,
       },
     };
-    await ensureLedgerAuth(
+    await authenticateClientWithLedger(
       registrationClient,
       ledgerAccountId,
-      ledgerPrivateKey,
       network,
+      ledgerSigner,
+      'registration client',
     );
     const registryUaid = await ensureAgentRegistration({
       client: registrationClient,
@@ -527,11 +526,12 @@ const run = async (): Promise<void> => {
       );
     }
 
-    await ensureLedgerAuth(
+    await authenticateClientWithLedger(
       userClient,
       ledgerAccountId,
-      ledgerPrivateKey,
       network,
+      ledgerSigner,
+      'user client',
     );
 
     const resolvedAgent = await withRequestTimeout(

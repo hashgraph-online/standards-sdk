@@ -243,7 +243,7 @@ const updateDemoAgent = async (
 
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ??
-    'http://127.0.0.1:4000/api/v1';
+    'https://registry.hashgraphonline.com/api/v1';
 
   const buildHeaders = () => {
     const headers = new Headers();
@@ -908,7 +908,7 @@ const main = async () => {
   const baseUrl =
     baseUrlEnv && baseUrlEnv.length > 0
       ? baseUrlEnv
-      : 'http://127.0.0.1:4000/api/v1';
+      : 'https://registry.hashgraphonline.com/api/v1';
   const autoTopUpCredentials =
     config.ledgerAccountId && config.ledgerPrivateKey
       ? {
