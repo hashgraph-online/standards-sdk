@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { PrivateKey } from '@hashgraph/sdk';
 import { RegistryBrokerClient } from '../../src/services/registry-broker/client';
+import { createPrivateKeySigner } from '../../src/services/registry-broker/private-key-signer';
 
 const DEFAULT_CREDIT_UNIT_USD = Number(process.env.CREDIT_UNIT_USD || '0.01');
 const DEFAULT_BROKER_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
@@ -106,18 +106,15 @@ const main = async () => {
   console.log(
     `🔐 Authenticating ledger account ${ledgerAccountId} (${ledgerNetwork})...`,
   );
-  const ledgerKey = PrivateKey.fromString(ledgerPrivateKey);
+  const ledgerSigner = createPrivateKeySigner({
+    accountId: ledgerAccountId,
+    privateKey: ledgerPrivateKey,
+    network: ledgerNetwork,
+  });
   await client.authenticateWithLedger({
     accountId: ledgerAccountId,
     network: ledgerNetwork,
-    sign: async (message: string) => {
-      const signature = await ledgerKey.sign(Buffer.from(message, 'utf8'));
-      return {
-        signature: Buffer.from(signature).toString('base64'),
-        signatureKind: 'raw' as const,
-        publicKey: ledgerKey.publicKey.toString(),
-      };
-    },
+    signer: ledgerSigner,
   });
 
   const minimums = await client.getX402Minimums();

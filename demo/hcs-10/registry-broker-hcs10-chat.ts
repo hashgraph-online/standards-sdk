@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { PrivateKey } from '@hashgraph/sdk';
+import type { Signer } from '@hashgraph/sdk';
 import {
   LocalA2AAgentHandle,
   startLocalA2AAgent,
@@ -22,6 +22,7 @@ import {
   resolveNetwork,
   resolveNetworkScopedLedgerValue,
 } from './network';
+import { createPrivateKeySigner } from '../../src/services/registry-broker/private-key-signer';
 
 dotenv.config();
 
@@ -199,36 +200,11 @@ const attemptWithCreditTopup = async <T>(
   }
 };
 
-type LedgerSigner = (message: string) =>
-  | {
-      signature: string;
-      signatureKind: 'raw';
-      publicKey: string;
-    }
-  | Promise<{
-      signature: string;
-      signatureKind: 'raw';
-      publicKey: string;
-    }>;
-
-const createLedgerSigner = (privateKey: string): LedgerSigner => {
-  const key = PrivateKey.fromString(privateKey);
-  const publicKey = key.publicKey.toString();
-  return (message: string) => {
-    const signature = key.sign(Buffer.from(message, 'utf8'));
-    return {
-      signature: Buffer.from(signature).toString('base64'),
-      signatureKind: 'raw' as const,
-      publicKey,
-    };
-  };
-};
-
 const authenticateClientWithLedger = async (
   client: RegistryBrokerClient,
   accountId: string,
   network: 'mainnet' | 'testnet',
-  signer: LedgerSigner,
+  signer: Signer,
   label: string,
 ): Promise<void> => {
   logger.info(
@@ -238,7 +214,7 @@ const authenticateClientWithLedger = async (
     accountId,
     network,
     expiresInMinutes: 30,
-    sign: signer,
+    signer,
   });
   logger.info(`Ledger authentication complete for ${label}.`);
 };
@@ -401,7 +377,11 @@ const run = async (): Promise<void> => {
 
   const hederaAccountId = ledgerAccountId;
   const hederaPrivateKey = ledgerPrivateKey;
-  const ledgerSigner = createLedgerSigner(ledgerPrivateKey);
+  const ledgerSigner = createPrivateKeySigner({
+    accountId: ledgerAccountId,
+    privateKey: ledgerPrivateKey,
+    network,
+  });
 
   const clientOptions = {
     baseUrl: config.baseUrl,

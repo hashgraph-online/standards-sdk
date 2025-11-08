@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { PrivateKey } from '@hashgraph/sdk';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import {
@@ -24,6 +23,7 @@ import {
   startLocalX402Facilitator,
   type LocalX402FacilitatorHandle,
 } from '../utils/local-x402-facilitator';
+import { createPrivateKeySigner } from '../../src/services/registry-broker/private-key-signer';
 
 interface SearchHit {
   id: string;
@@ -93,30 +93,23 @@ const authenticateWithLedger = async (
   client: RegistryBrokerClient,
 ): Promise<{ accountId: string; privateKey: string }> => {
   const credentials = ensureLedgerCredentials();
-  const privateKey = PrivateKey.fromString(credentials.privateKey);
+  const signer = createPrivateKeySigner({
+    accountId: credentials.accountId,
+    privateKey: credentials.privateKey,
+    network: credentials.network,
+  });
   let attemptError: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const challenge = await client.createLedgerChallenge({
+      const verification = await client.authenticateWithLedger({
         accountId: credentials.accountId,
         network: credentials.network,
-      });
-      const signatureBytes = await privateKey.sign(
-        Buffer.from(challenge.message, 'utf8'),
-      );
-      const signature = Buffer.from(signatureBytes).toString('base64');
-      const publicKey = privateKey.publicKey.toString();
-      const verification = await client.verifyLedgerChallenge({
-        challengeId: challenge.challengeId,
-        accountId: credentials.accountId,
-        network: credentials.network,
-        signature,
-        publicKey,
+        signer,
+        expiresInMinutes: 30,
       });
       console.log(
         `Ledger auth complete for ${verification.accountId} on ${verification.network}.`,
       );
-      client.setLedgerApiKey(verification.key);
       client.setDefaultHeader('x-account-id', verification.accountId);
       return {
         accountId: credentials.accountId,

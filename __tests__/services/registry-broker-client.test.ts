@@ -384,6 +384,25 @@ describe('RegistryBrokerClient', () => {
     expect(targetUrl).toBe('https://api.example.com/api/v1/search?limit=1');
   });
 
+  it('normalises base URL ending with /api to include version suffix', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => mockSearchResponse,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com/api/',
+      fetchImplementation,
+    });
+
+    await client.search({ limit: 1 });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    const [targetUrl] = fetchImplementation.mock.calls[0];
+    expect(targetUrl).toBe('https://api.example.com/api/v1/search?limit=1');
+  });
+
   it('throws RegistryBrokerError on non-OK response', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({

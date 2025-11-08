@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Signer } from '@hashgraph/sdk';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
@@ -197,11 +198,7 @@ export interface LedgerAuthenticationSignerResult {
 }
 
 export interface LedgerAuthenticationOptions extends LedgerChallengeRequest {
-  sign: (
-    message: string,
-  ) =>
-    | LedgerAuthenticationSignerResult
-    | Promise<LedgerAuthenticationSignerResult>;
+  signer: Signer;
   expiresInMinutes?: number;
 }
 

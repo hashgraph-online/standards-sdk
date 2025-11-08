@@ -52,6 +52,7 @@ import {
   X402MinimumsResponse,
 } from './types';
 import axios from 'axios';
+import type { SignerSignature } from '@hashgraph/sdk';
 import { createWalletClient, http, type Chain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
@@ -316,6 +317,9 @@ function normaliseBaseUrl(input?: string): string {
   const withoutTrailing = baseCandidate.replace(/\/+$/, '');
   if (/\/api\/v\d+$/i.test(withoutTrailing)) {
     return withoutTrailing;
+  }
+  if (/\/api$/i.test(withoutTrailing)) {
+    return `${withoutTrailing}/v1`;
   }
   return `${withoutTrailing}/api/v1`;
 }
@@ -1086,7 +1090,10 @@ export class RegistryBrokerClient {
       accountId: options.accountId,
       network: options.network,
     });
-    const signed = await options.sign(challenge.message);
+    const signed = await this.resolveLedgerAuthSignature(
+      challenge.message,
+      options,
+    );
     const verification = await this.verifyLedgerChallenge({
       challengeId: challenge.challengeId,
       accountId: options.accountId,
@@ -1097,6 +1104,38 @@ export class RegistryBrokerClient {
       expiresInMinutes: options.expiresInMinutes,
     });
     return verification;
+  }
+
+  private async resolveLedgerAuthSignature(
+    message: string,
+    options: LedgerAuthenticationOptions,
+  ): Promise<LedgerAuthenticationSignerResult> {
+    if (!options.signer || typeof options.signer.sign !== 'function') {
+      throw new Error('Ledger authentication requires a Hedera Signer.');
+    }
+
+    const payload = Buffer.from(message, 'utf8');
+    const signatures: SignerSignature[] = await options.signer.sign([payload]);
+    const signatureEntry = signatures?.[0];
+    if (!signatureEntry) {
+      throw new Error('Signer did not return any signatures.');
+    }
+
+    let derivedPublicKey: string | undefined;
+    if (signatureEntry.publicKey) {
+      derivedPublicKey = signatureEntry.publicKey.toString();
+    } else if (typeof options.signer.getAccountKey === 'function') {
+      const accountKey = options.signer.getAccountKey();
+      if (accountKey && typeof accountKey.toString === 'function') {
+        derivedPublicKey = accountKey.toString();
+      }
+    }
+
+    return {
+      signature: Buffer.from(signatureEntry.signature).toString('base64'),
+      signatureKind: 'raw',
+      publicKey: derivedPublicKey,
+    };
   }
 
   async listProtocols(): Promise<ProtocolsResponse> {
