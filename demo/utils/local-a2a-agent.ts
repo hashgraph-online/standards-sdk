@@ -5,13 +5,16 @@ import {
   ServerResponse,
 } from 'http';
 import localtunnel, { Tunnel } from 'localtunnel';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import {
+  cloudflaredInstallHint,
+  detectCloudflared,
+  getTunnelPreference,
+  startCloudflareTunnel,
+  tunnelingDisabled,
+  type CloudflareTunnelHandle,
+} from './demo-tunnel';
 
-interface TunnelHandle {
-  url: string;
-  close: () => Promise<void>;
-}
+type TunnelHandle = CloudflareTunnelHandle;
 
 export interface LocalA2AAgentOptions {
   agentId: string;
@@ -28,120 +31,6 @@ export interface LocalA2AAgentHandle {
   localA2aEndpoint: string;
   stop: () => Promise<void>;
 }
-
-const CLOUD_FLARE_URL_PATTERN = /https:\/\/[^\s]+trycloudflare\.com/;
-const CLOUD_FLARE_TIMEOUT_MS = 15_000;
-
-const detectCloudflared = async (): Promise<boolean> => {
-  return new Promise(resolve => {
-    const detector = spawn('cloudflared', ['--version']);
-
-    detector.once('error', error => {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        resolve(false);
-      } else {
-        resolve(false);
-      }
-    });
-
-    detector.once('exit', code => {
-      resolve(code === 0);
-    });
-  });
-};
-
-const startCloudflareTunnel = async (port: number): Promise<TunnelHandle> => {
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-    let stderrBuffer = '';
-
-    const child = spawn('cloudflared', [
-      'tunnel',
-      '--url',
-      `http://127.0.0.1:${port}`,
-      '--no-autoupdate',
-    ]);
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      child.stdout?.off('data', onOutput);
-      child.stderr?.off('data', onOutput);
-      child.off('error', onError);
-      child.off('exit', onExit);
-    };
-
-    const resolveWithUrl = (url: string) => {
-      if (resolved) {
-        return;
-      }
-      resolved = true;
-      cleanup();
-      resolve({
-        url,
-        close: async () => {
-          if (child.exitCode !== null || child.signalCode) {
-            return;
-          }
-          child.kill();
-          try {
-            await once(child, 'exit');
-          } catch {
-            // ignore shutdown errors
-          }
-        },
-      });
-    };
-
-    const onOutput = (chunk: unknown) => {
-      const text = (chunk ?? '').toString();
-      const match = text.match(CLOUD_FLARE_URL_PATTERN);
-      if (match) {
-        resolveWithUrl(match[0]);
-      }
-      stderrBuffer += text;
-    };
-
-    const onError = (error: unknown) => {
-      if (resolved) {
-        return;
-      }
-      cleanup();
-      reject(
-        error instanceof Error
-          ? error
-          : new Error(`Failed to start cloudflared tunnel: ${String(error)}`),
-      );
-    };
-
-    const onExit = (code: number | null) => {
-      if (resolved) {
-        return;
-      }
-      cleanup();
-      reject(
-        new Error(
-          `Cloudflare tunnel exited before it was ready (code ${
-            code ?? 'unknown'
-          }): ${stderrBuffer.trim()}`,
-        ),
-      );
-    };
-
-    const timer = setTimeout(() => {
-      if (resolved) {
-        return;
-      }
-      cleanup();
-      child.kill();
-      reject(new Error('Cloudflare tunnel startup timed out'));
-    }, CLOUD_FLARE_TIMEOUT_MS);
-
-    child.stdout?.on('data', onOutput);
-    child.stderr?.on('data', onOutput);
-    child.once('error', onError);
-    child.once('exit', onExit);
-  });
-};
 
 const collectRequestBody = (request: IncomingMessage): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -401,16 +290,8 @@ export const startLocalA2AAgent = async (
 
   const baseUrl = `http://127.0.0.1:${listeningPort}`;
 
-  const tunnelPreferenceRaw =
-    process.env.REGISTRY_BROKER_DEMO_TUNNEL?.trim().toLowerCase();
-  const tunnelPreference =
-    tunnelPreferenceRaw &&
-    ['cloudflare', 'localtunnel', 'none', 'auto'].includes(tunnelPreferenceRaw)
-      ? tunnelPreferenceRaw
-      : 'auto';
-
-  const disableTunneling =
-    process.env.NO_TUNNEL === '1' || tunnelPreference === 'none';
+  const tunnelPreference = getTunnelPreference();
+  const disableTunneling = tunnelingDisabled(tunnelPreference);
   const shouldTryCloudflare =
     !disableTunneling &&
     (tunnelPreference === 'auto' || tunnelPreference === 'cloudflare');
@@ -421,9 +302,12 @@ export const startLocalA2AAgent = async (
   if (shouldTryCloudflare) {
     const cloudflaredAvailable = await detectCloudflared();
     if (!cloudflaredAvailable) {
-      console.log(
-        '  ℹ️  Cloudflare tunnel skipped: install `cloudflared` (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) to enable this tunnel option.',
-      );
+      const hint = cloudflaredInstallHint();
+      const message = `Cloudflare tunnel is required but \`cloudflared\` is not installed. Install it via: ${hint}`;
+      console.log(`  ⚠️  ${message}`);
+      if (tunnelPreference === 'cloudflare') {
+        throw new Error(message);
+      }
     } else {
       try {
         tunnelHandle = await startCloudflareTunnel(listeningPort);
@@ -434,6 +318,13 @@ export const startLocalA2AAgent = async (
             error instanceof Error ? error.message : String(error)
           }`,
         );
+        if (tunnelPreference === 'cloudflare') {
+          throw new Error(
+            `Cloudflare tunnel failed to start: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
       }
     }
   }

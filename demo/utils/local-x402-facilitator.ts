@@ -5,6 +5,16 @@ import {
   ServerResponse,
 } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import {
+  cloudflaredInstallHint,
+  detectCloudflared,
+  getTunnelPreference,
+  startCloudflareTunnel,
+  tunnelingDisabled,
+  type CloudflareTunnelHandle,
+} from './demo-tunnel';
 
 export interface LocalX402FacilitatorOptions {
   port?: number;
@@ -20,8 +30,11 @@ export interface LocalX402FacilitatorOptions {
 export interface LocalX402FacilitatorHandle {
   port: number;
   baseUrl: string;
+  publicBaseUrl?: string;
   discoveryUrl: string;
+  publicDiscoveryUrl?: string;
   resourceUrl: string;
+  publicResourceUrl?: string;
   stop: () => Promise<void>;
 }
 
@@ -33,6 +46,11 @@ const DEFAULT_NETWORK = 'base-sepolia';
 const DEFAULT_ASSET = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const DEFAULT_PAY_TO = '0x6813749E1eB9E0001A44C2684695FE8AD676cdD0';
 const DEFAULT_MAX_AMOUNT = '2500'; // 0.0025 USD with 6 decimals
+const FACILITATOR_CACHE_PATH = path.resolve(
+  process.cwd(),
+  '.cache',
+  'registry-broker-x402-facilitator.json',
+);
 
 const json = (
   response: ServerResponse,
@@ -283,28 +301,54 @@ export const startLocalX402Facilitator = async (
     },
   );
 
+  let baseHandle: LocalX402FacilitatorHandle;
+  let cachedUrl: string | undefined;
   if (listenResult === 'in-use') {
     server.close();
-    return reuseExistingFacilitator(port, resourcePath);
+    cachedUrl = await readPersistedFacilitatorUrl(port);
+    baseHandle = await reuseExistingFacilitator(port, resourcePath);
+  } else {
+    const baseUrl = `http://127.0.0.1:${resolvedPort}`;
+    baseHandle = {
+      port: resolvedPort,
+      baseUrl,
+      discoveryUrl: `${baseUrl}/platform/v2/x402/discovery/resources`,
+      resourceUrl: `${baseUrl}${resourcePath}`,
+      stop: async () => {
+        await new Promise<void>((resolve, reject) => {
+          server.close(error => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+      },
+    };
   }
 
-  const baseUrl = `http://127.0.0.1:${resolvedPort}`;
+  const { handle: tunnelHandle, publicBaseUrl } = await ensureFacilitatorTunnel(
+    baseHandle.port,
+    cachedUrl,
+  );
+  const publicDiscoveryUrl = publicBaseUrl
+    ? `${publicBaseUrl}/platform/v2/x402/discovery/resources`
+    : undefined;
+  const publicResourceUrl = publicBaseUrl
+    ? `${publicBaseUrl}${resourcePath}`
+    : undefined;
 
   return {
-    port: resolvedPort,
-    baseUrl,
-    discoveryUrl: `${baseUrl}/platform/v2/x402/discovery/resources`,
-    resourceUrl: `${baseUrl}${resourcePath}`,
+    ...baseHandle,
+    publicBaseUrl,
+    publicDiscoveryUrl,
+    publicResourceUrl,
     stop: async () => {
-      await new Promise<void>((resolve, reject) => {
-        server.close(error => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
-        });
-      });
+      await baseHandle.stop();
+      if (tunnelHandle) {
+        await tunnelHandle.close();
+      }
     },
   };
 };
@@ -332,7 +376,81 @@ const reuseExistingFacilitator = async (
     discoveryUrl: `${baseUrl}/platform/v2/x402/discovery/resources`,
     resourceUrl: `${baseUrl}${resourcePath}`,
     stop: async () => {
-      // external facilitator is managed elsewhere
+      return;
     },
   };
+};
+
+const ensureFacilitatorTunnel = async (
+  port: number,
+  cachedUrl?: string,
+): Promise<{
+  handle: CloudflareTunnelHandle | null;
+  publicBaseUrl?: string;
+}> => {
+  const preference = getTunnelPreference();
+  if (tunnelingDisabled(preference)) {
+    console.log('Cloudflare tunnel disabled; facilitator will stay private.');
+    return { handle: null };
+  }
+  if (cachedUrl) {
+    console.log(
+      `Reusing cached Cloudflare tunnel for x402 facilitator: ${cachedUrl}`,
+    );
+    return { handle: null, publicBaseUrl: cachedUrl };
+  }
+  if (preference === 'localtunnel') {
+    console.log(
+      'REGISTRY_BROKER_DEMO_TUNNEL=localtunnel is not supported for the x402 facilitator; Cloudflare will be used instead.',
+    );
+  }
+  const available = await detectCloudflared();
+  if (!available) {
+    const hint = cloudflaredInstallHint();
+    throw new Error(
+      `cloudflared is required for the x402 facilitator demo. Install it via: ${hint}`,
+    );
+  }
+  try {
+    const handle = await startCloudflareTunnel(port);
+    console.log(`Cloudflare tunnel for x402 facilitator: ${handle.url}`);
+    await persistFacilitatorTunnel(port, handle.url);
+    return { handle, publicBaseUrl: handle.url };
+  } catch (error) {
+    throw new Error(
+      `Unable to start Cloudflare tunnel for the x402 facilitator: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+};
+
+const persistFacilitatorTunnel = async (
+  port: number,
+  url: string,
+): Promise<void> => {
+  const payload = {
+    port,
+    url,
+    updatedAt: new Date().toISOString(),
+  };
+  await mkdir(path.dirname(FACILITATOR_CACHE_PATH), { recursive: true });
+  await writeFile(
+    FACILITATOR_CACHE_PATH,
+    JSON.stringify(payload, null, 2),
+    'utf8',
+  );
+};
+
+const readPersistedFacilitatorUrl = async (
+  port: number,
+): Promise<string | undefined> => {
+  try {
+    const raw = await readFile(FACILITATOR_CACHE_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as { port?: number; url?: string };
+    if (parsed.port === port && typeof parsed.url === 'string') {
+      return parsed.url;
+    }
+  } catch {}
+  return undefined;
 };

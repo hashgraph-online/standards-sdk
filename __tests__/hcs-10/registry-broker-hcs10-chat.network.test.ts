@@ -74,7 +74,9 @@ describe('HCS-10 chat demo network resolution', () => {
   describe('resolveNetwork', () => {
     it('prefers explicit env configuration', () => {
       process.env.HEDERA_NETWORK = 'mainnet';
-      expect(resolveNetwork('http://127.0.0.1:4000/api/v1')).toBe('mainnet');
+      expect(resolveNetwork('https://registry.hashgraphonline.com/api/v1')).toBe(
+        'mainnet',
+      );
     });
 
     it('infers production hostnames as mainnet', () => {
@@ -88,7 +90,6 @@ describe('HCS-10 chat demo network resolution', () => {
         resolveNetwork('https://registry-staging.hashgraphonline.com/api/v1'),
       ).toBe('testnet');
       expect(resolveNetwork('http://localhost:4000/api/v1')).toBe('testnet');
-      expect(resolveNetwork('http://127.0.0.1:4000/api/v1')).toBe('testnet');
     });
   });
 

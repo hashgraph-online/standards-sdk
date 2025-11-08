@@ -55,7 +55,7 @@ const resolveDemoConfig = () => {
   return {
     baseUrl:
       process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-      'http://127.0.0.1:4000/api/v1',
+      'https://registry.hashgraphonline.com/api/v1',
     ledgerAccountId:
       scopedAccountId ||
       process.env.HEDERA_ACCOUNT_ID?.trim() ||

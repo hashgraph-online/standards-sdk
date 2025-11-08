@@ -48,7 +48,19 @@ import {
   CompactHistoryRequestPayload,
   AdapterDetailsResponse,
   AdditionalRegistryCatalogResponse,
+  X402CreditPurchaseResponse,
+  X402MinimumsResponse,
 } from './types';
+import axios from 'axios';
+import { createWalletClient, http, type Chain } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base, baseSepolia } from 'viem/chains';
+import {
+  withPaymentInterceptor,
+  decodeXPaymentResponse,
+  Signer,
+  MultiNetworkSigner,
+} from 'x402-axios';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
@@ -60,6 +72,8 @@ import {
   registerAgentResponseSchema,
   registrationQuoteResponseSchema,
   creditPurchaseResponseSchema,
+  x402CreditPurchaseResponseSchema,
+  x402MinimumsResponseSchema,
   registriesResponseSchema,
   registrySearchByNamespaceSchema,
   searchFacetsResponseSchema,
@@ -212,6 +226,60 @@ interface RequestConfig {
   body?: JsonValue;
   headers?: Record<string, string>;
 }
+
+interface PurchaseCreditsWithX402Params {
+  accountId: string;
+  credits: number;
+  usdAmount?: number;
+  description?: string;
+  metadata?: JsonObject;
+  walletClient: Signer | MultiNetworkSigner;
+}
+
+type X402NetworkId = 'base' | 'base-sepolia';
+
+interface BuyCreditsWithX402Params {
+  accountId: string;
+  credits: number;
+  usdAmount?: number;
+  description?: string;
+  metadata?: JsonObject;
+  evmPrivateKey: string;
+  network?: X402NetworkId;
+  rpcUrl?: string;
+}
+
+const X402_NETWORK_CONFIG: Record<
+  X402NetworkId,
+  {
+    rpcUrl: string;
+    chain: Chain;
+  }
+> = {
+  base: {
+    rpcUrl: 'https://mainnet.base.org',
+    chain: base,
+  },
+  'base-sepolia': {
+    rpcUrl: 'https://sepolia.base.org',
+    chain: baseSepolia,
+  },
+};
+
+const normalizeHexPrivateKey = (value: string): `0x${string}` => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error('evmPrivateKey is required');
+  }
+  return trimmed.startsWith('0x')
+    ? (trimmed as `0x${string}`)
+    : (`0x${trimmed}` as `0x${string}`);
+};
+
+type X402PurchaseResult = X402CreditPurchaseResponse & {
+  paymentResponseHeader?: string;
+  paymentResponse?: ReturnType<typeof decodeXPaymentResponse>;
+};
 
 interface ErrorDetails {
   status: number;
@@ -685,6 +753,107 @@ export class RegistryBrokerClient {
       creditPurchaseResponseSchema,
       'credit purchase response',
     );
+  }
+
+  async getX402Minimums(): Promise<X402MinimumsResponse> {
+    const raw = await this.requestJson<JsonValue>(
+      '/credits/purchase/x402/minimums',
+      { method: 'GET' },
+    );
+    return this.parseWithSchema(
+      raw,
+      x402MinimumsResponseSchema,
+      'x402 minimums response',
+    );
+  }
+
+  async purchaseCreditsWithX402(
+    params: PurchaseCreditsWithX402Params,
+  ): Promise<X402PurchaseResult> {
+    if (!Number.isFinite(params.credits) || params.credits <= 0) {
+      throw new Error('credits must be a positive number');
+    }
+    if (
+      params.usdAmount !== undefined &&
+      (!Number.isFinite(params.usdAmount) || params.usdAmount <= 0)
+    ) {
+      throw new Error('usdAmount must be a positive number when provided');
+    }
+
+    const body: JsonObject = {
+      accountId: params.accountId,
+      credits: params.credits,
+    };
+
+    if (params.usdAmount !== undefined) {
+      body.usdAmount = params.usdAmount;
+    }
+    if (params.description) {
+      body.description = params.description;
+    }
+    if (params.metadata) {
+      body.metadata = params.metadata;
+    }
+
+    const axiosClient = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        ...this.getDefaultHeaders(),
+        'content-type': 'application/json',
+      },
+    });
+
+    const paymentClient = withPaymentInterceptor(
+      axiosClient,
+      params.walletClient,
+    );
+
+    const response = await paymentClient.post('/credits/purchase/x402', body);
+
+    const parsed = this.parseWithSchema(
+      response.data,
+      x402CreditPurchaseResponseSchema,
+      'x402 credit purchase response',
+    );
+
+    const paymentHeader =
+      typeof response.headers['x-payment-response'] === 'string'
+        ? response.headers['x-payment-response']
+        : undefined;
+    const decodedPayment =
+      paymentHeader !== undefined
+        ? decodeXPaymentResponse(paymentHeader)
+        : undefined;
+
+    return {
+      ...parsed,
+      paymentResponseHeader: paymentHeader,
+      paymentResponse: decodedPayment,
+    };
+  }
+
+  async buyCreditsWithX402(
+    params: BuyCreditsWithX402Params,
+  ): Promise<X402PurchaseResult> {
+    const network: X402NetworkId = params.network ?? 'base';
+    const config = X402_NETWORK_CONFIG[network];
+    const rpcUrl = params.rpcUrl?.trim() || config.rpcUrl;
+    const normalizedKey = normalizeHexPrivateKey(params.evmPrivateKey);
+    const account = privateKeyToAccount(normalizedKey);
+    const walletClient = createWalletClient({
+      account,
+      chain: config.chain,
+      transport: http(rpcUrl),
+    });
+
+    return this.purchaseCreditsWithX402({
+      accountId: params.accountId,
+      credits: params.credits,
+      usdAmount: params.usdAmount,
+      description: params.description,
+      metadata: params.metadata,
+      walletClient,
+    });
   }
 
   private calculateHbarAmount(
