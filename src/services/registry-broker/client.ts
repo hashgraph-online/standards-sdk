@@ -48,7 +48,16 @@ import {
   CompactHistoryRequestPayload,
   AdapterDetailsResponse,
   AdditionalRegistryCatalogResponse,
+  X402CreditPurchaseResponse,
+  X402MinimumsResponse,
 } from './types';
+import axios from 'axios';
+import {
+  withPaymentInterceptor,
+  decodeXPaymentResponse,
+  Signer,
+  MultiNetworkSigner,
+} from 'x402-axios';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
@@ -60,6 +69,8 @@ import {
   registerAgentResponseSchema,
   registrationQuoteResponseSchema,
   creditPurchaseResponseSchema,
+  x402CreditPurchaseResponseSchema,
+  x402MinimumsResponseSchema,
   registriesResponseSchema,
   registrySearchByNamespaceSchema,
   searchFacetsResponseSchema,
@@ -212,6 +223,20 @@ interface RequestConfig {
   body?: JsonValue;
   headers?: Record<string, string>;
 }
+
+interface PurchaseCreditsWithX402Params {
+  accountId: string;
+  credits: number;
+  usdAmount?: number;
+  description?: string;
+  metadata?: JsonObject;
+  walletClient: Signer | MultiNetworkSigner;
+}
+
+type X402PurchaseResult = X402CreditPurchaseResponse & {
+  paymentResponseHeader?: string;
+  paymentResponse?: ReturnType<typeof decodeXPaymentResponse>;
+};
 
 interface ErrorDetails {
   status: number;
@@ -685,6 +710,86 @@ export class RegistryBrokerClient {
       creditPurchaseResponseSchema,
       'credit purchase response',
     );
+  }
+
+  async getX402Minimums(): Promise<X402MinimumsResponse> {
+    const raw = await this.requestJson<JsonValue>(
+      '/credits/purchase/x402/minimums',
+      { method: 'GET' },
+    );
+    return this.parseWithSchema(
+      raw,
+      x402MinimumsResponseSchema,
+      'x402 minimums response',
+    );
+  }
+
+  async purchaseCreditsWithX402(
+    params: PurchaseCreditsWithX402Params,
+  ): Promise<X402PurchaseResult> {
+    if (!Number.isFinite(params.credits) || params.credits <= 0) {
+      throw new Error('credits must be a positive number');
+    }
+    if (
+      params.usdAmount !== undefined &&
+      (!Number.isFinite(params.usdAmount) || params.usdAmount <= 0)
+    ) {
+      throw new Error('usdAmount must be a positive number when provided');
+    }
+
+    const body: JsonObject = {
+      accountId: params.accountId,
+      credits: params.credits,
+    };
+
+    if (params.usdAmount !== undefined) {
+      body.usdAmount = params.usdAmount;
+    }
+    if (params.description) {
+      body.description = params.description;
+    }
+    if (params.metadata) {
+      body.metadata = params.metadata;
+    }
+
+    const axiosClient = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        ...this.getDefaultHeaders(),
+        'content-type': 'application/json',
+      },
+    });
+
+    const paymentClient = withPaymentInterceptor(
+      axiosClient,
+      params.walletClient,
+    );
+
+    const response = await paymentClient.post(
+      '/credits/purchase/x402',
+      body,
+    );
+
+    const parsed = this.parseWithSchema(
+      response.data,
+      x402CreditPurchaseResponseSchema,
+      'x402 credit purchase response',
+    );
+
+    const paymentHeader =
+      typeof response.headers['x-payment-response'] === 'string'
+        ? response.headers['x-payment-response']
+        : undefined;
+    const decodedPayment =
+      paymentHeader !== undefined
+        ? decodeXPaymentResponse(paymentHeader)
+        : undefined;
+
+    return {
+      ...parsed,
+      paymentResponseHeader: paymentHeader,
+      paymentResponse: decodedPayment,
+    };
   }
 
   private calculateHbarAmount(

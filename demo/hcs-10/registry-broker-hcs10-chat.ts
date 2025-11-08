@@ -204,7 +204,7 @@ const resolveDockerReachableUrl = (raw: string): string => {
     const url = new URL(raw);
     if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') {
       const bridgeHost =
-        process.env.LOCAL_AGENT_DOCKER_HOST?.trim() || 'host.docker.internal';
+        process.env.LOCAL_AGENT_DOCKER_HOST?.trim() || 'localhost';
       url.hostname = bridgeHost;
       return url.toString();
     }

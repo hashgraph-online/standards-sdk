@@ -596,6 +596,49 @@ export const creditPurchaseResponseSchema = z.object({
   consensusTimestamp: z.string().nullable().optional(),
 });
 
+const x402SettlementSchema = z
+  .object({
+    success: z.boolean().optional(),
+    transaction: z.string().optional(),
+    network: z.string().optional(),
+    payer: z.string().optional(),
+    errorReason: z.string().optional(),
+  })
+  .strict();
+
+export const x402CreditPurchaseResponseSchema = z.object({
+  success: z.boolean(),
+  accountId: z.string(),
+  creditedCredits: z.number(),
+  usdAmount: z.number(),
+  balance: z.number(),
+  payment: z
+    .object({
+      payer: z.string().optional(),
+      requirement: z.record(jsonValueSchema).optional(),
+      settlement: x402SettlementSchema.optional(),
+    })
+    .optional(),
+});
+
+export const x402MinimumsResponseSchema = z.object({
+  minimums: z
+    .record(
+      z.object({
+        network: z.string().optional(),
+        gasLimit: z.number().optional(),
+        gasPriceWei: z.string().optional(),
+        gasUsd: z.number().optional(),
+        minUsd: z.number().optional(),
+        ethUsd: z.number().optional(),
+        fetchedAt: z.string().optional(),
+        source: z.string().optional(),
+      }),
+    )
+    .optional(),
+  creditUnitUsd: z.number().optional(),
+});
+
 export const adaptersResponseSchema = z.object({
   adapters: z.array(z.string()),
 });

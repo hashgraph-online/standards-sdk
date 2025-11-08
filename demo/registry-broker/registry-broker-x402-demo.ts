@@ -1,9 +1,21 @@
 import 'dotenv/config';
 import { PrivateKey } from '@hashgraph/sdk';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import {
+  AIAgentCapability,
+  AIAgentProfile,
+  AIAgentType,
+  ProfileType,
+} from '@hashgraphonline/standards-sdk';
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
 } from '../../src/services/registry-broker';
+import type {
+  AgentRegistrationRequest,
+  RegisterAgentResponse,
+} from '../../src/services/registry-broker/types';
 import {
   startLocalA2AAgent,
   type LocalA2AAgentHandle,
@@ -123,20 +135,127 @@ const authenticateWithLedger = async (
     : new Error(describeError(attemptError));
 };
 
+const buildDemoProfile = (
+  agentId: string,
+  publicUrl: string,
+): AIAgentProfile => ({
+  version: '1.0',
+  type: ProfileType.AI_AGENT,
+  display_name: `Local Demo Agent (${agentId})`,
+  alias: agentId,
+  bio: 'Local test agent created by the x402 demo.',
+  socials: [],
+  aiAgent: {
+    type: AIAgentType.AUTONOMOUS,
+    creator: agentId,
+    model: publicUrl,
+    capabilities: [
+      AIAgentCapability.API_INTEGRATION,
+      AIAgentCapability.DATA_INTEGRATION,
+      AIAgentCapability.TEXT_GENERATION,
+    ],
+  },
+});
+
+const findExistingDemoAgent = async (
+  client: RegistryBrokerClient,
+  agentId: string,
+): Promise<SearchHit | null> => {
+  try {
+    const search = await client.search({
+      registries: ['a2a-registry'],
+      protocols: ['a2a'],
+      limit: 20,
+      q: agentId,
+    });
+    const hits = (search.hits || []) as SearchHit[];
+    const match = hits.find(hit => {
+      const alias =
+        typeof hit.metadata?.alias === 'string'
+          ? (hit.metadata.alias as string)
+          : '';
+      return hit.name.includes(agentId) || alias.includes(agentId);
+    });
+    return match ?? null;
+  } catch (error) {
+    console.warn(
+      `Unable to query existing registration for ${agentId}: ${describeError(error)}`,
+    );
+    return null;
+  }
+};
+
+const waitForRegistrationAttempt = async (
+  client: RegistryBrokerClient,
+  response: RegisterAgentResponse | null,
+) => {
+  const attemptId = response?.attemptId?.trim();
+  if (!attemptId) {
+    return;
+  }
+  try {
+    await client.waitForRegistrationCompletion(attemptId, {
+      intervalMs: 1000,
+      timeoutMs: 60000,
+      throwOnFailure: false,
+    });
+  } catch (error) {
+    console.warn(
+      `Registration completion wait failed for attempt ${attemptId}: ${describeError(error)}`,
+    );
+  }
+};
+
+const registerLocalAgentWithBroker = async (
+  client: RegistryBrokerClient,
+  agent: LocalA2AAgentHandle,
+): Promise<void> => {
+  if (!agent.publicUrl) {
+    throw new Error(
+      'Local A2A agent is missing a public tunnel URL; Cloudflare must be installed.',
+    );
+  }
+
+  const payload: AgentRegistrationRequest = {
+    profile: buildDemoProfile(agent.agentId, agent.publicUrl),
+    communicationProtocol: 'a2a',
+    registry: 'a2a-registry',
+    endpoint: agent.a2aEndpoint,
+    metadata: {
+      source: 'x402-demo',
+      tunnelUrl: agent.publicUrl,
+      localEndpoint: agent.localA2aEndpoint,
+    },
+  };
+
+  const existing = await findExistingDemoAgent(client, agent.agentId);
+  if (existing?.uaid) {
+    console.log(
+      `Updating existing demo agent registration (${existing.uaid}) with new tunnel URL…`,
+    );
+    const response = await client.updateAgent(existing.uaid, payload);
+    await waitForRegistrationAttempt(client, response);
+    return;
+  }
+
+  console.log(
+    `Registering ${agent.agentId} via /api/v1/register using ${agent.publicUrl}…`,
+  );
+  const response = await client.registerAgent(payload);
+  await waitForRegistrationAttempt(client, response);
+};
+
 const buildComparableEndpoints = (resourceUrl: string): string[] => {
   const variants = new Set<string>();
   variants.add(resourceUrl);
   try {
     const parsed = new URL(resourceUrl);
     const host = parsed.hostname.toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost') {
-      parsed.hostname = 'host.docker.internal';
-      variants.add(parsed.toString());
-    }
-    if (host === 'host.docker.internal') {
-      parsed.hostname = '127.0.0.1';
-      variants.add(parsed.toString());
+    if (host === '127.0.0.1') {
       parsed.hostname = 'localhost';
+      variants.add(parsed.toString());
+    } else if (host === 'localhost') {
+      parsed.hostname = '127.0.0.1';
       variants.add(parsed.toString());
     }
   } catch {
@@ -212,8 +331,35 @@ const waitForX402Agent = async (
   }
   throw new Error(
     'Timed out waiting for the local x402 facilitator to appear in the registry. ' +
-      'Ensure registry-broker is running with X402_BAZAAR_BASE_URL pointed at the local facilitator.',
+      'Ensure registry-broker is running and can reach the facilitator (standalone mode auto-detects the local endpoint).',
   );
+};
+
+const normaliseBaseUrl = (value: string): string =>
+  value.endsWith('/') ? value.slice(0, -1) : value;
+
+const resolveFacilitatorAdapterBase = (
+  facilitator: LocalX402FacilitatorHandle,
+): string => {
+  const base = facilitator.publicBaseUrl ?? facilitator.baseUrl;
+  return `${normaliseBaseUrl(base)}/platform/v2/x402/`;
+};
+
+const waitForBrokerAlignment = async (
+  facilitator: LocalX402FacilitatorHandle,
+): Promise<void> => {
+  if (process.env.X402_DEMO_AUTO_CONTINUE === '1') {
+    return;
+  }
+  const adapterBase = resolveFacilitatorAdapterBase(facilitator);
+  console.log('\nVerify registry-broker can reach the facilitator at:');
+  console.log(`  ${adapterBase}`);
+  console.log(
+    'If the adapter is running in a non-standalone environment, set config.adapters.configs["x402-bazaar-adapter"].baseUrl accordingly and restart the API + worker containers.',
+  );
+  const rl = createInterface({ input, output });
+  await rl.question('Press Enter once registry-broker is ready: ');
+  rl.close();
 };
 
 const formatPaymentMetadata = (
@@ -323,9 +469,16 @@ const logError = (error: unknown): void => {
 
 const runServerOnly = async (facilitator: LocalX402FacilitatorHandle) => {
   console.log('Local x402 facilitator running.');
-  console.log(`Discovery endpoint: ${facilitator.discoveryUrl}`);
+  const discoveryUrl =
+    facilitator.publicDiscoveryUrl ?? facilitator.discoveryUrl;
+  console.log(`Discovery endpoint: ${discoveryUrl}`);
   console.log(
-    `Set X402_BAZAAR_BASE_URL=${facilitator.baseUrl}/platform/v2/x402/ before starting registry-broker.`,
+    'Registry broker (standalone mode) automatically targets the local facilitator.',
+  );
+  console.log(
+    `If you are running in a shared environment, set config.adapters.configs["x402-bazaar-adapter"].baseUrl=${resolveFacilitatorAdapterBase(
+      facilitator,
+    )} before starting registry-broker.`,
   );
   process.on('SIGINT', async () => {
     await facilitator.stop();
@@ -350,6 +503,8 @@ const runDemo = async () => {
   const localA2APort = Number(process.env.A2A_LOCAL_PORT ?? '6102') || 6102;
   const localPort = Number(process.env.X402_LOCAL_PORT ?? '4102') || 4102;
   const serverOnly = process.argv.includes('--server-only');
+  delete process.env.NO_TUNNEL;
+  process.env.REGISTRY_BROKER_DEMO_TUNNEL = 'cloudflare';
 
   const facilitator = await startLocalX402Facilitator({ port: localPort });
 
@@ -358,11 +513,19 @@ const runDemo = async () => {
     return;
   }
 
+  await waitForBrokerAlignment(facilitator);
+
   const localAgent = await startLocalA2AAgent({
     agentId: 'demo-x402-client',
     port: localA2APort,
     bindAddress: '0.0.0.0',
   });
+  if (!localAgent.publicUrl) {
+    throw new Error(
+      'Cloudflare tunnel did not provide a public URL. Install/configure `cloudflared` before running the demo.',
+    );
+  }
+  console.log('Local A2A agent tunnel URL:', localAgent.publicUrl);
   const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
   const client = new RegistryBrokerClient({
     baseUrl: brokerBaseUrl,
@@ -376,28 +539,36 @@ const runDemo = async () => {
     );
     await authenticateWithLedger(client);
   }
+  await registerLocalAgentWithBroker(client, localAgent);
 
-  console.log('Local x402 facilitator started at', facilitator.baseUrl);
+  const facilitatorBase = facilitator.publicBaseUrl ?? facilitator.baseUrl;
+  console.log('Local x402 facilitator started at', facilitatorBase);
   console.log(
-    `Ensure registry-broker is running with X402_BAZAAR_BASE_URL=${facilitator.baseUrl}/platform/v2/x402/`,
+    `Ensure registry-broker is running and can reach ${resolveFacilitatorAdapterBase(
+      facilitator,
+    )}. Update config.adapters.configs["x402-bazaar-adapter"].baseUrl if you need to pin the tunnel URL.`,
   );
   console.log(
     'Waiting for registry-broker to index the facilitator resource...',
   );
 
   try {
+    const facilitatorResourceUrl =
+      facilitator.publicResourceUrl ?? facilitator.resourceUrl;
     const [x402Hit, a2aHit] = await Promise.all([
-      waitForX402Agent(client, facilitator.resourceUrl),
+      waitForX402Agent(client, facilitatorResourceUrl),
       waitForA2AAgent(client, localAgent),
     ]);
 
     console.log(`Found local x402 agent: ${x402Hit.name}`);
     console.log(`Found local A2A agent: ${a2aHit.name}`);
     console.log(`[${localAgent.agentId}] sending prompt via /chat: ${prompt}`);
+    const paidSessionId = `x402-demo-${localAgent.agentId}-${Date.now().toString(36)}`;
+    console.log(`Using session ID for x402 request: ${paidSessionId}`);
     const response = await client.chat.sendMessage({
       uaid: x402Hit.uaid,
       message: `Agent ${localAgent.agentId} requests: ${prompt}.`,
-      sessionId: `x402-demo-${localAgent.agentId}-${Date.now().toString(36)}`,
+      sessionId: paidSessionId,
     });
 
     console.log('\nChat response:');
@@ -416,9 +587,22 @@ const runDemo = async () => {
       }
     }
 
+    try {
+      const historySnapshot = await client.chat.getHistory(paidSessionId);
+      console.log(
+        `\nSession ${paidSessionId} history entries: ${historySnapshot.history.length}`,
+      );
+    } catch (historyError) {
+      console.log(
+        `\nUnable to load history for session ${paidSessionId}: ${describeError(historyError)}`,
+      );
+    }
+
     console.log(
       `\nForwarding paid response to registered A2A agent (${a2aHit.name}) via /chat...`,
     );
+    const relaySessionId = `relay-${localAgent.agentId}-${Date.now().toString(36)}`;
+    console.log(`Using session ID for relay request: ${relaySessionId}`);
     const relayResponse = await client.chat.sendMessage({
       uaid: a2aHit.uaid,
       message: [
@@ -428,7 +612,7 @@ const runDemo = async () => {
       ]
         .filter(Boolean)
         .join('\n\n'),
-      sessionId: `relay-${localAgent.agentId}-${Date.now().toString(36)}`,
+      sessionId: relaySessionId,
     });
     console.log(
       `[${a2aHit.name}] acknowledged relay via /chat with message:`,

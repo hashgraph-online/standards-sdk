@@ -15,15 +15,21 @@ For complete documentation, examples, and API references, visit:
 
 - [Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)
 
-## Interactive CLI
+## Interactive CLI and Demos
 
-Prefer a guided experience? Launch the bundled CLI to browse demos, review configuration, and run Cloudflare helpers:
+Launch the bundled CLI to explore registry broker demos, inspect required env vars, and run helper scripts:
 
 ```bash
 pnpm run cli
 ```
 
-See [cli/standards-cli/README.md](cli/standards-cli/README.md) for advanced usage and non-interactive commands.
+The CLI surfaces:
+
+- Guided registry broker demos (OpenRouter, chat history, ledger auth) plus the HCS-10 agent flows.
+- A map of required env vars so you can bootstrap Hedera credentials and adapters quickly.
+- Links back to the docs plus the demo scripts you can run manually (`demo/registry-broker`, `demo/hcs-10`).
+
+See [cli/standards-cli/README.md](cli/standards-cli/README.md) for advanced and non-interactive commands.
 
 ## Supported Standards
 
@@ -37,7 +43,7 @@ See [cli/standards-cli/README.md](cli/standards-cli/README.md) for advanced usag
 
 ## Running Demos
 
-The SDK includes demo implementations that showcase various features. Follow these steps to run them:
+The SDK includes demo implementations that showcase registry broker flows (discovery, chat, ledger auth, OpenRouter) and HCS-10 agent communication. Follow these steps to run them:
 
 1. Clone the repository
 
@@ -67,38 +73,19 @@ The SDK includes demo implementations that showcase various features. Follow the
    REGISTRY_URL=https://moonscape.tech
    ```
 
-   **Note**: The SDK automatically saves agent creation progress to the `.env` file. If agent creation is interrupted, it will resume from the last successful step when you run the demo again. See `.env.example` for details on the auto-generated agent state variables.
+   The CLI can also auto-persist agent state in `.env` if a demo is interrupted. See `.env.example` for generated state fields.
 
-5. Run the demos (or use `pnpm run cli` for an interactive launcher):
-
-   The following demo showcases inscribing a file.
+5. Start a demo (or use `pnpm run cli` for an interactive launcher):
 
    ```bash
-   # Run the inscribe demo
-   npm run demo:inscribe
+   npm run demo:registry-broker
    ```
 
-   The following demo showcases registering Alice and Bob and exchanging messages between the two agents.
-
    ```bash
-   # Run the HCS-10 AI agent communication demo
    npm run demo:hcs-10
    ```
 
-   The following demo showcases a polling agent that polls an inbound topic for new messages with an OpenAI integration and simple commands.
-
-   ```bash
-   # Run the HCS-10 polling demo
-   npm run demo:polling-agent
-   ```
-
-   The following demo showcases Foo and Bar agents exchanging messages where Foo also requires a fee to send messages to Bar's inbound topic:
-
-   ```bash
-   # Run the HCS-10 fee demo
-   npm run demo:hcs-10-fee
-   ```
-
+Each demo directory contains README instructions plus you can review `demo/registry-broker` and `demo/hcs-10` for fine-grained scripts covering OpenRouter, history snapshots, ledger authentication, and fee flows.
 ### Demo Descriptions
 
 #### Inscribe Demo
