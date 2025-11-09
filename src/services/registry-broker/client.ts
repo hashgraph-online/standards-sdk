@@ -1125,7 +1125,7 @@ export class RegistryBrokerClient {
     if (signatureEntry.publicKey) {
       derivedPublicKey = signatureEntry.publicKey.toString();
     } else if (typeof options.signer.getAccountKey === 'function') {
-      const accountKey = options.signer.getAccountKey();
+      const accountKey = await options.signer.getAccountKey();
       if (accountKey && typeof accountKey.toString === 'function') {
         derivedPublicKey = accountKey.toString();
       }
