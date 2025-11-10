@@ -557,7 +557,17 @@ export const startLocalA2AAgent = async (
       if (tunnelHandle) {
         const isCloudflareHandle =
           typeof tunnelHandle.url === 'string' &&
-          tunnelHandle.url.includes('trycloudflare.com');
+          (() => {
+            try {
+              const { hostname } = new URL(tunnelHandle.url);
+              return (
+                hostname === 'trycloudflare.com' ||
+                hostname.endsWith('.trycloudflare.com')
+              );
+            } catch {
+              return false;
+            }
+          })();
         if (persistTunnels && isCloudflareHandle) {
           console.log(
             '  🔁 Persisting Cloudflare tunnel for reuse (REGISTRY_BROKER_DEMO_KEEP_TUNNELS=1).',

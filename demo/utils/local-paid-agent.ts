@@ -94,9 +94,11 @@ const inferBaseUrl = (
   if (typeof forwardedProto === 'string' && forwardedProto.trim().length > 0) {
     return `${forwardedProto}://${host}`;
   }
-  return host.includes('trycloudflare.com')
-    ? `https://${host}`
-    : `http://${host}`;
+  const hostWithoutPort = host.split(':')[0]?.toLowerCase() ?? host;
+  const isCloudflareHost =
+    hostWithoutPort === 'trycloudflare.com' ||
+    hostWithoutPort.endsWith('.trycloudflare.com');
+  return isCloudflareHost ? `https://${host}` : `http://${host}`;
 };
 
 const extractPromptFromRequest = (body: Record<string, unknown>): string => {
