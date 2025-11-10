@@ -23,7 +23,7 @@ import {
   startLocalX402Facilitator,
   type LocalX402FacilitatorHandle,
 } from '../utils/local-x402-facilitator';
-import { createPrivateKeySigner } from '../../src/services/registry-broker/private-key-signer';
+import { resolveEvmLedgerAuthConfig } from '../utils/ledger-config';
 
 interface SearchHit {
   id: string;
@@ -36,8 +36,6 @@ interface SearchHit {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-type LedgerNetwork = 'mainnet' | 'testnet';
-
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -46,74 +44,22 @@ const readEnv = (key: string): string | undefined => {
   return value && value.length > 0 ? value : undefined;
 };
 
-const resolveLedgerNetwork = (): LedgerNetwork =>
-  readEnv('HEDERA_NETWORK')?.toLowerCase() === 'mainnet'
-    ? 'mainnet'
-    : 'testnet';
-
-const resolveLedgerAccountId = (network: LedgerNetwork): string | undefined => {
-  const scope = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
-  return (
-    readEnv('HEDERA_ACCOUNT_ID') ||
-    readEnv(`${scope}_HEDERA_ACCOUNT_ID`) ||
-    readEnv(`${scope}_HEDERA_ACCOUNT`) ||
-    readEnv('HEDERA_ACCOUNT')
-  );
-};
-
-const resolveLedgerPrivateKey = (
-  network: LedgerNetwork,
-): string | undefined => {
-  const scope = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
-  return (
-    readEnv('HEDERA_PRIVATE_KEY') ||
-    readEnv(`${scope}_HEDERA_PRIVATE_KEY`) ||
-    readEnv(`${scope}_PRIVATE_KEY`) ||
-    readEnv('PRIVATE_KEY')
-  );
-};
-
-const ensureLedgerCredentials = (): {
-  accountId: string;
-  privateKey: string;
-  network: LedgerNetwork;
-} => {
-  const network = resolveLedgerNetwork();
-  const accountId = resolveLedgerAccountId(network);
-  const privateKey = resolveLedgerPrivateKey(network);
-  if (!accountId || !privateKey) {
-    throw new Error(
-      'Ledger authentication requires HEDERA_ACCOUNT_ID/HEDERA_PRIVATE_KEY or network-scoped TESTNET_/MAINNET_ values.',
-    );
-  }
-  return { accountId, privateKey, network };
-};
-
 const authenticateWithLedger = async (
   client: RegistryBrokerClient,
-): Promise<{ accountId: string; privateKey: string }> => {
-  const credentials = ensureLedgerCredentials();
-  const signer = createPrivateKeySigner({
-    accountId: credentials.accountId,
-    privateKey: credentials.privateKey,
-    network: credentials.network,
-  });
+): Promise<{ accountId: string }> => {
+  const credentials = resolveEvmLedgerAuthConfig();
   let attemptError: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const verification = await client.authenticateWithLedger({
+      await client.authenticateWithLedgerCredentials({
         accountId: credentials.accountId,
         network: credentials.network,
-        signer,
+        sign: credentials.sign,
+        label: 'x402 demo',
         expiresInMinutes: 30,
       });
-      console.log(
-        `Ledger auth complete for ${verification.accountId} on ${verification.network}.`,
-      );
-      client.setDefaultHeader('x-account-id', verification.accountId);
       return {
         accountId: credentials.accountId,
-        privateKey: credentials.privateKey,
       };
     } catch (error) {
       attemptError = error;
@@ -156,7 +102,7 @@ const findExistingDemoAgent = async (
 ): Promise<SearchHit | null> => {
   try {
     const search = await client.search({
-      registries: ['a2a-registry'],
+      registries: ['hashgraph-online'],
       protocols: ['a2a'],
       limit: 20,
       q: agentId,
@@ -212,7 +158,7 @@ const registerLocalAgentWithBroker = async (
   const payload: AgentRegistrationRequest = {
     profile: buildDemoProfile(agent.agentId, agent.publicUrl),
     communicationProtocol: 'a2a',
-    registry: 'a2a-registry',
+    registry: 'hashgraph-online',
     endpoint: agent.a2aEndpoint,
     metadata: {
       source: 'x402-demo',
@@ -391,7 +337,7 @@ const waitForA2AAgent = async (
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const search = await client.search({
-        registries: ['a2a-registry'],
+        registries: ['hashgraph-online'],
         protocols: ['a2a'],
         limit: 50,
         q: agent.agentId,

@@ -10,7 +10,6 @@ import registerDemoAgent, {
   type DemoProfileMode,
   type RegisteredAgent,
 } from './register-agent';
-import { PrivateKey } from '@hashgraph/sdk';
 import { setTimeout as delay } from 'node:timers/promises';
 import { HCS11Profile } from '../../src/hcs-11/types';
 import { ZodError } from 'zod';
@@ -23,6 +22,11 @@ import {
   normaliseMessage,
   waitForAgentAvailability,
 } from '../utils/registry-broker';
+import {
+  resolveDemoLedgerAuthMode,
+  type DemoLedgerAuthMode,
+} from '../utils/registry-auth';
+import { resolveHederaLedgerAuthConfig } from '../utils/ledger-config';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -31,9 +35,7 @@ interface DemoConfig {
   apiKey?: string;
   a2aAgentOneUrl?: string;
   a2aAgentTwoUrl?: string;
-  ledgerAccountId?: string;
-  ledgerPrivateKey?: string;
-  ledgerNetwork?: 'mainnet' | 'testnet';
+  ledgerMode: DemoLedgerAuthMode;
 }
 
 const resolveProfileMode = (): DemoProfileMode => {
@@ -123,51 +125,12 @@ const describeError = (error: unknown): string => {
   return String(error);
 };
 
-type LedgerNetwork = 'mainnet' | 'testnet';
-
-const resolveLedgerNetwork = (): LedgerNetwork =>
-  process.env.HEDERA_NETWORK?.trim()?.toLowerCase() === 'mainnet'
-    ? 'mainnet'
-    : 'testnet';
-
-const resolveNetworkScopedLedgerValue = (
-  network: LedgerNetwork,
-  key: 'ACCOUNT_ID' | 'PRIVATE_KEY',
-): string | undefined => {
-  const prefix = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
-  const envKey = `${prefix}_HEDERA_${key}` as keyof NodeJS.ProcessEnv;
-  const value = process.env[envKey];
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-};
-
 const readDemoConfig = (): DemoConfig => {
-  const ledgerNetwork = resolveLedgerNetwork();
-  const scopedAccountId = resolveNetworkScopedLedgerValue(
-    ledgerNetwork,
-    'ACCOUNT_ID',
-  );
-  const scopedPrivateKey = resolveNetworkScopedLedgerValue(
-    ledgerNetwork,
-    'PRIVATE_KEY',
-  );
-
   return {
     apiKey: process.env.REGISTRY_BROKER_API_KEY?.trim() || undefined,
     a2aAgentOneUrl: process.env.A2A_AGENT_ONE_URL?.trim() || undefined,
     a2aAgentTwoUrl: process.env.A2A_AGENT_TWO_URL?.trim() || undefined,
-    ledgerAccountId:
-      scopedAccountId ||
-      process.env.HEDERA_ACCOUNT_ID?.trim() ||
-      process.env.HEDERA_OPERATOR_ID?.trim() ||
-      undefined,
-    ledgerPrivateKey:
-      scopedPrivateKey ||
-      process.env.HEDERA_PRIVATE_KEY?.trim() ||
-      process.env.HEDERA_OPERATOR_KEY?.trim() ||
-      undefined,
-    ledgerNetwork,
+    ledgerMode: resolveDemoLedgerAuthMode(),
   };
 };
 
@@ -909,13 +872,19 @@ const main = async () => {
     baseUrlEnv && baseUrlEnv.length > 0
       ? baseUrlEnv
       : 'https://registry.hashgraphonline.com/api/v1';
-  const autoTopUpCredentials =
-    config.ledgerAccountId && config.ledgerPrivateKey
-      ? {
-          accountId: config.ledgerAccountId,
-          privateKey: config.ledgerPrivateKey,
-        }
-      : undefined;
+  const ledgerMode = config.ledgerMode;
+  if (ledgerMode !== 'hedera') {
+    throw new Error(
+      'registry-broker-demo currently supports only Hedera ledger mode. Set REGISTRY_BROKER_LEDGER_MODE=hedera.',
+    );
+  }
+  const hederaLedger = resolveHederaLedgerAuthConfig();
+  const autoTopUpCredentials = hederaLedger
+    ? {
+        accountId: hederaLedger.accountId,
+        privateKey: hederaLedger.privateKey,
+      }
+    : undefined;
   const client = new RegistryBrokerClient({
     baseUrl,
     ...(config.apiKey ? { apiKey: config.apiKey } : {}),
@@ -940,50 +909,26 @@ const main = async () => {
     );
   }
   await runStep('Ledger authentication', async () => {
-    if (!config.ledgerAccountId || !config.ledgerPrivateKey) {
-      throw new Error(
-        'HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY must be set for ledger authentication.',
-      );
-    }
-
-    console.log(`  Using configured Hedera account: ${config.ledgerAccountId}`);
-    const privateKey = PrivateKey.fromString(config.ledgerPrivateKey);
-
     let attemptError: unknown;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
-        const challenge = await client.createLedgerChallenge({
-          accountId: config.ledgerAccountId,
-          network: config.ledgerNetwork ?? 'testnet',
+        const verification = await client.authenticateWithLedgerCredentials({
+          accountId: hederaLedger.accountId,
+          network: `hedera:${hederaLedger.network}`,
+          hederaPrivateKey: hederaLedger.privateKey,
+          expiresInMinutes:
+            Number(
+              process.env.REGISTRY_BROKER_LEDGER_AUTH_TTL_MINUTES ?? '30',
+            ) || 30,
+          label: 'registry demo',
         });
-
-        const signatureBytes = await privateKey.sign(
-          Buffer.from(challenge.message, 'utf8'),
-        );
-        const signature = Buffer.from(signatureBytes).toString('base64');
-        const publicKey = privateKey.publicKey.toString();
-
-        const verification = await client.verifyLedgerChallenge({
-          challengeId: challenge.challengeId,
-          accountId: config.ledgerAccountId,
-          network: config.ledgerNetwork ?? 'testnet',
-          signature,
-          publicKey,
-        });
-
         console.log(
-          `  Ledger key issued for ${verification.accountId} on ${verification.network}.`,
+          `  Ledger authenticated for ${verification.accountId} (${verification.network})`,
         );
-        console.log(
-          `  Ledger API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
-        );
-
         ledgerCredentials = {
-          accountId: config.ledgerAccountId,
-          privateKey: config.ledgerPrivateKey,
+          accountId: hederaLedger.accountId,
+          privateKey: hederaLedger.privateKey,
         };
-        client.setLedgerApiKey(verification.key);
-        client.setDefaultHeader('x-account-id', verification.accountId);
         return;
       } catch (error) {
         attemptError = error;
@@ -1000,10 +945,12 @@ const main = async () => {
   });
 
   if (!ledgerCredentials) {
-    throw new Error('Ledger authentication failed; unable to continue demo.');
+    if (ledgerMode === 'hedera') {
+      throw new Error('Ledger authentication failed; unable to continue demo.');
+    }
   }
 
-  if (config.ledgerNetwork === 'testnet') {
+  if (hederaLedger?.network === 'testnet' && ledgerCredentials) {
     await ensureDemoCreditBalance(client, ledgerCredentials);
   }
 

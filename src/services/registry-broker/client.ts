@@ -37,6 +37,7 @@ import {
   LedgerVerifyRequest,
   LedgerVerifyResponse,
   LedgerAuthenticationOptions,
+  LedgerCredentialAuthOptions,
   RegisterAgentOptions,
   AutoTopUpOptions,
   HistoryAutoTopUpOptions,
@@ -51,6 +52,7 @@ import {
   X402CreditPurchaseResponse,
   X402MinimumsResponse,
 } from './types';
+import { canonicalizeLedgerNetwork } from './ledger-network';
 import axios from 'axios';
 import type { SignerSignature } from '@hashgraph/sdk';
 import { createWalletClient, http, type Chain } from 'viem';
@@ -95,6 +97,7 @@ import {
   registrationProgressResponseSchema,
 } from './schemas';
 import { ZodError, z } from 'zod';
+import { createPrivateKeySigner } from './private-key-signer';
 
 const DEFAULT_USER_AGENT =
   '@hashgraphonline/standards-sdk/registry-broker-client';
@@ -1031,12 +1034,17 @@ export class RegistryBrokerClient {
   async createLedgerChallenge(
     payload: LedgerChallengeRequest,
   ): Promise<LedgerChallengeResponse> {
+    const resolvedNetwork = canonicalizeLedgerNetwork(payload.network);
+    const network =
+      resolvedNetwork.kind === 'hedera'
+        ? (resolvedNetwork.hederaNetwork ?? resolvedNetwork.canonical)
+        : resolvedNetwork.canonical;
     const raw = await this.requestJson<JsonValue>('/auth/ledger/challenge', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: {
         accountId: payload.accountId,
-        network: payload.network,
+        network,
       },
     });
 
@@ -1050,10 +1058,15 @@ export class RegistryBrokerClient {
   async verifyLedgerChallenge(
     payload: LedgerVerifyRequest,
   ): Promise<LedgerVerifyResponse> {
+    const resolvedNetwork = canonicalizeLedgerNetwork(payload.network);
+    const network =
+      resolvedNetwork.kind === 'hedera'
+        ? (resolvedNetwork.hederaNetwork ?? resolvedNetwork.canonical)
+        : resolvedNetwork.canonical;
     const body: JsonObject = {
       challengeId: payload.challengeId,
       accountId: payload.accountId,
-      network: payload.network,
+      network,
       signature: payload.signature,
     };
 
@@ -1110,8 +1123,22 @@ export class RegistryBrokerClient {
     message: string,
     options: LedgerAuthenticationOptions,
   ): Promise<LedgerAuthenticationSignerResult> {
+    if (typeof options.sign === 'function') {
+      const result = await options.sign(message);
+      if (
+        !result ||
+        typeof result.signature !== 'string' ||
+        result.signature.length === 0
+      ) {
+        throw new Error('Custom ledger signer failed to produce a signature.');
+      }
+      return result;
+    }
+
     if (!options.signer || typeof options.signer.sign !== 'function') {
-      throw new Error('Ledger authentication requires a Hedera Signer.');
+      throw new Error(
+        'Ledger authentication requires a Hedera Signer or custom sign function.',
+      );
     }
 
     const payload = Buffer.from(message, 'utf8');
@@ -1136,6 +1163,86 @@ export class RegistryBrokerClient {
       signatureKind: 'raw',
       publicKey: derivedPublicKey,
     };
+  }
+
+  async authenticateWithLedgerCredentials(
+    options: LedgerCredentialAuthOptions,
+  ): Promise<LedgerVerifyResponse> {
+    const {
+      accountId,
+      network,
+      signer,
+      sign,
+      hederaPrivateKey,
+      evmPrivateKey,
+      expiresInMinutes,
+      setAccountHeader = true,
+      label,
+      logger,
+    } = options;
+
+    const resolvedNetwork = canonicalizeLedgerNetwork(network);
+    const labelSuffix = label ? ` for ${label}` : '';
+    const logInfo = logger?.info;
+
+    const networkPayload =
+      resolvedNetwork.kind === 'hedera'
+        ? (resolvedNetwork.hederaNetwork ?? resolvedNetwork.canonical)
+        : resolvedNetwork.canonical;
+
+    const authOptions: LedgerAuthenticationOptions = {
+      accountId,
+      network: networkPayload,
+      expiresInMinutes,
+    };
+
+    if (sign) {
+      authOptions.sign = sign;
+    } else if (signer) {
+      authOptions.signer = signer;
+    } else if (hederaPrivateKey) {
+      if (resolvedNetwork.kind !== 'hedera' || !resolvedNetwork.hederaNetwork) {
+        throw new Error(
+          'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
+        );
+      }
+      authOptions.signer = createPrivateKeySigner({
+        accountId,
+        privateKey: hederaPrivateKey,
+        network: resolvedNetwork.hederaNetwork,
+      });
+    } else if (evmPrivateKey) {
+      if (resolvedNetwork.kind !== 'evm') {
+        throw new Error(
+          'evmPrivateKey can only be used with CAIP-2 EVM networks (eip155:<chainId>).',
+        );
+      }
+      const formattedKey = evmPrivateKey.startsWith('0x')
+        ? (evmPrivateKey as `0x${string}`)
+        : (`0x${evmPrivateKey}` as `0x${string}`);
+      const account = privateKeyToAccount(formattedKey);
+      authOptions.sign = async message => ({
+        signature: await account.signMessage({ message }),
+        signatureKind: 'evm',
+        publicKey: account.publicKey,
+      });
+    } else {
+      throw new Error(
+        'Provide a signer, sign function, hederaPrivateKey, or evmPrivateKey to authenticate with the ledger.',
+      );
+    }
+
+    logInfo?.(
+      `Authenticating ledger account ${accountId} (${resolvedNetwork.canonical})${labelSuffix}...`,
+    );
+    const verification = await this.authenticateWithLedger(authOptions);
+    if (setAccountHeader) {
+      this.setDefaultHeader('x-account-id', verification.accountId);
+    }
+    logInfo?.(
+      `Ledger authentication complete${labelSuffix}. Issued key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
+    );
+    return verification;
   }
 
   async listProtocols(): Promise<ProtocolsResponse> {
@@ -1311,9 +1418,10 @@ export class RegistryBrokerClient {
     allowHistoryAutoTopUp = true,
   ): Promise<CreateSessionResponse> {
     const body: JsonObject = {};
-    if ('uaid' in payload) {
+    if ('uaid' in payload && payload.uaid) {
       body.uaid = payload.uaid;
-    } else {
+    }
+    if ('agentUrl' in payload && payload.agentUrl) {
       body.agentUrl = payload.agentUrl;
     }
     if (payload.auth) {

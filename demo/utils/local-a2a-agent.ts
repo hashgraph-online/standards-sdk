@@ -4,6 +4,8 @@ import {
   Server as HttpServer,
   ServerResponse,
 } from 'http';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import localtunnel, { Tunnel } from 'localtunnel';
 import {
   cloudflaredInstallHint,
@@ -13,6 +15,7 @@ import {
   tunnelingDisabled,
   type CloudflareTunnelHandle,
 } from './demo-tunnel';
+import type { LocalIngressProxyHandle } from './local-ingress-proxy';
 
 type TunnelHandle = CloudflareTunnelHandle;
 
@@ -20,6 +23,13 @@ export interface LocalA2AAgentOptions {
   agentId: string;
   port?: number;
   bindAddress?: string;
+  /**
+   * Optional pre-configured public URL (e.g. Cloudflare named tunnel). When provided we skip
+   * spawning a new tunnel and assume the URL already forwards to the local server.
+   */
+  publicUrl?: string;
+  ingressProxy?: LocalIngressProxyHandle;
+  ingressPrefix?: string;
 }
 
 export interface LocalA2AAgentHandle {
@@ -60,6 +70,18 @@ const inferBaseUrl = (
   request: IncomingMessage,
   fallbackPort: number,
 ): string => {
+  const ingressBaseHeader = request.headers['x-ingress-public-base'];
+  if (typeof ingressBaseHeader === 'string') {
+    const trimmed = ingressBaseHeader.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  } else if (Array.isArray(ingressBaseHeader) && ingressBaseHeader.length > 0) {
+    const candidate = ingressBaseHeader[0]?.trim();
+    if (candidate && candidate.length > 0) {
+      return candidate;
+    }
+  }
   const hostHeader = request.headers.host;
   if (!hostHeader) {
     return `http://127.0.0.1:${fallbackPort}`;
@@ -105,13 +127,119 @@ const buildMessageResponse = (agentId: string, text: string) => ({
   ],
 });
 
+const verifyPublicUrlReachable = async (url: string): Promise<boolean> => {
+  try {
+    const healthUrl = new URL('/health', url).toString();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(healthUrl, {
+      method: 'GET',
+      signal: controller.signal,
+    }).catch(() => null);
+    clearTimeout(timer);
+    return response?.ok ?? false;
+  } catch {
+    return false;
+  }
+};
+
+interface CachedTunnelPayload {
+  port: number;
+  url: string;
+  pid?: number;
+  updatedAt: string;
+}
+
+const persistTunnelUrl = async (
+  port: number,
+  url: string,
+  pid?: number,
+): Promise<void> => {
+  const payload: CachedTunnelPayload = {
+    port,
+    url,
+    pid,
+    updatedAt: new Date().toISOString(),
+  };
+  await mkdir(path.dirname(CACHE_PATH), { recursive: true });
+  await writeFile(CACHE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+};
+
+const readPersistedTunnelUrl = async (
+  port: number,
+): Promise<string | undefined> => {
+  try {
+    const raw = await readFile(CACHE_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<CachedTunnelPayload>;
+    if (parsed.port === port && typeof parsed.url === 'string') {
+      return parsed.url;
+    }
+  } catch {
+    // ignore cache read failures
+  }
+  return undefined;
+};
+
+const clearPersistedTunnelUrl = async (): Promise<void> => {
+  try {
+    await rm(CACHE_PATH, { force: true });
+  } catch {
+    // ignore cache delete failures
+  }
+};
+
+const verifyTunnelHealth = async (
+  publicUrl: string,
+  timeoutMs = 5000,
+): Promise<boolean> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const url = new URL(publicUrl);
+    url.pathname = '/health';
+    url.searchParams.set('ping', Date.now().toString());
+    const response = await fetch(url, { signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const CACHE_PATH = path.resolve(
+  process.cwd(),
+  '.cache',
+  'registry-broker-a2a-tunnel.json',
+);
+
+const normalizeIngressPrefix = (rawPrefix: string): string => {
+  const sanitized = rawPrefix
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9\/-]/g, '-')
+    .replace(/-+/g, '-');
+  if (!sanitized) {
+    return '/a2a-demo';
+  }
+  return sanitized.startsWith('/') ? sanitized : `/${sanitized}`;
+};
+
 export const startLocalA2AAgent = async (
   options: LocalA2AAgentOptions,
 ): Promise<LocalA2AAgentHandle> => {
-  const { agentId, port, bindAddress = '0.0.0.0' } = options;
+  const {
+    agentId,
+    port,
+    bindAddress = '0.0.0.0',
+    publicUrl: explicitPublicUrl,
+    ingressProxy,
+    ingressPrefix,
+  } = options;
   let resolvedPort: number | null = null;
   let tunnelHandle: TunnelHandle | null = null;
   let localTunnelInstance: Tunnel | null = null;
+  const persistTunnels = process.env.REGISTRY_BROKER_DEMO_KEEP_TUNNELS === '1';
 
   const server: HttpServer = createServer(async (request, response) => {
     const { method, url } = request;
@@ -289,6 +417,11 @@ export const startLocalA2AAgent = async (
   });
 
   const baseUrl = `http://127.0.0.1:${listeningPort}`;
+  const preconfiguredUrl =
+    explicitPublicUrl ||
+    process.env.REGISTRY_BROKER_DEMO_A2A_PUBLIC_URL?.trim() ||
+    undefined;
+  const hadPreconfiguredTunnel = Boolean(preconfiguredUrl);
 
   const tunnelPreference = getTunnelPreference();
   const disableTunneling = tunnelingDisabled(tunnelPreference);
@@ -299,7 +432,28 @@ export const startLocalA2AAgent = async (
     !disableTunneling &&
     (tunnelPreference === 'auto' || tunnelPreference === 'localtunnel');
 
-  if (shouldTryCloudflare) {
+  let publicUrl: string | undefined = preconfiguredUrl;
+  let usingIngressProxy = false;
+  if (!publicUrl && ingressProxy) {
+    const prefix = normalizeIngressPrefix(ingressPrefix ?? `a2a-${agentId}`);
+    publicUrl = ingressProxy.registerRoute(prefix, baseUrl);
+    usingIngressProxy = true;
+    console.log(
+      `  🔗 Ingress proxy enabled for ${agentId}: ${publicUrl} (prefix ${prefix})`,
+    );
+  }
+  if (publicUrl && !usingIngressProxy) {
+    const reachable = await verifyPublicUrlReachable(publicUrl);
+    if (reachable) {
+      console.log(`  🔗 Using preconfigured public URL: ${publicUrl}`);
+    } else {
+      console.warn(
+        `  ⚠️  Preconfigured public URL ${publicUrl} was unreachable. Falling back to Cloudflare tunnel.`,
+      );
+      publicUrl = undefined;
+    }
+  }
+  if (!publicUrl && !usingIngressProxy && shouldTryCloudflare) {
     const cloudflaredAvailable = await detectCloudflared();
     if (!cloudflaredAvailable) {
       const hint = cloudflaredInstallHint();
@@ -309,27 +463,41 @@ export const startLocalA2AAgent = async (
         throw new Error(message);
       }
     } else {
-      try {
-        tunnelHandle = await startCloudflareTunnel(listeningPort);
-        console.log(`  🌐 Cloudflare tunnel established: ${tunnelHandle.url}`);
-      } catch (error) {
-        console.log(
-          `  ⚠️  Cloudflare tunnel unavailable: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-        if (tunnelPreference === 'cloudflare') {
-          throw new Error(
-            `Cloudflare tunnel failed to start: ${
+      const cachedUrl = await readPersistedTunnelUrl(listeningPort);
+      if (cachedUrl) {
+        const healthy = await verifyTunnelHealth(cachedUrl).catch(() => false);
+        if (healthy) {
+          publicUrl = cachedUrl;
+          console.log(`  🔁 Reusing cached Cloudflare tunnel: ${cachedUrl}`);
+        } else {
+          await clearPersistedTunnelUrl();
+        }
+      }
+      if (!publicUrl) {
+        try {
+          tunnelHandle = await startCloudflareTunnel(listeningPort);
+          publicUrl = tunnelHandle.url;
+          console.log(`  🌐 Cloudflare tunnel established: ${publicUrl}`);
+          await persistTunnelUrl(listeningPort, publicUrl, tunnelHandle.pid);
+        } catch (error) {
+          console.log(
+            `  ⚠️  Cloudflare tunnel unavailable: ${
               error instanceof Error ? error.message : String(error)
             }`,
           );
+          if (tunnelPreference === 'cloudflare') {
+            throw new Error(
+              `Cloudflare tunnel failed to start: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
         }
       }
     }
   }
 
-  if (!tunnelHandle && shouldTryLocalTunnel) {
+  if (!publicUrl && !usingIngressProxy && shouldTryLocalTunnel) {
     try {
       localTunnelInstance = await localtunnel({ port: listeningPort });
       localTunnelInstance.on('error', (err: unknown) => {
@@ -357,6 +525,7 @@ export const startLocalA2AAgent = async (
             }
           },
         };
+        publicUrl = sanitizedUrl;
         console.log(`  🌐 Localtunnel established: ${sanitizedUrl}`);
       }
     } catch (error) {
@@ -369,7 +538,12 @@ export const startLocalA2AAgent = async (
     }
   }
 
-  const publicUrl = tunnelHandle?.url;
+  if (!publicUrl && tunnelHandle?.url) {
+    publicUrl = tunnelHandle.url;
+  }
+  if (publicUrl && (hadPreconfiguredTunnel || usingIngressProxy)) {
+    console.log(`  🔗 Using preconfigured public URL: ${publicUrl}`);
+  }
   const endpointBase = publicUrl ?? baseUrl;
 
   return {
@@ -381,14 +555,28 @@ export const startLocalA2AAgent = async (
     localA2aEndpoint: `${baseUrl}/a2a`,
     stop: async () => {
       if (tunnelHandle) {
-        try {
-          await tunnelHandle.close();
-        } catch {
-          // ignore shutdown errors
-        } finally {
-          tunnelHandle = null;
-          localTunnelInstance = null;
+        const isCloudflareHandle =
+          typeof tunnelHandle.url === 'string' &&
+          tunnelHandle.url.includes('trycloudflare.com');
+        if (persistTunnels && isCloudflareHandle) {
+          console.log(
+            '  🔁 Persisting Cloudflare tunnel for reuse (REGISTRY_BROKER_DEMO_KEEP_TUNNELS=1).',
+          );
+        } else {
+          try {
+            await tunnelHandle.close();
+          } catch {
+            // ignore shutdown errors
+          } finally {
+            tunnelHandle = null;
+            localTunnelInstance = null;
+            if (isCloudflareHandle) {
+              await clearPersistedTunnelUrl();
+            }
+          }
         }
+      } else if (!persistTunnels) {
+        await clearPersistedTunnelUrl();
       }
 
       await new Promise<void>((resolve, reject) => {

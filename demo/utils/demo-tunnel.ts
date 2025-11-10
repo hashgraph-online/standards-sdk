@@ -3,6 +3,7 @@ import { once } from 'node:events';
 
 export interface CloudflareTunnelHandle {
   url: string;
+  pid?: number;
   close: () => Promise<void>;
 }
 
@@ -14,6 +15,8 @@ export type DemoTunnelPreference =
 
 const CLOUD_FLARE_URL_PATTERN = /https:\/\/[^\s]+trycloudflare\.com/;
 const CLOUD_FLARE_TIMEOUT_MS = 15_000;
+const CLOUD_FLARE_MAX_ATTEMPTS = 8;
+const CLOUD_FLARE_RETRY_DELAY_MS = 2_000;
 
 export const cloudflaredInstallHint = (): string => {
   if (process.platform === 'darwin') {
@@ -36,8 +39,9 @@ export const detectCloudflared = async (): Promise<boolean> => {
   });
 };
 
-export const startCloudflareTunnel = async (
+const spawnCloudflareTunnel = (
   port: number,
+  attempt: number,
 ): Promise<CloudflareTunnelHandle> => {
   return new Promise((resolve, reject) => {
     let resolved = false;
@@ -66,6 +70,7 @@ export const startCloudflareTunnel = async (
       cleanup();
       resolve({
         url,
+        pid: child.pid ?? undefined,
         close: async () => {
           if (child.exitCode !== null || child.signalCode) {
             return;
@@ -113,20 +118,59 @@ export const startCloudflareTunnel = async (
       );
     };
 
-    const timer = setTimeout(() => {
-      if (resolved) {
-        return;
-      }
-      cleanup();
-      child.kill();
-      reject(new Error('Cloudflare tunnel startup timed out'));
-    }, CLOUD_FLARE_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => {
+        if (resolved) {
+          return;
+        }
+        cleanup();
+        child.kill();
+        reject(new Error('Cloudflare tunnel startup timed out'));
+      },
+      CLOUD_FLARE_TIMEOUT_MS + attempt * 1000,
+    );
 
     child.stdout?.on('data', onOutput);
     child.stderr?.on('data', onOutput);
     child.once('error', onError);
     child.once('exit', onExit);
   });
+};
+
+const wait = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
+interface CloudflareTunnelOptions {
+  maxAttempts?: number;
+  retryDelayMs?: number;
+}
+
+export const startCloudflareTunnel = async (
+  port: number,
+  options: CloudflareTunnelOptions = {},
+): Promise<CloudflareTunnelHandle> => {
+  const maxAttempts = options.maxAttempts ?? CLOUD_FLARE_MAX_ATTEMPTS;
+  const retryDelayMs = options.retryDelayMs ?? CLOUD_FLARE_RETRY_DELAY_MS;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await spawnCloudflareTunnel(port, attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        const delay = Math.min(30_000, retryDelayMs * 2 ** (attempt - 1));
+        console.warn(
+          `Cloudflare tunnel attempt ${attempt} failed (${(error as Error)?.message ?? error}). Retrying in ${delay}ms...`,
+        );
+        await wait(delay);
+        continue;
+      }
+    }
+  }
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error('Failed to establish Cloudflare tunnel');
 };
 
 export const getTunnelPreference = (): DemoTunnelPreference => {

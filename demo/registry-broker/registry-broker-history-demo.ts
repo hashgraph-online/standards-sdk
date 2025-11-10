@@ -3,31 +3,15 @@ import {
   RegistryBrokerClient,
   RegistryBrokerError,
 } from '../../src/services/registry-broker';
-import { PrivateKey } from '@hashgraph/sdk';
+import { resolveHederaLedgerAuthConfig } from '../utils/ledger-config';
 
-dotenv.config();
-
-interface LedgerCredentials {
+interface DemoLedgerCredentials {
   accountId: string;
   privateKey: string;
+  network: 'mainnet' | 'testnet';
 }
 
-const resolveLedgerNetwork = (): 'mainnet' | 'testnet' =>
-  process.env.HEDERA_NETWORK?.trim()?.toLowerCase() === 'mainnet'
-    ? 'mainnet'
-    : 'testnet';
-
-const resolveLedgerValue = (
-  network: 'mainnet' | 'testnet',
-  key: 'ACCOUNT_ID' | 'PRIVATE_KEY',
-): string | undefined => {
-  const prefix = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
-  const envKey = `${prefix}_HEDERA_${key}`;
-  const raw = process.env[envKey];
-  return typeof raw === 'string' && raw.trim().length > 0
-    ? raw.trim()
-    : undefined;
-};
+dotenv.config();
 
 const describeError = (error: unknown): string => {
   if (error instanceof RegistryBrokerError) {
@@ -48,69 +32,22 @@ const describeError = (error: unknown): string => {
 const truncate = (value: string, max = 160): string =>
   value.length > max ? `${value.slice(0, max - 1)}…` : value;
 
-const resolveDemoConfig = () => {
-  const network = resolveLedgerNetwork();
-  const scopedAccountId = resolveLedgerValue(network, 'ACCOUNT_ID');
-  const scopedPrivateKey = resolveLedgerValue(network, 'PRIVATE_KEY');
-  return {
-    baseUrl:
-      process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-      'https://registry.hashgraphonline.com/api/v1',
-    ledgerAccountId:
-      scopedAccountId ||
-      process.env.HEDERA_ACCOUNT_ID?.trim() ||
-      process.env.HEDERA_OPERATOR_ID?.trim(),
-    ledgerPrivateKey:
-      scopedPrivateKey ||
-      process.env.HEDERA_PRIVATE_KEY?.trim() ||
-      process.env.HEDERA_OPERATOR_KEY?.trim(),
-    ledgerNetwork: network,
-    openRouterApiKey: process.env.OPENROUTER_API_KEY?.trim(),
-    openRouterModel:
-      process.env.OPENROUTER_MODEL_ID?.trim() ||
-      process.env.OPENROUTER_MODEL?.trim() ||
-      'anthropic/claude-3.5-sonnet',
-  };
-};
-
-const runLedgerAuthentication = async (
-  client: RegistryBrokerClient,
-  accountId: string,
-  privateKeyRaw: string,
-  network: 'mainnet' | 'testnet',
-): Promise<LedgerCredentials> => {
-  console.log('--- Ledger authentication ---');
-  console.log(`  Using Hedera account: ${accountId}`);
-  const privateKey = PrivateKey.fromString(privateKeyRaw);
-  const challenge = await client.createLedgerChallenge({ accountId, network });
-  const signatureBytes = await privateKey.sign(
-    Buffer.from(challenge.message, 'utf8'),
-  );
-  const signature = Buffer.from(signatureBytes).toString('base64');
-  const verification = await client.verifyLedgerChallenge({
-    challengeId: challenge.challengeId,
-    accountId,
-    network,
-    signature,
-    publicKey: privateKey.publicKey.toString(),
-  });
-  console.log(
-    `  Ledger key issued for ${verification.accountId} on ${verification.network}.`,
-  );
-  console.log(
-    `  Ledger API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
-  );
-  client.setLedgerApiKey(verification.key);
-  client.setDefaultHeader('x-account-id', verification.accountId);
-  return { accountId, privateKey: privateKeyRaw };
-};
+const resolveDemoConfig = () => ({
+  baseUrl:
+    process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
+    'https://registry.hashgraphonline.com/api/v1',
+  openRouterApiKey: process.env.OPENROUTER_API_KEY?.trim(),
+  openRouterModel:
+    process.env.OPENROUTER_MODEL_ID?.trim() ||
+    process.env.OPENROUTER_MODEL?.trim() ||
+    'anthropic/claude-3.5-sonnet',
+});
 
 const ensureDemoCredits = async (
   client: RegistryBrokerClient,
-  ledgerCredentials: LedgerCredentials,
-  network: 'mainnet' | 'testnet',
+  ledgerCredentials: DemoLedgerCredentials,
 ): Promise<void> => {
-  if (network !== 'testnet') {
+  if (ledgerCredentials.network !== 'testnet') {
     return;
   }
   try {
@@ -134,7 +71,7 @@ const runHistoryFlow = async (
   client: RegistryBrokerClient,
   openRouterApiKey: string,
   openRouterModel: string,
-  ledgerCredentials: LedgerCredentials,
+  ledgerCredentials: DemoLedgerCredentials,
 ) => {
   console.log('\n=== Chat history flow ===');
   const registry = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
@@ -197,7 +134,7 @@ const sendPrompt = async (
 const attemptHistoryCompaction = async (
   client: RegistryBrokerClient,
   sessionId: string,
-  ledgerCredentials: LedgerCredentials,
+  ledgerCredentials: DemoLedgerCredentials,
 ) => {
   const runCompaction = async () => {
     const result = await client.chat.compactHistory({
@@ -233,41 +170,30 @@ const attemptHistoryCompaction = async (
   }
 };
 
-const main = async () => {
+const main = async (p0: (a: any) => never) => {
   console.log('=== Registry Broker History Demo ===');
   const config = resolveDemoConfig();
   if (!config.openRouterApiKey) {
     throw new Error('OPENROUTER_API_KEY is required to run this demo.');
   }
 
-  const autoTopUpCreds =
-    config.ledgerAccountId && config.ledgerPrivateKey
-      ? {
-          accountId: config.ledgerAccountId,
-          privateKey: config.ledgerPrivateKey,
-        }
-      : undefined;
-
   const client = new RegistryBrokerClient({
     baseUrl: config.baseUrl,
-    ...(autoTopUpCreds
-      ? {
-          historyAutoTopUp: autoTopUpCreds,
-        }
-      : {}),
   });
 
-  if (!config.ledgerAccountId || !config.ledgerPrivateKey) {
-    throw new Error('Ledger credentials are required for this demo.');
-  }
-
-  const ledgerCredentials = await runLedgerAuthentication(
-    client,
-    config.ledgerAccountId,
-    config.ledgerPrivateKey,
-    config.ledgerNetwork,
-  );
-  await ensureDemoCredits(client, ledgerCredentials, config.ledgerNetwork);
+  const ledgerConfig = resolveHederaLedgerAuthConfig();
+  await client.authenticateWithLedgerCredentials({
+    accountId: ledgerConfig.accountId,
+    network: `hedera:${ledgerConfig.network}`,
+    hederaPrivateKey: ledgerConfig.privateKey,
+    label: 'history demo',
+  });
+  const ledgerCredentials: DemoLedgerCredentials = {
+    accountId: ledgerConfig.accountId,
+    privateKey: ledgerConfig.privateKey,
+    network: ledgerConfig.network,
+  };
+  await ensureDemoCredits(client, ledgerCredentials);
 
   await runHistoryFlow(
     client,
@@ -277,7 +203,9 @@ const main = async () => {
   );
 };
 
-main().catch(error => {
+main(a => {
+  process.exit(0);
+}).catch(error => {
   console.error('History demo failed:', describeError(error));
   process.exit(1);
 });
