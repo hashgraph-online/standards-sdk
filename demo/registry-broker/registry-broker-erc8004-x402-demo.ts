@@ -11,6 +11,7 @@ import {
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
+  RegistryBrokerParseError,
 } from '../../src/services/registry-broker';
 import type { RegisterAgentResponse } from '../../src/services/registry-broker/types';
 import { resolveHederaLedgerAuthConfig } from '../utils/ledger-config';
@@ -176,6 +177,13 @@ const logError = (error: unknown): void => {
       `Registry broker request failed (${error.status} ${error.statusText})`,
       error.body,
     );
+    return;
+  }
+  if (error instanceof RegistryBrokerParseError) {
+    console.error('Registry broker response parse error:', error.cause);
+    if (error.rawValue !== undefined) {
+      console.error('Raw payload:', error.rawValue);
+    }
     return;
   }
   if (error instanceof Error) {

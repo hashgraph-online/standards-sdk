@@ -324,7 +324,7 @@ const registrationAgentSchema = z.object({
 });
 
 const registrationProfileInfoSchema = z.object({
-  tId: z.string(),
+  tId: z.string().nullable(),
   sizeBytes: z.number().optional(),
 });
 

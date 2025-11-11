@@ -306,10 +306,16 @@ export class RegistryBrokerError extends Error {
 
 export class RegistryBrokerParseError extends Error {
   readonly cause: ZodError | Error | string;
+  readonly rawValue?: JsonValue;
 
-  constructor(message: string, cause: ZodError | Error | string) {
+  constructor(
+    message: string,
+    cause: ZodError | Error | string,
+    rawValue?: JsonValue,
+  ) {
     super(message);
     this.cause = cause;
+    this.rawValue = rawValue;
   }
 }
 
@@ -1668,6 +1674,7 @@ export class RegistryBrokerClient {
         error instanceof ZodError || error instanceof Error
           ? error
           : String(error),
+        value,
       );
     }
   }
