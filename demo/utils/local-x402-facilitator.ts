@@ -5,7 +5,7 @@ import {
   ServerResponse,
 } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import {
   cloudflaredInstallHint,
@@ -15,6 +15,7 @@ import {
   tunnelingDisabled,
   type CloudflareTunnelHandle,
 } from './demo-tunnel';
+import type { LocalIngressProxyHandle } from './local-ingress-proxy';
 
 export interface LocalX402FacilitatorOptions {
   port?: number;
@@ -25,6 +26,9 @@ export interface LocalX402FacilitatorOptions {
   assetAddress?: string;
   payToAddress?: string;
   maxAmountRequired?: string;
+  ingressProxy?: LocalIngressProxyHandle;
+  ingressPrefix?: string;
+  publicBaseUrl?: string;
 }
 
 export interface LocalX402FacilitatorHandle {
@@ -52,6 +56,18 @@ const FACILITATOR_CACHE_PATH = path.resolve(
   'registry-broker-x402-facilitator.json',
 );
 
+const normalizeIngressPrefix = (rawPrefix: string): string => {
+  const sanitized = rawPrefix
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9\/-]/g, '-')
+    .replace(/-+/g, '-');
+  if (!sanitized) {
+    return '/x402-facilitator';
+  }
+  return sanitized.startsWith('/') ? sanitized : `/${sanitized}`;
+};
+
 const json = (
   response: ServerResponse,
   status: number,
@@ -69,6 +85,18 @@ const inferBaseUrl = (
   request: IncomingMessage,
   fallbackPort: number,
 ): string => {
+  const ingressBaseHeader = request.headers['x-ingress-public-base'];
+  if (typeof ingressBaseHeader === 'string') {
+    const trimmed = ingressBaseHeader.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  } else if (Array.isArray(ingressBaseHeader) && ingressBaseHeader.length > 0) {
+    const candidate = ingressBaseHeader[0]?.trim();
+    if (candidate && candidate.length > 0) {
+      return candidate;
+    }
+  }
   const host = request.headers.host;
   const protoHeader = request.headers['x-forwarded-proto'];
   const proto =
@@ -142,6 +170,23 @@ const buildResourceDescriptor = (
     paymentAnalytics: { totalTransactions: 42 },
   },
 });
+
+const verifyFacilitatorPublicBaseUrl = async (
+  url: string,
+  timeoutMs = 5000,
+): Promise<boolean> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const healthUrl = new URL('/health', url).toString();
+    const response = await fetch(healthUrl, { signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 export const startLocalX402Facilitator = async (
   options: LocalX402FacilitatorOptions = {},
@@ -328,10 +373,43 @@ export const startLocalX402Facilitator = async (
     };
   }
 
-  const { handle: tunnelHandle, publicBaseUrl } = await ensureFacilitatorTunnel(
-    baseHandle.port,
-    cachedUrl,
-  );
+  const ingressProxy = options.ingressProxy;
+  const preconfiguredBaseUrl =
+    options.publicBaseUrl ||
+    process.env.REGISTRY_BROKER_DEMO_X402_PUBLIC_BASE_URL?.trim() ||
+    undefined;
+  let publicBaseUrl = preconfiguredBaseUrl || undefined;
+  let tunnelHandle: CloudflareTunnelHandle | null = null;
+  let ingressRouteActive = false;
+  if (!publicBaseUrl && ingressProxy) {
+    const prefix = normalizeIngressPrefix(
+      options.ingressPrefix ?? `x402-${baseHandle.port}`,
+    );
+    publicBaseUrl = ingressProxy.registerRoute(prefix, baseHandle.baseUrl);
+    ingressRouteActive = true;
+    console.log(
+      `Using ingress proxy for x402 facilitator at ${publicBaseUrl} (prefix ${prefix}).`,
+    );
+  }
+  if (publicBaseUrl && !ingressRouteActive) {
+    const reachable = await verifyFacilitatorPublicBaseUrl(publicBaseUrl);
+    if (reachable) {
+      console.log(`Using preconfigured x402 facilitator URL: ${publicBaseUrl}`);
+    } else {
+      console.warn(
+        `Preconfigured x402 facilitator URL ${publicBaseUrl} was unreachable. Falling back to Cloudflare tunnel.`,
+      );
+      publicBaseUrl = undefined;
+    }
+  }
+  if (!publicBaseUrl) {
+    const tunnelResult = await ensureFacilitatorTunnel(
+      baseHandle.port,
+      cachedUrl,
+    );
+    tunnelHandle = tunnelResult.handle;
+    publicBaseUrl = tunnelResult.publicBaseUrl;
+  }
   const publicDiscoveryUrl = publicBaseUrl
     ? `${publicBaseUrl}/platform/v2/x402/discovery/resources`
     : undefined;
@@ -346,8 +424,22 @@ export const startLocalX402Facilitator = async (
     publicResourceUrl,
     stop: async () => {
       await baseHandle.stop();
-      if (tunnelHandle) {
-        await tunnelHandle.close();
+      const keepTunnels = process.env.REGISTRY_BROKER_DEMO_KEEP_TUNNELS === '1';
+      if (tunnelHandle && !ingressRouteActive && !options.publicBaseUrl) {
+        if (keepTunnels) {
+          console.log(
+            '  🔁 Persisting x402 facilitator Cloudflare tunnel for reuse (REGISTRY_BROKER_DEMO_KEEP_TUNNELS=1).',
+          );
+        } else {
+          await tunnelHandle.close();
+          await clearPersistedFacilitatorTunnel();
+        }
+      } else if (
+        !keepTunnels &&
+        !ingressRouteActive &&
+        !options.publicBaseUrl
+      ) {
+        await clearPersistedFacilitatorTunnel();
       }
     },
   };
@@ -394,10 +486,17 @@ const ensureFacilitatorTunnel = async (
     return { handle: null };
   }
   if (cachedUrl) {
-    console.log(
-      `Reusing cached Cloudflare tunnel for x402 facilitator: ${cachedUrl}`,
+    const reachable = await verifyFacilitatorPublicBaseUrl(cachedUrl);
+    if (reachable) {
+      console.log(
+        `Reusing cached Cloudflare tunnel for x402 facilitator: ${cachedUrl}`,
+      );
+      return { handle: null, publicBaseUrl: cachedUrl };
+    }
+    console.warn(
+      `Cached x402 facilitator tunnel ${cachedUrl} was unreachable; creating a new tunnel.`,
     );
-    return { handle: null, publicBaseUrl: cachedUrl };
+    await clearPersistedFacilitatorTunnel();
   }
   if (preference === 'localtunnel') {
     console.log(
@@ -414,7 +513,7 @@ const ensureFacilitatorTunnel = async (
   try {
     const handle = await startCloudflareTunnel(port);
     console.log(`Cloudflare tunnel for x402 facilitator: ${handle.url}`);
-    await persistFacilitatorTunnel(port, handle.url);
+    await persistFacilitatorTunnel(port, handle.url, handle.pid);
     return { handle, publicBaseUrl: handle.url };
   } catch (error) {
     throw new Error(
@@ -453,4 +552,12 @@ const readPersistedFacilitatorUrl = async (
     }
   } catch {}
   return undefined;
+};
+
+const clearPersistedFacilitatorTunnel = async (): Promise<void> => {
+  try {
+    await rm(FACILITATOR_CACHE_PATH, { force: true });
+  } catch {
+    // ignore cache clearing issues
+  }
 };

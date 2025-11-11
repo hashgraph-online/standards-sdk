@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { Agent, fetch as undiciFetch } from 'undici';
-import { PrivateKey } from '@hashgraph/sdk';
 import registerDemoAgent, {
   type DemoProfileMode,
   type RegisterAgentOptions,
@@ -15,6 +14,11 @@ import {
   startLocalA2AAgent,
   type LocalA2AAgentHandle,
 } from '../utils/local-a2a-agent';
+import { resolveDemoLedgerAuthMode } from '../utils/registry-auth';
+import {
+  resolveEvmLedgerAuthConfig,
+  resolveHederaLedgerAuthConfig,
+} from '../utils/ledger-config';
 
 const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 const DEFAULT_MODE: DemoProfileMode = 'ai';
@@ -81,29 +85,6 @@ const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) =>
 
 let activeAgentHandle: LocalA2AAgentHandle | null = null;
 
-const resolveEnv = (primary: string, fallback?: string): string | undefined => {
-  const candidate = process.env[primary]?.trim();
-  if (candidate && candidate.length > 0) {
-    return candidate;
-  }
-  if (fallback) {
-    const fallbackValue = process.env[fallback]?.trim();
-    if (fallbackValue && fallbackValue.length > 0) {
-      return fallbackValue;
-    }
-  }
-  return undefined;
-};
-
-const requireValue = (value: string | undefined, label: string): string => {
-  if (!value) {
-    throw new Error(
-      `${label} is required. Set it via .env or environment variables.`,
-    );
-  }
-  return value;
-};
-
 const parseBooleanFlag = (value: string | undefined, defaultValue: boolean) => {
   if (value === undefined) {
     return defaultValue;
@@ -118,21 +99,6 @@ const parseBooleanFlag = (value: string | undefined, defaultValue: boolean) => {
   return defaultValue;
 };
 
-type LedgerNetwork = 'mainnet' | 'testnet';
-
-const resolveLedgerNetwork = (): LedgerNetwork =>
-  (process.env.HEDERA_NETWORK ?? 'testnet').trim().toLowerCase() === 'mainnet'
-    ? 'mainnet'
-    : 'testnet';
-
-const resolveNetworkScopedLedgerValue = (
-  network: LedgerNetwork,
-  suffix: 'ACCOUNT_ID' | 'PRIVATE_KEY',
-): string | undefined => {
-  const scopePrefix = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
-  return process.env[`${scopePrefix}_HEDERA_${suffix}`]?.trim();
-};
-
 const main = async (): Promise<void> => {
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() || DEFAULT_BASE_URL;
@@ -141,34 +107,24 @@ const main = async (): Promise<void> => {
     process.env.REGISTRY_BROKER_DEMO_USE_LEDGER,
     !apiKey,
   );
+  const ledgerMode = resolveDemoLedgerAuthMode();
+  const hederaLedgerConfig =
+    preferLedger && ledgerMode === 'hedera'
+      ? resolveHederaLedgerAuthConfig()
+      : null;
+  const enableAutoTopUp =
+    preferLedger &&
+    ledgerMode === 'hedera' &&
+    parseBooleanFlag(process.env.REGISTRY_BROKER_DEMO_AUTO_TOP_UP, true);
+  const autoTopUpCredentials =
+    enableAutoTopUp && hederaLedgerConfig
+      ? {
+          accountId: hederaLedgerConfig.accountId,
+          privateKey: hederaLedgerConfig.privateKey,
+        }
+      : undefined;
 
-  let ledgerNetwork: LedgerNetwork | undefined;
-  let accountId: string | undefined;
-  let privateKeyRaw: string | undefined;
-
-  if (preferLedger) {
-    ledgerNetwork = resolveLedgerNetwork();
-    const scopedAccount = resolveNetworkScopedLedgerValue(
-      ledgerNetwork,
-      'ACCOUNT_ID',
-    );
-    const scopedKey = resolveNetworkScopedLedgerValue(
-      ledgerNetwork,
-      'PRIVATE_KEY',
-    );
-
-    accountId = requireValue(
-      scopedAccount ??
-        resolveEnv('HEDERA_ACCOUNT_ID', 'TESTNET_HEDERA_ACCOUNT_ID'),
-      `${ledgerNetwork.toUpperCase()} account ID`,
-    );
-
-    privateKeyRaw = requireValue(
-      scopedKey ??
-        resolveEnv('HEDERA_PRIVATE_KEY', 'TESTNET_HEDERA_PRIVATE_KEY'),
-      `${ledgerNetwork.toUpperCase()} private key`,
-    );
-  } else if (!apiKey) {
+  if (!preferLedger && !apiKey) {
     throw new Error(
       'Provide REGISTRY_BROKER_API_KEY or enable ledger authentication via REGISTRY_BROKER_DEMO_USE_LEDGER=1.',
     );
@@ -178,45 +134,51 @@ const main = async (): Promise<void> => {
     baseUrl,
     fetchImplementation: fetchImpl,
     ...(apiKey ? { apiKey } : {}),
-    ...(preferLedger &&
-    parseBooleanFlag(process.env.REGISTRY_BROKER_DEMO_AUTO_TOP_UP, true)
+    ...(autoTopUpCredentials
       ? {
-          registrationAutoTopUp: {
-            accountId: accountId!,
-            privateKey: privateKeyRaw!,
-          },
-          historyAutoTopUp: {
-            accountId: accountId!,
-            privateKey: privateKeyRaw!,
-          },
+          registrationAutoTopUp: autoTopUpCredentials,
+          historyAutoTopUp: { ...autoTopUpCredentials },
         }
       : {}),
   });
 
   if (preferLedger) {
-    console.log(`Authenticating ledger account on ${ledgerNetwork}…`);
+    console.log('Authenticating ledger account…');
     try {
-      const privateKey = PrivateKey.fromString(privateKeyRaw!);
-      const challenge = await client.createLedgerChallenge({
-        accountId: accountId!,
-        network: ledgerNetwork!,
-      });
-      const signature = Buffer.from(
-        await privateKey.sign(Buffer.from(challenge.message, 'utf8')),
-      ).toString('base64');
-      const publicKey = privateKey.publicKey.toString();
-      const verification = await client.verifyLedgerChallenge({
-        challengeId: challenge.challengeId,
-        accountId: accountId!,
-        network: ledgerNetwork!,
-        signature,
-        publicKey,
-      });
-
-      client.setDefaultHeader('x-account-id', verification.accountId);
-      console.log(
-        `Ledger authentication complete. Issued API key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
-      );
+      if (ledgerMode === 'hedera' && hederaLedgerConfig) {
+        const verification = await client.authenticateWithLedgerCredentials({
+          accountId: hederaLedgerConfig.accountId,
+          network: `hedera:${hederaLedgerConfig.network}`,
+          hederaPrivateKey: hederaLedgerConfig.privateKey,
+          expiresInMinutes:
+            Number(
+              process.env.REGISTRY_BROKER_LEDGER_AUTH_TTL_MINUTES ?? '30',
+            ) || 30,
+          label: 'erc-8004 registration',
+        });
+        console.log(
+          `  Ledger authenticated for ${verification.accountId} (${verification.network})`,
+        );
+      } else if (ledgerMode === 'evm') {
+        const evmLedger = resolveEvmLedgerAuthConfig();
+        const verification = await client.authenticateWithLedgerCredentials({
+          accountId: evmLedger.accountId,
+          network: evmLedger.network,
+          sign: evmLedger.sign,
+          expiresInMinutes:
+            Number(
+              process.env.REGISTRY_BROKER_LEDGER_AUTH_TTL_MINUTES ?? '30',
+            ) || 30,
+          label: 'erc-8004 registration',
+        });
+        console.log(
+          `  Ledger authenticated for ${verification.accountId} (${verification.network})`,
+        );
+      } else {
+        throw new Error(
+          `Unsupported REGISTRY_BROKER_LEDGER_MODE "${ledgerMode}" for this demo.`,
+        );
+      }
     } catch (error) {
       if (error instanceof RegistryBrokerError) {
         console.error(
@@ -238,10 +200,10 @@ const main = async (): Promise<void> => {
       : resolvePreferredErc8004Selections();
 
   const registerOptions: RegisterAgentOptions = {
-    ...(preferLedger
+    ...(hederaLedgerConfig
       ? {
-          ledgerAccountId: accountId,
-          ledgerPrivateKey: privateKeyRaw,
+          ledgerAccountId: hederaLedgerConfig.accountId,
+          ledgerPrivateKey: hederaLedgerConfig.privateKey,
         }
       : {}),
     additionalRegistries: [],

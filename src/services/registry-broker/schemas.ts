@@ -159,14 +159,16 @@ const ledgerApiKeySummarySchema = z.object({
   lastUsedAt: z.string().nullable().optional(),
   ownerType: z.literal('ledger'),
   ledgerAccountId: z.string().optional(),
-  ledgerNetwork: z.enum(['mainnet', 'testnet']).optional(),
+  ledgerNetwork: z.string().optional(),
+  ledgerNetworkCanonical: z.string().optional(),
 });
 
 export const ledgerVerifyResponseSchema = z.object({
   key: z.string(),
   apiKey: ledgerApiKeySummarySchema,
   accountId: z.string(),
-  network: z.enum(['mainnet', 'testnet']),
+  network: z.string(),
+  networkCanonical: z.string().optional(),
 });
 
 export const protocolsResponseSchema = z.object({
@@ -322,7 +324,7 @@ const registrationAgentSchema = z.object({
 });
 
 const registrationProfileInfoSchema = z.object({
-  tId: z.string(),
+  tId: z.string().nullable(),
   sizeBytes: z.number().optional(),
 });
 

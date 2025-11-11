@@ -8,7 +8,7 @@ describe('HCS-14 AID/UAID', () => {
       '../src/hcs-14'
     );
     const input = {
-      registry: 'hol',
+      registry: 'hashgraph-online',
       name: 'Support Agent',
       version: '1.0.0',
       protocol: 'hcs-10',
@@ -19,7 +19,7 @@ describe('HCS-14 AID/UAID', () => {
     const did = await createUaid(input);
     const parsed = parseHcs14Did(did);
     expect(parsed.method).toBe('aid');
-    expect(parsed.params.registry).toBe('hol');
+    expect(parsed.params.registry).toBe('hashgraph-online');
     expect(parsed.params.nativeId).toBe('hedera:testnet:0.0.123456');
     expect(parsed.params.uid).toBe('0');
 
@@ -31,14 +31,14 @@ describe('HCS-14 AID/UAID', () => {
       .update(Buffer.from(canonicalJson, 'utf8'))
       .digest();
     const expectedId = base58Encode(hash as any);
-    const expectedDid = `uaid:aid:${expectedId};uid=0;registry=hol;nativeId=hedera:testnet:0.0.123456`;
+    const expectedDid = `uaid:aid:${expectedId};uid=0;registry=hashgraph-online;nativeId=hedera:testnet:0.0.123456`;
     expect(did).toBe(expectedDid);
   });
 
   it('normalizes strings and sorts skills deterministically', async () => {
     const { createUaid } = await import('../src/hcs-14');
     const inputA = {
-      registry: 'HOL',
+      registry: 'HASHGRAPH-ONLINE',
       name: '  Support Agent  ',
       version: '1.0.0',
       protocol: 'HCS-10',
@@ -47,7 +47,7 @@ describe('HCS-14 AID/UAID', () => {
     } as const;
 
     const inputB = {
-      registry: 'hol',
+      registry: 'hashgraph-online',
       name: 'Support Agent',
       version: '1.0.0',
       protocol: 'hcs-10',
@@ -133,7 +133,7 @@ describe('HCS-14 AID/UAID', () => {
   it('enforces CAIP-10 nativeId for hcs-10 protocol', async () => {
     const { canonicalizeAgentData } = await import('../src/hcs-14');
     const invalidHedera: unknown = {
-      registry: 'hol',
+      registry: 'hashgraph-online',
       name: 'x',
       version: '1',
       protocol: 'hcs-10',

@@ -92,6 +92,7 @@
     "demo:registry-broker-erc8004": "tsx demo/registry-broker/registry-broker-erc8004-demo.ts",
     "demo:registry-broker-agentverse": "tsx demo/registry-broker/registry-broker-agentverse-demo.ts",
     "demo:registry-broker-x402": "tsx demo/registry-broker/registry-broker-x402-demo.ts",
+    "demo:registry-broker-erc8004-x402": "tsx demo/registry-broker/registry-broker-erc8004-x402-demo.ts",
     "demo:registry-broker-x402-topup": "tsx demo/registry-broker/registry-broker-x402-topup.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest",

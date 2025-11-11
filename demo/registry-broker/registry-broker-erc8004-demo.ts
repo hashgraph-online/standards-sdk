@@ -118,7 +118,7 @@ const extractReplyContent = (payload: SendMessageResponse): string => {
   return typeof payload.message === 'string' ? payload.message : '';
 };
 
-const run = async () => {
+const run = async (p0: (a: any) => never) => {
   let activeClient = new RegistryBrokerClient({ baseUrl });
 
   const performSearch = async (client: RegistryBrokerClient, query: string) => {
@@ -239,7 +239,9 @@ const run = async () => {
   await activeClient.chat.endSession(session.sessionId).catch(() => undefined);
 };
 
-run().catch(error => {
+run(a => {
+  process.exit(1);
+}).catch(error => {
   console.error('ERC-8004 demo failed:', error);
   process.exit(1);
 });

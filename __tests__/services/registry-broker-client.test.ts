@@ -7,6 +7,7 @@ import {
   isPartialRegisterAgentResponse,
   isSuccessRegisterAgentResponse,
 } from '../../src/services/registry-broker';
+import { PrivateKey } from '@hashgraph/sdk';
 import type {
   AgentAuthConfig,
   RegisterAgentResponse,
@@ -225,9 +226,9 @@ const pendingRegisterResponse = {
   status: 'pending' as const,
   message:
     'Primary registry published. Additional registries are being processed in the background.',
-  uaid: 'uaid:aid:pending;uid=agent-pending;registry=hol;proto=a2a;nativeId=agent-pending',
+  uaid: 'uaid:aid:pending;uid=agent-pending;registry=hashgraph-online;proto=a2a;nativeId=agent-pending',
   agentId: 'agent-pending',
-  registry: 'hol',
+  registry: 'hashgraph-online',
   attemptId: 'attempt-pending',
   agent: {
     id: 'agent-pending',
@@ -235,7 +236,7 @@ const pendingRegisterResponse = {
     type: 'ai_agent',
     endpoint: 'https://pending.example.com/a2a',
     capabilities: ['text_generation'],
-    registry: 'hol',
+    registry: 'hashgraph-online',
     protocol: 'a2a',
     profile: JSON.parse(JSON.stringify(baseProfile)) as typeof baseProfile,
     nativeId: 'agent-pending',
@@ -247,7 +248,7 @@ const pendingRegisterResponse = {
   profileRegistry: null,
   hcs10Registry: {
     status: 'created',
-    uaid: 'uaid:aid:pending;uid=agent-pending;registry=hol;proto=a2a;nativeId=agent-pending',
+    uaid: 'uaid:aid:pending;uid=agent-pending;registry=hashgraph-online;proto=a2a;nativeId=agent-pending',
     transactionId: '0.0.5005@123',
     consensusTimestamp: '1700000000.123456789',
     registryTopicId: '0.0.5005',
@@ -289,9 +290,9 @@ const registrationProgressCompleted: RegistrationProgressRecord = {
   attemptId: 'attempt-pending',
   mode: 'register',
   status: 'completed',
-  uaid: 'uaid:aid:pending;uid=agent-pending;registry=hol;proto=a2a;nativeId=agent-pending',
+  uaid: 'uaid:aid:pending;uid=agent-pending;registry=hashgraph-online;proto=a2a;nativeId=agent-pending',
   agentId: 'agent-pending',
-  registryNamespace: 'hol',
+  registryNamespace: 'hashgraph-online',
   accountId: '0.0.1234',
   startedAt: '2025-01-01T00:00:00.000Z',
   completedAt: '2025-01-01T00:00:30.000Z',
@@ -374,6 +375,25 @@ describe('RegistryBrokerClient', () => {
 
     const client = new RegistryBrokerClient({
       baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await client.search({ limit: 1 });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    const [targetUrl] = fetchImplementation.mock.calls[0];
+    expect(targetUrl).toBe('https://api.example.com/api/v1/search?limit=1');
+  });
+
+  it('normalises base URL ending with /api to include version suffix', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => mockSearchResponse,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com/api/',
       fetchImplementation,
     });
 
@@ -1086,3 +1106,108 @@ describe('RegistryBrokerClient', () => {
     }
   });
 });
+  describe('authenticateWithLedgerCredentials', () => {
+    const createLedgerVerification = (
+      accountId = '0.0.1234',
+      network = 'hedera:testnet',
+    ) => ({
+      key: 'ledger-key',
+      apiKey: {
+        id: 'ledger-api-key',
+        prefix: 'led',
+        lastFour: '1234',
+        createdAt: new Date().toISOString(),
+        ownerType: 'ledger' as const,
+      },
+      accountId,
+      network,
+    });
+
+    it('wraps Hedera private keys and stores the account header', async () => {
+      const client = new RegistryBrokerClient({
+        baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+      });
+      const mockVerification = createLedgerVerification();
+      const spy = jest
+        .spyOn(client, 'authenticateWithLedger')
+        .mockResolvedValue(mockVerification as any);
+      const hederaPrivateKey = PrivateKey.generateED25519().toString();
+
+      const result = await client.authenticateWithLedgerCredentials({
+        accountId: '0.0.1234',
+        network: 'hedera:testnet',
+        hederaPrivateKey,
+        label: 'test',
+        expiresInMinutes: 5,
+      });
+
+      expect(result).toEqual(mockVerification);
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: '0.0.1234',
+          network: 'hedera:testnet',
+          signer: expect.any(Object),
+          expiresInMinutes: 5,
+        }),
+      );
+      expect(client.getDefaultHeaders()['x-account-id']).toBe('0.0.1234');
+      spy.mockRestore();
+    });
+
+    it('supports EVM private keys and respects setAccountHeader=false', async () => {
+      const client = new RegistryBrokerClient({
+        baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+      });
+      const mockVerification = createLedgerVerification(
+        '0x1234',
+        'eip155:84532',
+      );
+      const spy = jest
+        .spyOn(client, 'authenticateWithLedger')
+        .mockResolvedValue(mockVerification as any);
+      const evmPrivateKey =
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+      await client.authenticateWithLedgerCredentials({
+        accountId: '0x1234',
+        network: 'eip155:84532',
+        evmPrivateKey,
+        setAccountHeader: false,
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: '0x1234',
+          network: 'eip155:84532',
+          sign: expect.any(Function),
+        }),
+      );
+      expect(client.getDefaultHeaders()['x-account-id']).toBeUndefined();
+      spy.mockRestore();
+    });
+
+    it('throws when credential type does not match the network', async () => {
+      const client = new RegistryBrokerClient({
+        baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+      });
+      await expect(
+        client.authenticateWithLedgerCredentials({
+          accountId: '0.0.1234',
+          network: 'eip155:84532',
+          hederaPrivateKey: PrivateKey.generateED25519().toString(),
+        }),
+      ).rejects.toThrow(
+        'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
+      );
+      await expect(
+        client.authenticateWithLedgerCredentials({
+          accountId: '0xabc',
+          network: 'hedera:testnet',
+          evmPrivateKey:
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        }),
+      ).rejects.toThrow(
+        'evmPrivateKey can only be used with CAIP-2 EVM networks (eip155:<chainId>).',
+      );
+    });
+  });

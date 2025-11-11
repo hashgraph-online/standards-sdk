@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Signer } from '@hashgraph/sdk';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
@@ -61,6 +62,11 @@ export interface AgentRegistrationRequestMetadata {
   adapter?: string;
   openConvAICompatible?: boolean;
   customFields?: Record<string, string | number | boolean>;
+  nativeId?: string;
+  tunnelUrl?: string;
+  publicUrl?: string;
+  payments?: JsonValue;
+  [key: string]: JsonValue | undefined;
 }
 
 export interface AgentRegistrationRequest {
@@ -183,7 +189,7 @@ export type AdapterDetailsResponse = z.infer<
 
 export interface LedgerChallengeRequest {
   accountId: string;
-  network: 'mainnet' | 'testnet';
+  network: string;
 }
 
 export type LedgerChallengeResponse = z.infer<
@@ -192,12 +198,13 @@ export type LedgerChallengeResponse = z.infer<
 
 export interface LedgerAuthenticationSignerResult {
   signature: string;
-  signatureKind?: 'raw' | 'map';
+  signatureKind?: 'raw' | 'map' | 'evm';
   publicKey?: string;
 }
 
 export interface LedgerAuthenticationOptions extends LedgerChallengeRequest {
-  sign: (
+  signer?: Signer;
+  sign?: (
     message: string,
   ) =>
     | LedgerAuthenticationSignerResult
@@ -208,12 +215,34 @@ export interface LedgerAuthenticationOptions extends LedgerChallengeRequest {
 export interface LedgerVerifyRequest extends LedgerChallengeRequest {
   challengeId: string;
   signature: string;
-  signatureKind?: 'raw' | 'map';
+  signatureKind?: 'raw' | 'map' | 'evm';
   publicKey?: string;
   expiresInMinutes?: number;
 }
 
 export type LedgerVerifyResponse = z.infer<typeof ledgerVerifyResponseSchema>;
+
+export interface LedgerAuthenticationLogger {
+  info?: (message: string) => void;
+  warn?: (message: string) => void;
+}
+
+export interface LedgerCredentialAuthOptions {
+  accountId: string;
+  network: string;
+  signer?: Signer;
+  sign?: (
+    message: string,
+  ) =>
+    | LedgerAuthenticationSignerResult
+    | Promise<LedgerAuthenticationSignerResult>;
+  hederaPrivateKey?: string;
+  evmPrivateKey?: string;
+  expiresInMinutes?: number;
+  setAccountHeader?: boolean;
+  label?: string;
+  logger?: LedgerAuthenticationLogger;
+}
 
 export type ProtocolsResponse = z.infer<typeof protocolsResponseSchema>;
 

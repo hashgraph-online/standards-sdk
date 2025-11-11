@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import { PrivateKey } from '@hashgraph/sdk';
 import {
   LocalA2AAgentHandle,
   startLocalA2AAgent,
@@ -199,50 +198,6 @@ const attemptWithCreditTopup = async <T>(
   }
 };
 
-type LedgerSigner = (message: string) =>
-  | {
-      signature: string;
-      signatureKind: 'raw';
-      publicKey: string;
-    }
-  | Promise<{
-      signature: string;
-      signatureKind: 'raw';
-      publicKey: string;
-    }>;
-
-const createLedgerSigner = (privateKey: string): LedgerSigner => {
-  const key = PrivateKey.fromString(privateKey);
-  const publicKey = key.publicKey.toString();
-  return (message: string) => {
-    const signature = key.sign(Buffer.from(message, 'utf8'));
-    return {
-      signature: Buffer.from(signature).toString('base64'),
-      signatureKind: 'raw' as const,
-      publicKey,
-    };
-  };
-};
-
-const authenticateClientWithLedger = async (
-  client: RegistryBrokerClient,
-  accountId: string,
-  network: 'mainnet' | 'testnet',
-  signer: LedgerSigner,
-  label: string,
-): Promise<void> => {
-  logger.info(
-    `Authenticating ledger account ${accountId} (${network}) for ${label}...`,
-  );
-  await client.authenticateWithLedger({
-    accountId,
-    network,
-    expiresInMinutes: 30,
-    sign: signer,
-  });
-  logger.info(`Ledger authentication complete for ${label}.`);
-};
-
 const resolveDockerReachableUrl = (raw: string): string => {
   try {
     const url = new URL(raw);
@@ -401,8 +356,6 @@ const run = async (): Promise<void> => {
 
   const hederaAccountId = ledgerAccountId;
   const hederaPrivateKey = ledgerPrivateKey;
-  const ledgerSigner = createLedgerSigner(ledgerPrivateKey);
-
   const clientOptions = {
     baseUrl: config.baseUrl,
     ...(config.apiKey ? { apiKey: config.apiKey } : {}),
@@ -474,13 +427,13 @@ const run = async (): Promise<void> => {
         network,
       },
     };
-    await authenticateClientWithLedger(
-      registrationClient,
-      ledgerAccountId,
-      network,
-      ledgerSigner,
-      'registration client',
-    );
+    await registrationClient.authenticateWithLedgerCredentials({
+      accountId: ledgerAccountId,
+      network: `hedera:${network}`,
+      hederaPrivateKey: ledgerPrivateKey,
+      label: 'registration client',
+      logger,
+    });
     const registryUaid = await ensureAgentRegistration({
       client: registrationClient,
       uaid: profileUaid,
@@ -526,13 +479,13 @@ const run = async (): Promise<void> => {
       );
     }
 
-    await authenticateClientWithLedger(
-      userClient,
-      ledgerAccountId,
-      network,
-      ledgerSigner,
-      'user client',
-    );
+    await userClient.authenticateWithLedgerCredentials({
+      accountId: ledgerAccountId,
+      network: `hedera:${network}`,
+      hederaPrivateKey: ledgerPrivateKey,
+      label: 'user client',
+      logger,
+    });
 
     const resolvedAgent = await withRequestTimeout(
       userClient.resolveUaid(registryUaid),

@@ -1,74 +1,24 @@
 import 'dotenv/config';
-import { PrivateKey } from '@hashgraph/sdk';
 import { RegistryBrokerClient } from '../../src/services/registry-broker/client';
+import { resolveEvmLedgerAuthConfig } from '../utils/ledger-config';
 
 const DEFAULT_CREDIT_UNIT_USD = Number(process.env.CREDIT_UNIT_USD || '0.01');
 const DEFAULT_BROKER_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
 
-const resolveAccountId = (): string => {
-  const account =
-    process.env.CREDITS_ACCOUNT_ID?.trim() ||
-    process.env.HEDERA_ACCOUNT_ID?.trim();
-  if (!account) {
-    throw new Error(
-      'Set CREDITS_ACCOUNT_ID or HEDERA_ACCOUNT_ID to choose which credit account to top up.',
-    );
-  }
-  return account;
-};
-
-const resolveLedgerAccountId = (): string => {
-  const account =
-    process.env.LEDGER_ACCOUNT_ID?.trim() ||
-    process.env.CREDITS_ACCOUNT_ID?.trim() ||
-    process.env.HEDERA_ACCOUNT_ID?.trim() ||
-    process.env.TESTNET_HEDERA_ACCOUNT_ID?.trim();
-  if (!account) {
-    throw new Error(
-      'Set LEDGER_ACCOUNT_ID or HEDERA_ACCOUNT_ID for ledger auth.',
-    );
-  }
-  return account;
-};
-
-const resolveLedgerPrivateKey = (): string => {
-  const key =
-    process.env.LEDGER_PRIVATE_KEY?.trim() ||
-    process.env.HEDERA_PRIVATE_KEY?.trim() ||
-    process.env.TESTNET_HEDERA_PRIVATE_KEY?.trim();
-  if (!key) {
-    throw new Error(
-      'Set LEDGER_PRIVATE_KEY or HEDERA_PRIVATE_KEY for ledger auth.',
-    );
-  }
-  return key;
-};
-
-const resolveLedgerNetwork = (): 'mainnet' | 'testnet' => {
-  const network =
-    process.env.LEDGER_NETWORK?.trim() ||
-    process.env.HEDERA_NETWORK ||
-    'mainnet';
-  const normalized = network.trim().toLowerCase();
-  return normalized === 'testnet' ? 'testnet' : 'mainnet';
-};
-
-const resolveWalletPrivateKey = (): `0x${string}` => {
-  const key = process.env.ETH_PK?.trim();
-  if (!key) {
-    throw new Error('ETH_PK is required to sign x402 payments.');
-  }
-  return key.startsWith('0x') ? (key as `0x${string}`) : (`0x${key}` as const);
-};
-
-const resolveNetwork = () => {
-  const network = (process.env.CREDITS_ETH_NETWORK || 'base-sepolia')
+const resolveNetwork = (override?: string) => {
+  const network = (
+    override ||
+    process.env.CREDITS_ETH_NETWORK ||
+    'base-sepolia'
+  )
     .trim()
     .toLowerCase();
   switch (network) {
     case 'base':
+    case 'eip155:8453':
       return { id: 'base' as const, rpc: 'https://mainnet.base.org' };
     case 'base-sepolia':
+    case 'eip155:84532':
     default:
       return {
         id: 'base-sepolia' as const,
@@ -87,37 +37,26 @@ const resolveCredits = (): number => {
   return value;
 };
 
-const main = async () => {
+const main = async (p0: (a: any) => never) => {
   const baseUrlOverride = process.env.REGISTRY_BROKER_BASE_URL?.trim();
   const brokerBaseUrl = baseUrlOverride || DEFAULT_BROKER_BASE_URL;
   const client = new RegistryBrokerClient({
     baseUrl: baseUrlOverride,
   });
 
-  const accountId = resolveAccountId();
-  const ledgerAccountId = resolveLedgerAccountId();
-  const ledgerPrivateKey = resolveLedgerPrivateKey();
-  const ledgerNetwork = resolveLedgerNetwork();
+  const evmLedgerAuth = resolveEvmLedgerAuthConfig();
+  const ledgerAccountId = evmLedgerAuth.accountId;
+  const accountId = ledgerAccountId;
   const requestedCredits = resolveCredits();
-  const network = resolveNetwork();
+  const network = resolveNetwork(evmLedgerAuth.network);
   const rpcUrl = process.env.CREDITS_ETH_RPC_URL?.trim() || network.rpc;
-  const walletPrivateKey = resolveWalletPrivateKey();
+  const walletPrivateKey = evmLedgerAuth.privateKey;
 
-  console.log(
-    `🔐 Authenticating ledger account ${ledgerAccountId} (${ledgerNetwork})...`,
-  );
-  const ledgerKey = PrivateKey.fromString(ledgerPrivateKey);
-  await client.authenticateWithLedger({
-    accountId: ledgerAccountId,
-    network: ledgerNetwork,
-    sign: async (message: string) => {
-      const signature = await ledgerKey.sign(Buffer.from(message, 'utf8'));
-      return {
-        signature: Buffer.from(signature).toString('base64'),
-        signatureKind: 'raw' as const,
-        publicKey: ledgerKey.publicKey.toString(),
-      };
-    },
+  await client.authenticateWithLedgerCredentials({
+    accountId: evmLedgerAuth.accountId,
+    network: evmLedgerAuth.network,
+    sign: evmLedgerAuth.sign,
+    label: 'x402 top-up',
   });
 
   const minimums = await client.getX402Minimums();
@@ -164,7 +103,9 @@ const main = async () => {
   }
 };
 
-main().catch(error => {
+main(a => {
+  process.exit(0);
+}).catch(error => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });
