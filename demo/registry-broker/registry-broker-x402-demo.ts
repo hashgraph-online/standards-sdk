@@ -24,6 +24,10 @@ import {
   type LocalX402FacilitatorHandle,
 } from '../utils/local-x402-facilitator';
 import { resolveEvmLedgerAuthConfig } from '../utils/ledger-config';
+import {
+  ChainIdToNetwork,
+  createSigner as createX402Signer,
+} from 'x402/types';
 
 interface SearchHit {
   id: string;
@@ -38,6 +42,27 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const isAutoMode = (): boolean =>
+  process.env.CREDITS_AUTO_CONTINUE === '1' ||
+  process.argv.includes('--auto') ||
+  process.argv.includes('--non-interactive');
+
+const normalizeX402Network = (network: string): string => {
+  const trimmed = network.trim();
+  const eipMatch = /^eip155:(\d+)$/u.exec(trimmed);
+  if (eipMatch) {
+    const chainId = Number(eipMatch[1]);
+    const mapped = ChainIdToNetwork[chainId];
+    if (mapped) {
+      return mapped;
+    }
+    if (chainId === 84532) {
+      return 'base-sepolia';
+    }
+  }
+  return trimmed;
+};
 
 const readEnv = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -164,17 +189,101 @@ const registerLocalAgentWithBroker = async (
       source: 'x402-demo',
       tunnelUrl: agent.publicUrl,
       localEndpoint: agent.localA2aEndpoint,
+      // Keep a stable nativeId to avoid UAID invariant violations on update
+      nativeId: agent.agentId,
     },
+  };
+
+const ensureCreditsWithEvm = async (): Promise<void> => {
+  try {
+    const quote = await client.getRegistrationQuote(payload);
+    const shortfall = quote.shortfallCredits ?? 0;
+    if (shortfall <= 0) {
+      return;
+    }
+
+    const evmLedger = resolveEvmLedgerAuthConfig();
+    const x402Network = normalizeX402Network(evmLedger.network);
+    const rawKey = evmLedger.privateKey ?? process.env.ETH_PK ?? '';
+    const normalizedPriv = rawKey.startsWith('0x')
+      ? (rawKey as `0x${string}`)
+      : (`0x${rawKey}` as const);
+    if (!normalizedPriv || normalizedPriv === '0x') {
+      throw new Error('EVM private key missing for x402 top-up');
+    }
+    const minimums = await client
+      .getX402Minimums()
+      .catch(() => ({ baseCredits: 100 }));
+    const creditsToBuy = Math.max(
+      shortfall,
+      minimums.baseCredits ?? minimums.requiredCredits ?? 100,
+    );
+    const walletClient = await createX402Signer(
+      x402Network,
+      normalizedPriv,
+    );
+    await client.purchaseCreditsWithX402({
+      accountId: evmLedger.accountId,
+      credits: creditsToBuy,
+      description: 'x402 demo auto top-up',
+        metadata: { source: 'x402-demo', shortfall },
+        walletClient,
+      });
+    } catch (error) {
+      console.warn(
+        `EVM auto top-up attempt failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw error;
+    }
+  };
+
+  const ensureCredits = async (): Promise<void> => {
+    await ensureCreditsWithEvm();
   };
 
   const existing = await findExistingDemoAgent(client, agent.agentId);
   if (existing?.uaid) {
+    // Preserve the originally registered nativeId if present to avoid locked-field errors
+    const existingNativeId =
+      typeof (existing as { nativeId?: unknown }).nativeId === 'string'
+        ? (existing as { nativeId: string }).nativeId
+        : typeof existing.metadata?.nativeId === 'string'
+        ? existing.metadata.nativeId
+        : undefined;
+    if (existingNativeId) {
+      payload.metadata = { ...payload.metadata, nativeId: existingNativeId };
+    }
     console.log(
       `Updating existing demo agent registration (${existing.uaid}) with new tunnel URL…`,
     );
-    const response = await client.updateAgent(existing.uaid, payload);
-    await waitForRegistrationAttempt(client, response);
-    return;
+    try {
+      await ensureCredits();
+      const response = await client.updateAgent(existing.uaid, payload);
+      await waitForRegistrationAttempt(client, response);
+      return;
+    } catch (error) {
+      const isLockedFieldError =
+        error instanceof RegistryBrokerError &&
+        Array.isArray(error.body?.lockedFields) &&
+        error.body.lockedFields.includes('nativeId');
+      if (!isLockedFieldError) {
+        throw error;
+      }
+      const fallbackNativeId = `${agent.agentId}-${Date.now()}`;
+      console.warn(
+        `Update failed due to locked nativeId; registering new demo agent with nativeId=${fallbackNativeId}`,
+      );
+      await ensureCredits();
+      const response = await client.registerAgent({
+        ...payload,
+        profile: buildDemoProfile(fallbackNativeId, agent.publicUrl),
+        metadata: { ...payload.metadata, nativeId: fallbackNativeId },
+      });
+      await waitForRegistrationAttempt(client, response);
+      return;
+    }
   }
 
   console.log(
@@ -287,7 +396,7 @@ const resolveFacilitatorAdapterBase = (
 const waitForBrokerAlignment = async (
   facilitator: LocalX402FacilitatorHandle,
 ): Promise<void> => {
-  if (process.env.CREDITS_AUTO_CONTINUE === '1') {
+  if (isAutoMode()) {
     return;
   }
   const adapterBase = resolveFacilitatorAdapterBase(facilitator);

@@ -243,7 +243,11 @@ export async function inscribe(
           ...baseRequest,
           file: {
             type: 'base64',
-            base64: Buffer.from(input.buffer).toString('base64'),
+            base64: Buffer.from(
+              input.buffer instanceof ArrayBuffer
+                ? new Uint8Array(input.buffer)
+                : input.buffer,
+            ).toString('base64'),
             fileName: input.fileName,
             mimeType: input.mimeType,
           },
@@ -415,7 +419,11 @@ export async function inscribeWithSigner(
           ...baseRequest,
           file: {
             type: 'base64',
-            base64: Buffer.from(input.buffer).toString('base64'),
+            base64: Buffer.from(
+              input.buffer instanceof ArrayBuffer
+                ? new Uint8Array(input.buffer)
+                : input.buffer,
+            ).toString('base64'),
             fileName: input.fileName,
             mimeType: input.mimeType,
           },
@@ -703,7 +711,11 @@ export async function generateQuote(
           ...baseRequest,
           file: {
             type: 'base64',
-            base64: Buffer.from(input.buffer).toString('base64'),
+            base64: Buffer.from(
+              input.buffer instanceof ArrayBuffer
+                ? new Uint8Array(input.buffer)
+                : input.buffer,
+            ).toString('base64'),
             fileName: input.fileName,
             mimeType: input.mimeType,
           },

@@ -48,9 +48,10 @@ export class WebHashAdapter implements HashAdapter {
 
   async digest(encoding?: string): Promise<string | Buffer> {
     const combined = this.concatenateArrays(this.data);
+    const bufferView = new Uint8Array(combined).buffer;
     const hashBuffer = await crypto.subtle.digest(
       this.mapAlgorithm(this.algorithm),
-      combined,
+      bufferView,
     );
 
     if (encoding === 'hex') {

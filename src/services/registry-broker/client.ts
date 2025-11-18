@@ -42,7 +42,6 @@ import {
   AutoTopUpOptions,
   HistoryAutoTopUpOptions,
   RegistrationProgressRecord,
-  RegistrationProgressResponse,
   RegistrationProgressWaitOptions,
   ChatHistorySnapshotResponse,
   ChatHistoryCompactionResponse,
@@ -51,11 +50,50 @@ import {
   AdditionalRegistryCatalogResponse,
   X402CreditPurchaseResponse,
   X402MinimumsResponse,
+  SessionEncryptionStatusResponse,
+  EncryptionHandshakeRecord,
+  EncryptionHandshakeSubmissionPayload,
+  RegisterEncryptionKeyPayload,
+  RegisterEncryptionKeyResponse,
+  EphemeralKeyPair,
+  DeriveSharedSecretOptions,
+  EncryptCipherEnvelopeOptions,
+  DecryptCipherEnvelopeOptions,
+  SharedSecretInput,
+  CipherEnvelope,
+  CipherEnvelopeRecipient,
+  ChatConversationHandle,
+  StartChatOptions,
+  StartConversationOptions,
+  AcceptConversationOptions,
+  ChatHistoryEntry,
+  ClientEncryptionOptions,
+  AutoRegisterEncryptionKeyOptions,
+  EnsureAgentKeyOptions,
+  RegistryBrokerClientOptions,
+  InitializeAgentClientOptions,
+  ChatHistoryFetchOptions,
+  ChatHistorySnapshotWithDecryptedEntries,
+  RecipientIdentity,
+  EncryptedChatSessionHandle,
+  SessionEncryptionSummary,
+  LedgerAuthenticationSignerResult,
+  StartEncryptedChatSessionOptions,
+  AcceptEncryptedChatSessionOptions,
 } from './types';
+import * as path from 'node:path';
+import { Buffer } from 'node:buffer';
+import {
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+} from 'node:crypto';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { canonicalizeLedgerNetwork } from './ledger-network';
 import axios from 'axios';
 import type { SignerSignature } from '@hashgraph/sdk';
-import { createWalletClient, http, type Chain } from 'viem';
+import type { Chain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import {
@@ -64,9 +102,11 @@ import {
   Signer,
   MultiNetworkSigner,
 } from 'x402-axios';
+import { createSigner as createX402Signer } from 'x402/types';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
+  encryptionHandshakeResponseSchema,
   detectProtocolResponseSchema,
   dashboardStatsResponseSchema,
   metricsSummaryResponseSchema,
@@ -86,6 +126,8 @@ import {
   sendMessageResponseSchema,
   chatHistorySnapshotResponseSchema,
   chatHistoryCompactionResponseSchema,
+  sessionEncryptionStatusResponseSchema,
+  registerEncryptionKeyResponseSchema,
   statsResponseSchema,
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
@@ -99,11 +141,50 @@ import {
 import { ZodError, z } from 'zod';
 import { createPrivateKeySigner } from './private-key-signer';
 
+type FsModule = {
+  existsSync: (path: string) => boolean;
+  readFileSync: (path: string, encoding: BufferEncoding) => string;
+  writeFileSync: (path: string, data: string) => void;
+  appendFileSync: (path: string, data: string) => void;
+};
+
+type NodeRequire = (id: string) => unknown;
+
+declare const require: NodeRequire | undefined;
+
+const getFs = (): FsModule | null => {
+  if (typeof require !== 'function') {
+    return null;
+  }
+
+  try {
+    const fsModule = require('node:fs') as Partial<FsModule> | null;
+
+    if (
+      fsModule &&
+      typeof fsModule.existsSync === 'function' &&
+      typeof fsModule.readFileSync === 'function' &&
+      typeof fsModule.writeFileSync === 'function' &&
+      typeof fsModule.appendFileSync === 'function'
+    ) {
+      return fsModule as FsModule;
+    }
+  } catch {
+  }
+
+  return null;
+};
+
 const DEFAULT_USER_AGENT =
   '@hashgraphonline/standards-sdk/registry-broker-client';
 
 const DEFAULT_PROGRESS_INTERVAL_MS = 1_500;
 const DEFAULT_PROGRESS_TIMEOUT_MS = 5 * 60 * 1_000;
+
+export interface InitializedAgentClient {
+  client: RegistryBrokerClient;
+  encryption?: { publicKey: string; privateKey?: string } | null;
+}
 
 const createAbortError = (): Error =>
   typeof DOMException === 'function'
@@ -215,19 +296,16 @@ const serialiseAgentRegistrationRequest = (
   return body;
 };
 
-export interface RegistryBrokerClientOptions {
-  baseUrl?: string;
-  fetchImplementation?: typeof fetch;
-  defaultHeaders?: Record<string, string>;
-  apiKey?: string;
-  ledgerApiKey?: string;
-  registrationAutoTopUp?: AutoTopUpOptions;
-  historyAutoTopUp?: HistoryAutoTopUpOptions;
+export interface GenerateEncryptionKeyPairOptions {
+  keyType?: 'secp256k1';
+  envVar?: string;
+  envPath?: string;
+  overwrite?: boolean;
 }
 
 interface RequestConfig {
   method?: string;
-  body?: JsonValue;
+  body?: unknown;
   headers?: Record<string, string>;
 }
 
@@ -426,7 +504,26 @@ function buildSearchQuery(params: SearchParams): string {
 }
 
 export class RegistryBrokerClient {
+  static async initializeAgent(
+    options: InitializeAgentClientOptions,
+  ): Promise<InitializedAgentClient> {
+    const { uaid, ensureEncryptionKey = true, ...clientOptions } = options;
+    const client = new RegistryBrokerClient(clientOptions);
+    let encryption: { publicKey: string; privateKey?: string } | null = null;
+    if (ensureEncryptionKey) {
+      const ensureOptions =
+        typeof ensureEncryptionKey === 'object'
+          ? ensureEncryptionKey
+          : { generateIfMissing: true };
+      encryption = await client.encryption.ensureAgentKey({
+        uaid,
+        ...ensureOptions,
+      });
+    }
+    return { client, encryption };
+  }
   readonly chat: {
+    start: (options: StartChatOptions) => Promise<ChatConversationHandle>;
     createSession: (
       payload: CreateSessionRequestPayload,
     ) => Promise<CreateSessionResponse>;
@@ -434,10 +531,47 @@ export class RegistryBrokerClient {
       payload: SendMessageRequestPayload,
     ) => Promise<SendMessageResponse>;
     endSession: (sessionId: string) => Promise<void>;
-    getHistory: (sessionId: string) => Promise<ChatHistorySnapshotResponse>;
+    getHistory: (
+      sessionId: string,
+      options?: ChatHistoryFetchOptions,
+    ) => Promise<ChatHistorySnapshotWithDecryptedEntries>;
     compactHistory: (
       payload: CompactHistoryRequestPayload,
     ) => Promise<ChatHistoryCompactionResponse>;
+    getEncryptionStatus: (
+      sessionId: string,
+    ) => Promise<SessionEncryptionStatusResponse>;
+    submitEncryptionHandshake: (
+      sessionId: string,
+      payload: EncryptionHandshakeSubmissionPayload,
+    ) => Promise<EncryptionHandshakeRecord>;
+    createEncryptedSession?: (
+      options: StartEncryptedChatSessionOptions,
+    ) => Promise<EncryptedChatSessionHandle>;
+    acceptEncryptedSession?: (
+      options: AcceptEncryptedChatSessionOptions,
+    ) => Promise<EncryptedChatSessionHandle>;
+    startConversation: (
+      options: StartConversationOptions,
+    ) => Promise<ChatConversationHandle>;
+    acceptConversation: (
+      options: AcceptConversationOptions,
+    ) => Promise<ChatConversationHandle>;
+  };
+
+  readonly encryption: {
+    registerKey: (
+      payload: RegisterEncryptionKeyPayload,
+    ) => Promise<RegisterEncryptionKeyResponse>;
+    generateEphemeralKeyPair: () => EphemeralKeyPair;
+    deriveSharedSecret: (options: DeriveSharedSecretOptions) => Buffer;
+    encryptCipherEnvelope: (
+      options: EncryptCipherEnvelopeOptions,
+    ) => CipherEnvelope;
+    decryptCipherEnvelope: (options: DecryptCipherEnvelopeOptions) => string;
+    ensureAgentKey: (
+      options: EnsureAgentKeyOptions,
+    ) => Promise<{ publicKey: string; privateKey?: string }>;
   };
 
   private readonly baseUrl: string;
@@ -445,6 +579,13 @@ export class RegistryBrokerClient {
   private readonly defaultHeaders: Record<string, string>;
   private readonly registrationAutoTopUp?: AutoTopUpOptions;
   private readonly historyAutoTopUp?: HistoryAutoTopUpOptions;
+  private readonly encryptedChatManager: EncryptedChatManager;
+  private readonly encryptionOptions?: ClientEncryptionOptions;
+  private readonly encryptionBootstrapPromise: Promise<void> | null;
+  private readonly conversationContexts = new Map<
+    string,
+    ConversationContextState[]
+  >();
 
   constructor(options: RegistryBrokerClientOptions = {}) {
     this.baseUrl = normaliseBaseUrl(options.baseUrl);
@@ -472,14 +613,40 @@ export class RegistryBrokerClient {
 
     this.registrationAutoTopUp = options.registrationAutoTopUp;
     this.historyAutoTopUp = options.historyAutoTopUp;
+    this.encryptedChatManager = new EncryptedChatManager(this);
+    this.encryptionOptions = options.encryption;
+    this.encryptionBootstrapPromise = this.bootstrapEncryptionOptions(
+      options.encryption,
+    );
 
     this.chat = {
+      start: options => this.startChat(options),
       createSession: payload => this.createSession(payload),
       sendMessage: payload => this.sendMessage(payload),
       endSession: sessionId => this.endSession(sessionId),
-      getHistory: sessionId => this.fetchHistorySnapshot(sessionId),
+      getHistory: (sessionId, options) =>
+        this.fetchHistorySnapshot(sessionId, options),
       compactHistory: payload => this.compactHistory(payload),
+      getEncryptionStatus: sessionId => this.fetchEncryptionStatus(sessionId),
+      submitEncryptionHandshake: (sessionId, payload) =>
+        this.postEncryptionHandshake(sessionId, payload),
+      startConversation: opts => this.startConversation(opts),
+      acceptConversation: opts => this.acceptConversation(opts),
     };
+
+    this.encryption = {
+      registerKey: payload => this.registerEncryptionKey(payload),
+      generateEphemeralKeyPair: () => this.createEphemeralKeyPair(),
+      deriveSharedSecret: options => this.deriveSharedSecret(options),
+      encryptCipherEnvelope: options => this.buildCipherEnvelope(options),
+      decryptCipherEnvelope: options => this.openCipherEnvelope(options),
+      ensureAgentKey: options => this.ensureAgentEncryptionKey(options),
+    };
+
+    this.chat.createEncryptedSession = options =>
+      this.encryptedChatManager.startSession(options);
+    this.chat.acceptEncryptedSession = options =>
+      this.encryptedChatManager.acceptSession(options);
   }
 
   setApiKey(apiKey?: string): void {
@@ -504,6 +671,13 @@ export class RegistryBrokerClient {
 
   getDefaultHeaders(): Record<string, string> {
     return { ...this.defaultHeaders };
+  }
+
+  async encryptionReady(): Promise<void> {
+    if (!this.encryptionBootstrapPromise) {
+      return;
+    }
+    await this.encryptionBootstrapPromise;
   }
 
   async search(params: SearchParams = {}): Promise<SearchResult> {
@@ -542,6 +716,114 @@ export class RegistryBrokerClient {
       additionalRegistryCatalogResponseSchema,
       'additional registry catalog response',
     );
+  }
+
+  private bootstrapEncryptionOptions(
+    options?: ClientEncryptionOptions,
+  ): Promise<void> | null {
+    if (!options?.autoRegister || options.autoRegister.enabled === false) {
+      return null;
+    }
+    return this.autoRegisterEncryptionKey(
+      options.autoRegister,
+    ).then((): void => undefined);
+  }
+
+  private async autoRegisterEncryptionKey(
+    config: AutoRegisterEncryptionKeyOptions,
+  ): Promise<{ publicKey: string; privateKey?: string }> {
+    const identity = this.normalizeAutoRegisterIdentity(config);
+    if (!identity) {
+      throw new Error(
+        'Auto-registration requires uaid, ledgerAccountId, or email',
+      );
+    }
+    const material = await this.resolveAutoRegisterKeyMaterial(config);
+    if (!material) {
+      throw new Error(
+        'Unable to resolve encryption public key for auto-registration',
+      );
+    }
+    await this.registerEncryptionKey({
+      keyType: config.keyType ?? 'secp256k1',
+      publicKey: material.publicKey,
+      ...identity,
+    });
+    return material;
+  }
+
+  private normalizeAutoRegisterIdentity(
+    config: AutoRegisterEncryptionKeyOptions,
+  ): Pick<
+    RegisterEncryptionKeyPayload,
+    'uaid' | 'ledgerAccountId' | 'ledgerNetwork' | 'email'
+  > | null {
+    const identity: Pick<
+      RegisterEncryptionKeyPayload,
+      'uaid' | 'ledgerAccountId' | 'ledgerNetwork' | 'email'
+    > = {};
+    if (config.uaid) {
+      identity.uaid = config.uaid;
+    }
+    if (config.ledgerAccountId) {
+      identity.ledgerAccountId = config.ledgerAccountId;
+      if (config.ledgerNetwork) {
+        identity.ledgerNetwork = config.ledgerNetwork;
+      }
+    }
+    if (config.email) {
+      identity.email = config.email;
+    }
+    if (identity.uaid || identity.ledgerAccountId || identity.email) {
+      return identity;
+    }
+    return null;
+  }
+
+  private async resolveAutoRegisterKeyMaterial(
+    config: AutoRegisterEncryptionKeyOptions,
+  ): Promise<{ publicKey: string; privateKey?: string } | null> {
+    if (config.publicKey?.trim()) {
+      return { publicKey: config.publicKey.trim() };
+    }
+    let privateKey = config.privateKey?.trim();
+    const envVar = config.envVar ?? 'RB_ENCRYPTION_PRIVATE_KEY';
+    if (!privateKey && envVar && process?.env?.[envVar]?.trim()) {
+      privateKey = process.env[envVar]?.trim();
+    }
+    if (!privateKey && config.generateIfMissing) {
+      const pair = await this.generateEncryptionKeyPair({
+        keyType: config.keyType ?? 'secp256k1',
+        envVar,
+        envPath: config.envPath,
+        overwrite: config.overwriteEnv,
+      });
+      if (envVar) {
+        process.env[envVar] = pair.privateKey;
+      }
+      return { publicKey: pair.publicKey, privateKey: pair.privateKey };
+    }
+    if (privateKey) {
+      const publicKey = this.derivePublicKeyFromPrivateKey(privateKey);
+      return { publicKey, privateKey };
+    }
+    return null;
+  }
+
+  private derivePublicKeyFromPrivateKey(privateKey: string): string {
+    const normalized = this.hexToBuffer(privateKey);
+    const publicKey = secp256k1.getPublicKey(normalized, true);
+    return Buffer.from(publicKey).toString('hex');
+  }
+
+  private ensureAgentEncryptionKey(
+    options: EnsureAgentKeyOptions,
+  ): Promise<{ publicKey: string; privateKey?: string }> {
+    return this.autoRegisterEncryptionKey({
+      ...options,
+      uaid: options.uaid,
+      enabled: true,
+    });
   }
 
   async popularSearches(): Promise<PopularSearchesResponse> {
@@ -850,14 +1132,8 @@ export class RegistryBrokerClient {
   ): Promise<X402PurchaseResult> {
     const network: X402NetworkId = params.network ?? 'base';
     const config = X402_NETWORK_CONFIG[network];
-    const rpcUrl = params.rpcUrl?.trim() || config.rpcUrl;
     const normalizedKey = normalizeHexPrivateKey(params.evmPrivateKey);
-    const account = privateKeyToAccount(normalizedKey);
-    const walletClient = createWalletClient({
-      account,
-      chain: config.chain,
-      transport: http(rpcUrl),
-    });
+    const walletClient = await createX402Signer(network, normalizedKey);
 
     return this.purchaseCreditsWithX402({
       accountId: params.accountId,
@@ -1191,10 +1467,7 @@ export class RegistryBrokerClient {
     const labelSuffix = label ? ` for ${label}` : '';
     const logInfo = logger?.info;
 
-    const networkPayload =
-      resolvedNetwork.kind === 'hedera'
-        ? (resolvedNetwork.hederaNetwork ?? resolvedNetwork.canonical)
-        : resolvedNetwork.canonical;
+    const networkPayload = resolvedNetwork.canonical;
 
     const authOptions: LedgerAuthenticationOptions = {
       accountId,
@@ -1436,6 +1709,12 @@ export class RegistryBrokerClient {
     if (payload.historyTtlSeconds !== undefined) {
       body.historyTtlSeconds = payload.historyTtlSeconds;
     }
+    if (payload.encryptionRequested !== undefined) {
+      body.encryptionRequested = payload.encryptionRequested;
+    }
+    if (payload.senderUaid) {
+      body.senderUaid = payload.senderUaid;
+    }
     try {
       const raw = await this.requestJson<JsonValue>('/chat/session', {
         method: 'POST',
@@ -1459,9 +1738,114 @@ export class RegistryBrokerClient {
     }
   }
 
+  private async startChat(
+    options: StartChatOptions,
+  ): Promise<ChatConversationHandle> {
+    if ('uaid' in options && options.uaid) {
+      return this.startConversation({
+        uaid: options.uaid,
+        senderUaid: options.senderUaid,
+        historyTtlSeconds: options.historyTtlSeconds,
+        auth: options.auth,
+        encryption: options.encryption,
+        onSessionCreated: options.onSessionCreated,
+      });
+    }
+    if ('agentUrl' in options && options.agentUrl) {
+      const session = await this.createSession({
+        agentUrl: options.agentUrl,
+        auth: options.auth,
+        historyTtlSeconds: options.historyTtlSeconds,
+        senderUaid: options.senderUaid,
+      });
+      options.onSessionCreated?.(session.sessionId);
+      return this.createPlaintextConversationHandle(
+        session.sessionId,
+        session.encryption ?? null,
+        options.auth,
+      );
+    }
+    throw new Error('startChat requires either uaid or agentUrl');
+  }
+
+  private async startConversation(
+    options: StartConversationOptions,
+  ): Promise<ChatConversationHandle> {
+    const preference = options.encryption?.preference ?? 'preferred';
+    const requestEncryption = preference !== 'disabled';
+    if (!requestEncryption) {
+      const session = await this.createSession({
+        uaid: options.uaid,
+        auth: options.auth,
+        historyTtlSeconds: options.historyTtlSeconds,
+        senderUaid: options.senderUaid,
+        encryptionRequested: false,
+      });
+      options.onSessionCreated?.(session.sessionId);
+      return this.createPlaintextConversationHandle(
+        session.sessionId,
+        session.encryption ?? null,
+        options.auth,
+      );
+    }
+    try {
+      const handle = await this.encryptedChatManager.startSession({
+        uaid: options.uaid,
+        senderUaid: options.senderUaid,
+        historyTtlSeconds: options.historyTtlSeconds,
+        handshakeTimeoutMs: options.encryption?.handshakeTimeoutMs,
+        pollIntervalMs: options.encryption?.pollIntervalMs,
+        onSessionCreated: sessionId => {
+          options.onSessionCreated?.(sessionId);
+        },
+        auth: options.auth,
+      });
+      return handle;
+    } catch (error) {
+      if (error instanceof EncryptionUnavailableError) {
+        if (preference === 'required') {
+          throw error;
+        }
+        return this.createPlaintextConversationHandle(
+          error.sessionId,
+          error.summary ?? null,
+          options.auth,
+        );
+      }
+      throw error;
+    }
+  }
+
+  private async acceptConversation(
+    options: AcceptConversationOptions,
+  ): Promise<ChatConversationHandle> {
+    const preference = options.encryption?.preference ?? 'preferred';
+    if (preference === 'disabled') {
+      return this.createPlaintextConversationHandle(options.sessionId, null);
+    }
+    try {
+      const handle = await this.encryptedChatManager.acceptSession({
+        sessionId: options.sessionId,
+        responderUaid: options.responderUaid,
+        handshakeTimeoutMs: options.encryption?.handshakeTimeoutMs,
+        pollIntervalMs: options.encryption?.pollIntervalMs,
+      });
+      return handle;
+    } catch (error) {
+      if (
+        error instanceof EncryptionUnavailableError &&
+        preference !== 'required'
+      ) {
+        return this.createPlaintextConversationHandle(options.sessionId, null);
+      }
+      throw error;
+    }
+  }
+
   private async fetchHistorySnapshot(
     sessionId: string,
-  ): Promise<ChatHistorySnapshotResponse> {
+    options?: ChatHistoryFetchOptions,
+  ): Promise<ChatHistorySnapshotWithDecryptedEntries> {
     if (!sessionId || sessionId.trim().length === 0) {
       throw new Error('sessionId is required to fetch chat history');
     }
@@ -1471,11 +1855,207 @@ export class RegistryBrokerClient {
         method: 'GET',
       },
     );
-    return this.parseWithSchema(
+    const snapshot = this.parseWithSchema(
       raw,
       chatHistorySnapshotResponseSchema,
       'chat history snapshot response',
     );
+    return this.attachDecryptedHistory(sessionId, snapshot, options);
+  }
+
+  private attachDecryptedHistory(
+    sessionId: string,
+    snapshot: ChatHistorySnapshotResponse,
+    options?: ChatHistoryFetchOptions,
+  ): ChatHistorySnapshotWithDecryptedEntries {
+    const shouldDecrypt =
+      options?.decrypt !== undefined
+        ? options.decrypt
+        : this.encryptionOptions?.autoDecryptHistory === true;
+    if (!shouldDecrypt) {
+      return snapshot;
+    }
+    const context = this.resolveDecryptionContext(sessionId, options);
+    if (!context) {
+      throw new Error(
+        'Unable to decrypt chat history: encryption context unavailable',
+      );
+    }
+    const decryptedHistory = snapshot.history.map(entry => ({
+      entry,
+      plaintext: this.decryptHistoryEntryFromContext(sessionId, entry, context),
+    }));
+    return { ...snapshot, decryptedHistory };
+  }
+
+  private registerConversationContext(context: ConversationContextInput): void {
+    const normalized: ConversationContextState = {
+      sessionId: context.sessionId,
+      sharedSecret: Buffer.from(context.sharedSecret),
+      identity: context.identity ? { ...context.identity } : undefined,
+    };
+    const entries = this.conversationContexts.get(context.sessionId) ?? [];
+    const existingIndex = entries.findIndex(existing =>
+      this.identitiesMatch(existing.identity, normalized.identity),
+    );
+    if (existingIndex >= 0) {
+      entries[existingIndex] = normalized;
+    } else {
+      entries.push(normalized);
+    }
+    this.conversationContexts.set(context.sessionId, entries);
+  }
+
+  // Exposed for EncryptedChatManager to persist decryption context
+  registerConversationContextForEncryption(
+    context: ConversationContextInput,
+  ): void {
+    this.registerConversationContext(context);
+  }
+
+  private resolveDecryptionContext(
+    sessionId: string,
+    options?: ChatHistoryFetchOptions,
+  ): ConversationContextState | null {
+    if (options?.sharedSecret) {
+      return {
+        sessionId,
+        sharedSecret: this.normalizeSharedSecret(options.sharedSecret),
+        identity: options.identity,
+      };
+    }
+    const contexts = this.conversationContexts.get(sessionId);
+    if (!contexts || contexts.length === 0) {
+      return null;
+    }
+    if (options?.identity) {
+      const match = contexts.find(context =>
+        this.identitiesMatch(context.identity, options.identity),
+      );
+      if (match) {
+        return match;
+      }
+    }
+    return contexts[0];
+  }
+
+  private decryptHistoryEntryFromContext(
+    sessionId: string,
+    entry: ChatHistoryEntry,
+    context: ConversationContextState,
+  ): string | null {
+    const envelope = entry.cipherEnvelope;
+    if (!envelope) {
+      return entry.content;
+    }
+    let secret = Buffer.from(context.sharedSecret);
+    if (context.identity) {
+      const match = envelope.recipients.find(recipient =>
+        this.identityMatchesRecipient(
+          recipient,
+          context.identity as RecipientIdentity,
+        ),
+      );
+      if (match?.encryptedShare) {
+        try {
+          secret = Buffer.from(match.encryptedShare, 'base64');
+        } catch (_error) {
+          // fallback to shared secret
+        }
+      }
+    }
+    try {
+      return this.encryption.decryptCipherEnvelope({
+        envelope,
+        sharedSecret: secret,
+      });
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  private identitiesMatch(
+    a?: RecipientIdentity,
+    b?: RecipientIdentity,
+  ): boolean {
+    if (!a && !b) {
+      return true;
+    }
+    if (!a || !b) {
+      return false;
+    }
+    if (a.uaid && b.uaid && a.uaid.toLowerCase() === b.uaid.toLowerCase()) {
+      return true;
+    }
+    if (
+      a.ledgerAccountId &&
+      b.ledgerAccountId &&
+      a.ledgerAccountId.toLowerCase() === b.ledgerAccountId.toLowerCase()
+    ) {
+      return true;
+    }
+    if (a.userId && b.userId && a.userId === b.userId) {
+      return true;
+    }
+    if (a.email && b.email && a.email.toLowerCase() === b.email.toLowerCase()) {
+      return true;
+    }
+    return false;
+  }
+
+  private identityMatchesRecipient(
+    recipient: CipherEnvelopeRecipient,
+    identity: RecipientIdentity,
+  ): boolean {
+    if (
+      identity.uaid &&
+      recipient.uaid?.toLowerCase() === identity.uaid.toLowerCase()
+    ) {
+      return true;
+    }
+    if (
+      identity.ledgerAccountId &&
+      recipient.ledgerAccountId?.toLowerCase() ===
+        identity.ledgerAccountId.toLowerCase()
+    ) {
+      return true;
+    }
+    if (identity.userId && recipient.userId === identity.userId) {
+      return true;
+    }
+    if (
+      identity.email &&
+      recipient.email?.toLowerCase() === identity.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private createPlaintextConversationHandle(
+    sessionId: string,
+    summary: SessionEncryptionSummary | null,
+    defaultAuth?: AgentAuthConfig,
+  ): ChatConversationHandle {
+    return {
+      sessionId,
+      mode: 'plaintext',
+      summary: summary ?? null,
+      send: async options => {
+        const plaintext = options.plaintext;
+        if (!plaintext || plaintext.trim().length === 0) {
+          throw new Error('plaintext is required for chat messages');
+        }
+        const message = options.message ?? plaintext;
+        return this.sendMessage({
+          sessionId,
+          message,
+          streaming: options.streaming,
+          auth: options.auth ?? defaultAuth,
+        });
+      },
+      decryptHistoryEntry: entry => entry.content,
+    };
   }
 
   private async compactHistory(
@@ -1507,6 +2087,73 @@ export class RegistryBrokerClient {
     );
   }
 
+  private async fetchEncryptionStatus(
+    sessionId: string,
+  ): Promise<SessionEncryptionStatusResponse> {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new Error('sessionId is required for encryption status');
+    }
+    const raw = await this.requestJson<JsonValue>(
+      `/chat/session/${encodeURIComponent(sessionId)}/encryption`,
+      {
+        method: 'GET',
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      sessionEncryptionStatusResponseSchema,
+      'session encryption status response',
+    );
+  }
+
+  private async postEncryptionHandshake(
+    sessionId: string,
+    payload: EncryptionHandshakeSubmissionPayload,
+  ): Promise<EncryptionHandshakeRecord> {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new Error('sessionId is required for encryption handshake');
+    }
+    const raw = await this.requestJson<JsonValue>(
+      `/chat/session/${encodeURIComponent(sessionId)}/encryption-handshake`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: {
+          role: payload.role,
+          keyType: payload.keyType,
+          ephemeralPublicKey: payload.ephemeralPublicKey,
+          longTermPublicKey: payload.longTermPublicKey,
+          signature: payload.signature,
+          uaid: payload.uaid,
+          userId: payload.userId,
+          ledgerAccountId: payload.ledgerAccountId,
+          metadata: payload.metadata,
+        },
+      },
+    );
+    const response = this.parseWithSchema(
+      raw,
+      encryptionHandshakeResponseSchema,
+      'encryption handshake response',
+    );
+    return response.handshake;
+  }
+
+  private async registerEncryptionKey(
+    payload: RegisterEncryptionKeyPayload,
+  ): Promise<RegisterEncryptionKeyResponse> {
+    const raw = await this.requestJson<JsonValue>('/encryption/keys', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+    });
+    return this.parseWithSchema(
+      raw,
+      registerEncryptionKeyResponseSchema,
+      'register encryption key response',
+    );
+  }
+
   private async sendMessage(
     payload: SendMessageRequestPayload,
   ): Promise<SendMessageResponse> {
@@ -1528,6 +2175,28 @@ export class RegistryBrokerClient {
     if ('agentUrl' in payload && payload.agentUrl) {
       body.agentUrl = payload.agentUrl;
     }
+    let cipherEnvelope = payload.cipherEnvelope ?? null;
+    if (payload.encryption) {
+      const sessionIdForEncryption =
+        payload.encryption.sessionId ??
+        (typeof body.sessionId === 'string' ? body.sessionId : undefined);
+      if (!sessionIdForEncryption) {
+        throw new Error(
+          'sessionId is required when using encrypted chat payloads',
+        );
+      }
+      if (!payload.encryption.recipients?.length) {
+        throw new Error('recipients are required for encrypted chat payloads');
+      }
+      cipherEnvelope = this.encryption.encryptCipherEnvelope({
+        ...payload.encryption,
+        sessionId: sessionIdForEncryption,
+      });
+    }
+    if (cipherEnvelope) {
+      body.cipherEnvelope = cipherEnvelope as JsonObject;
+    }
+    delete body.encryption;
 
     const raw = await this.requestJson<JsonValue>('/chat/message', {
       method: 'POST',
@@ -1545,6 +2214,72 @@ export class RegistryBrokerClient {
     await this.request(`/chat/session/${encodeURIComponent(sessionId)}`, {
       method: 'DELETE',
     });
+  }
+
+  async generateEncryptionKeyPair(
+    options: GenerateEncryptionKeyPairOptions = {},
+  ): Promise<{
+    privateKey: string;
+    publicKey: string;
+    envPath?: string;
+    envVar: string;
+  }> {
+    this.assertNodeRuntime('generateEncryptionKeyPair');
+
+    const keyType = options.keyType ?? 'secp256k1';
+    if (keyType !== 'secp256k1') {
+      throw new Error('Only secp256k1 key generation is supported currently');
+    }
+
+    const privateKeyBytes = randomBytes(32);
+    const privateKey = Buffer.from(privateKeyBytes).toString('hex');
+    const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true);
+    const publicKey = Buffer.from(publicKeyBytes).toString('hex');
+
+    const envVar = options.envVar ?? 'RB_ENCRYPTION_PRIVATE_KEY';
+    const resolvedPath = options.envPath
+      ? path.resolve(options.envPath)
+      : undefined;
+
+    if (resolvedPath) {
+      const fsModule = getFs();
+
+      if (!fsModule) {
+        throw new Error(
+          'File system module is not available; cannot write encryption key env file',
+        );
+      }
+
+      const envLine = `${envVar}=${privateKey}`;
+      if (fsModule.existsSync(resolvedPath)) {
+        const content = fsModule.readFileSync(resolvedPath, 'utf-8');
+        const lineRegex = new RegExp(`^${envVar}=.*$`, 'm');
+        if (lineRegex.test(content)) {
+          if (!options.overwrite) {
+            throw new Error(
+              `${envVar} already exists in ${resolvedPath}; set overwrite=true to replace it`,
+            );
+          }
+          const updated = content.replace(lineRegex, envLine);
+          fsModule.writeFileSync(resolvedPath, updated);
+        } else {
+          const needsNewline = !content.endsWith('\n');
+          fsModule.appendFileSync(
+            resolvedPath,
+            `${needsNewline ? '\n' : ''}${envLine}\n`,
+          );
+        }
+      } else {
+        fsModule.writeFileSync(resolvedPath, `${envLine}\n`);
+      }
+    }
+
+    return {
+      privateKey,
+      publicKey,
+      envPath: resolvedPath,
+      envVar,
+    };
   }
 
   private buildUrl(path: string): string {
@@ -1678,6 +2413,119 @@ export class RegistryBrokerClient {
       );
     }
   }
+
+  private assertNodeRuntime(feature: string): void {
+    if (typeof process === 'undefined' || !process.versions?.node) {
+      throw new Error(`${feature} is only available in Node.js environments`);
+    }
+  }
+
+  private createEphemeralKeyPair(): EphemeralKeyPair {
+    this.assertNodeRuntime('generateEphemeralKeyPair');
+    const privateKeyBytes = randomBytes(32);
+    const publicKey = secp256k1.getPublicKey(privateKeyBytes, true);
+    return {
+      privateKey: Buffer.from(privateKeyBytes).toString('hex'),
+      publicKey: Buffer.from(publicKey).toString('hex'),
+    };
+  }
+
+  private deriveSharedSecret(options: DeriveSharedSecretOptions): Buffer {
+    this.assertNodeRuntime('deriveSharedSecret');
+    const privateKey = this.hexToBuffer(options.privateKey);
+    const peerPublicKey = this.hexToBuffer(options.peerPublicKey);
+    const shared = secp256k1.getSharedSecret(privateKey, peerPublicKey, true);
+    return createHash('sha256').update(Buffer.from(shared)).digest();
+  }
+
+  private buildCipherEnvelope(
+    options: EncryptCipherEnvelopeOptions,
+  ): CipherEnvelope {
+    this.assertNodeRuntime('encryptCipherEnvelope');
+    const sharedSecret = this.normalizeSharedSecret(options.sharedSecret);
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', sharedSecret, iv);
+    const aadSource = options.associatedData ?? options.sessionId;
+    const associatedDataEncoded = aadSource
+      ? Buffer.from(aadSource, 'utf8').toString('base64')
+      : undefined;
+    if (aadSource) {
+      cipher.setAAD(Buffer.from(aadSource, 'utf8'));
+    }
+    const ciphertext = Buffer.concat([
+      cipher.update(Buffer.from(options.plaintext, 'utf8')),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+    const payload = Buffer.concat([ciphertext, tag]);
+
+    return {
+      algorithm: 'aes-256-gcm',
+      ciphertext: payload.toString('base64'),
+      nonce: iv.toString('base64'),
+      associatedData: associatedDataEncoded,
+      keyLocator: {
+        sessionId: options.sessionId,
+        revision: options.revision ?? 1,
+      },
+      recipients: options.recipients.map(recipient => ({
+        ...recipient,
+        encryptedShare: sharedSecret.toString('base64'),
+      })),
+    };
+  }
+
+  private openCipherEnvelope(options: DecryptCipherEnvelopeOptions): string {
+    this.assertNodeRuntime('decryptCipherEnvelope');
+    const sharedSecret = this.normalizeSharedSecret(options.sharedSecret);
+    const payload = Buffer.from(options.envelope.ciphertext, 'base64');
+    const nonce = Buffer.from(options.envelope.nonce, 'base64');
+    const ciphertext = payload.slice(0, payload.length - 16);
+    const tag = payload.slice(payload.length - 16);
+    const decipher = createDecipheriv('aes-256-gcm', sharedSecret, nonce);
+    if (options.envelope.associatedData) {
+      decipher.setAAD(Buffer.from(options.envelope.associatedData, 'base64'));
+    }
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]);
+    return plaintext.toString(options.encoding ?? 'utf8');
+  }
+
+  private normalizeSharedSecret(input: SharedSecretInput): Buffer {
+    if (Buffer.isBuffer(input)) {
+      return Buffer.from(input);
+    }
+    if (input instanceof Uint8Array) {
+      return Buffer.from(input);
+    }
+    if (typeof input === 'string') {
+      return this.bufferFromString(input);
+    }
+    throw new Error('Unsupported shared secret input');
+  }
+
+  private bufferFromString(value: string): Buffer {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      throw new Error('sharedSecret string cannot be empty');
+    }
+    const normalized = trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed;
+    if (/^[0-9a-fA-F]+$/.test(normalized) && normalized.length % 2 === 0) {
+      return Buffer.from(normalized, 'hex');
+    }
+    return Buffer.from(trimmed, 'base64');
+  }
+
+  private hexToBuffer(value: string): Uint8Array {
+    const normalized = value.startsWith('0x') ? value.slice(2) : value;
+    if (!/^[0-9a-fA-F]+$/.test(normalized) || normalized.length % 2 !== 0) {
+      throw new Error('Expected hex-encoded value');
+    }
+    return Buffer.from(normalized, 'hex');
+  }
 }
 
 export const isPendingRegisterAgentResponse = (
@@ -1693,3 +2541,341 @@ export const isSuccessRegisterAgentResponse = (
   response: RegisterAgentResponse,
 ): response is RegisterAgentSuccessResponse =>
   response.success === true && response.status !== 'pending';
+
+interface EncryptedSessionContext {
+  sessionId: string;
+  sharedSecret: Uint8Array;
+  summary: SessionEncryptionSummary;
+  recipients: RecipientIdentity[];
+  identity?: RecipientIdentity;
+}
+
+interface ConversationContextInput {
+  sessionId: string;
+  sharedSecret: Uint8Array | Buffer;
+  identity?: RecipientIdentity;
+}
+
+interface ConversationContextState {
+  sessionId: string;
+  sharedSecret: Buffer;
+  identity?: RecipientIdentity;
+}
+
+class EncryptedChatManager {
+  constructor(private readonly client: RegistryBrokerClient) {}
+  registerConversationContext(context: ConversationContextInput): void {
+    this.client.registerConversationContextForEncryption(context);
+  }
+
+  async startSession(
+    options: StartEncryptedChatSessionOptions,
+  ): Promise<EncryptedChatSessionHandle> {
+    await this.client.encryptionReady();
+    const session = await this.client.chat.createSession({
+      uaid: options.uaid,
+      senderUaid: options.senderUaid,
+      encryptionRequested: true,
+      historyTtlSeconds: options.historyTtlSeconds,
+      auth: options.auth,
+    });
+    options.onSessionCreated?.(session.sessionId);
+    const summary = session.encryption;
+    if (!summary?.enabled) {
+      throw new EncryptionUnavailableError(
+        session.sessionId,
+        session.encryption ?? null,
+      );
+    }
+    const handle = await this.establishRequesterContext({
+      sessionId: session.sessionId,
+      summary,
+      senderUaid: options.senderUaid,
+      handshakeTimeoutMs: options.handshakeTimeoutMs,
+      pollIntervalMs: options.pollIntervalMs,
+    });
+    return handle;
+  }
+
+  async acceptSession(
+    options: AcceptEncryptedChatSessionOptions,
+  ): Promise<EncryptedChatSessionHandle> {
+    await this.client.encryptionReady();
+    const summary = await this.waitForEncryptionSummary(
+      options.sessionId,
+      options.handshakeTimeoutMs,
+      options.pollIntervalMs,
+    );
+    const handle = await this.establishResponderContext({
+      sessionId: options.sessionId,
+      summary,
+      responderUaid: options.responderUaid,
+      handshakeTimeoutMs: options.handshakeTimeoutMs,
+      pollIntervalMs: options.pollIntervalMs,
+    });
+    return handle;
+  }
+
+  private async establishRequesterContext(params: {
+    sessionId: string;
+    summary: SessionEncryptionSummary;
+    senderUaid?: string;
+    handshakeTimeoutMs?: number;
+    pollIntervalMs?: number;
+  }): Promise<EncryptedChatSessionHandle> {
+    const keyPair = this.client.encryption.generateEphemeralKeyPair();
+    await this.client.chat.submitEncryptionHandshake(params.sessionId, {
+      role: 'requester',
+      keyType: 'secp256k1',
+      ephemeralPublicKey: keyPair.publicKey,
+      uaid: params.senderUaid ?? params.summary.requester?.uaid ?? undefined,
+    });
+    const { summary, record } = await this.waitForHandshakeCompletion(
+      params.sessionId,
+      params.handshakeTimeoutMs,
+      params.pollIntervalMs,
+    );
+    const responderKey = record.responder?.ephemeralPublicKey;
+    if (!responderKey) {
+      throw new Error('Responder handshake was not completed in time');
+    }
+    const sharedSecret = this.client.encryption
+      .deriveSharedSecret({
+        privateKey: keyPair.privateKey,
+        peerPublicKey: responderKey,
+      })
+      .subarray();
+    const recipients = this.buildRecipients(summary);
+    return this.createHandle({
+      sessionId: params.sessionId,
+      sharedSecret,
+      summary,
+      recipients,
+      identity: summary.requester ?? undefined,
+    });
+  }
+
+  private async establishResponderContext(params: {
+    sessionId: string;
+    summary: SessionEncryptionSummary;
+    responderUaid?: string;
+    handshakeTimeoutMs?: number;
+    pollIntervalMs?: number;
+  }): Promise<EncryptedChatSessionHandle> {
+    const keyPair = this.client.encryption.generateEphemeralKeyPair();
+    await this.client.chat.submitEncryptionHandshake(params.sessionId, {
+      role: 'responder',
+      keyType: 'secp256k1',
+      ephemeralPublicKey: keyPair.publicKey,
+      uaid: params.responderUaid ?? params.summary.responder?.uaid ?? undefined,
+    });
+    const { summary, record } = await this.waitForHandshakeCompletion(
+      params.sessionId,
+      params.handshakeTimeoutMs,
+      params.pollIntervalMs,
+    );
+    const requesterKey = record.requester?.ephemeralPublicKey;
+    if (!requesterKey) {
+      throw new Error('Requester handshake was not detected in time');
+    }
+    const sharedSecret = this.client.encryption
+      .deriveSharedSecret({
+        privateKey: keyPair.privateKey,
+        peerPublicKey: requesterKey,
+      })
+      .subarray();
+    const recipients = this.buildRecipients(summary);
+    return this.createHandle({
+      sessionId: params.sessionId,
+      sharedSecret,
+      summary,
+      recipients,
+      identity: summary.responder ?? undefined,
+    });
+  }
+
+  private async waitForHandshakeCompletion(
+    sessionId: string,
+    timeoutMs = 30_000,
+    pollIntervalMs = 1_000,
+  ): Promise<{
+    summary: SessionEncryptionSummary;
+    record: EncryptionHandshakeRecord;
+  }> {
+    const deadline = Date.now() + timeoutMs;
+    while (true) {
+      const status = await this.client.chat.getEncryptionStatus(sessionId);
+      const summary = status.encryption;
+      const record = summary?.handshake;
+      if (summary && record && record.status === 'complete') {
+        return { summary, record };
+      }
+      if (Date.now() >= deadline) {
+        throw new Error('Timed out waiting for encrypted handshake completion');
+      }
+      await this.delay(pollIntervalMs);
+    }
+  }
+
+  private async waitForEncryptionSummary(
+    sessionId: string,
+    _timeoutMs = 30_000,
+    _pollIntervalMs = 1_000,
+  ): Promise<SessionEncryptionSummary> {
+    const status = await this.client.chat.getEncryptionStatus(sessionId);
+    if (!status.encryption?.enabled) {
+      throw new EncryptionUnavailableError(
+        sessionId,
+        status.encryption ?? null,
+      );
+    }
+    return status.encryption;
+  }
+
+  private buildRecipients(
+    summary: SessionEncryptionSummary,
+  ): RecipientIdentity[] {
+    const candidates = [summary.requester, summary.responder].filter(Boolean);
+    const normalized = candidates
+      .map(candidate => {
+        if (!candidate) {
+          return null;
+        }
+        const recipient: RecipientIdentity = {};
+        if (candidate.uaid) {
+          recipient.uaid = candidate.uaid;
+        }
+        if (candidate.ledgerAccountId) {
+          recipient.ledgerAccountId = candidate.ledgerAccountId;
+        }
+        if (candidate.userId) {
+          recipient.userId = candidate.userId;
+        }
+        if (candidate.email) {
+          recipient.email = candidate.email;
+        }
+        return recipient;
+      })
+      .filter((entry): entry is RecipientIdentity =>
+        Boolean(
+          entry?.uaid ||
+            entry?.ledgerAccountId ||
+            entry?.userId ||
+            entry?.email,
+        ),
+      );
+    if (normalized.length > 0) {
+      return normalized;
+    }
+    if (summary.responder?.uaid) {
+      return [{ uaid: summary.responder.uaid }];
+    }
+    return [];
+  }
+
+  private createHandle(
+    context: EncryptedSessionContext,
+  ): EncryptedChatSessionHandle {
+    const sharedSecret = context.sharedSecret;
+    const handle: EncryptedChatSessionHandle = {
+      sessionId: context.sessionId,
+      mode: 'encrypted',
+      summary: context.summary,
+      send: async options => {
+        const recipients = options.recipients ?? context.recipients;
+        return this.client.chat.sendMessage({
+          sessionId: context.sessionId,
+          message: options.message ?? '[ciphertext omitted]',
+          streaming: options.streaming,
+          auth: options.auth,
+          encryption: {
+            plaintext: options.plaintext,
+            sharedSecret: Buffer.from(sharedSecret),
+            recipients,
+          },
+        });
+      },
+      decryptHistoryEntry: entry =>
+        this.decryptEntry(entry, context.identity, sharedSecret),
+    };
+    this.registerConversationContext({
+      sessionId: context.sessionId,
+      sharedSecret,
+      identity: context.identity,
+    });
+    return handle;
+  }
+
+  private decryptEntry(
+    entry: ChatHistoryEntry,
+    identity: RecipientIdentity | undefined,
+    fallbackSecret: Uint8Array,
+  ): string | null {
+    const envelope = entry.cipherEnvelope;
+    if (!envelope) {
+      return null;
+    }
+    let secret: SharedSecretInput = Buffer.from(fallbackSecret);
+    if (identity) {
+      const match = envelope.recipients.find(recipient =>
+        this.recipientMatches(recipient, identity),
+      );
+      if (match?.encryptedShare) {
+        secret = match.encryptedShare;
+      }
+    }
+    try {
+      return this.client.encryption.decryptCipherEnvelope({
+        envelope,
+        sharedSecret: secret,
+      });
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  private recipientMatches(
+    candidate: CipherEnvelopeRecipient,
+    target: RecipientIdentity,
+  ): boolean {
+    if (
+      target.uaid &&
+      candidate.uaid?.toLowerCase() === target.uaid.toLowerCase()
+    ) {
+      return true;
+    }
+    if (
+      target.ledgerAccountId &&
+      candidate.ledgerAccountId?.toLowerCase() ===
+        target.ledgerAccountId.toLowerCase()
+    ) {
+      return true;
+    }
+    if (target.userId && candidate.userId === target.userId) {
+      return true;
+    }
+    if (
+      target.email &&
+      candidate.email?.toLowerCase() === target.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private async delay(ms: number): Promise<void> {
+    if (ms <= 0) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+class EncryptionUnavailableError extends Error {
+  constructor(
+    readonly sessionId: string,
+    readonly summary?: SessionEncryptionSummary | null,
+  ) {
+    super('Encryption is not enabled for this session');
+  }
+}

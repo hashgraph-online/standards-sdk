@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.129",
+  "version": "0.1.136",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hashgraph Consensus Standards (HCS), giving developers all the tools needed to build applications on Hedera.",
   "type": "module",
   "files": [
@@ -129,33 +129,39 @@
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4",
-    "vite-plugin-node-polyfills": "^0.24.0"
+    "vite-plugin-node-polyfills": "^0.24.0",
+    "ioredis": "^5.8.2"
   },
   "dependencies": {
     "@hashgraph/proto": "^2.24.0",
-    "@hashgraph/sdk": "2.75.0",
-    "@hashgraphonline/hashinal-wc": "1.0.115",
+    "@hashgraph/sdk": "^2.77.0",
+    "@hashgraphonline/hashinal-wc": "2.0.1",
     "@hiero-did-sdk/registrar": "0.1.2",
     "@hiero-did-sdk/resolver": "0.1.2",
-    "chalk": "^5.4.1",
-    "@kiloscribe/inscription-sdk": "^1.0.61",
+    "@kiloscribe/inscription-sdk": "^2.0.3",
+    "@noble/curves": "^2.0.1",
     "agent0-sdk": "0.2.1",
     "axios": "^1.12.2",
     "bignumber.js": "^9.3.1",
     "buffer": "^6.0.3",
+    "chalk": "^5.4.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
     "ethers": "^6.15.0",
     "file-type": "^20.5.0",
-    "ioredis": "^5.8.2",
     "mime-types": "^2.1.35",
     "viem": "^2.19.9",
     "x402-axios": "^0.7.0",
     "zod": "^3.25.76"
   },
-  "resolutions": {
-    "@hashgraph/sdk": "2.75.0"
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
   },
-  "peerDependenciesMeta": {},
+  "resolutions": {
+    "@hashgraphonline/standards-sdk": "0.1.132",
+    "@hashgraph/sdk": "^2.77.0"
+  },
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
 }

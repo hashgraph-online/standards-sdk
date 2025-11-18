@@ -119,7 +119,10 @@ const extractReplyContent = (payload: SendMessageResponse): string => {
 };
 
 const run = async (p0: (a: any) => never) => {
-  let activeClient = new RegistryBrokerClient({ baseUrl });
+  let activeClient = new RegistryBrokerClient({
+    baseUrl,
+    apiKey: process.env.REGISTRY_BROKER_API_KEY,
+  });
 
   const performSearch = async (client: RegistryBrokerClient, query: string) => {
     // Prefer adapter-scoped search on staging/production

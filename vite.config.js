@@ -60,7 +60,13 @@ export default defineConfig(async () => {
       rollupOptions: {
         external: id => {
           // Always externalize Node.js built-in modules
-          if (id === 'fs' || id === 'path' || id === 'crypto' || id === 'stream' || id === 'buffer') {
+          if (
+            id === 'fs' ||
+            id === 'path' ||
+            id === 'crypto' ||
+            id === 'stream' ||
+            id === 'buffer'
+          ) {
             return true;
           }
           if (id.startsWith('@kiloscribe/inscription-sdk')) {

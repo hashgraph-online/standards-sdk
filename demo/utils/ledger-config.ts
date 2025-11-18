@@ -115,13 +115,14 @@ export interface EvmLedgerAuthConfig {
 }
 
 export const resolveEvmLedgerAuthConfig = (): EvmLedgerAuthConfig => {
-  const evmAccount = resolveEvmAccount();
+  const privateKey = resolveWalletPrivateKey();
+  const evmAccount = privateKeyToAccount(privateKey);
   const networkAlias = resolveEvmLedgerNetwork();
   const network = toCanonicalEvmNetwork(networkAlias);
   return {
     accountId: evmAccount.address,
     network,
-    privateKey: evmAccount.privateKey,
+    privateKey,
     publicKey: evmAccount.publicKey,
     sign: async (message: string) => ({
       signature: await evmAccount.signMessage({ message }),

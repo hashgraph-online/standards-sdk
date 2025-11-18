@@ -1,62 +1,116 @@
-import { createRequire } from 'node:module';
-
 type TopicCreateTransactionCtor =
-  (typeof import('@hashgraph/sdk/lib/topic/TopicCreateTransaction'))['default'];
-type AccountIdCtor =
-  (typeof import('@hashgraph/sdk/lib/account/AccountId'))['default'];
+  (typeof import('@hashgraph/sdk'))['TopicCreateTransaction'];
+type AccountIdCtor = (typeof import('@hashgraph/sdk'))['AccountId'];
 type AccountIdInstance = InstanceType<AccountIdCtor>;
+type NodeRequire = (moduleId: string) => unknown;
+type ModuleConstructor = {
+  createRequire?: (url: string | URL | undefined) => NodeRequire;
+};
 
-const require = createRequire(import.meta.url);
-
-const accountModule = safeRequire<{ default: AccountIdCtor }>(
-  '@hashgraph/sdk/lib/account/AccountId.cjs',
-);
-const topicModule = safeRequire<{ default: TopicCreateTransactionCtor }>(
-  '@hashgraph/sdk/lib/topic/TopicCreateTransaction.cjs',
-);
-const sdkModule = safeRequire<{
-  AccountId?: AccountIdCtor;
-  TopicCreateTransaction?: TopicCreateTransactionCtor;
-  default?: {
-    AccountId?: AccountIdCtor;
-    TopicCreateTransaction?: TopicCreateTransactionCtor;
-  };
-}>('@hashgraph/sdk');
+declare const module: ModuleConstructor | undefined;
+declare const require: NodeRequire | undefined;
 
 const accountIdPattern = /^\d+\.\d+\.\d+$/u;
 const prototypeMarker = Symbol.for('standards-sdk.topic-auto-renew.patch');
 const accountMarker = Symbol.for('standards-sdk.account-id.patch');
 
-const candidates: Array<{
-  accountId?: AccountIdCtor;
-  topic?: TopicCreateTransactionCtor;
-}> = [];
+const nodeRequire = getNodeRequire();
 
-if (accountModule?.default && topicModule?.default) {
-  candidates.push({
-    accountId: accountModule.default,
-    topic: topicModule.default,
-  });
+if (nodeRequire) {
+  bootstrap(nodeRequire);
+} else {
+  Reflect.set(globalThis, '__standardsSdkTopicAutoRenewPatched', false);
 }
 
-if (sdkModule) {
-  candidates.push({
-    accountId: sdkModule.AccountId ?? sdkModule.default?.AccountId,
-    topic:
-      sdkModule.TopicCreateTransaction ??
-      sdkModule.default?.TopicCreateTransaction,
-  });
+function bootstrap(requireFn: NodeRequire): void {
+  const accountModule = safeRequire<{ default: AccountIdCtor }>(
+    requireFn,
+    '@hashgraph/sdk/lib/account/AccountId.cjs',
+  );
+  const topicModule = safeRequire<{ default: TopicCreateTransactionCtor }>(
+    requireFn,
+    '@hashgraph/sdk/lib/topic/TopicCreateTransaction.cjs',
+  );
+  const sdkModule = safeRequire<{
+    AccountId?: AccountIdCtor;
+    TopicCreateTransaction?: TopicCreateTransactionCtor;
+    default?: {
+      AccountId?: AccountIdCtor;
+      TopicCreateTransaction?: TopicCreateTransactionCtor;
+    };
+  }>(requireFn, '@hashgraph/sdk');
+
+  const candidates: Array<{
+    accountId?: AccountIdCtor;
+    topic?: TopicCreateTransactionCtor;
+  }> = [];
+
+  if (accountModule?.default && topicModule?.default) {
+    candidates.push({
+      accountId: accountModule.default,
+      topic: topicModule.default,
+    });
+  }
+
+  if (sdkModule) {
+    candidates.push({
+      accountId: sdkModule.AccountId ?? sdkModule.default?.AccountId,
+      topic:
+        sdkModule.TopicCreateTransaction ??
+        sdkModule.default?.TopicCreateTransaction,
+    });
+  }
+
+  for (const candidate of candidates) {
+    patchTopicModule(candidate.topic, candidate.accountId);
+  }
+
+  Reflect.set(globalThis, '__standardsSdkTopicAutoRenewPatched', true);
 }
 
-for (const candidate of candidates) {
-  patchTopicModule(candidate.topic, candidate.accountId);
+function getNodeRequire(): NodeRequire | null {
+  const moduleConstructor = getModuleConstructor();
+
+  if (moduleConstructor?.createRequire) {
+    try {
+      return moduleConstructor.createRequire(import.meta.url);
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof require === 'function') {
+    return require;
+  }
+
+  return null;
 }
 
-Reflect.set(globalThis, '__standardsSdkTopicAutoRenewPatched', true);
-
-function safeRequire<T>(moduleId: string): T | null {
+function getModuleConstructor(): ModuleConstructor | null {
   try {
-    return require(moduleId) as T;
+    if (typeof module !== 'undefined' && module?.createRequire) {
+      return module;
+    }
+  } catch {
+  }
+
+  try {
+    if (typeof require === 'function') {
+      const requiredModule = require('module') as ModuleConstructor;
+
+      if (requiredModule?.createRequire) {
+        return requiredModule;
+      }
+    }
+  } catch {
+  }
+
+  return null;
+}
+
+function safeRequire<T>(requireFn: NodeRequire, moduleId: string): T | null {
+  try {
+    return requireFn(moduleId) as T;
   } catch {
     return null;
   }
@@ -290,7 +344,11 @@ type ClientLike = {
   operatorAccountId?: unknown;
 };
 
-type TopicPrototype = TopicCreateTransactionCtor['prototype'] & {
-  _autoRenewAccountId?: AccountIdInstance | null;
+type TopicPrototype = {
+  setAutoRenewAccountId?: (...args: unknown[]) => unknown;
+  freezeWith?: (...args: unknown[]) => unknown;
+  getAutoRenewAccountId?: () => AccountIdInstance | null;
   transactionId?: { accountId?: unknown } | null;
+  _autoRenewAccountId?: AccountIdInstance | null;
+  [key: string]: unknown;
 };
