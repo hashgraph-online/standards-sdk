@@ -169,8 +169,7 @@ const getFs = (): FsModule | null => {
     ) {
       return fsModule as FsModule;
     }
-  } catch {
-  }
+  } catch {}
 
   return null;
 };
@@ -724,9 +723,9 @@ export class RegistryBrokerClient {
     if (!options?.autoRegister || options.autoRegister.enabled === false) {
       return null;
     }
-    return this.autoRegisterEncryptionKey(
-      options.autoRegister,
-    ).then((): void => undefined);
+    return this.autoRegisterEncryptionKey(options.autoRegister).then(
+      (): void => undefined,
+    );
   }
 
   private async autoRegisterEncryptionKey(
@@ -1948,22 +1947,7 @@ export class RegistryBrokerClient {
     if (!envelope) {
       return entry.content;
     }
-    let secret = Buffer.from(context.sharedSecret);
-    if (context.identity) {
-      const match = envelope.recipients.find(recipient =>
-        this.identityMatchesRecipient(
-          recipient,
-          context.identity as RecipientIdentity,
-        ),
-      );
-      if (match?.encryptedShare) {
-        try {
-          secret = Buffer.from(match.encryptedShare, 'base64');
-        } catch (_error) {
-          // fallback to shared secret
-        }
-      }
-    }
+    const secret = Buffer.from(context.sharedSecret);
     try {
       return this.encryption.decryptCipherEnvelope({
         envelope,
@@ -2470,7 +2454,7 @@ export class RegistryBrokerClient {
       },
       recipients: options.recipients.map(recipient => ({
         ...recipient,
-        encryptedShare: sharedSecret.toString('base64'),
+        encryptedShare: '',
       })),
     };
   }
@@ -2815,15 +2799,7 @@ class EncryptedChatManager {
     if (!envelope) {
       return null;
     }
-    let secret: SharedSecretInput = Buffer.from(fallbackSecret);
-    if (identity) {
-      const match = envelope.recipients.find(recipient =>
-        this.recipientMatches(recipient, identity),
-      );
-      if (match?.encryptedShare) {
-        secret = match.encryptedShare;
-      }
-    }
+    const secret: SharedSecretInput = Buffer.from(fallbackSecret);
     try {
       return this.client.encryption.decryptCipherEnvelope({
         envelope,
