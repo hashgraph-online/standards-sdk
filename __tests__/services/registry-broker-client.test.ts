@@ -878,11 +878,13 @@ describe('RegistryBrokerClient', () => {
       fetchImplementation,
     });
 
-    const keySpy = jest.spyOn(client, 'generateEncryptionKeyPair').mockResolvedValue({
-      privateKey: '11'.repeat(32),
-      publicKey: '22'.repeat(33),
-      envVar: 'RB_ENCRYPTION_PRIVATE_KEY',
-    });
+    const keySpy = jest
+      .spyOn(client, 'generateEncryptionKeyPair')
+      .mockResolvedValue({
+        privateKey: '11'.repeat(32),
+        publicKey: '22'.repeat(33),
+        envVar: 'RB_ENCRYPTION_PRIVATE_KEY',
+      });
 
     const result = await client.encryption.ensureAgentKey({
       uaid: 'uaid:helper',
@@ -1028,15 +1030,15 @@ describe('RegistryBrokerClient', () => {
       .spyOn(client.encryption, 'decryptCipherEnvelope')
       .mockReturnValue('hello world');
 
-    (client as unknown as { conversationContexts: Map<string, unknown> })
-      .conversationContexts
-      ?.set('session-enc', [
-        {
-          sessionId: 'session-enc',
-          sharedSecret: Buffer.from('shared'),
-          identity: { uaid: 'uaid:demo' },
-        },
-      ]);
+    (
+      client as unknown as { conversationContexts: Map<string, unknown> }
+    ).conversationContexts?.set('session-enc', [
+      {
+        sessionId: 'session-enc',
+        sharedSecret: Buffer.from('shared'),
+        identity: { uaid: 'uaid:demo' },
+      },
+    ]);
 
     const snapshot = await client.chat.getHistory('session-enc', {
       decrypt: true,
@@ -1044,6 +1046,33 @@ describe('RegistryBrokerClient', () => {
 
     expect(snapshot.decryptedHistory?.[0]?.plaintext).toBe('hello world');
     decryptSpy.mockRestore();
+  });
+
+  it('encrypts cipher envelopes without embedding the raw shared secret', () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const sharedSecret = Buffer.alloc(32, 7);
+    const plaintext = 'secret message';
+
+    const envelope = client.encryption.encryptCipherEnvelope({
+      plaintext,
+      sessionId: 'session-enc',
+      sharedSecret,
+      recipients: [{ uaid: 'uaid:demo' }],
+    });
+
+    expect(envelope.recipients).toHaveLength(1);
+    const encodedSecret = sharedSecret.toString('base64');
+    expect(envelope.recipients[0]?.encryptedShare).not.toBe(encodedSecret);
+
+    const roundTrip = client.encryption.decryptCipherEnvelope({
+      envelope,
+      sharedSecret,
+    });
+    expect(roundTrip).toBe(plaintext);
   });
 
   it('initializes an agent client and ensures encryption keys automatically', async () => {

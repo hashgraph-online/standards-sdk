@@ -91,8 +91,7 @@ function getModuleConstructor(): ModuleConstructor | null {
     if (typeof module !== 'undefined' && module?.createRequire) {
       return module;
     }
-  } catch {
-  }
+  } catch {}
 
   try {
     if (typeof require === 'function') {
@@ -102,8 +101,7 @@ function getModuleConstructor(): ModuleConstructor | null {
         return requiredModule;
       }
     }
-  } catch {
-  }
+  } catch {}
 
   return null;
 }

@@ -1464,7 +1464,6 @@ export class RegistryBrokerClient {
 
     const resolvedNetwork = canonicalizeLedgerNetwork(network);
     const labelSuffix = label ? ` for ${label}` : '';
-    const logInfo = logger?.info;
 
     const networkPayload = resolvedNetwork.canonical;
 
@@ -1510,14 +1509,14 @@ export class RegistryBrokerClient {
       );
     }
 
-    logInfo?.(
+    logger?.info?.(
       `Authenticating ledger account ${accountId} (${resolvedNetwork.canonical})${labelSuffix}...`,
     );
     const verification = await this.authenticateWithLedger(authOptions);
     if (setAccountHeader) {
       this.setDefaultHeader('x-account-id', verification.accountId);
     }
-    logInfo?.(
+    logger?.info?.(
       `Ledger authentication complete${labelSuffix}. Issued key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
     );
     return verification;

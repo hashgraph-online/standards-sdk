@@ -87,7 +87,10 @@ export interface EncryptCipherEnvelopeOptions {
   plaintext: string;
   sessionId: string;
   recipients: Array<
-    Pick<CipherEnvelopeRecipient, 'uaid' | 'ledgerAccountId' | 'userId' | 'email'>
+    Pick<
+      CipherEnvelopeRecipient,
+      'uaid' | 'ledgerAccountId' | 'userId' | 'email'
+    >
   >;
   sharedSecret: SharedSecretInput;
   associatedData?: string;
@@ -407,7 +410,10 @@ export interface EncryptedChatSendOptions {
   plaintext: string;
   message?: string;
   recipients?: Array<
-    Pick<CipherEnvelopeRecipient, 'uaid' | 'ledgerAccountId' | 'userId' | 'email'>
+    Pick<
+      CipherEnvelopeRecipient,
+      'uaid' | 'ledgerAccountId' | 'userId' | 'email'
+    >
   >;
   streaming?: boolean;
   auth?: AgentAuthConfig;
@@ -444,9 +450,10 @@ export interface ChatHistoryFetchOptions {
   sharedSecret?: SharedSecretInput;
 }
 
-export type ChatHistorySnapshotWithDecryptedEntries = ChatHistorySnapshotResponse & {
-  decryptedHistory?: DecryptedHistoryEntry[];
-};
+export type ChatHistorySnapshotWithDecryptedEntries =
+  ChatHistorySnapshotResponse & {
+    decryptedHistory?: DecryptedHistoryEntry[];
+  };
 
 export interface ConversationEncryptionOptions {
   preference?: 'preferred' | 'required' | 'disabled';
@@ -507,7 +514,8 @@ export interface EnsureAgentKeyOptions
   uaid: string;
 }
 
-export interface InitializeAgentClientOptions extends RegistryBrokerClientOptions {
+export interface InitializeAgentClientOptions
+  extends RegistryBrokerClientOptions {
   uaid: string;
   ensureEncryptionKey?: boolean | EnsureAgentKeyOptions;
 }

@@ -1138,7 +1138,7 @@ export class HCS10Client extends HCS10BaseClient {
       const transaction =
         topicOrTransaction instanceof TopicMessageSubmitTransaction
           ? topicOrTransaction
-          : ((topicOrTransaction as unknown) as TopicMessageSubmitTransaction);
+          : (topicOrTransaction as unknown as TopicMessageSubmitTransaction);
 
       const messageBytes = transaction.getMessage();
       if (!messageBytes) {

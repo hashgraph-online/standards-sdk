@@ -24,10 +24,7 @@ import {
   type LocalX402FacilitatorHandle,
 } from '../utils/local-x402-facilitator';
 import { resolveEvmLedgerAuthConfig } from '../utils/ledger-config';
-import {
-  ChainIdToNetwork,
-  createSigner as createX402Signer,
-} from 'x402/types';
+import { ChainIdToNetwork, createSigner as createX402Signer } from 'x402/types';
 
 interface SearchHit {
   id: string;
@@ -194,38 +191,35 @@ const registerLocalAgentWithBroker = async (
     },
   };
 
-const ensureCreditsWithEvm = async (): Promise<void> => {
-  try {
-    const quote = await client.getRegistrationQuote(payload);
-    const shortfall = quote.shortfallCredits ?? 0;
-    if (shortfall <= 0) {
-      return;
-    }
+  const ensureCreditsWithEvm = async (): Promise<void> => {
+    try {
+      const quote = await client.getRegistrationQuote(payload);
+      const shortfall = quote.shortfallCredits ?? 0;
+      if (shortfall <= 0) {
+        return;
+      }
 
-    const evmLedger = resolveEvmLedgerAuthConfig();
-    const x402Network = normalizeX402Network(evmLedger.network);
-    const rawKey = evmLedger.privateKey ?? process.env.ETH_PK ?? '';
-    const normalizedPriv = rawKey.startsWith('0x')
-      ? (rawKey as `0x${string}`)
-      : (`0x${rawKey}` as const);
-    if (!normalizedPriv || normalizedPriv === '0x') {
-      throw new Error('EVM private key missing for x402 top-up');
-    }
-    const minimums = await client
-      .getX402Minimums()
-      .catch(() => ({ baseCredits: 100 }));
-    const creditsToBuy = Math.max(
-      shortfall,
-      minimums.baseCredits ?? minimums.requiredCredits ?? 100,
-    );
-    const walletClient = await createX402Signer(
-      x402Network,
-      normalizedPriv,
-    );
-    await client.purchaseCreditsWithX402({
-      accountId: evmLedger.accountId,
-      credits: creditsToBuy,
-      description: 'x402 demo auto top-up',
+      const evmLedger = resolveEvmLedgerAuthConfig();
+      const x402Network = normalizeX402Network(evmLedger.network);
+      const rawKey = evmLedger.privateKey ?? process.env.ETH_PK ?? '';
+      const normalizedPriv = rawKey.startsWith('0x')
+        ? (rawKey as `0x${string}`)
+        : (`0x${rawKey}` as const);
+      if (!normalizedPriv || normalizedPriv === '0x') {
+        throw new Error('EVM private key missing for x402 top-up');
+      }
+      const minimums = await client
+        .getX402Minimums()
+        .catch(() => ({ baseCredits: 100 }));
+      const creditsToBuy = Math.max(
+        shortfall,
+        minimums.baseCredits ?? minimums.requiredCredits ?? 100,
+      );
+      const walletClient = await createX402Signer(x402Network, normalizedPriv);
+      await client.purchaseCreditsWithX402({
+        accountId: evmLedger.accountId,
+        credits: creditsToBuy,
+        description: 'x402 demo auto top-up',
         metadata: { source: 'x402-demo', shortfall },
         walletClient,
       });
@@ -250,8 +244,8 @@ const ensureCreditsWithEvm = async (): Promise<void> => {
       typeof (existing as { nativeId?: unknown }).nativeId === 'string'
         ? (existing as { nativeId: string }).nativeId
         : typeof existing.metadata?.nativeId === 'string'
-        ? existing.metadata.nativeId
-        : undefined;
+          ? existing.metadata.nativeId
+          : undefined;
     if (existingNativeId) {
       payload.metadata = { ...payload.metadata, nativeId: existingNativeId };
     }

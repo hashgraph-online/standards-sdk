@@ -36,7 +36,6 @@ const resolveDemoConfig = () => ({
   baseUrl:
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
     'https://registry.hashgraphonline.com/api/v1',
-  openRouterApiKey: process.env.OPENROUTER_API_KEY?.trim(),
   openRouterModel:
     process.env.OPENROUTER_MODEL_ID?.trim() ||
     process.env.OPENROUTER_MODEL?.trim() ||
@@ -69,18 +68,27 @@ const ensureDemoCredits = async (
 
 const runHistoryFlow = async (
   client: RegistryBrokerClient,
-  openRouterApiKey: string,
   openRouterModel: string,
   ledgerCredentials: DemoLedgerCredentials,
 ) => {
   console.log('\n=== Chat history flow ===');
   const registry = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
 
-  const auth = { type: 'bearer' as const, token: openRouterApiKey };
+  const searchResult = await client.search({
+    q: openRouterModel,
+    registries: [registry],
+    limit: 1,
+  });
+  if (!searchResult.hits.length || !searchResult.hits[0].uaid) {
+    throw new Error(
+      `Unable to locate model "${openRouterModel}" in registry "${registry}".`,
+    );
+  }
+  const uaid = searchResult.hits[0].uaid;
+  console.log('  Using UAID for history demo:', uaid);
+
   const session = await client.chat.createSession({
-    agentUrl: openRouterModel.startsWith('openrouter://')
-      ? openRouterModel
-      : `openrouter://${openRouterModel}`,
+    uaid,
     historyTtlSeconds:
       Number(process.env.CHAT_HISTORY_TTL_SECONDS ?? '1800') || 1800,
   });
@@ -88,19 +96,16 @@ const runHistoryFlow = async (
   await sendPrompt(
     client,
     session.sessionId,
-    auth,
     'Provide a concise description of your capabilities.',
   );
   await sendPrompt(
     client,
     session.sessionId,
-    auth,
     'Remember this phrase and confirm once: registry-demo-token.',
   );
   await sendPrompt(
     client,
     session.sessionId,
-    auth,
     'What token did I just ask you to store?',
   );
 
@@ -120,12 +125,10 @@ const runHistoryFlow = async (
 const sendPrompt = async (
   client: RegistryBrokerClient,
   sessionId: string,
-  auth: { type: 'bearer'; token: string },
   message: string,
 ) => {
   const response = await client.chat.sendMessage({
     sessionId,
-    auth,
     message,
   });
   console.log(`  Agent replied: ${truncate(response.message, 200)}`);
@@ -173,10 +176,6 @@ const attemptHistoryCompaction = async (
 const main = async (p0: (a: any) => never) => {
   console.log('=== Registry Broker History Demo ===');
   const config = resolveDemoConfig();
-  if (!config.openRouterApiKey) {
-    throw new Error('OPENROUTER_API_KEY is required to run this demo.');
-  }
-
   const client = new RegistryBrokerClient({
     baseUrl: config.baseUrl,
   });
@@ -195,12 +194,7 @@ const main = async (p0: (a: any) => never) => {
   };
   await ensureDemoCredits(client, ledgerCredentials);
 
-  await runHistoryFlow(
-    client,
-    config.openRouterApiKey,
-    config.openRouterModel,
-    ledgerCredentials,
-  );
+  await runHistoryFlow(client, config.openRouterModel, ledgerCredentials);
 };
 
 main(a => {
