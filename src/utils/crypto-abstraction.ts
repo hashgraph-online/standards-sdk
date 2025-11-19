@@ -55,15 +55,20 @@ export class WebHmacAdapter implements HmacAdapter {
 
   async digest(encoding?: string): Promise<string | Buffer> {
     const combined = Buffer.concat(this.data);
+    const keyBytes = new Uint8Array(this.key);
     const keyBuffer = await crypto.subtle.importKey(
       'raw',
-      this.key,
+      keyBytes,
       { name: 'HMAC', hash: this.mapAlgorithm(this.algorithm) },
       false,
       ['sign'],
     );
 
-    const signature = await crypto.subtle.sign('HMAC', keyBuffer, combined);
+    const signature = await crypto.subtle.sign(
+      'HMAC',
+      keyBuffer,
+      new Uint8Array(combined),
+    );
 
     if (encoding === 'hex') {
       return Array.from(new Uint8Array(signature))
@@ -221,7 +226,7 @@ export class WebCryptoAdapter implements CryptoAdapter {
     const derivedBits = await crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt: salt,
+        salt: new Uint8Array(salt),
         iterations: iterations,
         hash: this.mapDigest(digest),
       },

@@ -15,5 +15,6 @@
     "lib": ["es2020", "dom"],
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "__tests__/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["__tests__/**/*", "demo/**/*", "cli/**/*"]
 }

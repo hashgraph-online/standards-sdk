@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import type { Signer } from '@hashgraph/sdk';
+import type { Buffer } from 'node:buffer';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
+  encryptionHandshakeResponseSchema,
   detectProtocolResponseSchema,
   dashboardStatsResponseSchema,
   metricsSummaryResponseSchema,
@@ -28,6 +30,7 @@ import {
   chatHistorySnapshotResponseSchema,
   chatHistoryCompactionResponseSchema,
   statsResponseSchema,
+  sessionEncryptionStatusResponseSchema,
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
   websocketStatsResponseSchema,
@@ -39,6 +42,7 @@ import {
   registrationProgressAdditionalEntrySchema,
   registrationProgressRecordSchema,
   registrationProgressResponseSchema,
+  registerEncryptionKeyResponseSchema,
 } from './schemas';
 import { HCS11Profile } from '../../hcs-11/types';
 
@@ -48,9 +52,83 @@ export interface JsonObject {
   [key: string]: JsonValue;
 }
 
+export interface RegistryBrokerClientOptions {
+  baseUrl?: string;
+  fetchImplementation?: typeof fetch;
+  defaultHeaders?: Record<string, string>;
+  apiKey?: string;
+  ledgerApiKey?: string;
+  registrationAutoTopUp?: AutoTopUpOptions;
+  historyAutoTopUp?: HistoryAutoTopUpOptions;
+  encryption?: ClientEncryptionOptions;
+}
+
 export type ChatHistoryEntry = z.infer<
   typeof createSessionResponseSchema
 >['history'][number];
+
+export type CipherEnvelope = NonNullable<ChatHistoryEntry['cipherEnvelope']>;
+
+export type CipherEnvelopeRecipient = CipherEnvelope['recipients'][number];
+
+export interface EphemeralKeyPair {
+  privateKey: string;
+  publicKey: string;
+}
+
+export interface DeriveSharedSecretOptions {
+  privateKey: string;
+  peerPublicKey: string;
+}
+
+export type SharedSecretInput = string | Uint8Array | Buffer;
+
+export interface EncryptCipherEnvelopeOptions {
+  plaintext: string;
+  sessionId: string;
+  recipients: Array<
+    Pick<
+      CipherEnvelopeRecipient,
+      'uaid' | 'ledgerAccountId' | 'userId' | 'email'
+    >
+  >;
+  sharedSecret: SharedSecretInput;
+  associatedData?: string;
+  revision?: number;
+}
+
+export interface DecryptCipherEnvelopeOptions {
+  envelope: CipherEnvelope;
+  sharedSecret: SharedSecretInput;
+  encoding?: BufferEncoding;
+}
+
+export type SessionEncryptionStatusResponse = z.infer<
+  typeof sessionEncryptionStatusResponseSchema
+>;
+
+export type SessionEncryptionSummary =
+  SessionEncryptionStatusResponse['encryption'];
+
+export type EncryptionHandshakeResponse = z.infer<
+  typeof encryptionHandshakeResponseSchema
+>;
+
+export type EncryptionHandshakeRecord =
+  EncryptionHandshakeResponse['handshake'];
+
+export interface RegisterEncryptionKeyPayload {
+  keyType: 'secp256k1' | 'ed25519' | 'x25519';
+  publicKey: string;
+  uaid?: string;
+  ledgerAccountId?: string;
+  ledgerNetwork?: string;
+  email?: string;
+}
+
+export type RegisterEncryptionKeyResponse = z.infer<
+  typeof registerEncryptionKeyResponseSchema
+>;
 
 export interface AgentRegistrationRequestMetadata {
   trustScore?: number;
@@ -285,6 +363,8 @@ export type VectorSearchResponse = z.infer<typeof vectorSearchResponseSchema>;
 type CreateSessionBasePayload = {
   auth?: AgentAuthConfig;
   historyTtlSeconds?: number;
+  encryptionRequested?: boolean;
+  senderUaid?: string;
 };
 
 export type CreateSessionRequestPayload =
@@ -296,16 +376,166 @@ export interface CompactHistoryRequestPayload {
   preserveEntries?: number;
 }
 
+export interface SendMessageEncryptionOptions
+  extends Omit<EncryptCipherEnvelopeOptions, 'sessionId'> {
+  sessionId?: string;
+}
+
 export interface SendMessageBasePayload {
   message: string;
   streaming?: boolean;
   auth?: AgentAuthConfig;
+  cipherEnvelope?: CipherEnvelope;
+  encryption?: SendMessageEncryptionOptions;
+}
+
+export interface StartEncryptedChatSessionOptions {
+  uaid: string;
+  senderUaid?: string;
+  historyTtlSeconds?: number;
+  handshakeTimeoutMs?: number;
+  pollIntervalMs?: number;
+  onSessionCreated?: (sessionId: string) => void;
+  auth?: AgentAuthConfig;
+}
+
+export interface AcceptEncryptedChatSessionOptions {
+  sessionId: string;
+  responderUaid?: string;
+  handshakeTimeoutMs?: number;
+  pollIntervalMs?: number;
+}
+
+export interface EncryptedChatSendOptions {
+  plaintext: string;
+  message?: string;
+  recipients?: Array<
+    Pick<
+      CipherEnvelopeRecipient,
+      'uaid' | 'ledgerAccountId' | 'userId' | 'email'
+    >
+  >;
+  streaming?: boolean;
+  auth?: AgentAuthConfig;
+}
+
+export type ConversationMode = 'encrypted' | 'plaintext';
+
+export interface DecryptedHistoryEntry {
+  entry: ChatHistoryEntry;
+  plaintext: string | null;
+}
+
+export interface ChatConversationHandle {
+  sessionId: string;
+  mode: ConversationMode;
+  summary?: SessionEncryptionSummary | null;
+  send: (options: EncryptedChatSendOptions) => Promise<SendMessageResponse>;
+  decryptHistoryEntry: (entry: ChatHistoryEntry) => string | null;
+}
+
+export interface EncryptedChatSessionHandle extends ChatConversationHandle {
+  summary: SessionEncryptionSummary;
+  mode: 'encrypted';
+}
+
+export type RecipientIdentity = Pick<
+  CipherEnvelopeRecipient,
+  'uaid' | 'ledgerAccountId' | 'userId' | 'email'
+>;
+
+export interface ChatHistoryFetchOptions {
+  decrypt?: boolean;
+  identity?: RecipientIdentity;
+  sharedSecret?: SharedSecretInput;
+}
+
+export type ChatHistorySnapshotWithDecryptedEntries =
+  ChatHistorySnapshotResponse & {
+    decryptedHistory?: DecryptedHistoryEntry[];
+  };
+
+export interface ConversationEncryptionOptions {
+  preference?: 'preferred' | 'required' | 'disabled';
+  handshakeTimeoutMs?: number;
+  pollIntervalMs?: number;
+}
+
+export interface StartConversationOptions {
+  uaid: string;
+  senderUaid?: string;
+  historyTtlSeconds?: number;
+  auth?: AgentAuthConfig;
+  encryption?: ConversationEncryptionOptions;
+  onSessionCreated?: (sessionId: string) => void;
+}
+
+export interface AcceptConversationOptions {
+  sessionId: string;
+  responderUaid?: string;
+  encryption?: ConversationEncryptionOptions;
+}
+
+export interface StartChatBaseOptions {
+  auth?: AgentAuthConfig;
+  historyTtlSeconds?: number;
+  encryption?: ConversationEncryptionOptions;
+  senderUaid?: string;
+  onSessionCreated?: (sessionId: string) => void;
+}
+
+export type StartChatOptions =
+  | (StartChatBaseOptions & { uaid: string; agentUrl?: never })
+  | (StartChatBaseOptions & { agentUrl: string; uaid?: never });
+
+export interface AutoRegisterEncryptionKeyOptions {
+  enabled?: boolean;
+  keyType?: 'secp256k1';
+  publicKey?: string;
+  privateKey?: string;
+  envVar?: string;
+  envPath?: string;
+  generateIfMissing?: boolean;
+  overwriteEnv?: boolean;
+  uaid?: string;
+  ledgerAccountId?: string;
+  ledgerNetwork?: string;
+  email?: string;
+  label?: string;
+}
+
+export interface ClientEncryptionOptions {
+  autoRegister?: AutoRegisterEncryptionKeyOptions;
+  autoDecryptHistory?: boolean;
+}
+
+export interface EnsureAgentKeyOptions
+  extends Omit<AutoRegisterEncryptionKeyOptions, 'enabled' | 'uaid'> {
+  uaid: string;
+}
+
+export interface InitializeAgentClientOptions
+  extends RegistryBrokerClientOptions {
+  uaid: string;
+  ensureEncryptionKey?: boolean | EnsureAgentKeyOptions;
 }
 
 export type SendMessageRequestPayload =
   | (SendMessageBasePayload & { uaid: string })
   | (SendMessageBasePayload & { sessionId: string })
   | (SendMessageBasePayload & { agentUrl: string; sessionId?: string });
+
+export interface EncryptionHandshakeSubmissionPayload {
+  role: 'requester' | 'responder';
+  keyType: string;
+  ephemeralPublicKey: string;
+  longTermPublicKey?: string;
+  signature?: string;
+  uaid?: string;
+  userId?: string;
+  ledgerAccountId?: string;
+  metadata?: Record<string, JsonValue>;
+}
 export type AgentAuthType = 'bearer' | 'basic' | 'header' | 'apiKey';
 
 export interface AgentAuthConfig {

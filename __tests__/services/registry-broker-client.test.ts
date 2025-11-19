@@ -12,6 +12,7 @@ import type {
   AgentAuthConfig,
   RegisterAgentResponse,
   RegistrationProgressRecord,
+  ChatHistoryEntry,
 } from '../../src/services/registry-broker';
 
 const mockSearchResponse = {
@@ -63,6 +64,7 @@ const mockSessionResponse = {
   },
   history: [],
   historyTtlSeconds: 900,
+  encryption: null,
 };
 
 const mockHistorySnapshot = {
@@ -802,6 +804,98 @@ describe('RegistryBrokerClient', () => {
     );
   });
 
+  it('auto registers encryption keys when configured on the client', async () => {
+    const originalEnv = process.env.AUTO_KEY;
+    process.env.AUTO_KEY = `0x${'11'.repeat(32)}`;
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        status: 201,
+        json: async () => ({
+          id: 'enc-1',
+          keyType: 'secp256k1',
+          publicKey: 'mock-public',
+          uaid: 'uaid:auto',
+          ledgerAccountId: null,
+          ledgerNetwork: null,
+          userId: null,
+          email: null,
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+      encryption: {
+        autoRegister: {
+          uaid: 'uaid:auto',
+          envVar: 'AUTO_KEY',
+        },
+      },
+    });
+
+    await client.encryptionReady();
+
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/encryption/keys',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const requestInit = fetchImplementation.mock.calls[0][1] as RequestInit;
+    const payload = JSON.parse(requestInit.body as string);
+    expect(payload.uaid).toBe('uaid:auto');
+    expect(typeof payload.publicKey).toBe('string');
+
+    if (originalEnv === undefined) {
+      delete process.env.AUTO_KEY;
+    } else {
+      process.env.AUTO_KEY = originalEnv;
+    }
+  });
+
+  it('ensures an agent encryption key via helper', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        status: 201,
+        json: async () => ({
+          id: 'enc-helper-1',
+          keyType: 'secp256k1',
+          publicKey: 'helper-public',
+          uaid: 'uaid:helper',
+          ledgerAccountId: null,
+          ledgerNetwork: null,
+          userId: null,
+          email: null,
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const keySpy = jest
+      .spyOn(client, 'generateEncryptionKeyPair')
+      .mockResolvedValue({
+        privateKey: '11'.repeat(32),
+        publicKey: '22'.repeat(33),
+        envVar: 'RB_ENCRYPTION_PRIVATE_KEY',
+      });
+
+    const result = await client.encryption.ensureAgentKey({
+      uaid: 'uaid:helper',
+      generateIfMissing: true,
+    });
+
+    expect(result.publicKey).toBe('22'.repeat(33));
+    expect(keySpy).toHaveBeenCalled();
+    keySpy.mockRestore();
+  });
+
   it('supports chat session flow and endSession', async () => {
     fetchImplementation
       .mockResolvedValueOnce(
@@ -898,6 +992,133 @@ describe('RegistryBrokerClient', () => {
     );
   });
 
+  it('decrypts chat history when requested and context is available', async () => {
+    const cipherEntry = {
+      messageId: 'm-enc',
+      role: 'user' as const,
+      content: '[ciphertext]',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      cipherEnvelope: {
+        algorithm: 'aes-256-gcm',
+        ciphertext: Buffer.from('cipher').toString('base64'),
+        nonce: Buffer.alloc(12).toString('base64'),
+        recipients: [
+          {
+            uaid: 'uaid:demo',
+            encryptedShare: Buffer.from('share').toString('base64'),
+          },
+        ],
+      },
+    } satisfies ChatHistoryEntry;
+
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          ...mockHistorySnapshot,
+          sessionId: 'session-enc',
+          history: [cipherEntry],
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const decryptSpy = jest
+      .spyOn(client.encryption, 'decryptCipherEnvelope')
+      .mockReturnValue('hello world');
+
+    (
+      client as unknown as { conversationContexts: Map<string, unknown> }
+    ).conversationContexts?.set('session-enc', [
+      {
+        sessionId: 'session-enc',
+        sharedSecret: Buffer.from('shared'),
+        identity: { uaid: 'uaid:demo' },
+      },
+    ]);
+
+    const snapshot = await client.chat.getHistory('session-enc', {
+      decrypt: true,
+    });
+
+    expect(snapshot.decryptedHistory?.[0]?.plaintext).toBe('hello world');
+    decryptSpy.mockRestore();
+  });
+
+  it('encrypts cipher envelopes without embedding the raw shared secret', () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const sharedSecret = Buffer.alloc(32, 7);
+    const plaintext = 'secret message';
+
+    const envelope = client.encryption.encryptCipherEnvelope({
+      plaintext,
+      sessionId: 'session-enc',
+      sharedSecret,
+      recipients: [{ uaid: 'uaid:demo' }],
+    });
+
+    expect(envelope.recipients).toHaveLength(1);
+    const encodedSecret = sharedSecret.toString('base64');
+    expect(envelope.recipients[0]?.encryptedShare).not.toBe(encodedSecret);
+
+    const roundTrip = client.encryption.decryptCipherEnvelope({
+      envelope,
+      sharedSecret,
+    });
+    expect(roundTrip).toBe(plaintext);
+  });
+
+  it('initializes an agent client and ensures encryption keys automatically', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        status: 201,
+        json: async () => ({
+          id: 'enc-init',
+          keyType: 'secp256k1',
+          publicKey: 'init-public',
+          uaid: 'uaid:init',
+          ledgerAccountId: null,
+          ledgerNetwork: null,
+          userId: null,
+          email: null,
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        }),
+      }) as unknown as Response,
+    );
+
+    const keySpy = jest
+      .spyOn(RegistryBrokerClient.prototype, 'generateEncryptionKeyPair')
+      .mockResolvedValue({
+        privateKey: '11'.repeat(32),
+        publicKey: '22'.repeat(33),
+        envVar: 'RB_ENCRYPTION_PRIVATE_KEY',
+      });
+
+    const result = await RegistryBrokerClient.initializeAgent({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+      uaid: 'uaid:init',
+      defaultHeaders: { 'x-ledger-api-key': 'demo-ledger-key' },
+    });
+
+    expect(result.client).toBeInstanceOf(RegistryBrokerClient);
+    expect(result.encryption?.publicKey).toBe('22'.repeat(33));
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/encryption/keys',
+      expect.objectContaining({ method: 'POST' }),
+    );
+
+    keySpy.mockRestore();
+  });
+
   it('compacts chat history via API', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
@@ -980,6 +1201,60 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/session',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('falls back to plaintext conversations when encryption is preferred but unavailable', async () => {
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => mockSessionResponse,
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => mockMessageResponse,
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => mockHistorySnapshot,
+        }) as unknown as Response,
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const handle = await client.chat.startConversation({
+      uaid: 'uaid:aid:demo',
+      encryption: { preference: 'preferred' },
+    });
+
+    expect(handle.mode).toBe('plaintext');
+    await handle.send({ plaintext: 'Hi there' });
+    const history = await handle.fetchHistory({ decrypt: true });
+    expect(history[0]?.plaintext).toBe('Hello there');
+  });
+
+  it('throws when encrypted conversations are required but unavailable', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => mockSessionResponse,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await expect(
+      client.chat.startConversation({
+        uaid: 'uaid:aid:demo',
+        encryption: { preference: 'required' },
+      }),
+    ).rejects.toThrow('Encryption is not enabled for this session');
   });
 
   it('defaults to production registry broker base URL', async () => {
@@ -1106,108 +1381,105 @@ describe('RegistryBrokerClient', () => {
     }
   });
 });
-  describe('authenticateWithLedgerCredentials', () => {
-    const createLedgerVerification = (
-      accountId = '0.0.1234',
-      network = 'hedera:testnet',
-    ) => ({
-      key: 'ledger-key',
-      apiKey: {
-        id: 'ledger-api-key',
-        prefix: 'led',
-        lastFour: '1234',
-        createdAt: new Date().toISOString(),
-        ownerType: 'ledger' as const,
-      },
-      accountId,
-      network,
+describe('authenticateWithLedgerCredentials', () => {
+  const createLedgerVerification = (
+    accountId = '0.0.1234',
+    network = 'hedera:testnet',
+  ) => ({
+    key: 'ledger-key',
+    apiKey: {
+      id: 'ledger-api-key',
+      prefix: 'led',
+      lastFour: '1234',
+      createdAt: new Date().toISOString(),
+      ownerType: 'ledger' as const,
+    },
+    accountId,
+    network,
+  });
+
+  it('wraps Hedera private keys and stores the account header', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+    });
+    const mockVerification = createLedgerVerification();
+    const spy = jest
+      .spyOn(client, 'authenticateWithLedger')
+      .mockResolvedValue(mockVerification as any);
+    const hederaPrivateKey = PrivateKey.generateED25519().toString();
+
+    const result = await client.authenticateWithLedgerCredentials({
+      accountId: '0.0.1234',
+      network: 'hedera:testnet',
+      hederaPrivateKey,
+      label: 'test',
+      expiresInMinutes: 5,
     });
 
-    it('wraps Hedera private keys and stores the account header', async () => {
-      const client = new RegistryBrokerClient({
-        baseUrl: 'https://registry.hashgraphonline.com/api/v1',
-      });
-      const mockVerification = createLedgerVerification();
-      const spy = jest
-        .spyOn(client, 'authenticateWithLedger')
-        .mockResolvedValue(mockVerification as any);
-      const hederaPrivateKey = PrivateKey.generateED25519().toString();
-
-      const result = await client.authenticateWithLedgerCredentials({
+    expect(result).toEqual(mockVerification);
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
         accountId: '0.0.1234',
         network: 'hedera:testnet',
-        hederaPrivateKey,
-        label: 'test',
+        signer: expect.any(Object),
         expiresInMinutes: 5,
-      });
+      }),
+    );
+    expect(client.getDefaultHeaders()['x-account-id']).toBe('0.0.1234');
+    spy.mockRestore();
+  });
 
-      expect(result).toEqual(mockVerification);
-      expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          accountId: '0.0.1234',
-          network: 'hedera:testnet',
-          signer: expect.any(Object),
-          expiresInMinutes: 5,
-        }),
-      );
-      expect(client.getDefaultHeaders()['x-account-id']).toBe('0.0.1234');
-      spy.mockRestore();
+  it('supports EVM private keys and respects setAccountHeader=false', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+    });
+    const mockVerification = createLedgerVerification('0x1234', 'eip155:84532');
+    const spy = jest
+      .spyOn(client, 'authenticateWithLedger')
+      .mockResolvedValue(mockVerification as any);
+    const evmPrivateKey =
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    await client.authenticateWithLedgerCredentials({
+      accountId: '0x1234',
+      network: 'eip155:84532',
+      evmPrivateKey,
+      setAccountHeader: false,
     });
 
-    it('supports EVM private keys and respects setAccountHeader=false', async () => {
-      const client = new RegistryBrokerClient({
-        baseUrl: 'https://registry.hashgraphonline.com/api/v1',
-      });
-      const mockVerification = createLedgerVerification(
-        '0x1234',
-        'eip155:84532',
-      );
-      const spy = jest
-        .spyOn(client, 'authenticateWithLedger')
-        .mockResolvedValue(mockVerification as any);
-      const evmPrivateKey =
-        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-
-      await client.authenticateWithLedgerCredentials({
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
         accountId: '0x1234',
         network: 'eip155:84532',
-        evmPrivateKey,
-        setAccountHeader: false,
-      });
-
-      expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          accountId: '0x1234',
-          network: 'eip155:84532',
-          sign: expect.any(Function),
-        }),
-      );
-      expect(client.getDefaultHeaders()['x-account-id']).toBeUndefined();
-      spy.mockRestore();
-    });
-
-    it('throws when credential type does not match the network', async () => {
-      const client = new RegistryBrokerClient({
-        baseUrl: 'https://registry.hashgraphonline.com/api/v1',
-      });
-      await expect(
-        client.authenticateWithLedgerCredentials({
-          accountId: '0.0.1234',
-          network: 'eip155:84532',
-          hederaPrivateKey: PrivateKey.generateED25519().toString(),
-        }),
-      ).rejects.toThrow(
-        'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
-      );
-      await expect(
-        client.authenticateWithLedgerCredentials({
-          accountId: '0xabc',
-          network: 'hedera:testnet',
-          evmPrivateKey:
-            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        }),
-      ).rejects.toThrow(
-        'evmPrivateKey can only be used with CAIP-2 EVM networks (eip155:<chainId>).',
-      );
-    });
+        sign: expect.any(Function),
+      }),
+    );
+    expect(client.getDefaultHeaders()['x-account-id']).toBeUndefined();
+    spy.mockRestore();
   });
+
+  it('throws when credential type does not match the network', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+    });
+    await expect(
+      client.authenticateWithLedgerCredentials({
+        accountId: '0.0.1234',
+        network: 'eip155:84532',
+        hederaPrivateKey: PrivateKey.generateED25519().toString(),
+      }),
+    ).rejects.toThrow(
+      'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
+    );
+    await expect(
+      client.authenticateWithLedgerCredentials({
+        accountId: '0xabc',
+        network: 'hedera:testnet',
+        evmPrivateKey:
+          '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      }),
+    ).rejects.toThrow(
+      'evmPrivateKey can only be used with CAIP-2 EVM networks (eip155:<chainId>).',
+    );
+  });
+});

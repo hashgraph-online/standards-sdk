@@ -6,21 +6,18 @@ const baseUrl =
   'https://registry.hashgraphonline.com/api/v1';
 
 const run = async (): Promise<void> => {
+  const localBase =
+    baseUrl.startsWith('http://127.0.0.1') ||
+    baseUrl.startsWith('http://localhost');
   const registryApiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
   const client = new RegistryBrokerClient({
     baseUrl,
-    apiKey: registryApiKey,
+    apiKey: !localBase ? registryApiKey : undefined,
   });
-
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
-  if (!openRouterApiKey) {
-    throw new Error('OPENROUTER_API_KEY is required for this demo.');
-  }
 
   const modelId =
     process.env.OPENROUTER_MODEL_ID?.trim() || 'anthropic/claude-3.5-sonnet';
   const registry = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
-  const auth = { type: 'bearer' as const, token: openRouterApiKey };
 
   const searchResult = await client.search({
     q: modelId,
@@ -39,7 +36,6 @@ const run = async (): Promise<void> => {
 
   const session = await client.chat.createSession({
     uaid,
-    auth,
     historyTtlSeconds: 900,
   });
   console.log('Session created:', session.sessionId);
@@ -48,7 +44,7 @@ const run = async (): Promise<void> => {
     'Respond with a short JSON object summarizing your capabilities (keys: "summary", "pricing").';
   const response = await client.chat.sendMessage({
     sessionId: session.sessionId,
-    auth,
+    uaid,
     message: prompt,
   });
 

@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 export interface CloudflareTunnelHandle {
   url: string;
@@ -43,16 +46,42 @@ const spawnCloudflareTunnel = (
   port: number,
   attempt: number,
 ): Promise<CloudflareTunnelHandle> => {
+  const defaultConfigPath = path.join(
+    os.tmpdir(),
+    'registry-broker-cloudflared.yaml',
+  );
+  const cloudflareConfigPath =
+    process.env.REGISTRY_BROKER_DEMO_CLOUDFLARED_CONFIG?.trim() ||
+    defaultConfigPath;
+
+  if (!process.env.REGISTRY_BROKER_DEMO_CLOUDFLARED_CONFIG) {
+    try {
+      writeFileSync(defaultConfigPath, 'no-autoupdate: true\n', 'utf8');
+    } catch {
+      // best-effort stub config
+    }
+  }
+
   return new Promise((resolve, reject) => {
     let resolved = false;
     let stderrBuffer = '';
 
-    const child = spawn('cloudflared', [
+    const args = [
       'tunnel',
+      '--config',
+      cloudflareConfigPath,
       '--url',
       `http://127.0.0.1:${port}`,
       '--no-autoupdate',
-    ]);
+    ];
+
+    if (process.env.REGISTRY_BROKER_DEMO_DEBUG_TUNNEL === '1') {
+      console.log(
+        `  🛠️  Spawning cloudflared (attempt ${attempt}) with args: ${args.join(' ')}`,
+      );
+    }
+
+    const child = spawn('cloudflared', args);
 
     const cleanup = () => {
       clearTimeout(timer);

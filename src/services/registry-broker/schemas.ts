@@ -45,11 +45,75 @@ const agentProfileSchema = z
   })
   .catchall(jsonValueSchema);
 
+const cipherEnvelopeRecipientSchema = z.object({
+  uaid: z.string().optional(),
+  ledgerAccountId: z.string().optional(),
+  userId: z.string().optional(),
+  email: z.string().optional(),
+  encryptedShare: z.string(),
+});
+
+const cipherEnvelopeSchema = z.object({
+  algorithm: z.string(),
+  ciphertext: z.string(),
+  nonce: z.string(),
+  associatedData: z.string().optional(),
+  keyLocator: z
+    .object({
+      sessionId: z.string().optional(),
+      revision: z.number().optional(),
+    })
+    .optional(),
+  recipients: z.array(cipherEnvelopeRecipientSchema),
+});
+
+const peerSummarySchema = z.object({
+  keyType: z.string(),
+  publicKey: z.string(),
+  uaid: z.string().optional(),
+  ledgerAccountId: z.string().optional(),
+  userId: z.string().optional(),
+  email: z.string().optional(),
+});
+
+const handshakeParticipantSchema = z.object({
+  role: z.enum(['requester', 'responder']),
+  uaid: z.string().optional(),
+  userId: z.string().optional(),
+  ledgerAccountId: z.string().optional(),
+  keyType: z.string(),
+  longTermPublicKey: z.string().optional(),
+  ephemeralPublicKey: z.string(),
+  signature: z.string().optional(),
+  metadata: z.record(jsonValueSchema).optional(),
+  submittedAt: z.string(),
+});
+
+const encryptionHandshakeRecordSchema = z.object({
+  sessionId: z.string(),
+  algorithm: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.number(),
+  status: z.enum(['pending', 'complete']),
+  requester: handshakeParticipantSchema.optional(),
+  responder: handshakeParticipantSchema.optional(),
+});
+
+const sessionEncryptionSummarySchema = z.object({
+  enabled: z.boolean(),
+  algorithm: z.string(),
+  requireCiphertext: z.boolean(),
+  requester: peerSummarySchema.nullable().optional(),
+  responder: peerSummarySchema.nullable().optional(),
+  handshake: encryptionHandshakeRecordSchema.nullable().optional(),
+});
+
 const chatHistoryEntrySchema = z.object({
   messageId: z.string(),
   role: z.enum(['user', 'agent']),
   content: z.string(),
   timestamp: z.string(),
+  cipherEnvelope: cipherEnvelopeSchema.optional(),
   metadata: z.record(jsonValueSchema).optional(),
 });
 
@@ -109,6 +173,7 @@ export const createSessionResponseSchema = z.object({
   }),
   history: z.array(chatHistoryEntrySchema),
   historyTtlSeconds: z.number().nullable().optional(),
+  encryption: sessionEncryptionSummarySchema.nullable().optional(),
 });
 
 export const sendMessageResponseSchema = z.object({
@@ -120,6 +185,7 @@ export const sendMessageResponseSchema = z.object({
   content: z.string().optional(),
   history: z.array(chatHistoryEntrySchema).optional(),
   historyTtlSeconds: z.number().nullable().optional(),
+  encrypted: z.boolean().optional(),
 });
 
 export const chatHistorySnapshotResponseSchema = z.object({
@@ -142,6 +208,29 @@ export const chatHistoryCompactionResponseSchema = z.object({
   historyTtlSeconds: z.number(),
   creditsDebited: z.number(),
   metadata: z.record(jsonValueSchema).optional(),
+});
+
+export const sessionEncryptionStatusResponseSchema = z.object({
+  sessionId: z.string(),
+  encryption: sessionEncryptionSummarySchema.nullable(),
+});
+
+export const encryptionHandshakeResponseSchema = z.object({
+  sessionId: z.string(),
+  handshake: encryptionHandshakeRecordSchema,
+});
+
+export const registerEncryptionKeyResponseSchema = z.object({
+  id: z.string(),
+  keyType: z.string(),
+  publicKey: z.string(),
+  uaid: z.string().nullable(),
+  ledgerAccountId: z.string().nullable(),
+  ledgerNetwork: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
 export const ledgerChallengeResponseSchema = z.object({

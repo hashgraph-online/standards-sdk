@@ -1130,11 +1130,15 @@ export class HCS10Client extends HCS10BaseClient {
   ): Promise<TransactionReceipt> {
     const isTransaction =
       topicOrTransaction instanceof TopicMessageSubmitTransaction ||
-      (topicOrTransaction as TopicMessageSubmitTransaction)?.getMessage !==
-        undefined;
+      (typeof topicOrTransaction !== 'string' &&
+        typeof (topicOrTransaction as { getMessage?: unknown }).getMessage ===
+          'function');
 
     if (isTransaction) {
-      const transaction = topicOrTransaction as TopicMessageSubmitTransaction;
+      const transaction =
+        topicOrTransaction instanceof TopicMessageSubmitTransaction
+          ? topicOrTransaction
+          : (topicOrTransaction as unknown as TopicMessageSubmitTransaction);
 
       const messageBytes = transaction.getMessage();
       if (!messageBytes) {

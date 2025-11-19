@@ -119,7 +119,14 @@ const extractReplyContent = (payload: SendMessageResponse): string => {
 };
 
 const run = async (p0: (a: any) => never) => {
-  let activeClient = new RegistryBrokerClient({ baseUrl });
+  const localBase =
+    baseUrl.startsWith('http://127.0.0.1') ||
+    baseUrl.startsWith('http://localhost');
+  const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
+  let activeClient = new RegistryBrokerClient({
+    baseUrl,
+    apiKey: !localBase ? apiKey : undefined,
+  });
 
   const performSearch = async (client: RegistryBrokerClient, query: string) => {
     // Prefer adapter-scoped search on staging/production
@@ -151,8 +158,9 @@ const run = async (p0: (a: any) => never) => {
     return result;
   };
 
-  let agentUrl: string;
+  let agentUrl: string | null = null;
   let agentName = 'ERC-8004 Agent';
+  let selectedUaid: string | null = null;
 
   if (directAgentUrl) {
     console.log(`Using direct ERC8004 agent URL from env: ${directAgentUrl}`);
@@ -189,19 +197,33 @@ const run = async (p0: (a: any) => never) => {
       }) ||
       searchResult.hits[0];
     agentName = agent.name;
-    console.log(`Selected agent: ${agentName}`);
+    selectedUaid = agent.uaid ?? null;
+    console.log(
+      `Selected agent: ${agentName}${selectedUaid ? ` (${selectedUaid})` : ''}`,
+    );
 
     const resolved = extractAgentUrl(agent);
     if (!resolved) {
-      throw new Error(
-        'Selected agent does not expose an HTTP-compatible endpoint',
+      console.warn(
+        'Selected agent does not expose an HTTP-compatible endpoint; proceeding with UAID-based chat via broker',
       );
+      agentUrl = null;
+    } else {
+      agentUrl = resolved;
     }
-    agentUrl = resolved;
   }
 
-  console.log(`Opening broker-managed chat session via ${agentUrl}`);
-  const session = await activeClient.chat.createSession({ agentUrl });
+  const resolvedUaid = selectedUaid ?? targetUaid;
+  if (!resolvedUaid) {
+    throw new Error('Selected agent does not have a UAID');
+  }
+
+  if (agentUrl) {
+    console.log(`Resolved agentUrl: ${agentUrl}`);
+  }
+  console.log(`Opening broker-managed chat session via UAID: ${resolvedUaid}`);
+
+  const session = await activeClient.chat.createSession({ uaid: resolvedUaid });
 
   console.log('Session established:');
   console.log(`  Session ID: ${session.sessionId}`);
@@ -213,7 +235,7 @@ const run = async (p0: (a: any) => never) => {
   console.log('Sending initial prompt through the broker…');
   const firstResponse = await activeClient.chat.sendMessage({
     sessionId: session.sessionId,
-    agentUrl,
+    uaid: resolvedUaid,
     message: samplePrompt,
   });
   console.log('Agent reply:');
@@ -224,7 +246,7 @@ const run = async (p0: (a: any) => never) => {
   console.log('Sending follow-up prompt to validate context retention…');
   const secondResponse = await activeClient.chat.sendMessage({
     sessionId: session.sessionId,
-    agentUrl,
+    uaid: resolvedUaid,
     message: followUpPrompt,
   });
   console.log('Follow-up reply:');

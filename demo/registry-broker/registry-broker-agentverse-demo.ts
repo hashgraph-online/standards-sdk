@@ -3,21 +3,51 @@ import 'dotenv/config';
 import { v4 as uuidv4 } from 'uuid';
 import {
   RegistryBrokerClient,
+  RegistryBrokerError,
   type SendMessageResponse,
   type ChatHistoryEntry,
+  type AgentRegistrationRequest,
+  type RegisterAgentResponse,
 } from '../../src/services/registry-broker';
 import {
   startLocalA2AAgent,
   type LocalA2AAgentHandle,
 } from '../utils/local-a2a-agent';
 import { HCS14Client } from '../../src/hcs-14/sdk';
+import {
+  type HCS11Profile,
+  ProfileType,
+  AIAgentType,
+  AIAgentCapability,
+} from '../../src/hcs-11/types';
+import { waitForAgentAvailability } from '../utils/registry-broker';
 import fetch from 'node-fetch';
+import {
+  authenticateWithDemoLedger,
+  type HederaLedgerAuthResult,
+} from '../utils/registry-auth';
 
 const log = (msg: string) => console.log(msg);
 const section = (title: string) => log(`\n=== ${title} ===`);
 
 const truncate = (value: string, max = 140) =>
   value.length > max ? `${value.slice(0, max - 1)}…` : value;
+
+const describeError = (error: unknown): string => {
+  if (error instanceof RegistryBrokerError) {
+    const body =
+      typeof error.body === 'string'
+        ? error.body
+        : error.body && typeof error.body === 'object'
+          ? JSON.stringify(error.body)
+          : 'Unknown error';
+    return `Registry broker error ${error.status} (${error.statusText}): ${body}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+};
 
 const describeHistory = (history?: ChatHistoryEntry[]) => {
   if (!history) {
@@ -34,9 +64,112 @@ const describeHistory = (history?: ChatHistoryEntry[]) => {
   );
 };
 
+const extractCreditShortfall = (
+  error: unknown,
+): { shortfallCredits: number; creditsPerHbar: number } | null => {
+  if (error instanceof RegistryBrokerError && error.status === 402) {
+    const body = error.body;
+    if (body && typeof body === 'object') {
+      const record = body as Record<string, unknown>;
+      const shortfall = Number(record.shortfallCredits);
+      const perHbar = Number(record.creditsPerHbar);
+      if (
+        Number.isFinite(shortfall) &&
+        Number.isFinite(perHbar) &&
+        shortfall > 0 &&
+        perHbar > 0
+      ) {
+        return { shortfallCredits: shortfall, creditsPerHbar: perHbar };
+      }
+    }
+  }
+  return null;
+};
+
+const hasHederaLedgerAuth = (
+  value: unknown,
+): value is HederaLedgerAuthResult => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.accountId === 'string' &&
+    typeof record.privateKey === 'string' &&
+    record.privateKey.length > 0
+  );
+};
+
+const registerLocalA2aAgent = async (
+  client: RegistryBrokerClient,
+  local: LocalA2AAgentHandle,
+): Promise<string> => {
+  const publicBase =
+    (local.publicUrl && local.publicUrl.replace(/\/$/, '')) || null;
+  const localBase = local.baseUrl.replace(/\/$/, '');
+  const reachableBase = publicBase ?? localBase;
+  if (!reachableBase) {
+    throw new Error('Local A2A agent is missing a reachable base URL');
+  }
+
+  const profile: HCS11Profile = {
+    version: '1.0',
+    type: ProfileType.AI_AGENT,
+    display_name: `AgentVerse Local Bridge (${local.agentId})`,
+    alias: local.agentId,
+    bio: 'Local A2A bridge agent used by the registry-broker AgentVerse demo.',
+    properties: {
+      tags: ['demo', 'agentverse', 'a2a'],
+    },
+    socials: [],
+    aiAgent: {
+      type: AIAgentType.MANUAL,
+      model: 'agentverse-local-bridge',
+      capabilities: [AIAgentCapability.TEXT_GENERATION],
+      creator: 'standards-sdk demo',
+    },
+  };
+
+  const payload: AgentRegistrationRequest = {
+    profile,
+    protocol: 'a2a',
+    communicationProtocol: 'a2a',
+    registry: 'hashgraph-online',
+    endpoint: `${reachableBase}/.well-known/agent.json`,
+    metadata: {
+      adapter: 'nanda-adapter',
+      source: 'agentverse-demo',
+      tunnelUrl: local.publicUrl,
+      localEndpoint: local.localA2aEndpoint,
+      nativeId: local.agentId,
+    },
+  };
+
+  const response: RegisterAgentResponse = await client.registerAgent(payload);
+  const attemptId = response.attemptId?.trim();
+  if (attemptId) {
+    await client.waitForRegistrationCompletion(attemptId, {
+      intervalMs: 1_000,
+      timeoutMs: 60_000,
+      throwOnFailure: false,
+    });
+  }
+
+  const uaid = response.uaid?.trim();
+  if (!uaid) {
+    throw new Error('Local A2A agent registration did not return a UAID');
+  }
+
+  await waitForAgentAvailability(client, uaid, 60_000);
+  return uaid;
+};
+
 async function run(): Promise<void> {
-  const brokerBase = process.env.REGISTRY_BROKER_BASE_URL?.trim();
+  const brokerBase =
+    process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
+    'https://registry.hashgraphonline.com/api/v1';
   const client = new RegistryBrokerClient({ baseUrl: brokerBase });
+  const registrationClient = new RegistryBrokerClient({ baseUrl: brokerBase });
 
   // Wait for broker to be ready
   const healthUrl = brokerBase.replace(/\/api\/v1\/?$/, '') + '/health';
@@ -48,6 +181,41 @@ async function run(): Promise<void> {
     } catch {}
     await new Promise(r => setTimeout(r, 1000));
   }
+
+  const ledgerAuth = await authenticateWithDemoLedger(registrationClient, {
+    label: 'agentverse-demo',
+    expiresInMinutes: 30,
+    setAccountHeader: true,
+  });
+
+  const attemptWithCreditTopup = async <T>(
+    operation: () => Promise<T>,
+    context: string,
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      const shortfall = extractCreditShortfall(error);
+      if (!shortfall || !hasHederaLedgerAuth(ledgerAuth)) {
+        throw error;
+      }
+      const hbarAmount = Math.max(
+        shortfall.shortfallCredits / shortfall.creditsPerHbar,
+        0.25,
+      );
+      log(
+        `  ⚠️  Purchasing ${hbarAmount.toFixed(4)} HBAR credits for ${context}...`,
+      );
+      await registrationClient.purchaseCreditsWithHbar({
+        accountId: ledgerAuth.accountId,
+        privateKey: ledgerAuth.privateKey,
+        hbarAmount,
+        memo: `agentverse-${context}`,
+        metadata: { context },
+      });
+      return operation();
+    }
+  };
 
   // Deterministic target: mailbox agent known to support flight tracking prompts.
   // Allow override via env, but default to the working mailbox agent.
@@ -85,13 +253,104 @@ async function run(): Promise<void> {
   }
 
   section('Start local A2A agent');
+  const explicitPort = process.env.REGISTRY_BROKER_DEMO_A2A_PORT
+    ? Number(process.env.REGISTRY_BROKER_DEMO_A2A_PORT)
+    : undefined;
+  const explicitPublicUrl =
+    process.env.REGISTRY_BROKER_DEMO_A2A_PUBLIC_URL?.trim() || undefined;
+
   const local: LocalA2AAgentHandle = await startLocalA2AAgent({
     agentId: `sdk-agentverse-demo-${Date.now()}`,
+    port: Number.isFinite(explicitPort) ? explicitPort : undefined,
+    publicUrl: explicitPublicUrl,
   });
   log(`  Local agent started on ${local.localA2aEndpoint}`);
   if (local.publicUrl) {
     log(`  Public tunnel: ${local.publicUrl}`);
   }
+
+  let localUaid: string | null = null;
+  try {
+    localUaid = await attemptWithCreditTopup(
+      () => registerLocalA2aAgent(registrationClient, local),
+      'local-a2a-registration',
+    );
+    log(`  Registered local agent with UAID: ${localUaid}`);
+  } catch (error) {
+    log(`  Failed to register local A2A agent: ${describeError(error)}`);
+  }
+
+  const sendLocalA2aMessage = async (
+    endpoint: string,
+    messageText: string,
+  ): Promise<string> => {
+    const body = {
+      jsonrpc: '2.0',
+      id: `agentverse-local-${Date.now().toString(36)}`,
+      method: 'message/send',
+      params: {
+        message: {
+          kind: 'message',
+          messageId: `msg-${Date.now().toString(36)}`,
+          role: 'user',
+          parts: [
+            {
+              kind: 'text',
+              text: messageText,
+            },
+          ],
+        },
+      },
+    };
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return `Local A2A agent returned non-JSON response (status ${response.status}).`;
+    }
+
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      typeof value === 'object' && value !== null && !Array.isArray(value);
+
+    if (!isRecord(payload)) {
+      return `Local A2A agent returned unexpected payload: ${JSON.stringify(
+        payload,
+      )}`;
+    }
+
+    const result = payload.result;
+    if (!isRecord(result)) {
+      return `Local A2A agent response missing result: ${JSON.stringify(
+        payload,
+      )}`;
+    }
+
+    const parts = result.parts;
+    if (!Array.isArray(parts) || parts.length === 0) {
+      return `Local A2A agent response missing parts: ${JSON.stringify(
+        result,
+      )}`;
+    }
+
+    const first = parts[0];
+    if (!isRecord(first) || typeof first.text !== 'string') {
+      return `Local A2A agent response missing text part: ${JSON.stringify(
+        first,
+      )}`;
+    }
+
+    const text = first.text.trim();
+    return text.length > 0
+      ? text
+      : `Local A2A agent returned an empty message.`;
+  };
 
   const sessionId = uuidv4();
   const defaultIntro = 'Hello from the SDK demo. Introduce yourself briefly.';
@@ -219,15 +478,26 @@ async function run(): Promise<void> {
       log(`  AgentVerse replied: ${truncate(avReply.message)}`);
       describeHistory(avReply.history);
 
-      if (local.publicUrl) {
-        const agentEndpoint = local.publicUrl;
-        const localReply: SendMessageResponse = await client.chat.sendMessage({
-          agentUrl: agentEndpoint,
-          sessionId,
+      if (localUaid) {
+        const localSession = await client.chat.createSession({
+          uaid: localUaid,
+        });
+        const localResponse = await client.chat.sendMessage({
+          sessionId: localSession.sessionId,
+          uaid: localUaid,
           message: avReply.message || defaultIntro,
         });
-        log(`  Local A2A replied: ${truncate(localReply.message)}`);
-        describeHistory(localReply.history);
+        const localReplyText = localResponse.message || '';
+        log(
+          `  Local A2A replied via broker: ${truncate(localReplyText || '')}`,
+        );
+      } else if (local.localA2aEndpoint) {
+        const agentEndpoint = local.localA2aEndpoint;
+        const localReplyText = await sendLocalA2aMessage(
+          agentEndpoint,
+          avReply.message || defaultIntro,
+        );
+        log(`  Local A2A replied (direct): ${truncate(localReplyText)}`);
       }
 
       const followUp = 'Thanks. Summarize the previous reply in one sentence.';
@@ -271,6 +541,28 @@ async function run(): Promise<void> {
   const snapshot = await client.chat.getHistory(sessionId);
   log(`  Session ${sessionId} history TTL: ${snapshot.historyTtlSeconds}s`);
   describeHistory(snapshot.history);
+
+  if (localUaid) {
+    section('Local A2A UAID sanity check');
+    try {
+      const localSession = await client.chat.createSession({
+        uaid: localUaid,
+      });
+      const localResponse = await client.chat.sendMessage({
+        sessionId: localSession.sessionId,
+        uaid: localUaid,
+        message: defaultIntro,
+      });
+      const localReplyText = localResponse.message || '';
+      log(
+        `  Local A2A (UAID) replied via broker: ${truncate(
+          localReplyText || '',
+        )}`,
+      );
+    } catch (error) {
+      log(`  Local A2A UAID sanity check failed: ${describeError(error)}`);
+    }
+  }
 
   // Optional late mailbox reply check: some AgentVerse mailbox agents send an
   // empty ack immediately and the real reply a bit later. Wait briefly and

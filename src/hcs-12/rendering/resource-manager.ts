@@ -188,7 +188,8 @@ export class ResourceManager {
       }
 
       const content = resource.content as Uint8Array;
-      const blob = new Blob([content], { type: resource.contentType });
+      const view = new Uint8Array(content); // ensures ArrayBuffer, not SharedArrayBuffer
+      const blob = new Blob([view.buffer], { type: resource.contentType });
 
       this.logger.debug('Image resource loaded successfully', {
         topicId,
@@ -296,7 +297,12 @@ export class ResourceManager {
           ? new TextEncoder().encode(content)
           : content;
 
-      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const bytes =
+        buffer instanceof Uint8Array
+          ? buffer
+          : new Uint8Array(buffer as ArrayBufferLike);
+      const copy = new Uint8Array(bytes);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', copy.buffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const actualHash = hashArray
         .map(b => b.toString(16).padStart(2, '0'))

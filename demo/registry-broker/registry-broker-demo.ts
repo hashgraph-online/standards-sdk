@@ -649,31 +649,16 @@ const showcaseOpenRouterAuthenticatedChat = async (
   ledgerCredentials?: { accountId: string; privateKey: string } | null,
 ) => {
   if (skipOptionalDemos) {
-    logSection('OpenRouter Authenticated Chat');
-    console.log(
-      'Skipping authenticated OpenRouter chat (SKIP_OPTIONAL_DEMOS=1).',
-    );
+    logSection('OpenRouter Credits Chat');
+    console.log('Skipping OpenRouter credits chat (SKIP_OPTIONAL_DEMOS=1).');
     return;
   }
-  logSection('OpenRouter Authenticated Chat');
-
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-  if (!apiKey) {
-    console.log(
-      '  Skipping authenticated OpenRouter chat – set OPENROUTER_API_KEY to enable.',
-    );
-    return;
-  }
-
-  const modelId =
-    process.env.OPENROUTER_MODEL_ID?.trim() || 'anthropic/claude-3.5-sonnet';
-  const adapter = process.env.OPENROUTER_REGISTRY?.trim() || 'openrouter';
-  const auth = { type: 'bearer' as const, token: apiKey };
+  logSection('OpenRouter Credits Chat');
+  const uaid = OPENROUTER_DEFAULT_UAID;
 
   try {
     const session = await client.chat.createSession({
-      agentUrl,
-      auth,
+      uaid,
       historyTtlSeconds: preferredHistoryTtlSeconds,
     });
 
@@ -686,7 +671,7 @@ const showcaseOpenRouterAuthenticatedChat = async (
       'Provide a two sentence description of your capabilities and pricing.';
     const response = await client.chat.sendMessage({
       sessionId: session.sessionId,
-      auth,
+      uaid,
       message: capabilitiesPrompt,
     });
 
@@ -727,7 +712,7 @@ const showcaseOpenRouterAuthenticatedChat = async (
       'Without me repeating it, what code phrase did I ask you to store earlier? Reply using only that phrase.';
     const recallResponse = await client.chat.sendMessage({
       sessionId: session.sessionId,
-      auth,
+      uaid,
       message: recallPrompt,
     });
     console.log('  Recall response received:');
@@ -763,9 +748,7 @@ const showcaseOpenRouterAuthenticatedChat = async (
       ledgerCredentials,
     );
   } catch (error) {
-    console.log(
-      `  Authenticated OpenRouter chat failed: ${describeError(error)}`,
-    );
+    console.log(`  OpenRouter credits chat failed: ${describeError(error)}`);
   }
 };
 
