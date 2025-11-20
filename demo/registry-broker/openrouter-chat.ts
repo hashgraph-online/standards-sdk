@@ -6,13 +6,10 @@ const baseUrl =
   'https://registry.hashgraphonline.com/api/v1';
 
 const run = async (): Promise<void> => {
-  const localBase =
-    baseUrl.startsWith('http://127.0.0.1') ||
-    baseUrl.startsWith('http://localhost');
   const registryApiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
   const client = new RegistryBrokerClient({
     baseUrl,
-    apiKey: !localBase ? registryApiKey : undefined,
+    apiKey: registryApiKey,
   });
 
   const modelId =
