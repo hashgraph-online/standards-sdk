@@ -398,8 +398,35 @@ export class RegistryBrokerParseError extends Error {
 
 function normaliseBaseUrl(input?: string): string {
   const trimmed = input?.trim();
-  const baseCandidate =
+  let baseCandidate =
     trimmed && trimmed.length > 0 ? trimmed : DEFAULT_BASE_URL;
+
+  try {
+    const url = new URL(baseCandidate.replace(/\/+$/, ''));
+    const hostname = url.hostname.toLowerCase();
+    const ensureRegistryPrefix = (): void => {
+      if (!url.pathname.startsWith('/registry')) {
+        url.pathname =
+          url.pathname === '/' ? '/registry' : `/registry${url.pathname}`;
+      }
+    };
+
+    if (hostname === 'hol.org') {
+      ensureRegistryPrefix();
+      baseCandidate = url.toString();
+    } else if (
+      hostname === 'registry.hashgraphonline.com' ||
+      hostname === 'hashgraphonline.com'
+    ) {
+      // Avoid 301s that downgrade POST->GET by normalizing directly to hol.org/registry.
+      ensureRegistryPrefix();
+      url.hostname = 'hol.org';
+      baseCandidate = url.toString();
+    }
+  } catch {
+    // If parsing fails, fall back to string handling below.
+  }
+
   const withoutTrailing = baseCandidate.replace(/\/+$/, '');
   if (/\/api\/v\d+$/i.test(withoutTrailing)) {
     return withoutTrailing;
