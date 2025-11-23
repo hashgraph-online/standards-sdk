@@ -8,7 +8,7 @@ import {
   buildMessageTx,
   MaybeKey,
 } from '../common/tx/tx-utils';
-import { AdapterDeclaration, HCS21TopicType } from './types';
+import { HCS21TopicType, PackageDeclaration } from './types';
 
 export function buildHcs21RegistryMemo(params: {
   ttl: number;
@@ -39,7 +39,7 @@ export function buildHcs21CreateRegistryTx(params: {
 
 export function buildHcs21MessageTx(params: {
   topicId: string;
-  declaration: AdapterDeclaration;
+  declaration: PackageDeclaration;
   transactionMemo?: string;
 }): TopicMessageSubmitTransaction {
   return buildMessageTx({

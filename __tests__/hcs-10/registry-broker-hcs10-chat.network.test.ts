@@ -74,15 +74,11 @@ describe('HCS-10 chat demo network resolution', () => {
   describe('resolveNetwork', () => {
     it('prefers explicit env configuration', () => {
       process.env.HEDERA_NETWORK = 'mainnet';
-      expect(
-        resolveNetwork('https://registry.hashgraphonline.com/api/v1'),
-      ).toBe('mainnet');
+      expect(resolveNetwork('https://hol.org/registry/api/v1')).toBe('mainnet');
     });
 
     it('infers production hostnames as mainnet', () => {
-      expect(
-        resolveNetwork('https://registry.hashgraphonline.com/api/v1'),
-      ).toBe('mainnet');
+      expect(resolveNetwork('https://hol.org/registry/api/v1')).toBe('mainnet');
     });
 
     it('treats staging and localhost hosts as testnet', () => {

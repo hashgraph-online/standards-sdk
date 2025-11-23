@@ -57,7 +57,7 @@ pnpm run cli -- config \
   --network testnet \
   --account-id 0.0.xxxxxx \
   --private-key 302e... \
-  --registry-base-url https://registry.hashgraphonline.com/api/v1 \
+  --registry-base-url https://hol.org/registry/api/v1 \
   --prefer-cloudflared true
 ```
 

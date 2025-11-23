@@ -9,7 +9,7 @@ import type {
 
 const baseUrl =
   process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-  'https://registry.hashgraphonline.com/api/v1';
+  'https://hol.org/registry/api/v1';
 
 /**
  * Returns true if the provided URL string (tokenUri) has a hostname that equals, or is a subdomain of, the specified `host`.

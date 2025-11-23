@@ -52,7 +52,7 @@ const DEFAULT_CONFIG: StandardsCliConfig = {
 		network: 'testnet',
 	},
 	registryBroker: {
-		baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+		baseUrl: 'https://hol.org/registry/api/v1',
 		useLedger: true,
 		autoTopUp: true,
 		historyAutoTopUp: true,

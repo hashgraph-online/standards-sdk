@@ -23,7 +23,7 @@ const DEFAULT_AGENT_PORT = 7100;
 const resolveConfig = (): DemoConfig => {
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ??
-    'https://registry.hashgraphonline.com/api/v1';
+    'https://hol.org/registry/api/v1';
   const agentHost =
     process.env.REGISTRY_BROKER_DEMO_AGENT_HOST?.trim() || DEFAULT_AGENT_HOST;
   const protocolRaw =

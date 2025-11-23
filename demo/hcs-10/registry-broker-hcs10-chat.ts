@@ -43,7 +43,7 @@ interface DemoConfig {
   adapterCheck: string;
 }
 
-const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
+const DEFAULT_BASE_URL = 'https://hol.org/registry/api/v1';
 const TARGET_REGISTRY = 'hashgraph-online';
 
 const REQUEST_TIMEOUT_MS =

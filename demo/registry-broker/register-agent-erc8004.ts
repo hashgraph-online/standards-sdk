@@ -20,7 +20,7 @@ import {
   resolveHederaLedgerAuthConfig,
 } from '../utils/ledger-config';
 
-const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
+const DEFAULT_BASE_URL = 'https://hol.org/registry/api/v1';
 const DEFAULT_MODE: DemoProfileMode = 'ai';
 const DEFAULT_ERC8004_NETWORKS = ['ethereum-sepolia', 'base-sepolia'];
 

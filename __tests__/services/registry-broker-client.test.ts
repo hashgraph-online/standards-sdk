@@ -1269,9 +1269,7 @@ describe('RegistryBrokerClient', () => {
     await client.search({ limit: 1 });
 
     const [targetUrl] = fetchImplementation.mock.calls[0];
-    expect(targetUrl).toBe(
-      'https://registry.hashgraphonline.com/api/v1/search?limit=1',
-    );
+    expect(targetUrl).toBe('https://hol.org/registry/api/v1/search?limit=1');
   });
 
   it('builds search queries with optional filters', async () => {
@@ -1400,7 +1398,7 @@ describe('authenticateWithLedgerCredentials', () => {
 
   it('wraps Hedera private keys and stores the account header', async () => {
     const client = new RegistryBrokerClient({
-      baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+      baseUrl: 'https://hol.org/registry/api/v1',
     });
     const mockVerification = createLedgerVerification();
     const spy = jest
@@ -1431,7 +1429,7 @@ describe('authenticateWithLedgerCredentials', () => {
 
   it('supports EVM private keys and respects setAccountHeader=false', async () => {
     const client = new RegistryBrokerClient({
-      baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+      baseUrl: 'https://hol.org/registry/api/v1',
     });
     const mockVerification = createLedgerVerification('0x1234', 'eip155:84532');
     const spy = jest
@@ -1460,7 +1458,7 @@ describe('authenticateWithLedgerCredentials', () => {
 
   it('throws when credential type does not match the network', async () => {
     const client = new RegistryBrokerClient({
-      baseUrl: 'https://registry.hashgraphonline.com/api/v1',
+      baseUrl: 'https://hol.org/registry/api/v1',
     });
     await expect(
       client.authenticateWithLedgerCredentials({

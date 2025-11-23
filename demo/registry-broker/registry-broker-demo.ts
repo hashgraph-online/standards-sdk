@@ -206,7 +206,7 @@ const updateDemoAgent = async (
 
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ??
-    'https://registry.hashgraphonline.com/api/v1';
+    'https://hol.org/registry/api/v1';
 
   const buildHeaders = () => {
     const headers = new Headers();
@@ -854,7 +854,7 @@ const main = async () => {
   const baseUrl =
     baseUrlEnv && baseUrlEnv.length > 0
       ? baseUrlEnv
-      : 'https://registry.hashgraphonline.com/api/v1';
+      : 'https://hol.org/registry/api/v1';
   const ledgerMode = config.ledgerMode;
   if (ledgerMode !== 'hedera') {
     throw new Error(

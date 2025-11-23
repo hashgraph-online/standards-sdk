@@ -35,7 +35,7 @@ const truncate = (value: string, max = 160): string =>
 const resolveDemoConfig = () => ({
   baseUrl:
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-    'https://registry.hashgraphonline.com/api/v1',
+    'https://hol.org/registry/api/v1',
   openRouterModel:
     process.env.OPENROUTER_MODEL_ID?.trim() ||
     process.env.OPENROUTER_MODEL?.trim() ||

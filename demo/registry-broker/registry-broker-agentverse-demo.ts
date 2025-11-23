@@ -167,7 +167,7 @@ const registerLocalA2aAgent = async (
 async function run(): Promise<void> {
   const brokerBase =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-    'https://registry.hashgraphonline.com/api/v1';
+    'https://hol.org/registry/api/v1';
   const client = new RegistryBrokerClient({ baseUrl: brokerBase });
   const registrationClient = new RegistryBrokerClient({ baseUrl: brokerBase });
 
