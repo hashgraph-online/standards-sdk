@@ -12,10 +12,10 @@ import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HCS21BaseClient, BuildDeclarationParams } from './base-client';
 import {
-  AdapterDeclaration,
-  AdapterMetadataPointer,
-  AdapterMetadataRecord,
   HCS21MetadataPointerPattern,
+  PackageDeclaration,
+  PackageMetadataPointer,
+  PackageMetadataRecord,
 } from './types';
 import { buildHcs21CreateRegistryTx, buildHcs21MessageTx } from './tx';
 import { HCS21ValidationError } from './errors';
@@ -49,12 +49,12 @@ export interface PublishDeclarationResult {
 
 export interface PublishDeclarationParams {
   topicId: string;
-  declaration: AdapterDeclaration | BuildDeclarationParams;
+  declaration: PackageDeclaration | BuildDeclarationParams;
   transactionMemo?: string;
 }
 
-export interface InscribeAdapterMetadataParams {
-  metadata: AdapterMetadataRecord;
+export interface InscribePackageMetadataParams {
+  metadata: PackageMetadataRecord;
   fileName?: string;
   inscriptionOptions?: InscriptionOptions;
 }
@@ -91,8 +91,8 @@ export class HCS21Client extends HCS21BaseClient {
   }
 
   async inscribeMetadata(
-    params: InscribeAdapterMetadataParams,
-  ): Promise<AdapterMetadataPointer> {
+    params: InscribePackageMetadataParams,
+  ): Promise<PackageMetadataPointer> {
     await this.operatorCtx.ensureInitialized();
 
     const metadataJson = JSON.stringify(params.metadata, null, 2);
@@ -111,7 +111,7 @@ export class HCS21Client extends HCS21BaseClient {
         type: 'buffer',
         buffer,
         fileName:
-          params.fileName || `hcs21-adapter-metadata-${Date.now()}.json`,
+          params.fileName || `hcs21-package-metadata-${Date.now()}.json`,
         mimeType: 'application/json',
       },
       {
@@ -124,7 +124,7 @@ export class HCS21Client extends HCS21BaseClient {
 
     if (!inscription.confirmed || !inscription.inscription) {
       throw new HCS21ValidationError(
-        'Failed to inscribe adapter metadata',
+        'Failed to inscribe package metadata',
         'invalid_payload',
       );
     }
@@ -226,8 +226,8 @@ export class HCS21Client extends HCS21BaseClient {
   }
 
   private normalizeDeclarationInput(
-    declaration: AdapterDeclaration | BuildDeclarationParams,
-  ): AdapterDeclaration {
+    declaration: PackageDeclaration | BuildDeclarationParams,
+  ): PackageDeclaration {
     if ('p' in declaration) {
       return this.validateDeclaration(declaration);
     }

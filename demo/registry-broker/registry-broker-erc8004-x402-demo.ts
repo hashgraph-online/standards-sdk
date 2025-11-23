@@ -28,7 +28,7 @@ interface RegisteredAgent {
   name: string;
 }
 
-const DEFAULT_BROKER_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
+const DEFAULT_BROKER_BASE_URL = 'https://hol.org/registry/api/v1';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

@@ -85,7 +85,7 @@
     "demo:hcs-20:deploy-and-mint": "tsx demo/hcs-20/deploy-and-mint.ts",
     "demo:hcs-20:deploy-points": "tsx demo/hcs-20/deploy-points.ts",
     "demo:hcs-20:mint-transfer-burn": "tsx demo/hcs-20/mint-transfer-burn.ts",
-    "demo:hcs-21": "tsx demo/hcs-21/adapter-declaration-demo.ts",
+    "demo:hcs-21": "tsx demo/hcs-21/package-declaration-demo.ts",
     "demo:hcs-6:browser": "pnpm run build && pnpm --dir demo/hcs-6/browser i && pnpm --dir demo/hcs-6/browser dev",
     "demo:hcs-5": "tsx demo/hcs-5/mint-hashinal.ts",
     "demo:registry-broker": "tsx demo/registry-broker/registry-broker-demo.ts",

@@ -4,13 +4,15 @@ import { HCS21ValidationError } from '../src/hcs-21/errors';
 describe('HCS-21 Base Client', () => {
   const baseClient = new HCS21BaseClient({ network: 'testnet' });
 
-  it('builds a declaration with registry and package coordinates', () => {
+  it('builds a declaration with registry and package topic metadata', () => {
     const declaration = baseClient.buildDeclaration({
       op: 'register',
       registry: 'npm',
-      pkg: '@hashgraphonline/standards-sdk@1.0.0',
+      t_id: '0.0.123456',
       name: 'Standards SDK',
-      kind: 'web2',
+      description: 'SDK for Hedera standards',
+      author: 'Kantorcodes',
+      tags: ['sdk', 'demo'],
       metadata: 'hcs://1/0.0.12345/1',
     });
 
@@ -18,9 +20,11 @@ describe('HCS-21 Base Client', () => {
       p: 'hcs-21',
       op: 'register',
       registry: 'npm',
-      pkg: '@hashgraphonline/standards-sdk@1.0.0',
-      name: 'Standards SDK',
-      kind: 'web2',
+      t_id: '0.0.123456',
+      n: 'Standards SDK',
+      d: 'SDK for Hedera standards',
+      a: 'Kantorcodes',
+      tags: ['sdk', 'demo'],
       metadata: 'hcs://1/0.0.12345/1',
     });
   });
@@ -30,9 +34,10 @@ describe('HCS-21 Base Client', () => {
       baseClient.buildDeclaration({
         op: 'register',
         registry: 'npm',
-        pkg: 'a'.repeat(2000),
-        name: 'Big Adapter',
-        kind: 'web2',
+        t_id: '0.0.123456',
+        name: 'Big Package',
+        description: 'x'.repeat(2000),
+        author: 'Example',
       }),
     ).toThrow(HCS21ValidationError);
   });
@@ -42,9 +47,10 @@ describe('HCS-21 Base Client', () => {
       baseClient.buildDeclaration({
         op: 'register',
         registry: 'npm',
-        pkg: '@hashgraphonline/standards-sdk@1.0.0',
+        t_id: '0.0.123456',
         name: 'Broken Metadata',
-        kind: 'web3',
+        description: 'Desc',
+        author: 'Example',
         metadata: 'not-a-hrl',
       }),
     ).toThrow(HCS21ValidationError);

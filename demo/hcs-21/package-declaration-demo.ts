@@ -1,5 +1,11 @@
 import 'dotenv/config';
-import { HCS21Client, Logger, NetworkType } from '../../src';
+import { Client, TopicCreateTransaction } from '@hashgraph/sdk';
+import {
+  HCS21Client,
+  Logger,
+  NetworkType,
+  PackageMetadataRecord,
+} from '../../src';
 import { sleep } from '../../src/utils/sleep';
 
 const logger = new Logger({ module: 'hcs-21-demo', level: 'info' });
@@ -40,24 +46,59 @@ async function main(): Promise<void> {
     logLevel: 'info',
   });
 
+  const hederaClient =
+    network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+  hederaClient.setOperator(operatorId, operatorKey);
+
+  let packageTopicId = process.env.HCS21_PACKAGE_TOPIC_ID;
+
+  if (!packageTopicId) {
+    logger.info('Creating HCS-2 package topic');
+    const packageTopicTx = await new TopicCreateTransaction()
+      .setTopicMemo('hcs-2:0:3600:0')
+      .execute(hederaClient);
+    const packageTopicReceipt = await packageTopicTx.getReceipt(hederaClient);
+    if (!packageTopicReceipt.topicId) {
+      throw new Error('Failed to create package topic');
+    }
+    packageTopicId = packageTopicReceipt.topicId.toString();
+    logger.info('Package topic ready', { packageTopicId });
+  }
+
   let metadataPointer = process.env.HCS21_METADATA_POINTER;
+
+  const packageName = 'Standards SDK Package';
+  const packageDescription =
+    'Demo package declaration showcasing HCS-21 register + update operations.';
+  const packageAuthor = 'Kantorcodes';
+  const packageTags = ['demo', 'registry', 'hcs-21'];
 
   if (metadataPointer) {
     logger.info('Using metadata pointer from environment', {
       pointer: metadataPointer,
     });
   } else {
-    logger.info('Inscribing adapter metadata via HCS-1');
-    const metadataRecord = {
-      name: 'Standards SDK Adapter',
-      pkg: '@hashgraphonline/standards-sdk@latest',
-      registry: 'npm',
-      kind: 'web2' as const,
-      description:
-        'Demo adapter declaration showcasing HCS-21 register + update operations.',
+    logger.info('Inscribing package metadata via HCS-1');
+    const metadataRecord: PackageMetadataRecord = {
+      schema: 'hcs-21/metadata@1.0',
+      description: packageDescription,
       website: 'https://hashgraph.online',
+      docs: 'https://hashgraph.online/docs/libraries/standards-sdk/',
       source: 'https://github.com/hashgraph-online/standards-sdk',
-      tags: ['demo', 'registry-broker', 'hcs-21'],
+      support: 'https://discord.gg/hashgraphonline',
+      maintainers: [packageAuthor],
+      tags: packageTags,
+      dependencies: {
+        '@hashgraph/sdk': '^2.77.0',
+      },
+      t_id: packageTopicId,
+      artifacts: [
+        {
+          type: 'bundle',
+          url: 'https://registry.npmjs.org/@hashgraphonline/standards-sdk/-/standards-sdk-latest.tgz',
+          digest: 'sha256-demo',
+        },
+      ],
     };
     const metadataResult = await client.inscribeMetadata({
       metadata: metadataRecord,
@@ -74,15 +115,17 @@ async function main(): Promise<void> {
   const topicId = await client.createRegistryTopic({ ttl: 120 });
   logger.info('Registry topic ready', { topicId });
 
-  logger.info('Publishing adapter declaration');
+  logger.info('Publishing package declaration');
   const result = await client.publishDeclaration({
     topicId,
     declaration: {
       op: 'register',
       registry: 'npm',
-      pkg: '@hashgraphonline/standards-sdk@latest',
-      name: 'Standards SDK Adapter',
-      kind: 'web2',
+      t_id: packageTopicId,
+      name: packageName,
+      description: packageDescription,
+      author: packageAuthor,
+      tags: packageTags,
       metadata: metadataPointer,
     },
   });

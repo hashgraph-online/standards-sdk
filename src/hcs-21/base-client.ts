@@ -3,22 +3,23 @@ import { ILogger, Logger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HCS21ValidationError } from './errors';
 import {
-  AdapterDeclaration,
-  AdapterDeclarationEnvelope,
-  AdapterOperation,
-  AdapterPackageRegistry,
-  AdapterPlatformKind,
   HCS21_MAX_MESSAGE_BYTES,
+  HCS21Operation,
   HCS21_PROTOCOL,
-  adapterDeclarationSchema,
+  PackageDeclaration,
+  PackageDeclarationEnvelope,
+  PackageRegistryNamespace,
+  packageDeclarationSchema,
 } from './types';
 
 export interface BuildDeclarationParams {
-  op: AdapterOperation;
-  registry: AdapterPackageRegistry;
-  pkg: string;
+  op: HCS21Operation;
+  registry: PackageRegistryNamespace;
+  t_id: string;
   name: string;
-  kind: AdapterPlatformKind;
+  description: string;
+  author: string;
+  tags?: string[];
   metadata?: string;
 }
 
@@ -45,31 +46,33 @@ export class HCS21BaseClient {
     });
   }
 
-  buildDeclaration(params: BuildDeclarationParams): AdapterDeclaration {
-    const declaration: AdapterDeclaration = {
+  buildDeclaration(params: BuildDeclarationParams): PackageDeclaration {
+    const declaration: PackageDeclaration = {
       p: HCS21_PROTOCOL,
       op: params.op,
       registry: params.registry,
-      pkg: params.pkg,
-      name: params.name,
-      kind: params.kind,
+      t_id: params.t_id,
+      n: params.name,
+      d: params.description,
+      a: params.author,
+      tags: params.tags,
       metadata: params.metadata,
     };
 
     return this.validateDeclaration(declaration);
   }
 
-  validateDeclaration(input: unknown): AdapterDeclaration {
+  validateDeclaration(input: unknown): PackageDeclaration {
     try {
       const payload = typeof input === 'string' ? JSON.parse(input) : input;
-      const parsed = adapterDeclarationSchema.parse(
+      const parsed = packageDeclarationSchema.parse(
         payload,
-      ) as AdapterDeclaration;
+      ) as PackageDeclaration;
       this.assertSizeLimit(parsed);
       return parsed;
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Invalid adapter declaration';
+        error instanceof Error ? error.message : 'Invalid package declaration';
       throw new HCS21ValidationError(message, 'invalid_payload');
     }
   }
@@ -77,13 +80,13 @@ export class HCS21BaseClient {
   async fetchDeclarations(
     topicId: string,
     options?: FetchDeclarationsOptions,
-  ): Promise<AdapterDeclarationEnvelope[]> {
+  ): Promise<PackageDeclarationEnvelope[]> {
     const rawMessages = await this.mirrorNode.getTopicMessages(topicId, {
       limit: options?.limit,
       order: options?.order,
     });
 
-    const envelopes: AdapterDeclarationEnvelope[] = [];
+    const envelopes: PackageDeclarationEnvelope[] = [];
 
     for (const message of rawMessages) {
       if (message.p !== HCS21_PROTOCOL) {
@@ -107,7 +110,7 @@ export class HCS21BaseClient {
     return envelopes;
   }
 
-  protected assertSizeLimit(payload: AdapterDeclaration): void {
+  protected assertSizeLimit(payload: PackageDeclaration): void {
     const json = JSON.stringify(payload);
     const bytes = Buffer.byteLength(json, 'utf8');
     if (bytes > HCS21_MAX_MESSAGE_BYTES) {

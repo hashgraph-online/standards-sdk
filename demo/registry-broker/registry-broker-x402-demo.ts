@@ -538,7 +538,7 @@ const runServerOnly = async (facilitator: LocalX402FacilitatorHandle) => {
 const runDemo = async () => {
   const brokerBaseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-    'https://registry.hashgraphonline.com/api/v1';
+    'https://hol.org/registry/api/v1';
   const prompt =
     process.env.CREDITS_PROMPT?.trim() ||
     'latest Hedera ecosystem funding signals';

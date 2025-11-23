@@ -3,7 +3,7 @@ import { RegistryBrokerClient } from '../../src/services/registry-broker/client'
 import { resolveEvmLedgerAuthConfig } from '../utils/ledger-config';
 
 const DEFAULT_CREDIT_UNIT_USD = Number(process.env.CREDIT_UNIT_USD || '0.01');
-const DEFAULT_BROKER_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
+const DEFAULT_BROKER_BASE_URL = 'https://hol.org/registry/api/v1';
 
 const resolveNetwork = (override?: string) => {
   const network = (

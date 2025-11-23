@@ -3,7 +3,7 @@ import { RegistryBrokerClient } from '../../src/services/registry-broker';
 
 const baseUrl =
   process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-  'https://registry.hashgraphonline.com/api/v1';
+  'https://hol.org/registry/api/v1';
 
 const run = async (): Promise<void> => {
   const registryApiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();

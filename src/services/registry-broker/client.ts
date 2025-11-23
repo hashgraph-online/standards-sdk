@@ -195,7 +195,7 @@ const normaliseHeaderName = (name: string): string => name.trim().toLowerCase();
 const isBrowserRuntime = (): boolean =>
   typeof window !== 'undefined' && typeof window.fetch === 'function';
 
-const DEFAULT_BASE_URL = 'https://registry.hashgraphonline.com/api/v1';
+const DEFAULT_BASE_URL = 'https://hol.org/registry/api/v1';
 const JSON_CONTENT_TYPE = /application\/json/i;
 const DEFAULT_HISTORY_TOP_UP_HBAR = 0.25;
 const MINIMUM_REGISTRATION_AUTO_TOP_UP_CREDITS = 1;

@@ -3,37 +3,63 @@ import { z } from 'zod';
 export const HCS21_PROTOCOL = 'hcs-21';
 export const HCS21_MAX_MESSAGE_BYTES = 1024;
 
-export type AdapterPackageRegistry = 'npm' | 'pypi';
-export type AdapterPlatformKind = 'web2' | 'web3';
-export type AdapterOperation = 'register' | 'update';
+export const HCS21_REGISTRY_NAMESPACES = [
+  'npm',
+  'pypi',
+  'oci',
+  'composer',
+  'packagist',
+  'cargo',
+  'nuget',
+  'maven',
+  'rubygems',
+  'helm',
+  'go',
+] as const;
+
+export type PackageRegistryNamespace =
+  (typeof HCS21_REGISTRY_NAMESPACES)[number];
+export type HCS21Operation = 'register' | 'update';
 
 export const HCS21MetadataPointerPattern = /^hcs:\/\/1\/0\.0\.\d+\/\d+$/;
 
-export interface AdapterDeclaration {
+export interface PackageDeclaration {
   p: typeof HCS21_PROTOCOL;
-  op: AdapterOperation;
-  registry: AdapterPackageRegistry;
-  pkg: string;
-  name: string;
-  kind: AdapterPlatformKind;
+  op: HCS21Operation;
+  registry: PackageRegistryNamespace;
+  t_id: string;
+  n: string;
+  d: string;
+  a: string;
+  tags?: string[];
   metadata?: string;
 }
 
-export interface AdapterMetadataRecord {
-  name: string;
-  pkg: string;
-  registry: AdapterPackageRegistry;
-  kind: AdapterPlatformKind;
-  description?: string;
-  website?: string;
-  source?: string;
-  contact?: string;
-  capabilities?: string[];
-  tags?: string[];
+export interface PackageArtifact {
+  type: string;
+  url: string;
+  digest?: string;
+  signature?: string;
   [key: string]: unknown;
 }
 
-export interface AdapterMetadataPointer {
+export interface PackageMetadataRecord {
+  schema: string;
+  t_id?: string;
+  description?: string;
+  maintainers?: string[];
+  website?: string;
+  docs?: string;
+  source?: string;
+  support?: string;
+  tags?: string[];
+  artifacts?: PackageArtifact[];
+  capabilities?: string[];
+  dependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface PackageMetadataPointer {
   pointer: string;
   topicId: string;
   sequenceNumber: number;
@@ -41,8 +67,8 @@ export interface AdapterMetadataPointer {
   transactionId?: string;
 }
 
-export interface AdapterDeclarationEnvelope {
-  declaration: AdapterDeclaration;
+export interface PackageDeclarationEnvelope {
+  declaration: PackageDeclaration;
   consensusTimestamp?: string;
   sequenceNumber: number;
   payer?: string;
@@ -52,13 +78,15 @@ export enum HCS21TopicType {
   REGISTRY = 0,
 }
 
-export const adapterDeclarationSchema = z.object({
+export const packageDeclarationSchema = z.object({
   p: z.literal(HCS21_PROTOCOL),
   op: z.enum(['register', 'update']),
-  registry: z.enum(['npm', 'pypi']),
-  pkg: z.string().min(1),
-  name: z.string().min(1),
-  kind: z.enum(['web2', 'web3']),
+  registry: z.enum(HCS21_REGISTRY_NAMESPACES),
+  t_id: z.string().min(1),
+  n: z.string().min(1),
+  d: z.string().min(1),
+  a: z.string().min(1),
+  tags: z.array(z.string().min(1)).max(16).optional(),
   metadata: z
     .string()
     .regex(
@@ -68,6 +96,6 @@ export const adapterDeclarationSchema = z.object({
     .optional(),
 });
 
-export type AdapterDeclarationValidation = z.infer<
-  typeof adapterDeclarationSchema
+export type PackageDeclarationValidation = z.infer<
+  typeof packageDeclarationSchema
 >;
