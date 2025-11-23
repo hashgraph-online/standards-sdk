@@ -26,7 +26,9 @@ export const resolveNetwork = (baseUrl: string): SupportedNetwork => {
     const host = new URL(baseUrl).hostname.toLowerCase();
     if (
       host === 'registry.hashgraphonline.com' ||
-      host.endsWith('.registry.hashgraphonline.com')
+      host.endsWith('.registry.hashgraphonline.com') ||
+      host === 'hol.org' ||
+      host.endsWith('.hol.org')
     ) {
       return 'mainnet';
     }
