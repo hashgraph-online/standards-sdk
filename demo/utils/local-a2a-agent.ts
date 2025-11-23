@@ -558,7 +558,9 @@ export const startLocalA2AAgent = async (
     } else {
       const message = `  ⚠️  Preconfigured public URL ${publicUrl} was unreachable after ${CLOUD_FLARE_HEALTH_TIMEOUT_MS}ms.`;
       if (requirePreconfiguredTunnel) {
-        throw new Error(`${message} Set REGISTRY_BROKER_DEMO_REQUIRE_PUBLIC_URL=0 to suppress.`);
+        throw new Error(
+          `${message} Set REGISTRY_BROKER_DEMO_REQUIRE_PUBLIC_URL=0 to suppress.`,
+        );
       }
       console.warn(`${message} Continuing with provided URL.`);
     }
