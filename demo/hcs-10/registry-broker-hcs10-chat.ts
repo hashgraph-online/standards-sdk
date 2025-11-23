@@ -558,13 +558,13 @@ const run = async (): Promise<void> => {
       `Ensuring UAID is available in the ${registryFromUaid} registry...`,
     );
     try {
-  try {
-    await waitForAgentAvailability(userClient, registryUaid, 120_000);
-  } catch (error) {
-    logger.warn(
-      `UAID ${registryUaid} did not become available: ${describeError(error)}`,
-    );
-  }
+      try {
+        await waitForAgentAvailability(userClient, registryUaid, 120_000);
+      } catch (error) {
+        logger.warn(
+          `UAID ${registryUaid} did not become available: ${describeError(error)}`,
+        );
+      }
     } catch (error) {
       throw new Error(
         `UAID ${registryUaid} did not become available: ${describeError(error)}`,
