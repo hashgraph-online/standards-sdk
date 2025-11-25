@@ -1788,6 +1788,7 @@ export class RegistryBrokerClient {
         session.sessionId,
         session.encryption ?? null,
         options.auth,
+        { agentUrl: options.agentUrl, uaid: options.uaid },
       );
     }
     throw new Error('startChat requires either uaid or agentUrl');
@@ -1811,6 +1812,7 @@ export class RegistryBrokerClient {
         session.sessionId,
         session.encryption ?? null,
         options.auth,
+        { uaid: options.uaid },
       );
     }
     try {
@@ -1835,6 +1837,7 @@ export class RegistryBrokerClient {
           error.sessionId,
           error.summary ?? null,
           options.auth,
+          { uaid: options.uaid },
         );
       }
       throw error;
@@ -1861,7 +1864,12 @@ export class RegistryBrokerClient {
         error instanceof EncryptionUnavailableError &&
         preference !== 'required'
       ) {
-        return this.createPlaintextConversationHandle(options.sessionId, null);
+        return this.createPlaintextConversationHandle(
+          options.sessionId,
+          null,
+          undefined,
+          { uaid: options.responderUaid },
+        );
       }
       throw error;
     }
@@ -2046,7 +2054,10 @@ export class RegistryBrokerClient {
     sessionId: string,
     summary: SessionEncryptionSummary | null,
     defaultAuth?: AgentAuthConfig,
+    context?: { uaid?: string; agentUrl?: string },
   ): ChatConversationHandle {
+    const uaid = context?.uaid?.trim();
+    const agentUrl = context?.agentUrl?.trim();
     return {
       sessionId,
       mode: 'plaintext',
@@ -2062,6 +2073,8 @@ export class RegistryBrokerClient {
           message,
           streaming: options.streaming,
           auth: options.auth ?? defaultAuth,
+          uaid,
+          agentUrl,
         });
       },
       decryptHistoryEntry: entry => entry.content,
@@ -2787,6 +2800,10 @@ class EncryptedChatManager {
     context: EncryptedSessionContext,
   ): EncryptedChatSessionHandle {
     const sharedSecret = context.sharedSecret;
+    const uaid =
+      context.summary.requester?.uaid ??
+      context.summary.responder?.uaid ??
+      context.identity?.uaid;
     const handle: EncryptedChatSessionHandle = {
       sessionId: context.sessionId,
       mode: 'encrypted',
@@ -2798,6 +2815,7 @@ class EncryptedChatManager {
           message: options.message ?? '[ciphertext omitted]',
           streaming: options.streaming,
           auth: options.auth,
+          uaid,
           encryption: {
             plaintext: options.plaintext,
             sharedSecret: Buffer.from(sharedSecret),

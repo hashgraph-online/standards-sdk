@@ -117,23 +117,42 @@ const chatHistoryEntrySchema = z.object({
   metadata: z.record(jsonValueSchema).optional(),
 });
 
-const searchHitSchema = z.object({
-  id: z.string(),
-  uaid: z.string(),
-  registry: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  capabilities: z.array(capabilityValueSchema),
-  endpoints: z
-    .union([z.record(jsonValueSchema), z.array(z.string())])
-    .optional(),
-  metadata: z.record(jsonValueSchema).optional(),
-  profile: agentProfileSchema.optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-  lastSeen: z.string().optional(),
-  lastIndexed: z.string().optional(),
-});
+const metadataFacetSchema = z.record(z.array(jsonValueSchema)).optional();
+
+const searchHitSchema = z
+  .object({
+    id: z.string(),
+    uaid: z.string(),
+    registry: z.string(),
+    name: z.string(),
+    description: z.string().optional(),
+    capabilities: z.array(capabilityValueSchema),
+    endpoints: z
+      .union([z.record(jsonValueSchema), z.array(z.string())])
+      .optional(),
+    metadata: z.record(jsonValueSchema).optional(),
+    metadataFacet: metadataFacetSchema,
+    profile: agentProfileSchema.optional(),
+    protocols: z.array(z.string()).optional(),
+    adapter: z.string().optional(),
+    originalId: z.string().optional(),
+    communicationSupported: z.boolean().optional(),
+    routingSupported: z.boolean().optional(),
+    available: z.boolean().optional(),
+    availabilityStatus: z.string().optional(),
+    availabilityCheckedAt: z.string().optional(),
+    availabilitySource: z.string().optional(),
+    availabilityLatencyMs: z.number().optional(),
+    availabilityScore: z.number().optional(),
+    capabilityLabels: z.array(z.string()).optional(),
+    capabilityTokens: z.array(z.string()).optional(),
+    image: z.string().optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+    lastSeen: z.string().optional(),
+    lastIndexed: z.string().optional(),
+  })
+  .passthrough();
 
 export const searchResponseSchema = z.object({
   hits: z.array(searchHitSchema),
@@ -275,12 +294,15 @@ export const registrySearchByNamespaceSchema = z.object({
   limit: z.number().optional(),
 });
 
+const capabilityFilterValueSchema = z.union([z.string(), z.number()]);
+
 const vectorSearchFilterSchema = z
   .object({
-    capabilities: z.array(z.string()).optional(),
-    type: z.string().optional(),
+    capabilities: z.array(capabilityFilterValueSchema).optional(),
+    type: z.enum(['ai-agents', 'mcp-servers']).optional(),
     registry: z.string().optional(),
     protocols: z.array(z.string()).optional(),
+    adapter: z.array(z.string()).optional(),
   })
   .strict();
 
@@ -303,6 +325,9 @@ export const vectorSearchResponseSchema = z.object({
   hits: z.array(vectorSearchHitSchema),
   total: z.number(),
   took: z.number(),
+  totalAvailable: z.number().optional(),
+  visible: z.number().optional(),
+  limited: z.boolean().optional(),
   credits_used: z.number().optional(),
 });
 
