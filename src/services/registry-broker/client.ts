@@ -80,6 +80,7 @@ import {
   LedgerAuthenticationSignerResult,
   StartEncryptedChatSessionOptions,
   AcceptEncryptedChatSessionOptions,
+  SearchStatusResponse,
 } from './types';
 import * as path from 'node:path';
 import { Buffer } from 'node:buffer';
@@ -121,6 +122,7 @@ import {
   registrySearchByNamespaceSchema,
   searchFacetsResponseSchema,
   vectorSearchResponseSchema,
+  searchStatusResponseSchema,
   resolveResponseSchema,
   searchResponseSchema,
   sendMessageResponseSchema,
@@ -1600,15 +1602,36 @@ export class RegistryBrokerClient {
   async vectorSearch(
     request: VectorSearchRequest,
   ): Promise<VectorSearchResponse> {
-    const raw = await this.requestJson<JsonValue>('/search', {
-      method: 'POST',
-      body: request,
-      headers: { 'content-type': 'application/json' },
+    try {
+      const raw = await this.requestJson<JsonValue>('/search', {
+        method: 'POST',
+        body: request,
+        headers: { 'content-type': 'application/json' },
+      });
+      return this.parseWithSchema(
+        raw,
+        vectorSearchResponseSchema,
+        'vector search response',
+      );
+    } catch (error) {
+      if (error instanceof RegistryBrokerError && error.status === 501) {
+        const fallback = await this.search(
+          this.buildVectorFallbackSearchParams(request),
+        );
+        return this.convertSearchResultToVectorResponse(fallback);
+      }
+      throw error;
+    }
+  }
+
+  async searchStatus(): Promise<SearchStatusResponse> {
+    const raw = await this.requestJson<JsonValue>('/search/status', {
+      method: 'GET',
     });
     return this.parseWithSchema(
       raw,
-      vectorSearchResponseSchema,
-      'vector search response',
+      searchStatusResponseSchema,
+      'search status response',
     );
   }
 
@@ -2308,6 +2331,71 @@ export class RegistryBrokerClient {
   private buildUrl(path: string): string {
     const normalisedPath = path.startsWith('/') ? path : `/${path}`;
     return `${this.baseUrl}${normalisedPath}`;
+  }
+
+  private buildVectorFallbackSearchParams(
+    request: VectorSearchRequest,
+  ): SearchParams {
+    const params: SearchParams = {
+      q: request.query,
+    };
+    let effectiveLimit: number | undefined;
+    if (typeof request.limit === 'number' && Number.isFinite(request.limit)) {
+      effectiveLimit = request.limit;
+      params.limit = request.limit;
+    }
+    if (
+      typeof request.offset === 'number' &&
+      Number.isFinite(request.offset) &&
+      request.offset > 0
+    ) {
+      const limit = effectiveLimit && effectiveLimit > 0 ? effectiveLimit : 20;
+      params.limit = limit;
+      params.page = Math.floor(request.offset / limit) + 1;
+    }
+    if (request.filter?.registry) {
+      params.registry = request.filter.registry;
+    }
+    if (request.filter?.protocols?.length) {
+      params.protocols = [...request.filter.protocols];
+    }
+    if (request.filter?.adapter?.length) {
+      params.adapters = [...request.filter.adapter];
+    }
+    if (request.filter?.capabilities?.length) {
+      params.capabilities = request.filter.capabilities.map(value =>
+        typeof value === 'number' ? value.toString(10) : value,
+      );
+    }
+    if (request.filter?.type) {
+      params.type = request.filter.type;
+    }
+    return params;
+  }
+
+  private convertSearchResultToVectorResponse(
+    result: SearchResult,
+  ): VectorSearchResponse {
+    const hits = result.hits.map(agent => ({
+      agent,
+      score: 0,
+      highlights: {},
+    }));
+    const total = result.total;
+    const limit = result.limit;
+    const page = result.page;
+    const totalVisible = page * limit;
+    const limited = total > totalVisible || page > 1;
+
+    return {
+      hits,
+      total,
+      took: 0,
+      totalAvailable: total,
+      visible: hits.length,
+      limited,
+      credits_used: 0,
+    };
   }
 
   private request = async (

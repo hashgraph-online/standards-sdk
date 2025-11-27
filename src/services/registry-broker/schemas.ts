@@ -331,6 +331,26 @@ export const vectorSearchResponseSchema = z.object({
   credits_used: z.number().optional(),
 });
 
+const vectorStatusSchema = z.object({
+  enabled: z.boolean(),
+  healthy: z.boolean(),
+  mode: z.enum(['disabled', 'initializing', 'healthy', 'degraded', 'error']),
+  lastUpdated: z.string(),
+  details: z.record(z.any()).optional(),
+  lastError: z
+    .object({
+      message: z.string(),
+      stack: z.string().optional(),
+      timestamp: z.string().optional(),
+    })
+    .optional(),
+});
+
+export const searchStatusResponseSchema = z.object({
+  storageMode: z.string(),
+  vectorStatus: vectorStatusSchema,
+});
+
 export const websocketStatsResponseSchema = z.object({
   clients: z.number(),
   stats: z
