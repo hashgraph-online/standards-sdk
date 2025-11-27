@@ -3,10 +3,12 @@ import { once } from 'node:events';
 import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createServer } from 'node:net';
 
 export interface CloudflareTunnelHandle {
   url: string;
   pid?: number;
+  metricsPort?: number;
   close: () => Promise<void>;
 }
 
@@ -42,9 +44,34 @@ export const detectCloudflared = async (): Promise<boolean> => {
   });
 };
 
+const allocateLocalPort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (address && typeof address === 'object') {
+        const allocatedPort = address.port;
+        server.close(err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(allocatedPort);
+          }
+        });
+      } else {
+        server.close(() =>
+          reject(new Error('Unable to determine allocated metrics port')),
+        );
+      }
+    });
+  });
+
 const spawnCloudflareTunnel = (
   port: number,
   attempt: number,
+  metricsPort?: number,
 ): Promise<CloudflareTunnelHandle> => {
   const defaultConfigPath = path.join(
     os.tmpdir(),
@@ -75,6 +102,10 @@ const spawnCloudflareTunnel = (
       '--no-autoupdate',
     ];
 
+    if (metricsPort) {
+      args.push('--metrics', `127.0.0.1:${metricsPort}`);
+    }
+
     if (process.env.REGISTRY_BROKER_DEMO_DEBUG_TUNNEL === '1') {
       console.log(
         `  🛠️  Spawning cloudflared (attempt ${attempt}) with args: ${args.join(' ')}`,
@@ -100,6 +131,7 @@ const spawnCloudflareTunnel = (
       resolve({
         url,
         pid: child.pid ?? undefined,
+        metricsPort,
         close: async () => {
           if (child.exitCode !== null || child.signalCode) {
             return;
@@ -183,7 +215,18 @@ export const startCloudflareTunnel = async (
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await spawnCloudflareTunnel(port, attempt);
+      let metricsPort: number | undefined;
+      try {
+        metricsPort = await allocateLocalPort();
+      } catch (error) {
+        console.warn(
+          `Failed to allocate metrics port for cloudflared: ${
+            error instanceof Error ? error.message : String(error)
+          }. Falling back to default health checks.`,
+        );
+        metricsPort = undefined;
+      }
+      return await spawnCloudflareTunnel(port, attempt, metricsPort);
     } catch (error) {
       lastError = error;
       if (attempt < maxAttempts) {

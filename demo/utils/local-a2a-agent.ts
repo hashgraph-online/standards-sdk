@@ -265,6 +265,102 @@ const verifyTunnelHealth = async (
   }
 };
 
+const waitForCloudflareMetricsReady = async (
+  metricsPort: number,
+  timeoutMs: number,
+  intervalMs: number,
+  debug = false,
+): Promise<boolean> => {
+  const endpoint = `http://127.0.0.1:${metricsPort}/ready`;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(endpoint);
+      if (response.ok) {
+        if (debug) {
+          console.log(`  ✅ Cloudflare metrics ready on ${endpoint}`);
+        }
+        return true;
+      }
+      if (debug) {
+        console.log(
+          `  ⏳ Cloudflare metrics endpoint returned ${response.status}`,
+        );
+      }
+    } catch (error) {
+      if (debug) {
+        console.log(
+          `  ⛔️ Cloudflare metrics readiness error: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return false;
+};
+
+const waitForDnsPropagation = async (
+  hostname: string | null,
+  timeoutMs: number,
+  intervalMs: number,
+  debug = false,
+): Promise<boolean> => {
+  if (!hostname) {
+    return true;
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const dnsUrl = new URL('https://cloudflare-dns.com/dns-query');
+      dnsUrl.searchParams.set('name', hostname);
+      dnsUrl.searchParams.set('type', 'A');
+      const response = await fetch(dnsUrl, {
+        headers: { accept: 'application/dns-json' },
+      });
+      if (response.ok) {
+        const body = (await response.json()) as {
+          Status?: number;
+          Answer?: unknown[];
+        };
+        if (
+          body.Status === 0 &&
+          Array.isArray(body.Answer) &&
+          body.Answer.length > 0
+        ) {
+          if (debug) {
+            console.log(`  ✅ DNS propagated for ${hostname}`);
+          }
+          return true;
+        }
+        if (debug) {
+          console.log(
+            `  ⏳ DNS query returned status ${body.Status ?? 'unknown'} for ${hostname}`,
+          );
+        }
+      } else if (debug) {
+        console.log(
+          `  ⛔️ DNS HTTP probe failed with ${response.status} for ${hostname}`,
+        );
+      }
+    } catch (error) {
+      if (debug) {
+        console.log(
+          `  ⏳ DNS probe error for ${hostname}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  if (debug) {
+    console.log(`  ⛔️ DNS propagation timed out for ${hostname}`);
+  }
+  return false;
+};
+
 const CACHE_PATH = path.resolve(
   process.cwd(),
   '.cache',
@@ -288,8 +384,8 @@ export const startLocalA2AAgent = async (
 ): Promise<LocalA2AAgentHandle> => {
   const CLOUD_FLARE_HEALTH_TIMEOUT_MS =
     Number(
-      process.env.REGISTRY_BROKER_DEMO_TUNNEL_HEALTH_TIMEOUT_MS ?? '60000',
-    ) || 60000;
+      process.env.REGISTRY_BROKER_DEMO_TUNNEL_HEALTH_TIMEOUT_MS ?? '120000',
+    ) || 120000;
   const CLOUD_FLARE_HEALTH_INTERVAL_MS = 1_000;
   const CLOUD_FLARE_HEALTH_MAX_RETRIES =
     Number(process.env.REGISTRY_BROKER_DEMO_TUNNEL_HEALTH_RETRIES ?? '3') || 3;
@@ -592,8 +688,43 @@ export const startLocalA2AAgent = async (
         url: string,
         handle: TunnelHandle,
       ) => {
+        const hostname = (() => {
+          try {
+            return new URL(url).hostname;
+          } catch {
+            return null;
+          }
+        })();
+        const metricsAvailable =
+          typeof handle.metricsPort === 'number' && handle.metricsPort > 0;
+        if (metricsAvailable) {
+          const metricsReady = await waitForCloudflareMetricsReady(
+            handle.metricsPort!,
+            CLOUD_FLARE_HEALTH_TIMEOUT_MS,
+            CLOUD_FLARE_HEALTH_INTERVAL_MS,
+            debugTunnel,
+          );
+          if (metricsReady) {
+            const dnsReady = await waitForDnsPropagation(
+              hostname,
+              CLOUD_FLARE_HEALTH_TIMEOUT_MS,
+              CLOUD_FLARE_HEALTH_INTERVAL_MS,
+              debugTunnel,
+            );
+            if (dnsReady) {
+              return true;
+            }
+            console.warn(
+              '  ⚠️  DNS propagation has not completed; falling back to public probe...',
+            );
+          } else {
+            console.warn(
+              '  ⚠️  Cloudflare metrics readiness timed out; falling back to public probe...',
+            );
+          }
+        }
+
         const deadline = Date.now() + CLOUD_FLARE_HEALTH_TIMEOUT_MS;
-        let healthy = false;
         let attempts = 0;
         while (Date.now() < deadline) {
           attempts += 1;
@@ -603,27 +734,24 @@ export const startLocalA2AAgent = async (
             demoResolver,
             debugTunnel,
           ).catch(() => false);
-          healthy = status;
           if (debugTunnel) {
             console.log(
               `  🔎 Cloudflare health check ${attempts}: ${status ? 'ok' : 'pending'} (${url})`,
             );
           }
-          if (healthy) {
-            break;
+          if (status) {
+            return true;
           }
           await new Promise(r => setTimeout(r, CLOUD_FLARE_HEALTH_INTERVAL_MS));
         }
-        if (!healthy) {
-          console.log(
-            `  ⚠️  Cloudflare tunnel did not become healthy within ${CLOUD_FLARE_HEALTH_TIMEOUT_MS}ms`,
-          );
-          try {
-            await handle.close();
-          } catch {}
-          return false;
-        }
-        return true;
+
+        console.log(
+          `  ⚠️  Cloudflare tunnel did not become healthy within ${CLOUD_FLARE_HEALTH_TIMEOUT_MS}ms`,
+        );
+        try {
+          await handle.close();
+        } catch {}
+        return false;
       };
 
       if (!publicUrl) {

@@ -43,6 +43,7 @@ import {
   registrationProgressRecordSchema,
   registrationProgressResponseSchema,
   registerEncryptionKeyResponseSchema,
+  searchStatusResponseSchema,
 } from './schemas';
 import { HCS11Profile } from '../../hcs-11/types';
 
@@ -359,6 +360,7 @@ export type VectorSearchFilter = z.infer<
 export type VectorSearchRequest = z.infer<typeof vectorSearchRequestSchema>;
 
 export type VectorSearchResponse = z.infer<typeof vectorSearchResponseSchema>;
+export type SearchStatusResponse = z.infer<typeof searchStatusResponseSchema>;
 
 type CreateSessionBasePayload = {
   auth?: AgentAuthConfig;
