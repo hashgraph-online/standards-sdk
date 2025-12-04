@@ -99,6 +99,8 @@ export class HCS20PointsIndexer {
   async startIndexing(options?: {
     publicTopicId?: string;
     registryTopicId?: string;
+    includePublicTopic?: boolean;
+    includeRegistryTopic?: boolean;
     privateTopics?: string[];
     pollInterval?: number;
   }): Promise<void> {
@@ -108,10 +110,14 @@ export class HCS20PointsIndexer {
     }
 
     this.isProcessing = true;
-    const publicTopicId =
-      options?.publicTopicId || HCS20_CONSTANTS.PUBLIC_TOPIC_ID;
-    const registryTopicId =
-      options?.registryTopicId || HCS20_CONSTANTS.REGISTRY_TOPIC_ID;
+    const includePublicTopic = options?.includePublicTopic !== false;
+    const includeRegistryTopic = options?.includeRegistryTopic !== false;
+    const publicTopicId = includePublicTopic
+      ? options?.publicTopicId || HCS20_CONSTANTS.PUBLIC_TOPIC_ID
+      : null;
+    const registryTopicId = includeRegistryTopic
+      ? options?.registryTopicId || HCS20_CONSTANTS.REGISTRY_TOPIC_ID
+      : null;
     const pollInterval = options?.pollInterval || 30000;
 
     await this.indexTopics(
@@ -145,12 +151,18 @@ export class HCS20PointsIndexer {
   async indexOnce(options?: {
     publicTopicId?: string;
     registryTopicId?: string;
+    includePublicTopic?: boolean;
+    includeRegistryTopic?: boolean;
     privateTopics?: string[];
   }): Promise<void> {
-    const publicTopicId =
-      options?.publicTopicId || HCS20_CONSTANTS.PUBLIC_TOPIC_ID;
-    const registryTopicId =
-      options?.registryTopicId || HCS20_CONSTANTS.REGISTRY_TOPIC_ID;
+    const includePublicTopic = options?.includePublicTopic !== false;
+    const includeRegistryTopic = options?.includeRegistryTopic !== false;
+    const publicTopicId = includePublicTopic
+      ? options?.publicTopicId || HCS20_CONSTANTS.PUBLIC_TOPIC_ID
+      : null;
+    const registryTopicId = includeRegistryTopic
+      ? options?.registryTopicId || HCS20_CONSTANTS.REGISTRY_TOPIC_ID
+      : null;
 
     await this.indexTopics(
       publicTopicId,
@@ -171,13 +183,17 @@ export class HCS20PointsIndexer {
    * Index topics and update state
    */
   private async indexTopics(
-    publicTopicId: string,
-    registryTopicId: string,
+    publicTopicId: string | null,
+    registryTopicId: string | null,
     privateTopics?: string[],
   ): Promise<void> {
     this.logger.debug('Starting indexing cycle');
-    await this.indexTopic(publicTopicId, false);
-    const registeredTopics = await this.getRegisteredTopics(registryTopicId);
+    if (publicTopicId) {
+      await this.indexTopic(publicTopicId, false);
+    }
+    const registeredTopics = registryTopicId
+      ? await this.getRegisteredTopics(registryTopicId)
+      : [];
     const topicsToIndex = [...registeredTopics, ...(privateTopics || [])];
     for (const topicId of topicsToIndex) {
       await this.indexTopic(topicId, true);
