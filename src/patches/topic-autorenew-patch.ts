@@ -2,124 +2,61 @@ type TopicCreateTransactionCtor =
   (typeof import('@hashgraph/sdk'))['TopicCreateTransaction'];
 type AccountIdCtor = (typeof import('@hashgraph/sdk'))['AccountId'];
 type AccountIdInstance = InstanceType<AccountIdCtor>;
-type NodeRequire = (moduleId: string) => unknown;
-type ModuleConstructor = {
-  createRequire?: (url: string | URL | undefined) => NodeRequire;
-};
-
-declare const module: ModuleConstructor | undefined;
-declare const require: NodeRequire | undefined;
+import { optionalImportSync } from '../utils/dynamic-import';
 
 const accountIdPattern = /^\d+\.\d+\.\d+$/u;
 const prototypeMarker = Symbol.for('standards-sdk.topic-auto-renew.patch');
 const accountMarker = Symbol.for('standards-sdk.account-id.patch');
 
-const nodeRequire = getNodeRequire();
-
-if (nodeRequire) {
-  bootstrap(nodeRequire);
-} else {
-  Reflect.set(globalThis, '__standardsSdkTopicAutoRenewPatched', false);
-}
-
-function bootstrap(requireFn: NodeRequire): void {
-  const accountModule = safeRequire<{ default: AccountIdCtor }>(
-    requireFn,
-    '@hashgraph/sdk/lib/account/AccountId.cjs',
-  );
-  const topicModule = safeRequire<{ default: TopicCreateTransactionCtor }>(
-    requireFn,
-    '@hashgraph/sdk/lib/topic/TopicCreateTransaction.cjs',
-  );
-  const sdkModule = safeRequire<{
+const accountModule = optionalImportSync<{ default: AccountIdCtor }>(
+  '@hashgraph/sdk/lib/account/AccountId.cjs',
+);
+const topicModule = optionalImportSync<{ default: TopicCreateTransactionCtor }>(
+  '@hashgraph/sdk/lib/topic/TopicCreateTransaction.cjs',
+);
+const sdkModule = optionalImportSync<{
+  AccountId?: AccountIdCtor;
+  TopicCreateTransaction?: TopicCreateTransactionCtor;
+  default?: {
     AccountId?: AccountIdCtor;
     TopicCreateTransaction?: TopicCreateTransactionCtor;
-    default?: {
-      AccountId?: AccountIdCtor;
-      TopicCreateTransaction?: TopicCreateTransactionCtor;
-    };
-  }>(requireFn, '@hashgraph/sdk');
+  };
+}>('@hashgraph/sdk');
 
-  const candidates: Array<{
-    accountId?: AccountIdCtor;
-    topic?: TopicCreateTransactionCtor;
-  }> = [];
+const candidates: Array<{
+  accountId?: AccountIdCtor;
+  topic?: TopicCreateTransactionCtor;
+}> = [];
 
-  if (accountModule?.default && topicModule?.default) {
-    candidates.push({
-      accountId: accountModule.default,
-      topic: topicModule.default,
-    });
-  }
-
-  if (sdkModule) {
-    candidates.push({
-      accountId: sdkModule.AccountId ?? sdkModule.default?.AccountId,
-      topic:
-        sdkModule.TopicCreateTransaction ??
-        sdkModule.default?.TopicCreateTransaction,
-    });
-  }
-
-  for (const candidate of candidates) {
-    patchTopicModule(candidate.topic, candidate.accountId);
-  }
-
-  Reflect.set(globalThis, '__standardsSdkTopicAutoRenewPatched', true);
+if (accountModule?.default && topicModule?.default) {
+  candidates.push({
+    accountId: accountModule.default,
+    topic: topicModule.default,
+  });
 }
 
-function getNodeRequire(): NodeRequire | null {
-  const moduleConstructor = getModuleConstructor();
-
-  if (moduleConstructor?.createRequire) {
-    try {
-      return moduleConstructor.createRequire(import.meta.url);
-    } catch {
-      return null;
-    }
-  }
-
-  if (typeof require === 'function') {
-    return require;
-  }
-
-  return null;
+if (sdkModule) {
+  candidates.push({
+    accountId: sdkModule.AccountId ?? sdkModule.default?.AccountId,
+    topic:
+      sdkModule.TopicCreateTransaction ?? sdkModule.default?.TopicCreateTransaction,
+  });
 }
 
-function getModuleConstructor(): ModuleConstructor | null {
-  try {
-    if (typeof module !== 'undefined' && module?.createRequire) {
-      return module;
-    }
-  } catch {}
+let patched = false;
 
-  try {
-    if (typeof require === 'function') {
-      const requiredModule = require('module') as ModuleConstructor;
-
-      if (requiredModule?.createRequire) {
-        return requiredModule;
-      }
-    }
-  } catch {}
-
-  return null;
+for (const candidate of candidates) {
+  patched = patchTopicModule(candidate.topic, candidate.accountId) || patched;
 }
 
-function safeRequire<T>(requireFn: NodeRequire, moduleId: string): T | null {
-  try {
-    return requireFn(moduleId) as T;
-  } catch {
-    return null;
-  }
-}
+Reflect.set(globalThis, '__standardsSdkTopicAutoRenewPatched', patched);
 
 function patchTopicModule(
   topicCtor?: TopicCreateTransactionCtor,
   accountCtor?: AccountIdCtor,
-): void {
+): boolean {
   if (!topicCtor || !accountCtor) {
-    return;
+    return false;
   }
 
   patchAccountId(accountCtor);
@@ -127,7 +64,7 @@ function patchTopicModule(
   const prototype = topicCtor.prototype;
 
   if (Reflect.get(prototype, prototypeMarker)) {
-    return;
+    return false;
   }
 
   const originalSet = prototype.setAutoRenewAccountId;
@@ -181,6 +118,7 @@ function patchTopicModule(
   };
 
   Reflect.set(prototype, prototypeMarker, true);
+  return true;
 }
 
 function patchAccountId(accountCtor: AccountIdCtor): void {

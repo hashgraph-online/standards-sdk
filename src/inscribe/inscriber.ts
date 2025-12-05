@@ -1,4 +1,4 @@
-import { InscriptionSDK, ValidationError } from '@kiloscribe/inscription-sdk';
+import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 import {
   InscriptionOptions,
   InscriptionResult,
@@ -15,7 +15,6 @@ import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
 import { isBrowser } from '../utils/is-browser';
 import { fileTypeFromBuffer } from 'file-type';
-import { sleep } from '../utils/sleep';
 import {
   getOrCreateSDK,
   getCachedQuote,
@@ -182,12 +181,6 @@ export async function inscribe(
       validateHashinalMetadata(options.metadata, logger);
     }
 
-    const connectionMode =
-      options.connectionMode ??
-      (options.websocket === false ? 'http' : 'auto');
-    const intervalMs = options.waitIntervalMs ?? 4000;
-    const waitForCompletion = !options.waitForConfirmation;
-
     let sdk: InscriptionSDK;
 
     if (existingSDK) {
@@ -198,7 +191,6 @@ export async function inscribe(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
-        connectionMode,
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -208,7 +200,6 @@ export async function inscribe(
         accountId: normalized.accountId,
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
-        connectionMode,
       });
     }
 
@@ -281,85 +272,30 @@ export async function inscribe(
     });
 
     const normalizedCfg = normalizeClientConfig(clientConfig);
-    const result = await sdk.inscribeAndExecute(
-      request,
-      normalizedCfg,
-      undefined,
-      {
-        waitForCompletion,
-        maxWaitTime: 180000,
-        checkInterval: intervalMs,
-      },
-    );
-    const baseTransactionId = result.jobId || result.transactionId;
-    logger.info('Inscription service response', {
-      jobId: result.jobId,
-      transactionId: result.transactionId,
-      holderId: clientConfig.accountId,
-      network: clientConfig.network,
-    });
-    let transactionId = baseTransactionId;
+    const result = await sdk.inscribeAndExecute(request, normalizedCfg);
     logger.info('Starting to inscribe.', {
       type: input.type,
       mode: options.mode || 'file',
-      transactionId,
+      transactionId: result.jobId,
     });
 
     if (options.waitForConfirmation) {
-      const trackingIds = [result.jobId, transactionId].filter(
-        (id): id is string => typeof id === 'string' && id.length > 0,
+      logger.debug('Waiting for inscription confirmation', {
+        transactionId: result.jobId,
+        maxAttempts: options.waitMaxAttempts,
+        intervalMs: options.waitIntervalMs,
+      });
+
+      const inscription = await waitForInscriptionConfirmation(
+        sdk,
+        result.jobId,
+        options.waitMaxAttempts,
+        options.waitIntervalMs,
+        options.progressCallback,
       );
 
-      if (!trackingIds.length) {
-        throw new ValidationError('Transaction ID is required for confirmation');
-      }
-
-      let inscription: RetrievedInscriptionResult | undefined;
-      let lastError: unknown;
-
-      for (const trackingId of trackingIds) {
-        logger.debug('Waiting for inscription confirmation', {
-          transactionId: trackingId,
-          maxAttempts: options.waitMaxAttempts,
-          intervalMs,
-        });
-
-        try {
-          inscription = await waitForInscriptionConfirmation(
-            sdk,
-            trackingId,
-            options.waitMaxAttempts,
-            intervalMs,
-            options.progressCallback,
-          );
-          transactionId = trackingId;
-          break;
-        } catch (error) {
-          lastError = error;
-          const status =
-            (error as { response?: { status?: number } }).response?.status;
-
-          logger.warn('Inscription confirmation attempt failed', {
-            trackingId,
-            status,
-            error,
-          });
-
-          const notFound = typeof status === 'number' && status === 404;
-          if (!notFound) {
-            throw error;
-          }
-        }
-      }
-
-      if (!inscription) {
-        throw lastError instanceof Error
-          ? lastError
-          : new Error('Failed to confirm inscription');
-      }
-
       logger.info('Inscription confirmation received', {
-        transactionId,
+        transactionId: result.jobId,
       });
 
       return {
@@ -420,10 +356,6 @@ export async function inscribeWithSigner(
     const accountId = signer.getAccountId().toString();
     logger.debug('Using account ID from signer', { accountId });
 
-    const connectionMode =
-      options.connectionMode ??
-      (options.websocket === false ? 'http' : 'auto');
-
     let sdk: InscriptionSDK;
 
     if (existingSDK) {
@@ -434,18 +366,16 @@ export async function inscribeWithSigner(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
-        connectionMode,
+        connectionMode: 'websocket',
       });
     } else {
-      logger.debug(
-        'Initializing InscriptionSDK with client auth (wallet signer)',
-      );
+      logger.debug('Initializing InscriptionSDK with client auth (websocket)');
       sdk = await InscriptionSDK.createWithAuth({
         type: 'client',
         accountId,
         signer: signer,
         network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
-        connectionMode,
+        connectionMode: 'websocket',
       });
     }
 
@@ -1005,68 +935,74 @@ export async function waitForInscriptionConfirmation(
       intervalMs,
     });
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      progressReporter.verifying('Checking inscription status', undefined, {
-        attempt,
+    try {
+      const waitMethod = sdk.waitForInscription.bind(sdk) as (
+        txId: string,
+        maxAttempts: number,
+        intervalMs: number,
+        checkCompletion: boolean,
+        progressCallback?: (data: {
+          stage?: string;
+          message?: string;
+          progressPercent?: number;
+          details?: unknown;
+        }) => void,
+      ) => Promise<RetrievedInscriptionResult>;
+
+      const wrappedCallback = (data: {
+        stage?: string;
+        message?: string;
+        progressPercent?: number;
+        details?: unknown;
+      }) => {
+        const stageRaw = data.stage || 'confirming';
+        const allowedStages = [
+          'preparing',
+          'submitting',
+          'confirming',
+          'verifying',
+          'completed',
+          'failed',
+        ] as const;
+        const stage = (
+          allowedStages.includes(stageRaw as (typeof allowedStages)[number])
+            ? stageRaw
+            : 'confirming'
+        ) as (typeof allowedStages)[number];
+
+        const message = data.message || 'Processing inscription';
+        const percent = data.progressPercent || 50;
+
+        progressReporter.report({
+          stage,
+          message,
+          progressPercent: percent,
+          details: data.details as Record<string, unknown> | undefined,
+        });
+      };
+
+      return await waitMethod(
+        transactionId,
         maxAttempts,
+        intervalMs,
+        true,
+        wrappedCallback,
+      );
+    } catch (e) {
+      logger.debug('Falling back to standard waitForInscription method', {
+        error: e,
+      });
+      progressReporter.verifying('Verifying inscription status', 50, {
+        error: e,
       });
 
-      try {
-        const result = await sdk.retrieveInscription(transactionId);
-        if (result.status === 'completed' || result.completed) {
-          progressReporter.completed('Inscription confirmed', { transactionId });
-          return result;
-        }
-
-        progressReporter.verifying('Inscription still processing', undefined, {
-          transactionId,
-          status: result.status,
-        });
-      } catch (error) {
-        const notFound =
-          typeof (error as { response?: { status?: number } }).response
-            ?.status === 'number' &&
-          (error as { response?: { status?: number } }).response?.status ===
-            404;
-
-        if (!notFound) {
-          logger.error('Error waiting for inscription confirmation', {
-            transactionId,
-            attempt,
-            error,
-          });
-          progressReporter.failed('Inscription confirmation failed', {
-            transactionId,
-            error,
-          });
-          throw error;
-        }
-
-        logger.debug('Inscription not found yet, retrying', {
-          transactionId,
-          attempt,
-        });
-      }
-
-      if (attempt < maxAttempts) {
-        await sleep(intervalMs);
-      }
+      return await sdk.waitForInscription(
+        transactionId,
+        maxAttempts,
+        intervalMs,
+        true,
+      );
     }
-
-    const timeoutError = new Error(
-      `Inscription confirmation timed out after ${maxAttempts} attempts`,
-    );
-    logger.error('Error waiting for inscription confirmation', {
-      transactionId,
-      maxAttempts,
-      intervalMs,
-      error: timeoutError,
-    });
-    progressReporter.failed('Inscription confirmation failed', {
-      transactionId,
-      error: timeoutError,
-    });
-    throw timeoutError;
   } catch (error) {
     logger.error('Error waiting for inscription confirmation', {
       transactionId,

@@ -205,8 +205,7 @@ export async function getOrCreateSDK(
     return existingSDK;
   }
 
-  const connectionMode =
-    options.connectionMode || (options.websocket === false ? 'http' : 'auto');
+  const connectionMode = options.connectionMode ?? 'auto';
 
   const cacheConfig = {
     apiKey: options.apiKey,
