@@ -224,7 +224,7 @@ export const createSessionResponseSchema = z.object({
     capabilities: z.record(jsonValueSchema).nullable().optional(),
     skills: z.array(z.string()).optional(),
   }),
-  history: z.array(chatHistoryEntrySchema),
+  history: z.array(chatHistoryEntrySchema).optional().default([]),
   historyTtlSeconds: z.number().nullable().optional(),
   encryption: sessionEncryptionSummarySchema.nullable().optional(),
 });

@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import type {
   Signer,
   AccountBalance,
@@ -7,6 +6,7 @@ import type {
   TransactionRecord,
   SignerSignature,
 } from '@hashgraph/sdk';
+import { optionalImportSync } from '../../utils/dynamic-import';
 
 const unsupported = (method: string): Error =>
   new Error(`${method} is not supported by the in-memory signer`);
@@ -83,21 +83,12 @@ const loadHashgraphSdk = (): HashgraphSdk => {
   if (cachedSdk) {
     return cachedSdk;
   }
-  const metaUrl =
-    typeof import.meta !== 'undefined' &&
-    typeof (import.meta as { url?: string }).url === 'string'
-      ? (import.meta as { url: string }).url
-      : undefined;
-  const loader = createRequire(metaUrl ?? `${process.cwd()}/.hol-rb-client.cjs`);
-  try {
-    const resolved = loader('@hashgraph/sdk') as HashgraphSdk;
-    cachedSdk = resolved;
-    return resolved;
-  } catch (error) {
+  const resolved = optionalImportSync<HashgraphSdk>('@hashgraph/sdk');
+  if (!resolved) {
     const message =
       '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
-    const err = new Error(message);
-    (err as { cause?: unknown }).cause = error;
-    throw err;
+    throw new Error(message);
   }
+  cachedSdk = resolved;
+  return resolved;
 };

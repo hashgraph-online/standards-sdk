@@ -97,7 +97,6 @@ import {
   createDecipheriv,
   createHash,
 } from 'node:crypto';
-import { createRequire } from 'node:module';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { canonicalizeLedgerNetwork } from './ledger-network';
 import type { SignerSignature } from '@hashgraph/sdk';
@@ -139,6 +138,7 @@ import {
 } from './schemas';
 import { ZodError, z } from 'zod';
 import { createPrivateKeySigner } from './private-key-signer';
+import { optionalImport } from '../../utils/dynamic-import';
 
 type FsModule = {
   existsSync: (path: string) => boolean;
@@ -147,41 +147,18 @@ type FsModule = {
   appendFileSync: (path: string, data: string) => void;
 };
 
-type NodeRequire = ReturnType<typeof createRequire>;
+const getFs = async (): Promise<FsModule | null> => {
+  const fsModule = await optionalImport<Partial<FsModule>>('node:fs');
 
-const createNodeRequire = (): NodeRequire | null => {
-  const metaUrl =
-    typeof import.meta !== 'undefined' &&
-    typeof (import.meta as { url?: string }).url === 'string'
-      ? (import.meta as { url: string }).url
-      : undefined;
-
-  try {
-    return createRequire(metaUrl ?? `${process.cwd()}/.hol-rb-client.cjs`);
-  } catch {
-    return null;
+  if (
+    fsModule &&
+    typeof fsModule.existsSync === 'function' &&
+    typeof fsModule.readFileSync === 'function' &&
+    typeof fsModule.writeFileSync === 'function' &&
+    typeof fsModule.appendFileSync === 'function'
+  ) {
+    return fsModule as FsModule;
   }
-};
-
-const getFs = (): FsModule | null => {
-  const loader = createNodeRequire();
-  if (!loader) {
-    return null;
-  }
-
-  try {
-    const fsModule = loader('node:fs') as Partial<FsModule> | null;
-
-    if (
-      fsModule &&
-      typeof fsModule.existsSync === 'function' &&
-      typeof fsModule.readFileSync === 'function' &&
-      typeof fsModule.writeFileSync === 'function' &&
-      typeof fsModule.appendFileSync === 'function'
-    ) {
-      return fsModule as FsModule;
-    }
-  } catch {}
 
   return null;
 };
@@ -2357,7 +2334,7 @@ export class RegistryBrokerClient {
       : undefined;
 
     if (resolvedPath) {
-      const fsModule = getFs();
+      const fsModule = await getFs();
 
       if (!fsModule) {
         throw new Error(
