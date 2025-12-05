@@ -82,6 +82,13 @@ import {
   AcceptEncryptedChatSessionOptions,
   SearchStatusResponse,
 } from './types';
+type PaymentHeaders = Record<string, string | string[] | undefined>;
+type PaymentClient = {
+  post: (
+    url: string,
+    body: JsonObject,
+  ) => Promise<{ data: JsonValue; headers?: PaymentHeaders }>;
+};
 import * as path from 'node:path';
 import { Buffer } from 'node:buffer';
 import {
@@ -90,20 +97,10 @@ import {
   createDecipheriv,
   createHash,
 } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { canonicalizeLedgerNetwork } from './ledger-network';
-import axios from 'axios';
 import type { SignerSignature } from '@hashgraph/sdk';
-import type { Chain } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { base, baseSepolia } from 'viem/chains';
-import {
-  withPaymentInterceptor,
-  decodeXPaymentResponse,
-  Signer,
-  MultiNetworkSigner,
-} from 'x402-axios';
-import { createSigner as createX402Signer } from 'x402/types';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
@@ -150,17 +147,30 @@ type FsModule = {
   appendFileSync: (path: string, data: string) => void;
 };
 
-type NodeRequire = (id: string) => unknown;
+type NodeRequire = ReturnType<typeof createRequire>;
 
-declare const require: NodeRequire | undefined;
+const createNodeRequire = (): NodeRequire | null => {
+  const metaUrl =
+    typeof import.meta !== 'undefined' &&
+    typeof (import.meta as { url?: string }).url === 'string'
+      ? (import.meta as { url: string }).url
+      : undefined;
+
+  try {
+    return createRequire(metaUrl ?? `${process.cwd()}/.hol-rb-client.cjs`);
+  } catch {
+    return null;
+  }
+};
 
 const getFs = (): FsModule | null => {
-  if (typeof require !== 'function') {
+  const loader = createNodeRequire();
+  if (!loader) {
     return null;
   }
 
   try {
-    const fsModule = require('node:fs') as Partial<FsModule> | null;
+    const fsModule = loader('node:fs') as Partial<FsModule> | null;
 
     if (
       fsModule &&
@@ -176,8 +186,7 @@ const getFs = (): FsModule | null => {
   return null;
 };
 
-const DEFAULT_USER_AGENT =
-  '@hashgraphonline/standards-sdk/registry-broker-client';
+const DEFAULT_USER_AGENT = '@hol-org/rb-client';
 
 const DEFAULT_PROGRESS_INTERVAL_MS = 1_500;
 const DEFAULT_PROGRESS_TIMEOUT_MS = 5 * 60 * 1_000;
@@ -316,7 +325,7 @@ interface PurchaseCreditsWithX402Params {
   usdAmount?: number;
   description?: string;
   metadata?: JsonObject;
-  walletClient: Signer | MultiNetworkSigner;
+  walletClient: object;
 }
 
 type X402NetworkId = 'base' | 'base-sepolia';
@@ -332,23 +341,6 @@ interface BuyCreditsWithX402Params {
   rpcUrl?: string;
 }
 
-const X402_NETWORK_CONFIG: Record<
-  X402NetworkId,
-  {
-    rpcUrl: string;
-    chain: Chain;
-  }
-> = {
-  base: {
-    rpcUrl: 'https://mainnet.base.org',
-    chain: base,
-  },
-  'base-sepolia': {
-    rpcUrl: 'https://sepolia.base.org',
-    chain: baseSepolia,
-  },
-};
-
 const normalizeHexPrivateKey = (value: string): `0x${string}` => {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -361,7 +353,7 @@ const normalizeHexPrivateKey = (value: string): `0x${string}` => {
 
 type X402PurchaseResult = X402CreditPurchaseResponse & {
   paymentResponseHeader?: string;
-  paymentResponse?: ReturnType<typeof decodeXPaymentResponse>;
+  paymentResponse?: unknown;
 };
 
 interface ErrorDetails {
@@ -614,6 +606,90 @@ export class RegistryBrokerClient {
     string,
     ConversationContextState[]
   >();
+  private async loadViemAccount(
+    privateKey: `0x${string}`,
+  ): Promise<{
+    publicKey: string;
+    signMessage: (input: { message: string }) => Promise<string>;
+  }> {
+    try {
+      const viem = await import('viem/accounts');
+      return viem.privateKeyToAccount(privateKey);
+    } catch (error) {
+      const err = new Error(
+        'EVM ledger authentication requires the optional dependency "viem". Install it to use evmPrivateKey flows.',
+      );
+      (err as { cause?: unknown }).cause = error;
+      throw err;
+    }
+  }
+
+  private async loadX402Dependencies(): Promise<{
+    createPaymentClient: (walletClient: object) => PaymentClient;
+    decodePaymentResponse: (value: string) => unknown;
+    createX402Signer: (
+      network: X402NetworkId,
+      privateKey: `0x${string}`,
+    ) => Promise<object>;
+  }> {
+    try {
+      const [{ default: axios }, x402Axios, x402Types] = await Promise.all([
+        import('axios'),
+        import('x402-axios'),
+        import('x402/types'),
+      ]);
+
+      const withPaymentInterceptor =
+        x402Axios.withPaymentInterceptor as (
+          client: unknown,
+          walletClient: object,
+        ) => unknown;
+      const decodePaymentResponse =
+        x402Axios.decodeXPaymentResponse as (value: string) => unknown;
+      const createX402Signer =
+        x402Types.createSigner as (
+          network: X402NetworkId,
+          privateKey: `0x${string}`,
+        ) => Promise<object>;
+
+      const createPaymentClient = (walletClient: object): PaymentClient => {
+        const axiosClient = axios.create({
+          baseURL: this.baseUrl,
+          headers: {
+            ...this.getDefaultHeaders(),
+            'content-type': 'application/json',
+          },
+        });
+        const client = withPaymentInterceptor(axiosClient, walletClient) as {
+          post: (
+            url: string,
+            body: JsonObject,
+          ) => Promise<{ data: JsonValue; headers?: PaymentHeaders }>;
+        };
+        return {
+          post: async (url: string, body: JsonObject) => {
+            const response = await client.post(url, body);
+            return {
+              data: response.data,
+              headers: response.headers,
+            };
+          },
+        };
+      };
+
+      return {
+        createPaymentClient,
+        decodePaymentResponse,
+        createX402Signer,
+      };
+    } catch (error) {
+      const err = new Error(
+        'X402 credit purchases require optional dependencies "axios", "x402-axios", and "x402/types". Install them to enable this feature.',
+      );
+      (err as { cause?: unknown }).cause = error;
+      throw err;
+    }
+  }
 
   constructor(options: RegistryBrokerClientOptions = {}) {
     this.baseUrl = normaliseBaseUrl(options.baseUrl);
@@ -1093,6 +1169,9 @@ export class RegistryBrokerClient {
   async purchaseCreditsWithX402(
     params: PurchaseCreditsWithX402Params,
   ): Promise<X402PurchaseResult> {
+    const { createPaymentClient, decodePaymentResponse } =
+      await this.loadX402Dependencies();
+
     if (!Number.isFinite(params.credits) || params.credits <= 0) {
       throw new Error('credits must be a positive number');
     }
@@ -1118,18 +1197,7 @@ export class RegistryBrokerClient {
       body.metadata = params.metadata;
     }
 
-    const axiosClient = axios.create({
-      baseURL: this.baseUrl,
-      headers: {
-        ...this.getDefaultHeaders(),
-        'content-type': 'application/json',
-      },
-    });
-
-    const paymentClient = withPaymentInterceptor(
-      axiosClient,
-      params.walletClient,
-    );
+    const paymentClient = createPaymentClient(params.walletClient);
 
     const response = await paymentClient.post('/credits/purchase/x402', body);
 
@@ -1139,13 +1207,14 @@ export class RegistryBrokerClient {
       'x402 credit purchase response',
     );
 
+    const responseHeaders = response.headers ?? {};
     const paymentHeader =
-      typeof response.headers['x-payment-response'] === 'string'
-        ? response.headers['x-payment-response']
+      typeof responseHeaders['x-payment-response'] === 'string'
+        ? responseHeaders['x-payment-response']
         : undefined;
     const decodedPayment =
       paymentHeader !== undefined
-        ? decodeXPaymentResponse(paymentHeader)
+        ? decodePaymentResponse(paymentHeader)
         : undefined;
 
     return {
@@ -1159,7 +1228,7 @@ export class RegistryBrokerClient {
     params: BuyCreditsWithX402Params,
   ): Promise<X402PurchaseResult> {
     const network: X402NetworkId = params.network ?? 'base';
-    const config = X402_NETWORK_CONFIG[network];
+    const { createX402Signer } = await this.loadX402Dependencies();
     const normalizedKey = normalizeHexPrivateKey(params.evmPrivateKey);
     const walletClient = await createX402Signer(network, normalizedKey);
 
@@ -1526,7 +1595,7 @@ export class RegistryBrokerClient {
       const formattedKey = evmPrivateKey.startsWith('0x')
         ? (evmPrivateKey as `0x${string}`)
         : (`0x${evmPrivateKey}` as `0x${string}`);
-      const account = privateKeyToAccount(formattedKey);
+      const account = await this.loadViemAccount(formattedKey);
       authOptions.sign = async message => ({
         signature: await account.signMessage({ message }),
         signatureKind: 'evm',

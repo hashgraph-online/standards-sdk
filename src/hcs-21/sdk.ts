@@ -12,10 +12,12 @@ import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HCS21BaseClient, BuildDeclarationParams } from './base-client';
 import {
-  HCS21MetadataPointerPattern,
-  PackageDeclaration,
-  PackageMetadataPointer,
-  PackageMetadataRecord,
+  AdapterDeclaration,
+  HCS21ManifestPointerPattern,
+  HCS21MetadataDocument,
+  HCS21TopicType,
+  ManifestPointer,
+  metadataDocumentSchema,
 } from './types';
 import { buildHcs21CreateRegistryTx, buildHcs21MessageTx } from './tx';
 import { HCS21ValidationError } from './errors';
@@ -37,6 +39,8 @@ export interface HCS21ClientConfig {
 export interface CreateRegistryTopicParams {
   ttl: number;
   indexed?: 0 | 1;
+  type?: HCS21TopicType;
+  metaTopicId?: string;
   adminKey?: MaybeKey;
   submitKey?: MaybeKey;
   transactionMemo?: string;
@@ -49,12 +53,12 @@ export interface PublishDeclarationResult {
 
 export interface PublishDeclarationParams {
   topicId: string;
-  declaration: PackageDeclaration | BuildDeclarationParams;
+  declaration: AdapterDeclaration | BuildDeclarationParams;
   transactionMemo?: string;
 }
 
-export interface InscribePackageMetadataParams {
-  metadata: PackageMetadataRecord;
+export interface InscribeMetadataParams {
+  document: HCS21MetadataDocument;
   fileName?: string;
   inscriptionOptions?: InscriptionOptions;
 }
@@ -91,18 +95,24 @@ export class HCS21Client extends HCS21BaseClient {
   }
 
   async inscribeMetadata(
-    params: InscribePackageMetadataParams,
-  ): Promise<PackageMetadataPointer> {
+    params: InscribeMetadataParams,
+  ): Promise<ManifestPointer> {
     await this.operatorCtx.ensureInitialized();
 
-    const metadataJson = JSON.stringify(params.metadata, null, 2);
+    const metadataPayload = metadataDocumentSchema.parse(params.document);
+    const metadataJson = JSON.stringify(metadataPayload, null, 2);
     const buffer = Buffer.from(metadataJson, 'utf8');
+    const connectionMode =
+      params.inscriptionOptions?.connectionMode ??
+      (params.inscriptionOptions?.websocket === false ? 'http' : 'auto');
     const inscriptionOptions: InscriptionOptions = {
       waitForConfirmation: true,
+      connectionMode,
+      websocket: params.inscriptionOptions?.websocket ?? false,
       ...(params.inscriptionOptions || {}),
       metadata: {
         ...(params.inscriptionOptions?.metadata || {}),
-        ...params.metadata,
+        ...metadataPayload,
       },
     };
 
@@ -110,8 +120,7 @@ export class HCS21Client extends HCS21BaseClient {
       {
         type: 'buffer',
         buffer,
-        fileName:
-          params.fileName || `hcs21-package-metadata-${Date.now()}.json`,
+        fileName: params.fileName || `hcs21-adapter-manifest-${Date.now()}.json`,
         mimeType: 'application/json',
       },
       {
@@ -124,7 +133,7 @@ export class HCS21Client extends HCS21BaseClient {
 
     if (!inscription.confirmed || !inscription.inscription) {
       throw new HCS21ValidationError(
-        'Failed to inscribe package metadata',
+        'Failed to inscribe HCS-21 metadata',
         'invalid_payload',
       );
     }
@@ -146,10 +155,13 @@ export class HCS21Client extends HCS21BaseClient {
         .sequence_number ??
       (inscription.inscription as { sequenceNumber?: number }).sequenceNumber;
 
-    const pointerResult = await this.resolveMetadataPointer(
+    const pointerResult = await this.resolveManifestPointer(
       topicId,
       rawSequence,
     );
+
+    const declarationManifestSequence =
+      (inscription.result as { manifest_sequence?: number })?.manifest_sequence;
 
     const resultDetails =
       inscription.result && 'jobId' in inscription.result
@@ -163,6 +175,8 @@ export class HCS21Client extends HCS21BaseClient {
       pointer: pointerResult.pointer,
       topicId,
       sequenceNumber: pointerResult.sequenceNumber,
+      manifestSequence:
+        declarationManifestSequence || pointerResult.sequenceNumber,
       ...resultDetails,
     };
   }
@@ -175,6 +189,8 @@ export class HCS21Client extends HCS21BaseClient {
     const tx: TopicCreateTransaction = buildHcs21CreateRegistryTx({
       ttl: params.ttl,
       indexed: params.indexed,
+      type: params.type,
+      metaTopicId: params.metaTopicId,
       adminKey: params.adminKey,
       submitKey: params.submitKey,
       operatorPublicKey: this.operatorCtx.operatorKey.publicKey,
@@ -226,15 +242,15 @@ export class HCS21Client extends HCS21BaseClient {
   }
 
   private normalizeDeclarationInput(
-    declaration: PackageDeclaration | BuildDeclarationParams,
-  ): PackageDeclaration {
+    declaration: AdapterDeclaration | BuildDeclarationParams,
+  ): AdapterDeclaration {
     if ('p' in declaration) {
       return this.validateDeclaration(declaration);
     }
     return this.buildDeclaration(declaration);
   }
 
-  private async resolveMetadataPointer(
+  private async resolveManifestPointer(
     topicId: string,
     sequence?: number,
   ): Promise<{ pointer: string; sequenceNumber: number }> {
@@ -253,7 +269,7 @@ export class HCS21Client extends HCS21BaseClient {
 
       if (!latest || !latest.sequence_number) {
         throw new HCS21ValidationError(
-          'Unable to resolve metadata sequence number',
+          'Unable to resolve manifest sequence number',
           'invalid_payload',
         );
       }
@@ -263,16 +279,16 @@ export class HCS21Client extends HCS21BaseClient {
 
     if (!Number.isFinite(resolvedSequence)) {
       throw new HCS21ValidationError(
-        'Invalid metadata sequence number',
+        'Invalid manifest sequence number',
         'invalid_payload',
       );
     }
 
-    const pointer = `hcs://1/${topicId}/${resolvedSequence}`;
+    const pointer = `hcs://1/${topicId}`;
 
-    if (!HCS21MetadataPointerPattern.test(pointer)) {
+    if (!HCS21ManifestPointerPattern.test(pointer)) {
       throw new HCS21ValidationError(
-        'Metadata pointer format is invalid',
+        'Manifest pointer format is invalid',
         'invalid_payload',
       );
     }

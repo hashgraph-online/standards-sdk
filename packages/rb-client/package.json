@@ -1,0 +1,68 @@
+{
+  "name": "@hol-org/rb-client",
+  "version": "0.1.141-canary.14",
+  "description": "Lightweight Registry Broker client for HOL registries.",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --target es2020 --clean --external ws --external @solana/kit --external bufferutil --external utf-8-validate --external @walletconnect/sign-client --external @walletconnect/universal-provider --external @walletconnect/ethereum-provider --external @noble/curves --external axios --external viem --external x402-axios --external zod --external @hashgraph/sdk",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "registry-broker",
+    "erc-8004",
+    "agents",
+    "hol"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@hashgraph/sdk": "^2.77.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^7.3.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@hashgraph/sdk": "^2.77.0",
+    "axios": "*",
+    "viem": "*",
+    "x402": "*",
+    "x402-axios": "*"
+  },
+  "peerDependenciesMeta": {
+    "@hashgraph/sdk": {
+      "optional": true
+    },
+    "axios": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
+    },
+    "x402": {
+      "optional": true
+    },
+    "x402-axios": {
+      "optional": true
+    }
+  }
+}

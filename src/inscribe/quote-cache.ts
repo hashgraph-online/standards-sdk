@@ -205,11 +205,15 @@ export async function getOrCreateSDK(
     return existingSDK;
   }
 
+  const connectionMode =
+    options.connectionMode || (options.websocket === false ? 'http' : 'auto');
+
   const cacheConfig = {
     apiKey: options.apiKey,
     accountId: clientConfig.accountId,
     network: clientConfig.network || 'mainnet',
     authType: options.apiKey ? 'api' : 'server',
+    connectionMode,
   };
 
   const cachedSDK = sdkCache.get(cacheConfig);
@@ -223,6 +227,7 @@ export async function getOrCreateSDK(
     sdk = new InscriptionSDK({
       apiKey: options.apiKey,
       network: clientConfig.network || 'mainnet',
+      connectionMode,
     });
   } else {
     sdk = await InscriptionSDK.createWithAuth({
@@ -233,6 +238,7 @@ export async function getOrCreateSDK(
           ? clientConfig.privateKey
           : clientConfig.privateKey.toString(),
       network: clientConfig.network || 'mainnet',
+      connectionMode,
     });
   }
 

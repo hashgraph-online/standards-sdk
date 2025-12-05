@@ -1,0 +1,61 @@
+{
+  "name": "@hol-org/standards-sdk",
+  "version": "0.1.141-canary.16",
+  "description": "HOL-scoped distribution of the Hashgraph Online Standards SDK. Re-exports @hashgraphonline/standards-sdk under the @hol-org scope.",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "Hashgraph-Online.png"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "homepage": "https://hashgraphonline.com/docs/libraries/standards-sdk/",
+  "author": "Hashgraph Online <hello@hashgraphonline.com>",
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/hashgraph-online"
+  },
+  "bugs": {
+    "url": "https://github.com/hashgraph-online/standards-sdk/issues"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hashgraph-online/standards-sdk.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --target es2020 --clean",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "hashgraph online",
+    "hcs",
+    "hedera",
+    "hashgraph",
+    "web3",
+    "bitcoin",
+    "standards",
+    "sdk"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@hashgraphonline/standards-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsup": "^7.3.0",
+    "typescript": "^5.9.3"
+  }
+}

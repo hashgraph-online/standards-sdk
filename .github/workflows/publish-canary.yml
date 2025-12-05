@@ -1,0 +1,59 @@
+name: Publish Canary Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      npm_tag:
+        description: 'npm dist-tag to use for canary publish'
+        required: false
+        default: 'canary'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bump canary versions
+        run: |
+          TAG="${{ github.event.inputs.npm_tag || 'canary' }}"
+          pnpm version prerelease --preid "$TAG" --no-git-tag-version
+          ROOT_VERSION=$(node -p "require('./package.json').version")
+          echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
+          pnpm --filter @hol-org/standards-sdk version "$ROOT_VERSION" --no-git-tag-version
+          pnpm --filter @hol-org/rb-client version prerelease --preid "$TAG" --no-git-tag-version
+
+      - name: Build workspace packages
+        run: pnpm -r run build
+
+      - name: Publish @hashgraphonline/standards-sdk canary
+        run: pnpm publish --tag "${{ github.event.inputs.npm_tag || 'canary' }}" --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @hol-org/standards-sdk canary
+        run: pnpm --filter @hol-org/standards-sdk publish --tag "${{ github.event.inputs.npm_tag || 'canary' }}" --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @hol-org/rb-client canary
+        run: pnpm --filter @hol-org/rb-client publish --tag "${{ github.event.inputs.npm_tag || 'canary' }}" --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

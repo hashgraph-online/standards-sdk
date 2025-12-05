@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Release @hashgraphonline/standards-sdk
+    name: Release SDK packages
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -38,7 +38,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm run build
+        run: pnpm -r run build
 
       - name: Bump version
         id: version
@@ -50,6 +50,9 @@ jobs:
 
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+          pnpm --filter @hol-org/standards-sdk version "$NEW_VERSION" --no-git-tag-version
+          pnpm --filter @hol-org/rb-client version patch --no-git-tag-version
 
       - name: Check if version already published
         id: version_check
@@ -63,11 +66,23 @@ jobs:
             echo "Version $NEW_VERSION is new, will publish"
           fi
 
-      - name: Publish package
+      - name: Publish @hashgraphonline/standards-sdk
         if: steps.version_check.outputs.exists == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm publish --access public --no-git-checks --provenance
+
+      - name: Publish @hol-org/standards-sdk
+        if: steps.version_check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter @hol-org/standards-sdk publish --access public --no-git-checks --provenance
+
+      - name: Publish @hol-org/rb-client
+        if: steps.version_check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter @hol-org/rb-client publish --access public --no-git-checks --provenance
 
       - name: Create Git tag
         if: steps.version_check.outputs.exists == 'false'

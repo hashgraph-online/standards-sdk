@@ -2,7 +2,7 @@ import type { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import type { ILogger } from '../utils/logger';
 import { NetworkType } from '../utils/types';
 import { HCS21BaseClient, BuildDeclarationParams } from './base-client';
-import { PackageDeclaration, PackageDeclarationEnvelope } from './types';
+import { AdapterDeclaration, AdapterDeclarationEnvelope } from './types';
 
 export interface BrowserHCS21ClientConfig {
   network: NetworkType;
@@ -20,7 +20,7 @@ export class HCS21BrowserClient extends HCS21BaseClient {
 
   async publishDeclaration(params: {
     topicId: string;
-    declaration: PackageDeclaration | BuildDeclarationParams;
+    declaration: AdapterDeclaration | BuildDeclarationParams;
   }): Promise<void> {
     const declaration =
       'p' in params.declaration
@@ -35,9 +35,9 @@ export class HCS21BrowserClient extends HCS21BaseClient {
 
   async fetchDeclarations(
     topicId: string,
-  ): Promise<PackageDeclarationEnvelope[]> {
+  ): Promise<AdapterDeclarationEnvelope[]> {
     const { messages = [] } = await this.hwc.getMessages(topicId);
-    const envelopes: PackageDeclarationEnvelope[] = [];
+    const envelopes: AdapterDeclarationEnvelope[] = [];
 
     for (const message of messages) {
       try {

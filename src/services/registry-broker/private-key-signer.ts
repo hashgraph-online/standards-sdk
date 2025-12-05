@@ -1,13 +1,11 @@
-import {
-  AccountId,
-  LedgerId,
-  PrivateKey,
+import { createRequire } from 'node:module';
+import type {
+  Signer,
+  AccountBalance,
+  AccountInfo,
+  Transaction,
+  TransactionRecord,
   SignerSignature,
-  type Signer,
-  type AccountBalance,
-  type AccountInfo,
-  type Transaction,
-  type TransactionRecord,
 } from '@hashgraph/sdk';
 
 const unsupported = (method: string): Error =>
@@ -22,6 +20,8 @@ export interface PrivateKeySignerOptions {
 export const createPrivateKeySigner = (
   options: PrivateKeySignerOptions,
 ): Signer => {
+  const sdk = loadHashgraphSdk();
+  const { AccountId, LedgerId, PrivateKey, SignerSignature } = sdk;
   if (!options.privateKey) {
     throw new Error('privateKey is required to create a ledger signer.');
   }
@@ -73,4 +73,31 @@ export const createPrivateKeySigner = (
       throw unsupported('call');
     },
   };
+};
+
+type HashgraphSdk = typeof import('@hashgraph/sdk');
+
+let cachedSdk: HashgraphSdk | null = null;
+
+const loadHashgraphSdk = (): HashgraphSdk => {
+  if (cachedSdk) {
+    return cachedSdk;
+  }
+  const metaUrl =
+    typeof import.meta !== 'undefined' &&
+    typeof (import.meta as { url?: string }).url === 'string'
+      ? (import.meta as { url: string }).url
+      : undefined;
+  const loader = createRequire(metaUrl ?? `${process.cwd()}/.hol-rb-client.cjs`);
+  try {
+    const resolved = loader('@hashgraph/sdk') as HashgraphSdk;
+    cachedSdk = resolved;
+    return resolved;
+  } catch (error) {
+    const message =
+      '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
+    const err = new Error(message);
+    (err as { cause?: unknown }).cause = error;
+    throw err;
+  }
 };

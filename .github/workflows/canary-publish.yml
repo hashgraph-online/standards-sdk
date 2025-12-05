@@ -39,7 +39,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm run build
+        run: pnpm -r run build
 
       - name: Calculate canary version
         id: canary
@@ -47,8 +47,12 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
 
-      - name: Update package version
-        run: pnpm version "${{ steps.canary.outputs.version }}" --no-git-tag-version
+      - name: Update package versions
+        run: |
+          VERSION="${{ steps.canary.outputs.version }}"
+          pnpm version "$VERSION" --no-git-tag-version
+          pnpm --filter @hol-org/standards-sdk version "$VERSION" --no-git-tag-version
+          pnpm --filter @hol-org/rb-client version "$VERSION" --no-git-tag-version
 
       - name: Check if version already published
         id: version_check
@@ -62,11 +66,23 @@ jobs:
             echo "Canary version $VERSION is new, will publish"
           fi
 
-      - name: Publish canary package
+      - name: Publish @hashgraphonline/standards-sdk canary
         if: steps.version_check.outputs.exists == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
+        run: pnpm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
+
+      - name: Publish @hol-org/standards-sdk canary
+        if: steps.version_check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter @hol-org/standards-sdk publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
+
+      - name: Publish @hol-org/rb-client canary
+        if: steps.version_check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter @hol-org/rb-client publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
 
       - name: Skip publish (version already exists)
         if: steps.version_check.outputs.exists == 'true'
