@@ -28,6 +28,14 @@ let nodeModules: {
   extname?: (path: string) => string;
 } = {};
 
+export const normalizeTransactionId = (txId: string): string => {
+  if (!txId.includes('@')) {
+    return txId;
+  }
+  const txParts = txId?.split('@');
+  return `${txParts[0]}-${txParts[1].replace('.', '-')}`;
+};
+
 async function loadNodeModules(): Promise<void> {
   if (isBrowser || nodeModules.readFileSync) {
     return;
@@ -191,6 +199,7 @@ export async function inscribe(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
+        connectionMode: 'auto',
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -200,6 +209,7 @@ export async function inscribe(
         accountId: normalized.accountId,
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
+        connectionMode: 'auto',
       });
     }
 
@@ -273,6 +283,24 @@ export async function inscribe(
 
     const normalizedCfg = normalizeClientConfig(clientConfig);
     const result = await sdk.inscribeAndExecute(request, normalizedCfg);
+    const rawJobId =
+      (result as { jobId?: string }).jobId ||
+      (result as { tx_id?: string }).tx_id ||
+      (result as { transactionId?: string }).transactionId ||
+      '';
+    const rawTxId =
+      (result as { transactionId?: string }).transactionId ||
+      rawJobId ||
+      '';
+    const normalizedJobId = normalizeTransactionId(rawJobId);
+    const normalizedTxId = normalizeTransactionId(rawTxId);
+    const waitId = normalizeTransactionId(
+      normalizedJobId ||
+        normalizedTxId ||
+        rawJobId ||
+        (result as { jobId?: string }).jobId ||
+        '',
+    );
     logger.info('Starting to inscribe.', {
       type: input.type,
       mode: options.mode || 'file',
@@ -281,14 +309,14 @@ export async function inscribe(
 
     if (options.waitForConfirmation) {
       logger.debug('Waiting for inscription confirmation', {
-        transactionId: result.jobId,
+        transactionId: waitId,
         maxAttempts: options.waitMaxAttempts,
         intervalMs: options.waitIntervalMs,
       });
 
       const inscription = await waitForInscriptionConfirmation(
         sdk,
-        result.jobId,
+        waitId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
         options.progressCallback,
@@ -300,7 +328,11 @@ export async function inscribe(
 
       return {
         confirmed: true,
-        result,
+        result: {
+          ...result,
+          jobId: waitId,
+          transactionId: normalizedTxId,
+        },
         inscription,
         sdk,
       };
@@ -308,7 +340,11 @@ export async function inscribe(
 
     return {
       confirmed: false,
-      result,
+      result: {
+        ...result,
+        jobId: waitId,
+        transactionId: normalizedTxId,
+      },
       sdk,
     };
   } catch (error) {
@@ -475,6 +511,13 @@ export async function inscribeWithSigner(
       );
     }
 
+    const trackingId = normalizeTransactionId(
+      startResult.tx_id || startResult.id || '',
+    );
+    const waitId = normalizeTransactionId(
+      trackingId || startResult.id || startResult.tx_id || '',
+    );
+
     if (options.waitForConfirmation) {
       logger.debug('Waiting for inscription confirmation (websocket)', {
         jobId: startResult.id || startResult.tx_id,
@@ -482,24 +525,23 @@ export async function inscribeWithSigner(
         intervalMs: options.waitIntervalMs,
       });
 
-      const trackingId = startResult.tx_id || startResult.id;
       const inscription = await waitForInscriptionConfirmation(
         sdk,
-        trackingId,
+        waitId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
         options.progressCallback,
       );
 
       logger.info('Inscription confirmation received', {
-        jobId: trackingId,
+        jobId: waitId,
       });
 
       return {
         confirmed: true,
         result: {
-          jobId: startResult.id || startResult.tx_id,
-          transactionId: startResult.tx_id || '',
+          jobId: waitId,
+          transactionId: waitId,
           topic_id: startResult.topic_id,
           status: startResult.status,
           completed: startResult.completed,
@@ -512,8 +554,8 @@ export async function inscribeWithSigner(
     return {
       confirmed: false,
       result: {
-        jobId: startResult.id || startResult.tx_id,
-        transactionId: startResult.tx_id || '',
+        jobId: waitId,
+        transactionId: waitId,
         topic_id: startResult.topic_id,
         status: startResult.status,
         completed: startResult.completed,
@@ -916,6 +958,7 @@ export async function waitForInscriptionConfirmation(
   progressCallback?: ProgressCallback,
 ): Promise<RetrievedInscriptionResult> {
   const logger = Logger.getInstance({ module: 'Inscriber' });
+  const normalizedId = normalizeTransactionId(transactionId);
   const progressReporter = new ProgressReporter({
     module: 'Inscriber',
     logger,
@@ -924,13 +967,13 @@ export async function waitForInscriptionConfirmation(
 
   try {
     logger.debug('Waiting for inscription confirmation', {
-      transactionId,
+      transactionId: normalizedId,
       maxAttempts,
       intervalMs,
     });
 
     progressReporter.preparing('Preparing for inscription confirmation', 5, {
-      transactionId,
+      transactionId: normalizedId,
       maxAttempts,
       intervalMs,
     });
@@ -982,7 +1025,7 @@ export async function waitForInscriptionConfirmation(
       };
 
       return await waitMethod(
-        transactionId,
+        normalizedId,
         maxAttempts,
         intervalMs,
         true,
@@ -997,7 +1040,7 @@ export async function waitForInscriptionConfirmation(
       });
 
       return await sdk.waitForInscription(
-        transactionId,
+        normalizedId,
         maxAttempts,
         intervalMs,
         true,

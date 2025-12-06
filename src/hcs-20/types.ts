@@ -256,6 +256,7 @@ export interface MintPointsOptions {
   memo?: string;
   topicId?: string | TopicId;
   progressCallback?: (data: MintPointsProgress) => void;
+  disableMirrorCheck?: boolean;
 }
 
 /**

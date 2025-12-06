@@ -142,6 +142,9 @@ export const adapterManifestSchema = z.object({
     discovery: z.boolean(),
     communication: z.boolean(),
     protocols: z.array(z.string().min(1)),
+    discovery_tags: z.array(z.string().min(1)).optional(),
+    communication_channels: z.array(z.string().min(1)).optional(),
+    extras: z.record(z.string(), z.unknown()).optional(),
   }),
   consensus: z.object({
     state_model: z.string().min(1).optional(),
