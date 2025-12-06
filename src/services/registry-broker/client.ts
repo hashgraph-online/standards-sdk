@@ -609,25 +609,36 @@ export class RegistryBrokerClient {
       privateKey: `0x${string}`,
     ) => Promise<object>;
   }> {
+    type X402AxiosModule = {
+      withPaymentInterceptor: (
+        client: unknown,
+        walletClient: object,
+      ) => unknown;
+      decodeXPaymentResponse: (value: string) => unknown;
+    };
+    type X402TypesModule = {
+      createSigner: (
+        network: X402NetworkId,
+        privateKey: `0x${string}`,
+      ) => Promise<object>;
+    };
+
     try {
       const [{ default: axios }, x402Axios, x402Types] = await Promise.all([
         import('axios'),
-        import('x402-axios'),
-        import('x402/types'),
+        optionalImport<X402AxiosModule>('x402-axios'),
+        optionalImport<X402TypesModule>('x402/types'),
       ]);
 
-      const withPaymentInterceptor =
-        x402Axios.withPaymentInterceptor as (
-          client: unknown,
-          walletClient: object,
-        ) => unknown;
-      const decodePaymentResponse =
-        x402Axios.decodeXPaymentResponse as (value: string) => unknown;
-      const createX402Signer =
-        x402Types.createSigner as (
-          network: X402NetworkId,
-          privateKey: `0x${string}`,
-        ) => Promise<object>;
+      if (!x402Axios || !x402Types) {
+        throw new Error(
+          'x402-axios and x402/types are required for X402 flows. Install them to enable ledger payments.',
+        );
+      }
+
+      const withPaymentInterceptor = x402Axios.withPaymentInterceptor;
+      const decodePaymentResponse = x402Axios.decodeXPaymentResponse;
+      const createX402Signer = x402Types.createSigner;
 
       const createPaymentClient = (walletClient: object): PaymentClient => {
         const axiosClient = axios.create({
