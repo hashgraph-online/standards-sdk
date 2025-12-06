@@ -8,6 +8,9 @@ on:
         required: false
         default: 'canary'
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
