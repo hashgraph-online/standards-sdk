@@ -4,10 +4,10 @@ export const HCS21_PROTOCOL = 'hcs-21';
 export const HCS21_MAX_MESSAGE_BYTES = 1024;
 export const HCS21_SAFE_MESSAGE_BYTES = 1000;
 export const HCS21ManifestPointerPattern =
-  /^(?:hcs:\/\/1\/0\.0\.\d+(?:\/\d+)?|ipfs:\/\/[a-zA-Z0-9]+|ar:\/\/[a-zA-Z0-9]+|oci:\/\/.+|https?:\/\/.+)$/;
+  /^(?:hcs:\/\/1\/0\.0\.\d+|ipfs:\/\/\S+|ar:\/\/\S+|oci:\/\/\S+|https?:\/\/\S+)$/;
 export const HCS21TopicIdPattern = /^0\.0\.\d+$/;
 export const HCS21MetadataPointerPattern =
-  /^(?:0\.0\.\d+|hcs:\/\/1\/0\.0\.\d+(?:\/\d+)?|ipfs:\/\/[a-zA-Z0-9]+|ar:\/\/[a-zA-Z0-9]+|oci:\/\/.+|https?:\/\/.+)$/;
+  /^(?:0\.0\.\d+|hcs:\/\/1\/0\.0\.\d+(?:\/\d+)?|ipfs:\/\/\S+|ar:\/\/\S+|oci:\/\/\S+|https?:\/\/\S+)$/;
 
 export type HCS21Operation = 'register' | 'update' | 'delete';
 
@@ -51,6 +51,17 @@ export interface AdapterDeclarationEnvelope {
 export enum HCS21TopicType {
   ADAPTER_REGISTRY = 0,
   REGISTRY_OF_REGISTRIES = 1,
+  ADAPTER_CATEGORY = 2,
+}
+
+export interface AdapterCategoryEntry {
+  adapterId: string;
+  adapterTopicId: string;
+  metadata?: string;
+  memo?: string;
+  payer?: string;
+  sequenceNumber: number;
+  consensusTimestamp?: string;
 }
 
 export interface ManifestPointer {
@@ -90,7 +101,7 @@ export const adapterDeclarationSchema = z.object({
     .string()
     .regex(
       HCS21ManifestPointerPattern,
-      'manifest must be a resolvable URI (hcs://1/<topicId>[/sequence], ipfs://, ar://, oci://, https://)',
+      'manifest must be an immutable pointer (hcs://1/<topicId>, ipfs://cid/path, ar://txid, oci://repo@digest, https://...#sha384-..)',
     ),
   manifest_sequence: z.number().int().positive().optional(),
   config: adapterConfigContextSchema,

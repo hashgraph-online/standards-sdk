@@ -22,6 +22,16 @@ HOL-scoped distributions are published in parallel:
 - `@hol-org/rb-client`: registry broker client only
 - `@hol-org/standards-sdk`: full SDK under the HOL scope
 
+### Optional dependencies for `@hol-org/rb-client`
+
+The client ships with zero network transports bundled. Install these peers when you need the related features:
+
+- `axios` + `x402-axios` + `x402` for X402 credit purchases and payments
+- `viem` for EVM-based ledger authentication
+- `@hashgraph/sdk` for Hedera ledger authentication
+
+Core agent search/chat flows only require a `fetch` implementation.
+
 ## Documentation
 
 For complete documentation, examples, and API references, visit:

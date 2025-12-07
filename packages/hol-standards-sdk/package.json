@@ -1,6 +1,6 @@
 {
   "name": "@hol-org/standards-sdk",
-  "version": "0.1.141-canary.16",
+  "version": "0.1.141-canary.32",
   "description": "HOL-scoped distribution of the Hashgraph Online Standards SDK. Re-exports @hashgraphonline/standards-sdk under the @hol-org scope.",
   "type": "module",
   "files": [

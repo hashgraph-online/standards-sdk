@@ -1,28 +1,20 @@
 import 'dotenv/config';
-import { Client, TopicCreateTransaction } from '@hashgraph/sdk';
+import { createHash } from 'crypto';
+import { PrivateKey } from '@hashgraph/sdk';
 import {
   AdapterManifest,
   HCS21Client,
   HCS21TopicType,
+  HRLResolver,
   Logger,
   NetworkType,
+  canonicalize,
+  verifyArtifactDigest,
+  verifyDeclarationSignature,
 } from '../../src';
 import { sleep } from '../../src/utils/sleep';
 
 const logger = new Logger({ module: 'hcs-21-demo', level: 'info' });
-
-async function createTopic(client: Client, memo?: string): Promise<string> {
-  const tx = new TopicCreateTransaction();
-  if (memo) {
-    tx.setTopicMemo(memo);
-  }
-  const response = await tx.execute(client);
-  const receipt = await response.getReceipt(client);
-  if (!receipt.topicId) {
-    throw new Error('Failed to create topic');
-  }
-  return receipt.topicId.toString();
-}
 
 async function main(): Promise<void> {
   const network = (process.env.HEDERA_NETWORK as NetworkType) || 'testnet';
@@ -60,22 +52,11 @@ async function main(): Promise<void> {
     logLevel: 'info',
   });
 
-  const hederaClient =
-    network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
-  hederaClient.setOperator(operatorId, operatorKey);
-
-  const floraAccount = process.env.HCS21_FLORA_ACCOUNT_ID || operatorId;
-  const floraThreshold = process.env.HCS21_FLORA_THRESHOLD || '2-of-3';
-
-  const consensusTopicId =
-    process.env.HCS21_CONSENSUS_TOPIC_ID ||
-    (await createTopic(hederaClient, 'hcs-16:ctopic'));
-  const txTopicId =
-    process.env.HCS21_THRESHOLD_TOPIC_ID ||
-    (await createTopic(hederaClient, 'hcs-16:ttopic'));
-  const stateTopicId =
-    process.env.HCS21_STATE_TOPIC_ID ||
-    (await createTopic(hederaClient, 'hcs-16:stopic'));
+  const artifactBytes = Buffer.from('demo adapter tarball contents');
+  const artifactDigestHex = createHash('sha384')
+    .update(artifactBytes)
+    .digest('hex');
+  const artifactIntegrity = `sha384-${artifactDigestHex}`;
 
   const adapterId = 'npm/@hashgraphonline/x402-bazaar-adapter@1.0.0';
   const manifest: AdapterManifest = {
@@ -98,7 +79,7 @@ async function main(): Promise<void> {
       artifacts: [
         {
           url: 'npm://@hashgraphonline/x402-bazaar-adapter@1.0.0',
-          digest: 'sha384-demo-digest',
+          digest: artifactIntegrity,
           signature: 'demo-signature',
         },
       ],
@@ -114,15 +95,65 @@ async function main(): Promise<void> {
       discovery: true,
       communication: true,
       protocols: ['x402', 'uaid'],
-  },
-  consensus: {
-    state_model: 'hcs-21.generic@1',
-    profile_uri: 'ipfs://example-profile',
-    entity_schema: 'hcs-21.entity-consensus@1',
-    required_fields: ['entity_id', 'registry', 'state_hash', 'epoch'],
-    hashing: 'sha384',
-  },
-};
+      discovery_tags: ['agents', 'marketplaces'],
+      communication_channels: ['text', 'x402'],
+      extras: {
+        locales: ['en', 'es'],
+        rate_limit: { requests_per_minute: 120 },
+      },
+    },
+    consensus: {
+      state_model: 'hcs-21.generic@1',
+      profile_uri: 'ipfs://example-profile',
+      entity_schema: 'hcs-21.entity-consensus@1',
+      required_fields: ['entity_id', 'registry', 'state_hash', 'epoch'],
+      hashing: 'sha384',
+    },
+  };
+
+  const registryMetadata = {
+    version: '1.0.0',
+    name: 'Demo Adapter Registry',
+    description: 'Sample registry showcasing layered HCS-21 discovery.',
+    operator: { account: operatorId },
+    entityTypes: ['agent'],
+    categories: ['price-feeds'],
+  };
+
+  const registryMetadataPointer = await client.inscribeMetadata({
+    document: registryMetadata,
+  });
+
+  const declarationTopicId =
+    process.env.HCS21_REGISTRY_TOPIC_ID ||
+    (await client.createRegistryTopic({
+      ttl: 3600,
+      indexed: 0,
+      type: HCS21TopicType.ADAPTER_REGISTRY,
+      metaTopicId: registryMetadataPointer.pointer,
+    }));
+
+  const versionPointerTopicId =
+    process.env.HCS21_VERSION_POINTER_TOPIC_ID ||
+    (await client.createAdapterVersionPointerTopic({
+      ttl: 3600,
+      memoOverride: 'hcs-2:1:3600',
+    }));
+
+  const registryOfRegistriesTopicId =
+    process.env.HCS21_ROR_TOPIC_ID ||
+    (await client.createRegistryDiscoveryTopic({
+      ttl: 86400,
+      memoOverride: 'hcs-21:0:86400:1',
+    }));
+
+  const categoryTopicId =
+    process.env.HCS21_CATEGORY_TOPIC_ID ||
+    (await client.createAdapterCategoryTopic({
+      ttl: 86400,
+      indexed: 0,
+      metaTopicId: registryMetadataPointer.pointer,
+    }));
 
   const manifestInscribeResult =
     process.env.HCS21_MANIFEST_POINTER || process.env.HCS21_MANIFEST_SEQUENCE
@@ -139,46 +170,96 @@ async function main(): Promise<void> {
   const manifestPointer = manifestInscribeResult.pointer;
   const manifestSequence = manifestInscribeResult.manifestSequence;
 
-  const registryTopicId = await client.createRegistryTopic({
-    ttl: 120,
-    indexed: 0,
-    type: HCS21TopicType.ADAPTER_REGISTRY,
+  if (!manifestPointer) {
+    throw new Error('Manifest pointer is required');
+  }
+
+  await client.registerCategoryTopic({
+    discoveryTopicId: registryOfRegistriesTopicId,
+    categoryTopicId,
+    metadata: registryMetadataPointer.pointer,
+    memo: 'adapter-registry:demo',
   });
 
-  logger.info('Manifest pointer ready', { manifestPointer });
-  logger.info('Registry topic ready', { registryTopicId });
+  await client.publishCategoryEntry({
+    categoryTopicId,
+    adapterId,
+    versionTopicId: versionPointerTopicId,
+    memo: `adapter:${adapterId}`,
+  });
+
+  await client.publishVersionPointer({
+    versionTopicId: versionPointerTopicId,
+    declarationTopicId,
+    memo: `adapter:${adapterId}`,
+  });
+
+  logger.info('Layered registry created', {
+    registryOfRegistriesTopicId,
+    categoryTopicId,
+    versionPointerTopicId,
+    declarationTopicId,
+  });
+
+  await sleep(5000);
+
+  const resolver = new HRLResolver('info');
+
+  const categoryEntries = await client.fetchCategoryEntries(categoryTopicId);
+  const categoryMatch = categoryEntries.find(
+    (entry) => entry.adapterId === adapterId,
+  );
+  if (!categoryMatch) {
+    throw new Error('Category entry not found for adapter');
+  }
+  const versionResolution = await client.resolveVersionPointer(
+    versionPointerTopicId,
+  );
+  if (versionResolution.declarationTopicId !== declarationTopicId) {
+    throw new Error('Version pointer mismatch');
+  }
+
+  const baseDeclaration = client.buildDeclaration({
+    op: 'register',
+    adapterId,
+    entity: 'agent',
+    adapterPackage: {
+      registry: 'npm',
+      name: '@hashgraphonline/x402-bazaar-adapter',
+      version: '1.0.0',
+      integrity: artifactIntegrity,
+    },
+    manifest: manifestPointer,
+    manifestSequence,
+    config: {
+      type: 'custom',
+      network,
+      registry_topic: declarationTopicId,
+    },
+    stateModel: 'hcs-21.generic@1',
+  });
+
+  const canonicalUnsigned = canonicalize({
+    ...baseDeclaration,
+    signature: undefined,
+  });
+  const publisherKey = PrivateKey.fromString(operatorKey);
+  const signature = Buffer.from(
+    publisherKey.sign(Buffer.from(canonicalUnsigned, 'utf8')),
+  ).toString('base64');
+
+  baseDeclaration.signature = signature;
 
   const publishResult = await client.publishDeclaration({
-    topicId: registryTopicId,
-    declaration: {
-      op: 'register',
-      adapterId,
-      entity: 'agent',
-      adapterPackage: {
-        registry: 'npm',
-        name: '@hashgraphonline/x402-bazaar-adapter',
-        version: '1.0.0',
-        integrity: 'sha384-demo-digest',
-      },
-      manifest: manifestPointer,
-      manifestSequence,
-      config: {
-        type: 'flora',
-        account: floraAccount,
-        threshold: floraThreshold,
-        ctopic: consensusTopicId,
-        ttopic: txTopicId,
-        stopic: stateTopicId,
-      },
-      stateModel: 'hcs-21.entity-consensus@1',
-    },
+    topicId: versionResolution.declarationTopicId,
+    declaration: baseDeclaration,
   });
 
   logger.info('Declaration submitted', publishResult);
 
   await sleep(3000);
 
-  const declarations = await client.fetchDeclarations(registryTopicId, {
+  const declarations = await client.fetchDeclarations(declarationTopicId, {
     limit: 1,
     order: 'desc',
   });
@@ -187,7 +268,44 @@ async function main(): Promise<void> {
     throw new Error('No declarations returned from mirror node');
   }
 
-  logger.info('Latest declaration', declarations[0]);
+  const latest = declarations[0].declaration;
+  const signatureValid = verifyDeclarationSignature(
+    latest,
+    publisherKey.publicKey.toString(),
+  );
+  if (!signatureValid) {
+    throw new Error('Declaration signature invalid');
+  }
+
+  const digestValid = verifyArtifactDigest(artifactBytes, artifactIntegrity);
+  if (!digestValid) {
+    throw new Error('Artifact digest mismatch');
+  }
+
+  const manifestResult = await resolver.resolve(manifestPointer, { network });
+  const remoteManifest =
+    typeof manifestResult.content === 'string'
+      ? JSON.parse(manifestResult.content)
+      : manifestResult.content;
+  const remoteCanonical = canonicalize(remoteManifest);
+  const localCanonical = canonicalize(manifest);
+
+  if (localCanonical !== remoteCanonical) {
+    throw new Error('Manifest mismatch between inscription and local source');
+  }
+
+  logger.info('Manifest verified via HRL resolution', {
+    manifestPointer,
+    sequence: manifestSequence,
+    metadataTopic: registryMetadataPointer.pointer,
+  });
+
+  logger.info('HCS-21 layered registry demo complete', {
+    registryOfRegistriesTopicId,
+    versionPointerTopicId,
+    registryTopicId,
+    manifestPointer,
+  });
   setImmediate(() => process.exit(0));
 }
 

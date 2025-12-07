@@ -19,7 +19,7 @@ describe('HCS-21 Base Client', () => {
       config: {
         type: 'flora',
         account: '0.0.5005',
-        threshold: '2-of-3',
+        threshold: '2/3',
         ctopic: '0.0.4001',
         ttopic: '0.0.4002',
         stopic: '0.0.4003',
@@ -42,7 +42,7 @@ describe('HCS-21 Base Client', () => {
       config: {
         type: 'flora',
         account: '0.0.5005',
-        threshold: '2-of-3',
+        threshold: '2/3',
         ctopic: '0.0.4001',
         ttopic: '0.0.4002',
         stopic: '0.0.4003',
@@ -68,7 +68,7 @@ describe('HCS-21 Base Client', () => {
       config: {
         type: 'flora',
         account: '0.0.5005',
-        threshold: '2-of-3',
+        threshold: '2/3',
         ctopic: '0.0.4001',
         ttopic: '0.0.4002',
         stopic: '0.0.4003',
@@ -95,7 +95,7 @@ describe('HCS-21 Base Client', () => {
         config: {
           type: 'flora',
           account: '0.0.5005',
-          threshold: '2-of-3',
+          threshold: '2/3',
           ctopic: '0.0.4001',
           ttopic: '0.0.4002',
           stopic: '0.0.4003',
@@ -121,7 +121,7 @@ describe('HCS-21 Base Client', () => {
         config: {
           type: 'flora',
           account: '0.0.5005',
-          threshold: '2-of-3',
+          threshold: '2/3',
           ctopic: '0.0.4001',
           ttopic: '0.0.4002',
           stopic: '0.0.4003',

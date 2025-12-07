@@ -20,6 +20,11 @@ import {
   metadataDocumentSchema,
 } from './types';
 import { buildHcs21CreateRegistryTx, buildHcs21MessageTx } from './tx';
+import {
+  buildHcs2CreateRegistryTx,
+  buildHcs2RegisterTx,
+} from '../hcs-2/tx';
+import { HCS2RegistryType } from '../hcs-2/types';
 import { HCS21ValidationError } from './errors';
 import { MaybeKey } from '../common/tx/tx-utils';
 import { inscribe } from '../inscribe/inscriber';
@@ -61,6 +66,64 @@ export interface InscribeMetadataParams {
   document: HCS21MetadataDocument;
   fileName?: string;
   inscriptionOptions?: InscriptionOptions;
+}
+
+export interface CreateAdapterVersionPointerTopicParams {
+  ttl: number;
+  adminKey?: MaybeKey;
+  submitKey?: MaybeKey;
+  transactionMemo?: string;
+  memoOverride?: string;
+}
+
+export interface CreateRegistryDiscoveryTopicParams {
+  ttl: number;
+  adminKey?: MaybeKey;
+  submitKey?: MaybeKey;
+  transactionMemo?: string;
+  memoOverride?: string;
+}
+
+export interface CreateAdapterCategoryTopicParams {
+  ttl: number;
+  indexed?: 0 | 1;
+  metaTopicId?: string;
+  adminKey?: MaybeKey;
+  submitKey?: MaybeKey;
+  transactionMemo?: string;
+}
+
+export interface PublishVersionPointerParams {
+  versionTopicId: string;
+  declarationTopicId: string;
+  memo?: string;
+  transactionMemo?: string;
+}
+
+export interface RegisterCategoryTopicParams {
+  discoveryTopicId: string;
+  categoryTopicId: string;
+  metadata?: string;
+  memo?: string;
+  transactionMemo?: string;
+}
+
+export interface PublishCategoryEntryParams {
+  categoryTopicId: string;
+  adapterId: string;
+  versionTopicId: string;
+  metadata?: string;
+  memo?: string;
+  transactionMemo?: string;
+}
+
+export interface VersionPointerResolution {
+  versionTopicId: string;
+  declarationTopicId: string;
+  sequenceNumber: number;
+  payer?: string;
+  memo?: string;
+  op?: string;
 }
 
 export class HCS21Client extends HCS21BaseClient {
@@ -120,7 +183,8 @@ export class HCS21Client extends HCS21BaseClient {
       {
         type: 'buffer',
         buffer,
-        fileName: params.fileName || `hcs21-adapter-manifest-${Date.now()}.json`,
+        fileName:
+          params.fileName || `hcs21-adapter-manifest-${Date.now()}.json`,
         mimeType: 'application/json',
       },
       {
@@ -160,8 +224,9 @@ export class HCS21Client extends HCS21BaseClient {
       rawSequence,
     );
 
-    const declarationManifestSequence =
-      (inscription.result as { manifest_sequence?: number })?.manifest_sequence;
+    const declarationManifestSequence = (
+      inscription.result as { manifest_sequence?: number }
+    )?.manifest_sequence;
 
     const resultDetails =
       inscription.result && 'jobId' in inscription.result
@@ -211,6 +276,234 @@ export class HCS21Client extends HCS21BaseClient {
     }
 
     return receipt.topicId.toString();
+  }
+
+  async createAdapterVersionPointerTopic(
+    params: CreateAdapterVersionPointerTopicParams,
+  ): Promise<string> {
+    await this.operatorCtx.ensureInitialized();
+
+    const tx = buildHcs2CreateRegistryTx({
+      registryType: HCS2RegistryType.NON_INDEXED,
+      ttl: params.ttl,
+      adminKey: params.adminKey,
+      submitKey: params.submitKey,
+      memoOverride: params.memoOverride,
+      operatorPublicKey: this.operatorCtx.operatorKey.publicKey,
+    });
+
+    if (params.transactionMemo) {
+      tx.setTransactionMemo(params.transactionMemo);
+    }
+
+    const response = await tx.execute(this.client);
+    const receipt = await response.getReceipt(this.client);
+
+    if (receipt.status !== Status.Success || !receipt.topicId) {
+      throw new HCS21ValidationError(
+        'Failed to create HCS-2 registry version topic',
+        'invalid_payload',
+      );
+    }
+
+    return receipt.topicId.toString();
+  }
+
+  async createRegistryDiscoveryTopic(
+    params: CreateRegistryDiscoveryTopicParams,
+  ): Promise<string> {
+    await this.operatorCtx.ensureInitialized();
+
+    const tx = buildHcs2CreateRegistryTx({
+      registryType: HCS2RegistryType.INDEXED,
+      ttl: params.ttl,
+      adminKey: params.adminKey,
+      submitKey: params.submitKey,
+      memoOverride: params.memoOverride,
+      operatorPublicKey: this.operatorCtx.operatorKey.publicKey,
+    });
+
+    if (params.transactionMemo) {
+      tx.setTransactionMemo(params.transactionMemo);
+    }
+
+    const response = await tx.execute(this.client);
+    const receipt = await response.getReceipt(this.client);
+
+    if (receipt.status !== Status.Success || !receipt.topicId) {
+      throw new HCS21ValidationError(
+        'Failed to create registry-of-registries topic',
+        'invalid_payload',
+      );
+    }
+
+    return receipt.topicId.toString();
+  }
+
+  async createAdapterCategoryTopic(
+    params: CreateAdapterCategoryTopicParams,
+  ): Promise<string> {
+    await this.operatorCtx.ensureInitialized();
+
+    const tx: TopicCreateTransaction = buildHcs21CreateRegistryTx({
+      ttl: params.ttl,
+      indexed: params.indexed ?? 0,
+      type: HCS21TopicType.ADAPTER_CATEGORY,
+      metaTopicId: params.metaTopicId,
+      adminKey: params.adminKey,
+      submitKey: params.submitKey,
+      operatorPublicKey: this.operatorCtx.operatorKey.publicKey,
+    });
+
+    if (params.transactionMemo) {
+      tx.setTransactionMemo(params.transactionMemo);
+    }
+
+    const response = await tx.execute(this.client);
+    const receipt = await response.getReceipt(this.client);
+
+    if (receipt.status !== Status.Success || !receipt.topicId) {
+      throw new HCS21ValidationError(
+        'Failed to create adapter category topic',
+        'invalid_payload',
+      );
+    }
+
+    return receipt.topicId.toString();
+  }
+
+  /**
+   * Publish a pointer from a version topic to the active declaration topic.
+   * Version pointer messages carry no metadata.
+   */
+  async publishVersionPointer(
+    params: PublishVersionPointerParams,
+  ): Promise<PublishDeclarationResult> {
+    await this.operatorCtx.ensureInitialized();
+
+    const tx = buildHcs2RegisterTx({
+      registryTopicId: params.versionTopicId,
+      targetTopicId: params.declarationTopicId,
+      memo: params.memo,
+      analyticsMemo: params.transactionMemo,
+    });
+
+    const response = await tx.execute(this.client);
+    const receipt = await response.getReceipt(this.client);
+
+    if (receipt.status !== Status.Success) {
+      throw new HCS21ValidationError(
+        'Failed to publish registry version pointer',
+        'invalid_payload',
+      );
+    }
+
+    return {
+      sequenceNumber: receipt.topicSequenceNumber?.toNumber(),
+      transactionId: response.transactionId.toString(),
+    };
+  }
+
+  async resolveVersionPointer(
+    versionTopicId: string,
+  ): Promise<VersionPointerResolution> {
+    const [latest] = await this.mirrorNode.getTopicMessages(versionTopicId, {
+      limit: 1,
+      order: 'desc',
+    });
+
+    if (!latest) {
+      throw new HCS21ValidationError(
+        'Version pointer topic has no messages',
+        'invalid_payload',
+      );
+    }
+
+    const declarationTopicId = (latest as { t_id?: unknown }).t_id;
+
+    if (
+      typeof declarationTopicId !== 'string' ||
+      declarationTopicId.length === 0
+    ) {
+      throw new HCS21ValidationError(
+        'Version pointer topic does not include a declaration topic ID (`t_id`)',
+        'invalid_payload',
+      );
+    }
+
+    const rawSequence =
+      typeof latest.sequence_number === 'number'
+        ? latest.sequence_number
+        : Number(latest.sequence_number);
+    const sequenceNumber = Number.isFinite(rawSequence) ? rawSequence : 0;
+
+    return {
+      versionTopicId,
+      declarationTopicId,
+      sequenceNumber,
+      payer: (latest as { payer?: string }).payer,
+      memo: (latest as { m?: string }).m,
+      op: (latest as { op?: string }).op,
+    };
+  }
+
+  async registerCategoryTopic(
+    params: RegisterCategoryTopicParams,
+  ): Promise<PublishDeclarationResult> {
+    await this.operatorCtx.ensureInitialized();
+
+    const tx = buildHcs2RegisterTx({
+      registryTopicId: params.discoveryTopicId,
+      targetTopicId: params.categoryTopicId,
+      metadata: params.metadata,
+      memo: params.memo,
+      analyticsMemo: params.transactionMemo,
+    });
+
+    const response = await tx.execute(this.client);
+    const receipt = await response.getReceipt(this.client);
+
+    if (receipt.status !== Status.Success) {
+      throw new HCS21ValidationError(
+        'Failed to register adapter category topic',
+        'invalid_payload',
+      );
+    }
+
+    return {
+      sequenceNumber: receipt.topicSequenceNumber?.toNumber(),
+      transactionId: response.transactionId.toString(),
+    };
+  }
+
+  async publishCategoryEntry(
+    params: PublishCategoryEntryParams,
+  ): Promise<PublishDeclarationResult> {
+    await this.operatorCtx.ensureInitialized();
+
+    const memo = params.memo ?? `adapter:${params.adapterId}`;
+    const tx = buildHcs2RegisterTx({
+      registryTopicId: params.categoryTopicId,
+      targetTopicId: params.versionTopicId,
+      metadata: params.metadata,
+      memo,
+      analyticsMemo: params.transactionMemo,
+    });
+
+    const response = await tx.execute(this.client);
+    const receipt = await response.getReceipt(this.client);
+
+    if (receipt.status !== Status.Success) {
+      throw new HCS21ValidationError(
+        'Failed to publish adapter category entry',
+        'invalid_payload',
+      );
+    }
+
+    return {
+      sequenceNumber: receipt.topicSequenceNumber?.toNumber(),
+      transactionId: response.transactionId.toString(),
+    };
   }
 
   async publishDeclaration(

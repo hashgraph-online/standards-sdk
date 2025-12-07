@@ -12,6 +12,8 @@ import {
   HCS21_PROTOCOL,
   AdapterConfigContext,
   adapterDeclarationSchema,
+  AdapterCategoryEntry,
+  HCS21TopicType,
 } from './types';
 
 export interface BuildDeclarationParams {
@@ -114,6 +116,35 @@ export class HCS21BaseClient {
     }
 
     return envelopes;
+  }
+
+  async fetchCategoryEntries(topicId: string): Promise<AdapterCategoryEntry[]> {
+    const rawMessages = await this.mirrorNode.getTopicMessages(topicId);
+    const entries: AdapterCategoryEntry[] = [];
+
+    for (const message of rawMessages) {
+      if (message.p !== 'hcs-2' || message.op !== 'register') {
+        continue;
+      }
+      if (!message.t_id || typeof message.t_id !== 'string') {
+        continue;
+      }
+      const memo = typeof message.m === 'string' ? message.m : undefined;
+      const adapterId = memo?.startsWith('adapter:')
+        ? memo.slice('adapter:'.length)
+        : memo;
+      entries.push({
+        adapterId: adapterId ?? message.t_id,
+        adapterTopicId: message.t_id,
+        metadata: message.metadata,
+        memo,
+        payer: message.payer,
+        sequenceNumber: Number(message.sequence_number ?? 0),
+        consensusTimestamp: message.consensus_timestamp,
+      });
+    }
+
+    return entries;
   }
 
   protected assertSizeLimit(payload: AdapterDeclaration): void {
