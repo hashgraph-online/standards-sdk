@@ -44,8 +44,9 @@ import {
   registrationProgressResponseSchema,
   registerEncryptionKeyResponseSchema,
   searchStatusResponseSchema,
+  AIAgentType,
+  AIAgentCapability,
 } from './schemas';
-import { HCS11Profile } from '../../hcs-11/types';
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | JsonObject;
@@ -149,7 +150,7 @@ export interface AgentRegistrationRequestMetadata {
 }
 
 export interface AgentRegistrationRequest {
-  profile: HCS11Profile;
+  profile: JsonObject;
   endpoint?: string;
   protocol?: string;
   communicationProtocol?: string;

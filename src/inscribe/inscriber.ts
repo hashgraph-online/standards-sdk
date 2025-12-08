@@ -8,9 +8,10 @@ import {
   StartInscriptionRequest,
   InscriptionJobResponse,
   NodeHederaClientConfig,
+  InscriptionCostSummary,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
-import { Logger, ILogger } from '../utils/logger';
+import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
 import { isBrowser } from '../utils/is-browser';
@@ -21,12 +22,24 @@ import {
   cacheQuote,
   validateQuoteParameters,
 } from './quote-cache';
+import { HederaMirrorNode } from '../services/mirror-node';
+import { NetworkType } from '../utils/types';
+import BigNumber from 'bignumber.js';
+import { sleep } from '../utils/sleep';
 
 let nodeModules: {
   readFileSync?: (path: string) => Buffer;
   basename?: (path: string) => string;
   extname?: (path: string) => string;
 } = {};
+
+export const normalizeTransactionId = (txId: string): string => {
+  if (!txId.includes('@')) {
+    return txId;
+  }
+  const txParts = txId?.split('@');
+  return `${txParts[0]}-${txParts[1].replace('.', '-')}`;
+};
 
 async function loadNodeModules(): Promise<void> {
   if (isBrowser || nodeModules.readFileSync) {
@@ -63,6 +76,11 @@ export type InscriptionInput =
       fileName: string;
       mimeType?: string;
     };
+
+const COST_LOOKUP_ATTEMPTS = 3;
+const COST_LOOKUP_DELAY_MS = 1000;
+const TINYBAR_DIVISOR = 100000000;
+const COST_LOGGER_MODULE = 'InscriberCost';
 
 /**
  * Convert file path to base64 with mime type detection
@@ -134,6 +152,7 @@ export interface InscriptionResponse {
   inscription?: RetrievedInscriptionResult;
   sdk?: InscriptionSDK;
   quote?: boolean;
+  costSummary?: InscriptionCostSummary;
 }
 
 function normalizeClientConfig(
@@ -191,6 +210,7 @@ export async function inscribe(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
+        connectionMode: 'auto',
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -200,6 +220,7 @@ export async function inscribe(
         accountId: normalized.accountId,
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
+        connectionMode: 'auto',
       });
     }
 
@@ -273,6 +294,22 @@ export async function inscribe(
 
     const normalizedCfg = normalizeClientConfig(clientConfig);
     const result = await sdk.inscribeAndExecute(request, normalizedCfg);
+    const rawJobId =
+      (result as { jobId?: string }).jobId ||
+      (result as { tx_id?: string }).tx_id ||
+      (result as { transactionId?: string }).transactionId ||
+      '';
+    const rawTxId =
+      (result as { transactionId?: string }).transactionId || rawJobId || '';
+    const normalizedJobId = normalizeTransactionId(rawJobId);
+    const normalizedTxId = normalizeTransactionId(rawTxId);
+    const waitId = normalizeTransactionId(
+      normalizedJobId ||
+        normalizedTxId ||
+        rawJobId ||
+        (result as { jobId?: string }).jobId ||
+        '',
+    );
     logger.info('Starting to inscribe.', {
       type: input.type,
       mode: options.mode || 'file',
@@ -281,14 +318,14 @@ export async function inscribe(
 
     if (options.waitForConfirmation) {
       logger.debug('Waiting for inscription confirmation', {
-        transactionId: result.jobId,
+        transactionId: waitId,
         maxAttempts: options.waitMaxAttempts,
         intervalMs: options.waitIntervalMs,
       });
 
       const inscription = await waitForInscriptionConfirmation(
         sdk,
-        result.jobId,
+        waitId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
         options.progressCallback,
@@ -300,21 +337,123 @@ export async function inscribe(
 
       return {
         confirmed: true,
-        result,
+        result: {
+          ...result,
+          jobId: waitId,
+          transactionId: normalizedTxId,
+        },
         inscription,
         sdk,
+        costSummary: await resolveInscriptionCost(
+          normalizedTxId,
+          clientConfig.network || 'mainnet',
+          options.logging?.level,
+        ),
       };
     }
 
     return {
       confirmed: false,
-      result,
+      result: {
+        ...result,
+        jobId: waitId,
+        transactionId: normalizedTxId,
+      },
       sdk,
+      costSummary: await resolveInscriptionCost(
+        normalizedTxId,
+        clientConfig.network || 'mainnet',
+        options.logging?.level,
+      ),
     };
   } catch (error) {
     logger.error('Error during inscription process', error);
     throw error;
   }
+}
+
+async function resolveInscriptionCost(
+  transactionId: string,
+  network: NetworkType,
+  level?: LogLevel,
+): Promise<InscriptionCostSummary | undefined> {
+  const logger = Logger.getInstance({
+    module: COST_LOGGER_MODULE,
+    level: level ?? 'info',
+  });
+  const mirrorNode = new HederaMirrorNode(network, logger);
+  const normalizedId = normalizeTransactionId(transactionId);
+
+  const payerAccountId = normalizedId.split('-')[0];
+
+  for (let attempt = 0; attempt < COST_LOOKUP_ATTEMPTS; attempt++) {
+    try {
+      const txn = await mirrorNode.getTransaction(normalizedId);
+
+      if (!txn) {
+        if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
+          await sleep(COST_LOOKUP_DELAY_MS);
+        }
+        continue;
+      }
+
+      const payerTransfer = txn.transfers?.find(
+        transfer =>
+          transfer.account === payerAccountId &&
+          typeof transfer.amount === 'number' &&
+          transfer.amount < 0,
+      );
+
+      let payerTinybars: number | null = null;
+
+      if (payerTransfer) {
+        payerTinybars = Math.abs(payerTransfer.amount);
+      } else if (txn.transfers && txn.transfers.length > 0) {
+        const negativeSum = txn.transfers
+          .filter(t => typeof t.amount === 'number' && t.amount < 0)
+          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+        payerTinybars = negativeSum > 0 ? negativeSum : null;
+      } else if (typeof txn.charged_tx_fee === 'number') {
+        payerTinybars = txn.charged_tx_fee;
+      }
+
+      if (!payerTinybars || payerTinybars <= 0) {
+        if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
+          await sleep(COST_LOOKUP_DELAY_MS);
+        }
+        continue;
+      }
+
+      const totalCostHbar = new BigNumber(payerTinybars)
+        .dividedBy(TINYBAR_DIVISOR)
+        .toFixed();
+
+      return {
+        totalCostHbar,
+        breakdown: {
+          transfers: [
+            {
+              to: 'Hedera network (payer)',
+              amount: totalCostHbar,
+              description: `Transaction fee debited from ${payerAccountId}`,
+            },
+          ],
+        },
+      };
+    } catch (error) {
+      logger.warn('Unable to resolve inscription cost', {
+        transactionId: normalizedId,
+        attempt: attempt + 1,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
+        await sleep(COST_LOOKUP_DELAY_MS);
+      }
+    }
+  }
+
+  return undefined;
 }
 
 export async function inscribeWithSigner(
@@ -475,6 +614,13 @@ export async function inscribeWithSigner(
       );
     }
 
+    const trackingId = normalizeTransactionId(
+      startResult.tx_id || startResult.id || '',
+    );
+    const waitId = normalizeTransactionId(
+      trackingId || startResult.id || startResult.tx_id || '',
+    );
+
     if (options.waitForConfirmation) {
       logger.debug('Waiting for inscription confirmation (websocket)', {
         jobId: startResult.id || startResult.tx_id,
@@ -482,43 +628,52 @@ export async function inscribeWithSigner(
         intervalMs: options.waitIntervalMs,
       });
 
-      const trackingId = startResult.tx_id || startResult.id;
       const inscription = await waitForInscriptionConfirmation(
         sdk,
-        trackingId,
+        waitId,
         options.waitMaxAttempts,
         options.waitIntervalMs,
         options.progressCallback,
       );
 
       logger.info('Inscription confirmation received', {
-        jobId: trackingId,
+        jobId: waitId,
       });
 
       return {
         confirmed: true,
         result: {
-          jobId: startResult.id || startResult.tx_id,
-          transactionId: startResult.tx_id || '',
+          jobId: waitId,
+          transactionId: waitId,
           topic_id: startResult.topic_id,
           status: startResult.status,
           completed: startResult.completed,
         },
         inscription,
         sdk,
+        costSummary: await resolveInscriptionCost(
+          waitId,
+          options.network || 'mainnet',
+          options.logging?.level,
+        ),
       };
     }
 
     return {
       confirmed: false,
       result: {
-        jobId: startResult.id || startResult.tx_id,
-        transactionId: startResult.tx_id || '',
+        jobId: waitId,
+        transactionId: waitId,
         topic_id: startResult.topic_id,
         status: startResult.status,
         completed: startResult.completed,
       },
       sdk,
+      costSummary: await resolveInscriptionCost(
+        waitId,
+        options.network || 'mainnet',
+        options.logging?.level,
+      ),
     };
   } catch (error) {
     logger.error('Error during inscription process', error);
@@ -916,6 +1071,7 @@ export async function waitForInscriptionConfirmation(
   progressCallback?: ProgressCallback,
 ): Promise<RetrievedInscriptionResult> {
   const logger = Logger.getInstance({ module: 'Inscriber' });
+  const normalizedId = normalizeTransactionId(transactionId);
   const progressReporter = new ProgressReporter({
     module: 'Inscriber',
     logger,
@@ -924,13 +1080,13 @@ export async function waitForInscriptionConfirmation(
 
   try {
     logger.debug('Waiting for inscription confirmation', {
-      transactionId,
+      transactionId: normalizedId,
       maxAttempts,
       intervalMs,
     });
 
     progressReporter.preparing('Preparing for inscription confirmation', 5, {
-      transactionId,
+      transactionId: normalizedId,
       maxAttempts,
       intervalMs,
     });
@@ -982,7 +1138,7 @@ export async function waitForInscriptionConfirmation(
       };
 
       return await waitMethod(
-        transactionId,
+        normalizedId,
         maxAttempts,
         intervalMs,
         true,
@@ -997,7 +1153,7 @@ export async function waitForInscriptionConfirmation(
       });
 
       return await sdk.waitForInscription(
-        transactionId,
+        normalizedId,
         maxAttempts,
         intervalMs,
         true,

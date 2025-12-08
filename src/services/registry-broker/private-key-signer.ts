@@ -1,14 +1,12 @@
-import {
-  AccountId,
-  LedgerId,
-  PrivateKey,
+import type {
+  Signer,
+  AccountBalance,
+  AccountInfo,
+  Transaction,
+  TransactionRecord,
   SignerSignature,
-  type Signer,
-  type AccountBalance,
-  type AccountInfo,
-  type Transaction,
-  type TransactionRecord,
 } from '@hashgraph/sdk';
+import { optionalImportSync } from '../../utils/dynamic-import';
 
 const unsupported = (method: string): Error =>
   new Error(`${method} is not supported by the in-memory signer`);
@@ -22,6 +20,8 @@ export interface PrivateKeySignerOptions {
 export const createPrivateKeySigner = (
   options: PrivateKeySignerOptions,
 ): Signer => {
+  const sdk = loadHashgraphSdk();
+  const { AccountId, LedgerId, PrivateKey, SignerSignature } = sdk;
   if (!options.privateKey) {
     throw new Error('privateKey is required to create a ledger signer.');
   }
@@ -73,4 +73,22 @@ export const createPrivateKeySigner = (
       throw unsupported('call');
     },
   };
+};
+
+type HashgraphSdk = typeof import('@hashgraph/sdk');
+
+let cachedSdk: HashgraphSdk | null = null;
+
+const loadHashgraphSdk = (): HashgraphSdk => {
+  if (cachedSdk) {
+    return cachedSdk;
+  }
+  const resolved = optionalImportSync<HashgraphSdk>('@hashgraph/sdk');
+  if (!resolved) {
+    const message =
+      '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
+    throw new Error(message);
+  }
+  cachedSdk = resolved;
+  return resolved;
 };

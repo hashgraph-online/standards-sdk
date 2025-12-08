@@ -95,10 +95,19 @@ export class HCS16BaseClient {
     if (!match) {
       return null;
     }
+    const floraAccountId = match[1];
+    const topicType = Number(match[2]) as FloraTopicType;
+    if (
+      topicType !== FloraTopicType.COMMUNICATION &&
+      topicType !== FloraTopicType.TRANSACTION &&
+      topicType !== FloraTopicType.STATE
+    ) {
+      return null;
+    }
     return {
       protocol: 'hcs-16',
-      floraAccountId: match[1],
-      topicType: Number(match[2]) as FloraTopicType,
+      floraAccountId,
+      topicType,
     };
   }
 

@@ -123,7 +123,7 @@ async function main() {
       'Propose Flora formation (HCS-18)',
       'Respond B accept (HCS-18)',
       'Respond C accept (HCS-18)',
-      'Create Flora account (2-of-3 keylist)',
+      'Create Flora account (2/3 keylist)',
       'Create C/T/S topics',
       'Publish flora_created (CTopic)',
       'Publish state_update (STopic)',
@@ -274,7 +274,7 @@ async function main() {
   });
 
   const keyList = await seq.run(
-    'Create Flora account (2-of-3 keylist)',
+    'Create Flora account (2/3 keylist)',
     async () => {
       const k = await h16.assembleKeyList({
         members: [

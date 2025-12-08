@@ -328,7 +328,9 @@ export class HCS20Client extends HCS20BaseClient {
         mintTxId,
       });
 
-      await this.waitForMirrorNodeConfirmation(topicId, mintTxId);
+      if (!options.disableMirrorCheck) {
+        await this.waitForMirrorNodeConfirmation(topicId, mintTxId);
+      }
 
       progressCallback?.({
         stage: 'complete',

@@ -46,11 +46,13 @@ export interface AuthResult {
 export interface InscriptionSDKOptions {
   apiKey?: string;
   network?: 'mainnet' | 'testnet';
+  connectionMode?: 'http' | 'websocket' | 'auto';
 }
 
 export interface InscriptionOptions {
   mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection';
   websocket?: boolean;
+  connectionMode?: 'http' | 'websocket' | 'auto';
   waitForConfirmation?: boolean;
   waitMaxAttempts?: number;
   waitIntervalMs?: number;
@@ -130,6 +132,12 @@ export interface QuoteResult {
       description: string;
     }>;
   };
+}
+
+export interface InscriptionCostSummary {
+  totalCostHbar: string;
+  breakdown: QuoteResult['breakdown'];
+  validUntil?: string;
 }
 
 /**

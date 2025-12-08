@@ -683,5 +683,6 @@ export interface HCSMessageWithCommonFields {
   account_id?: string;
   uid?: string;
   t_id?: string;
+  metadata?: string;
   transaction_id?: string;
 }

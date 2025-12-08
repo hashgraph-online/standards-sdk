@@ -88,3 +88,32 @@ export async function optionalImport<T>(specifier: string): Promise<T | null> {
 
   return dynamicImport<T>(specifier);
 }
+
+export function optionalImportSync<T>(specifier: string): T | null {
+  if (isBrowser) {
+    return null;
+  }
+
+  try {
+    const globalObject =
+      typeof global !== 'undefined'
+        ? (global as typeof globalThis)
+        : globalThis;
+    const req =
+      globalObject.process?.mainModule?.require ??
+      (globalObject as { require?: NodeRequire }).require;
+
+    if (
+      typeof req === 'function' &&
+      typeof (req as NodeRequire).resolve === 'function'
+    ) {
+      return req(specifier) as T;
+    }
+  } catch (error) {
+    if (!isModuleNotFound(specifier, error)) {
+      throw error as Error;
+    }
+  }
+
+  return null;
+}

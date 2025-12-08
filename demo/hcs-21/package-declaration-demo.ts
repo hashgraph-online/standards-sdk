@@ -1,14 +1,36 @@
 import 'dotenv/config';
-import { Client, TopicCreateTransaction } from '@hashgraph/sdk';
+import { createHash } from 'crypto';
+import { PrivateKey } from '@hashgraph/sdk';
 import {
+  AdapterManifest,
   HCS21Client,
+  HCS21TopicType,
+  HRLResolver,
   Logger,
+  ManifestPointer,
   NetworkType,
-  PackageMetadataRecord,
+  canonicalize,
+  verifyArtifactDigest,
+  verifyDeclarationSignature,
 } from '../../src';
 import { sleep } from '../../src/utils/sleep';
 
 const logger = new Logger({ module: 'hcs-21-demo', level: 'info' });
+
+function logInscriptionCost(
+  label: string,
+  pointer?: Pick<ManifestPointer, 'totalCostHbar' | 'costBreakdown'>,
+): void {
+  if (!pointer?.totalCostHbar) {
+    logger.info(`${label} inscription cost unavailable (mirror node pending)`);
+    return;
+  }
+
+  logger.info(`${label} inscription cost`, {
+    totalCostHbar: pointer.totalCostHbar,
+    breakdown: pointer.costBreakdown?.transfers,
+  });
+}
 
 async function main(): Promise<void> {
   const network = (process.env.HEDERA_NETWORK as NetworkType) || 'testnet';
@@ -46,94 +68,220 @@ async function main(): Promise<void> {
     logLevel: 'info',
   });
 
-  const hederaClient =
-    network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
-  hederaClient.setOperator(operatorId, operatorKey);
+  const artifactBytes = Buffer.from('demo adapter tarball contents');
+  const artifactDigestHex = createHash('sha384')
+    .update(artifactBytes)
+    .digest('hex');
+  const artifactIntegrity = `sha384-${artifactDigestHex}`;
 
-  let packageTopicId = process.env.HCS21_PACKAGE_TOPIC_ID;
-
-  if (!packageTopicId) {
-    logger.info('Creating HCS-2 package topic');
-    const packageTopicTx = await new TopicCreateTransaction()
-      .setTopicMemo('hcs-2:0:3600:0')
-      .execute(hederaClient);
-    const packageTopicReceipt = await packageTopicTx.getReceipt(hederaClient);
-    if (!packageTopicReceipt.topicId) {
-      throw new Error('Failed to create package topic');
-    }
-    packageTopicId = packageTopicReceipt.topicId.toString();
-    logger.info('Package topic ready', { packageTopicId });
-  }
-
-  let metadataPointer = process.env.HCS21_METADATA_POINTER;
-
-  const packageName = 'Standards SDK Package';
-  const packageDescription =
-    'Demo package declaration showcasing HCS-21 register + update operations.';
-  const packageAuthor = 'Kantorcodes';
-  const packageTags = ['demo', 'registry', 'hcs-21'];
-
-  if (metadataPointer) {
-    logger.info('Using metadata pointer from environment', {
-      pointer: metadataPointer,
-    });
-  } else {
-    logger.info('Inscribing package metadata via HCS-1');
-    const metadataRecord: PackageMetadataRecord = {
-      schema: 'hcs-21/metadata@1.0',
-      description: packageDescription,
-      website: 'https://hashgraph.online',
-      docs: 'https://hashgraph.online/docs/libraries/standards-sdk/',
-      source: 'https://github.com/hashgraph-online/standards-sdk',
-      support: 'https://discord.gg/hashgraphonline',
-      maintainers: [packageAuthor],
-      tags: packageTags,
-      dependencies: {
-        '@hashgraph/sdk': '^2.77.0',
-      },
-      t_id: packageTopicId,
+  const adapterId = 'npm/@hashgraphonline/x402-bazaar-adapter@1.0.0';
+  const manifest: AdapterManifest = {
+    meta: {
+      spec_version: '1.0',
+      adapter_version: '1.0.0',
+      generated: new Date().toISOString(),
+    },
+    adapter: {
+      name: 'X402 Bazaar Agent Adapter',
+      id: adapterId,
+      maintainers: [
+        { name: 'Hashgraph Online', contact: 'ops@hashgraph.online' },
+      ],
+      license: 'Apache-2.0',
+    },
+    package: {
+      registry: 'npm',
+      dist_tag: 'stable',
       artifacts: [
         {
-          type: 'bundle',
-          url: 'https://registry.npmjs.org/@hashgraphonline/standards-sdk/-/standards-sdk-latest.tgz',
-          digest: 'sha256-demo',
+          url: 'npm://@hashgraphonline/x402-bazaar-adapter@1.0.0',
+          digest: artifactIntegrity,
+          signature: 'demo-signature',
         },
       ],
-    };
-    const metadataResult = await client.inscribeMetadata({
-      metadata: metadataRecord,
-    });
-    metadataPointer = metadataResult.pointer;
-    logger.info('Metadata pointer ready', metadataResult);
-  }
-
-  if (!metadataPointer) {
-    throw new Error('Failed to resolve metadata pointer');
-  }
-
-  logger.info('Creating HCS-21 registry topic');
-  const topicId = await client.createRegistryTopic({ ttl: 120 });
-  logger.info('Registry topic ready', { topicId });
-
-  logger.info('Publishing package declaration');
-  const result = await client.publishDeclaration({
-    topicId,
-    declaration: {
-      op: 'register',
-      registry: 'npm',
-      t_id: packageTopicId,
-      name: packageName,
-      description: packageDescription,
-      author: packageAuthor,
-      tags: packageTags,
-      metadata: metadataPointer,
     },
+    runtime: {
+      platforms: ['node>=20.10.0'],
+      primary: 'node',
+      entry: 'dist/index.js',
+      dependencies: ['@hashgraphonline/standards-sdk@^1.8.0'],
+      env: ['X402_API_KEY'],
+    },
+    capabilities: {
+      discovery: true,
+      communication: true,
+      protocols: ['x402', 'uaid'],
+      discovery_tags: ['agents', 'marketplaces'],
+      communication_channels: ['text', 'x402'],
+      extras: {
+        locales: ['en', 'es'],
+        rate_limit: { requests_per_minute: 120 },
+      },
+    },
+    consensus: {
+      state_model: 'hcs-21.generic@1',
+      profile_uri: 'ipfs://example-profile',
+      entity_schema: 'hcs-21.entity-consensus@1',
+      required_fields: ['entity_id', 'registry', 'state_hash', 'epoch'],
+      hashing: 'sha384',
+    },
+  };
+
+  const registryMetadata = {
+    version: '1.0.0',
+    name: 'Demo Adapter Registry',
+    description: 'Sample registry showcasing layered HCS-21 discovery.',
+    operator: { account: operatorId },
+    entityTypes: ['agent'],
+    categories: ['price-feeds'],
+  };
+
+  const registryMetadataPointer = await client.inscribeMetadata({
+    document: registryMetadata,
   });
-  logger.info('Declaration submitted', result);
+  logInscriptionCost('Registry metadata', registryMetadataPointer);
+
+  const declarationTopicId =
+    process.env.HCS21_REGISTRY_TOPIC_ID ||
+    (await client.createRegistryTopic({
+      ttl: 3600,
+      indexed: 0,
+      type: HCS21TopicType.ADAPTER_REGISTRY,
+      metaTopicId: registryMetadataPointer.pointer,
+    }));
+
+  const versionPointerTopicId =
+    process.env.HCS21_VERSION_POINTER_TOPIC_ID ||
+    (await client.createAdapterVersionPointerTopic({
+      ttl: 3600,
+      memoOverride: 'hcs-2:1:3600',
+    }));
+
+  const registryOfRegistriesTopicId =
+    process.env.HCS21_ROR_TOPIC_ID ||
+    (await client.createRegistryDiscoveryTopic({
+      ttl: 86400,
+      memoOverride: 'hcs-21:0:86400:1',
+    }));
+
+  const categoryTopicId =
+    process.env.HCS21_CATEGORY_TOPIC_ID ||
+    (await client.createAdapterCategoryTopic({
+      ttl: 86400,
+      indexed: 0,
+      metaTopicId: registryMetadataPointer.pointer,
+    }));
+
+  const reuseManifestPointer = Boolean(
+    process.env.HCS21_MANIFEST_POINTER || process.env.HCS21_MANIFEST_SEQUENCE,
+  );
+  const manifestInscribeResult = reuseManifestPointer
+    ? {
+        pointer: process.env.HCS21_MANIFEST_POINTER ?? '',
+        manifestSequence: process.env.HCS21_MANIFEST_SEQUENCE
+          ? Number(process.env.HCS21_MANIFEST_SEQUENCE)
+          : undefined,
+      }
+    : await client.inscribeMetadata({
+        document: manifest,
+      });
+  if (!reuseManifestPointer) {
+    logInscriptionCost('Adapter manifest', manifestInscribeResult);
+  }
+
+  const manifestPointer = manifestInscribeResult.pointer;
+  const manifestSequence = manifestInscribeResult.manifestSequence;
+
+  if (!manifestPointer) {
+    throw new Error('Manifest pointer is required');
+  }
+
+  await client.registerCategoryTopic({
+    discoveryTopicId: registryOfRegistriesTopicId,
+    categoryTopicId,
+    metadata: registryMetadataPointer.pointer,
+    memo: 'adapter-registry:demo',
+  });
+
+  await client.publishCategoryEntry({
+    categoryTopicId,
+    adapterId,
+    versionTopicId: versionPointerTopicId,
+    memo: `adapter:${adapterId}`,
+  });
+
+  await client.publishVersionPointer({
+    versionTopicId: versionPointerTopicId,
+    declarationTopicId,
+    memo: `adapter:${adapterId}`,
+  });
+
+  logger.info('Layered registry created', {
+    registryOfRegistriesTopicId,
+    categoryTopicId,
+    versionPointerTopicId,
+    declarationTopicId,
+  });
+
+  await sleep(5000);
+
+  const resolver = new HRLResolver('info');
+
+  const categoryEntries = await client.fetchCategoryEntries(categoryTopicId);
+  const categoryMatch = categoryEntries.find(
+    entry => entry.adapterId === adapterId,
+  );
+  if (!categoryMatch) {
+    throw new Error('Category entry not found for adapter');
+  }
+  const versionResolution = await client.resolveVersionPointer(
+    versionPointerTopicId,
+  );
+  if (versionResolution.declarationTopicId !== declarationTopicId) {
+    throw new Error('Version pointer mismatch');
+  }
+
+  const baseDeclaration = client.buildDeclaration({
+    op: 'register',
+    adapterId,
+    entity: 'agent',
+    adapterPackage: {
+      registry: 'npm',
+      name: '@hashgraphonline/x402-bazaar-adapter',
+      version: '1.0.0',
+      integrity: artifactIntegrity,
+    },
+    manifest: manifestPointer,
+    manifestSequence,
+    config: {
+      type: 'custom',
+      network,
+      registry_topic: declarationTopicId,
+    },
+    stateModel: 'hcs-21.generic@1',
+  });
+
+  const canonicalUnsigned = canonicalize({
+    ...baseDeclaration,
+    signature: undefined,
+  });
+  const publisherKey = PrivateKey.fromString(operatorKey);
+  const signature = Buffer.from(
+    publisherKey.sign(Buffer.from(canonicalUnsigned, 'utf8')),
+  ).toString('base64');
+
+  baseDeclaration.signature = signature;
+
+  const publishResult = await client.publishDeclaration({
+    topicId: versionResolution.declarationTopicId,
+    declaration: baseDeclaration,
+  });
+
+  logger.info('Declaration submitted', publishResult);
 
   await sleep(3000);
 
-  const declarations = await client.fetchDeclarations(topicId, {
+  const declarations = await client.fetchDeclarations(declarationTopicId, {
     limit: 1,
     order: 'desc',
   });
@@ -142,7 +290,44 @@ async function main(): Promise<void> {
     throw new Error('No declarations returned from mirror node');
   }
 
-  logger.info('Latest declaration', declarations[0]);
+  const latest = declarations[0].declaration;
+  const signatureValid = verifyDeclarationSignature(
+    latest,
+    publisherKey.publicKey.toString(),
+  );
+  if (!signatureValid) {
+    throw new Error('Declaration signature invalid');
+  }
+
+  const digestValid = verifyArtifactDigest(artifactBytes, artifactIntegrity);
+  if (!digestValid) {
+    throw new Error('Artifact digest mismatch');
+  }
+
+  const manifestResult = await resolver.resolve(manifestPointer, { network });
+  const remoteManifest =
+    typeof manifestResult.content === 'string'
+      ? JSON.parse(manifestResult.content)
+      : manifestResult.content;
+  const remoteCanonical = canonicalize(remoteManifest);
+  const localCanonical = canonicalize(manifest);
+
+  if (localCanonical !== remoteCanonical) {
+    throw new Error('Manifest mismatch between inscription and local source');
+  }
+
+  logger.info('Manifest verified via HRL resolution', {
+    manifestPointer,
+    sequence: manifestSequence,
+    metadataTopic: registryMetadataPointer.pointer,
+  });
+
+  logger.info('HCS-21 layered registry demo complete', {
+    registryOfRegistriesTopicId,
+    versionPointerTopicId,
+    declarationTopicId,
+    manifestPointer,
+  });
   setImmediate(() => process.exit(0));
 }
 

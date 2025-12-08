@@ -1,5 +1,31 @@
 import { z } from 'zod';
-import { AIAgentCapability, AIAgentType } from '../../hcs-11/types';
+
+export enum AIAgentType {
+  MANUAL = 0,
+  AUTONOMOUS = 1,
+}
+
+export enum AIAgentCapability {
+  TEXT_GENERATION = 0,
+  IMAGE_GENERATION = 1,
+  AUDIO_GENERATION = 2,
+  VIDEO_GENERATION = 3,
+  CODE_GENERATION = 4,
+  LANGUAGE_TRANSLATION = 5,
+  SUMMARIZATION_EXTRACTION = 6,
+  KNOWLEDGE_RETRIEVAL = 7,
+  DATA_INTEGRATION = 8,
+  MARKET_INTELLIGENCE = 9,
+  TRANSACTION_ANALYTICS = 10,
+  SMART_CONTRACT_AUDIT = 11,
+  GOVERNANCE_FACILITATION = 12,
+  SECURITY_MONITORING = 13,
+  COMPLIANCE_ANALYSIS = 14,
+  FRAUD_DETECTION = 15,
+  MULTI_AGENT_COORDINATION = 16,
+  API_INTEGRATION = 17,
+  WORKFLOW_AUTOMATION = 18,
+}
 
 type JsonValue =
   | string
@@ -117,7 +143,15 @@ const chatHistoryEntrySchema = z.object({
   metadata: z.record(jsonValueSchema).optional(),
 });
 
-const metadataFacetSchema = z.record(z.array(jsonValueSchema)).optional();
+const metadataFacetSchema = z
+  .record(
+    z.union([
+      z.array(jsonValueSchema),
+      z.record(jsonValueSchema),
+      jsonValueSchema,
+    ]),
+  )
+  .optional();
 
 const searchHitSchema = z
   .object({
@@ -190,7 +224,7 @@ export const createSessionResponseSchema = z.object({
     capabilities: z.record(jsonValueSchema).nullable().optional(),
     skills: z.array(z.string()).optional(),
   }),
-  history: z.array(chatHistoryEntrySchema),
+  history: z.array(chatHistoryEntrySchema).optional().default([]),
   historyTtlSeconds: z.number().nullable().optional(),
   encryption: sessionEncryptionSummarySchema.nullable().optional(),
 });

@@ -202,6 +202,7 @@ export interface InscribeProfileResponse {
   error?: string;
   inboundTopicId?: string;
   outboundTopicId?: string;
+  totalCostHbar?: string;
 }
 
 export interface InscribeImageResponse {

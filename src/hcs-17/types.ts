@@ -147,6 +147,9 @@ export function parseHCS17Memo(
     if (Number.isNaN(type) || Number.isNaN(ttl) || ttl <= 0) {
       return undefined;
     }
+    if (type !== HCS17TopicType.STATE) {
+      return undefined;
+    }
     return { type, ttl };
   } catch {
     return undefined;
