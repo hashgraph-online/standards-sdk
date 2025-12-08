@@ -30,11 +30,14 @@ describe('hcs-21 verification helpers', () => {
     const { signature, ...unsigned } = declaration;
     const payload = canonicalize(unsigned);
     const sigBytes = key.sign(Buffer.from(payload, 'utf8'));
-    const signed: AdapterDeclaration = { ...declaration, signature: Buffer.from(sigBytes).toString('base64') };
+    const signed: AdapterDeclaration = {
+      ...declaration,
+      signature: Buffer.from(sigBytes).toString('base64'),
+    };
 
-    expect(
-      verifyDeclarationSignature(signed, key.publicKey.toString()),
-    ).toBe(true);
+    expect(verifyDeclarationSignature(signed, key.publicKey.toString())).toBe(
+      true,
+    );
 
     // Simulate a different payer scenario: still validates because caller provides publisher key explicitly.
     expect(
@@ -45,7 +48,10 @@ describe('hcs-21 verification helpers', () => {
     ).toBe(false);
 
     expect(
-      verifyDeclarationSignature({ ...signed, signature: undefined }, key.publicKey.toString()),
+      verifyDeclarationSignature(
+        { ...signed, signature: undefined },
+        key.publicKey.toString(),
+      ),
     ).toBe(false);
   });
 
@@ -60,7 +66,11 @@ describe('hcs-21 verification helpers', () => {
     ).toBe(true);
 
     expect(
-      verifyManifestSignature({ ...manifest, adapter: { id: 'tampered' } }, signature, key.publicKey.toString()),
+      verifyManifestSignature(
+        { ...manifest, adapter: { id: 'tampered' } },
+        signature,
+        key.publicKey.toString(),
+      ),
     ).toBe(false);
 
     expect(verifyManifestSignature(manifest, signature, 'not-a-key')).toBe(

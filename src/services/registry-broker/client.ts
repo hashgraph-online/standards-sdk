@@ -583,9 +583,7 @@ export class RegistryBrokerClient {
     string,
     ConversationContextState[]
   >();
-  private async loadViemAccount(
-    privateKey: `0x${string}`,
-  ): Promise<{
+  private async loadViemAccount(privateKey: `0x${string}`): Promise<{
     publicKey: string;
     signMessage: (input: { message: string }) => Promise<string>;
   }> {

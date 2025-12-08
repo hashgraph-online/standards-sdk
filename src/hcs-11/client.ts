@@ -761,6 +761,7 @@ export class HCS11Client {
         transactionId: (inscriptionResponse.result as InscriptionResult)
           .transactionId,
         success: true,
+        totalCostHbar: inscriptionResponse.costSummary?.totalCostHbar,
       };
     } catch (error) {
       progressReporter.failed(
@@ -918,6 +919,7 @@ export class HCS11Client {
     progressReporter.completed('Profile creation completed successfully', {
       profileTopicId: inscriptionResult.profileTopicId,
       transactionId: inscriptionResult.transactionId,
+      totalCostHbar: inscriptionResult.totalCostHbar,
     });
 
     return inscriptionResult;

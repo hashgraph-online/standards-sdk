@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { QuoteResult } from '../inscribe/types';
 
 export const HCS21_PROTOCOL = 'hcs-21';
 export const HCS21_MAX_MESSAGE_BYTES = 1024;
@@ -71,6 +72,8 @@ export interface ManifestPointer {
   manifestSequence?: number;
   jobId?: string;
   transactionId?: string;
+  totalCostHbar?: string;
+  costBreakdown?: QuoteResult['breakdown'];
 }
 
 export const adapterPackageSchema = z.object({
@@ -113,7 +116,7 @@ export const adapterManifestSchema = z.object({
   meta: z.object({
     spec_version: z.string().min(1),
     adapter_version: z.string().min(1),
-    minimum_flora_version: z.string().min(1).optional(),
+    minimum_version: z.string().min(1).optional(),
     generated: z.string().min(1),
   }),
   adapter: z.object({

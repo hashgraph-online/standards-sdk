@@ -33,14 +33,8 @@ import {
   HCS21TopicType,
 } from './types';
 import { HCS21ValidationError } from './errors';
-import {
-  buildHcs21CreateRegistryTx,
-  buildHcs21MessageTx,
-} from './tx';
-import {
-  buildHcs2CreateRegistryTx,
-  buildHcs2RegisterTx,
-} from '../hcs-2/tx';
+import { buildHcs21CreateRegistryTx, buildHcs21MessageTx } from './tx';
+import { buildHcs2CreateRegistryTx, buildHcs2RegisterTx } from '../hcs-2/tx';
 import { HCS2RegistryType } from '../hcs-2/types';
 
 export interface BrowserHCS21ClientConfig {
@@ -354,9 +348,7 @@ export class HCS21BrowserClient extends HCS21BaseClient {
 
     const ordered =
       options?.order === 'desc'
-        ? [...envelopes].sort(
-            (a, b) => b.sequenceNumber - a.sequenceNumber,
-          )
+        ? [...envelopes].sort((a, b) => b.sequenceNumber - a.sequenceNumber)
         : envelopes;
 
     if (options?.limit && options.limit > 0) {

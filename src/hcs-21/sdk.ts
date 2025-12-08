@@ -20,10 +20,7 @@ import {
   metadataDocumentSchema,
 } from './types';
 import { buildHcs21CreateRegistryTx, buildHcs21MessageTx } from './tx';
-import {
-  buildHcs2CreateRegistryTx,
-  buildHcs2RegisterTx,
-} from '../hcs-2/tx';
+import { buildHcs2CreateRegistryTx, buildHcs2RegisterTx } from '../hcs-2/tx';
 import { HCS2RegistryType } from '../hcs-2/types';
 import { HCS21ValidationError } from './errors';
 import { MaybeKey } from '../common/tx/tx-utils';
@@ -233,6 +230,8 @@ export class HCS21Client extends HCS21BaseClient {
         ? {
             jobId: inscription.result.jobId,
             transactionId: inscription.result.transactionId,
+            totalCostHbar: inscription.costSummary?.totalCostHbar,
+            costBreakdown: inscription.costSummary?.breakdown,
           }
         : {};
 

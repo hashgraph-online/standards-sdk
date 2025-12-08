@@ -7,6 +7,7 @@ import {
   HCS21TopicType,
   HRLResolver,
   Logger,
+  ManifestPointer,
   NetworkType,
   canonicalize,
   verifyArtifactDigest,
@@ -15,6 +16,21 @@ import {
 import { sleep } from '../../src/utils/sleep';
 
 const logger = new Logger({ module: 'hcs-21-demo', level: 'info' });
+
+function logInscriptionCost(
+  label: string,
+  pointer?: Pick<ManifestPointer, 'totalCostHbar' | 'costBreakdown'>,
+): void {
+  if (!pointer?.totalCostHbar) {
+    logger.info(`${label} inscription cost unavailable (mirror node pending)`);
+    return;
+  }
+
+  logger.info(`${label} inscription cost`, {
+    totalCostHbar: pointer.totalCostHbar,
+    breakdown: pointer.costBreakdown?.transfers,
+  });
+}
 
 async function main(): Promise<void> {
   const network = (process.env.HEDERA_NETWORK as NetworkType) || 'testnet';
@@ -123,6 +139,7 @@ async function main(): Promise<void> {
   const registryMetadataPointer = await client.inscribeMetadata({
     document: registryMetadata,
   });
+  logInscriptionCost('Registry metadata', registryMetadataPointer);
 
   const declarationTopicId =
     process.env.HCS21_REGISTRY_TOPIC_ID ||
@@ -155,17 +172,22 @@ async function main(): Promise<void> {
       metaTopicId: registryMetadataPointer.pointer,
     }));
 
-  const manifestInscribeResult =
-    process.env.HCS21_MANIFEST_POINTER || process.env.HCS21_MANIFEST_SEQUENCE
-      ? {
-          pointer: process.env.HCS21_MANIFEST_POINTER ?? '',
-          manifestSequence: process.env.HCS21_MANIFEST_SEQUENCE
-            ? Number(process.env.HCS21_MANIFEST_SEQUENCE)
-            : undefined,
-        }
-      : await client.inscribeMetadata({
-          document: manifest,
-        });
+  const reuseManifestPointer = Boolean(
+    process.env.HCS21_MANIFEST_POINTER || process.env.HCS21_MANIFEST_SEQUENCE,
+  );
+  const manifestInscribeResult = reuseManifestPointer
+    ? {
+        pointer: process.env.HCS21_MANIFEST_POINTER ?? '',
+        manifestSequence: process.env.HCS21_MANIFEST_SEQUENCE
+          ? Number(process.env.HCS21_MANIFEST_SEQUENCE)
+          : undefined,
+      }
+    : await client.inscribeMetadata({
+        document: manifest,
+      });
+  if (!reuseManifestPointer) {
+    logInscriptionCost('Adapter manifest', manifestInscribeResult);
+  }
 
   const manifestPointer = manifestInscribeResult.pointer;
   const manifestSequence = manifestInscribeResult.manifestSequence;
@@ -207,7 +229,7 @@ async function main(): Promise<void> {
 
   const categoryEntries = await client.fetchCategoryEntries(categoryTopicId);
   const categoryMatch = categoryEntries.find(
-    (entry) => entry.adapterId === adapterId,
+    entry => entry.adapterId === adapterId,
   );
   if (!categoryMatch) {
     throw new Error('Category entry not found for adapter');
@@ -303,7 +325,7 @@ async function main(): Promise<void> {
   logger.info('HCS-21 layered registry demo complete', {
     registryOfRegistriesTopicId,
     versionPointerTopicId,
-    registryTopicId,
+    declarationTopicId,
     manifestPointer,
   });
   setImmediate(() => process.exit(0));

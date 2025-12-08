@@ -2,7 +2,13 @@ import { PublicKey } from '@hashgraph/sdk';
 import { createHash } from 'crypto';
 import { AdapterDeclaration } from './types';
 
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 function sortObject(value: JsonValue): JsonValue {
   if (Array.isArray(value)) {
@@ -60,7 +66,10 @@ export function verifyManifestSignature(
 }
 
 function normalizeDigest(value: string): string {
-  return value.replace(/^sha384[-:]?/i, '').trim().toLowerCase();
+  return value
+    .replace(/^sha384[-:]?/i, '')
+    .trim()
+    .toLowerCase();
 }
 
 export function verifyArtifactDigest(

@@ -8,9 +8,10 @@ import {
   StartInscriptionRequest,
   InscriptionJobResponse,
   NodeHederaClientConfig,
+  InscriptionCostSummary,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
-import { Logger, ILogger } from '../utils/logger';
+import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
 import { isBrowser } from '../utils/is-browser';
@@ -21,6 +22,10 @@ import {
   cacheQuote,
   validateQuoteParameters,
 } from './quote-cache';
+import { HederaMirrorNode } from '../services/mirror-node';
+import { NetworkType } from '../utils/types';
+import BigNumber from 'bignumber.js';
+import { sleep } from '../utils/sleep';
 
 let nodeModules: {
   readFileSync?: (path: string) => Buffer;
@@ -71,6 +76,11 @@ export type InscriptionInput =
       fileName: string;
       mimeType?: string;
     };
+
+const COST_LOOKUP_ATTEMPTS = 3;
+const COST_LOOKUP_DELAY_MS = 1000;
+const TINYBAR_DIVISOR = 100000000;
+const COST_LOGGER_MODULE = 'InscriberCost';
 
 /**
  * Convert file path to base64 with mime type detection
@@ -142,6 +152,7 @@ export interface InscriptionResponse {
   inscription?: RetrievedInscriptionResult;
   sdk?: InscriptionSDK;
   quote?: boolean;
+  costSummary?: InscriptionCostSummary;
 }
 
 function normalizeClientConfig(
@@ -289,9 +300,7 @@ export async function inscribe(
       (result as { transactionId?: string }).transactionId ||
       '';
     const rawTxId =
-      (result as { transactionId?: string }).transactionId ||
-      rawJobId ||
-      '';
+      (result as { transactionId?: string }).transactionId || rawJobId || '';
     const normalizedJobId = normalizeTransactionId(rawJobId);
     const normalizedTxId = normalizeTransactionId(rawTxId);
     const waitId = normalizeTransactionId(
@@ -335,6 +344,11 @@ export async function inscribe(
         },
         inscription,
         sdk,
+        costSummary: await resolveInscriptionCost(
+          normalizedTxId,
+          clientConfig.network || 'mainnet',
+          options.logging?.level,
+        ),
       };
     }
 
@@ -346,11 +360,100 @@ export async function inscribe(
         transactionId: normalizedTxId,
       },
       sdk,
+      costSummary: await resolveInscriptionCost(
+        normalizedTxId,
+        clientConfig.network || 'mainnet',
+        options.logging?.level,
+      ),
     };
   } catch (error) {
     logger.error('Error during inscription process', error);
     throw error;
   }
+}
+
+async function resolveInscriptionCost(
+  transactionId: string,
+  network: NetworkType,
+  level?: LogLevel,
+): Promise<InscriptionCostSummary | undefined> {
+  const logger = Logger.getInstance({
+    module: COST_LOGGER_MODULE,
+    level: level ?? 'info',
+  });
+  const mirrorNode = new HederaMirrorNode(network, logger);
+  const normalizedId = normalizeTransactionId(transactionId);
+
+  const payerAccountId = normalizedId.split('-')[0];
+
+  for (let attempt = 0; attempt < COST_LOOKUP_ATTEMPTS; attempt++) {
+    try {
+      const txn = await mirrorNode.getTransaction(normalizedId);
+
+      if (!txn) {
+        if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
+          await sleep(COST_LOOKUP_DELAY_MS);
+        }
+        continue;
+      }
+
+      const payerTransfer = txn.transfers?.find(
+        transfer =>
+          transfer.account === payerAccountId &&
+          typeof transfer.amount === 'number' &&
+          transfer.amount < 0,
+      );
+
+      let payerTinybars: number | null = null;
+
+      if (payerTransfer) {
+        payerTinybars = Math.abs(payerTransfer.amount);
+      } else if (txn.transfers && txn.transfers.length > 0) {
+        const negativeSum = txn.transfers
+          .filter(t => typeof t.amount === 'number' && t.amount < 0)
+          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+        payerTinybars = negativeSum > 0 ? negativeSum : null;
+      } else if (typeof txn.charged_tx_fee === 'number') {
+        payerTinybars = txn.charged_tx_fee;
+      }
+
+      if (!payerTinybars || payerTinybars <= 0) {
+        if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
+          await sleep(COST_LOOKUP_DELAY_MS);
+        }
+        continue;
+      }
+
+      const totalCostHbar = new BigNumber(payerTinybars)
+        .dividedBy(TINYBAR_DIVISOR)
+        .toFixed();
+
+      return {
+        totalCostHbar,
+        breakdown: {
+          transfers: [
+            {
+              to: 'Hedera network (payer)',
+              amount: totalCostHbar,
+              description: `Transaction fee debited from ${payerAccountId}`,
+            },
+          ],
+        },
+      };
+    } catch (error) {
+      logger.warn('Unable to resolve inscription cost', {
+        transactionId: normalizedId,
+        attempt: attempt + 1,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
+        await sleep(COST_LOOKUP_DELAY_MS);
+      }
+    }
+  }
+
+  return undefined;
 }
 
 export async function inscribeWithSigner(
@@ -548,6 +651,11 @@ export async function inscribeWithSigner(
         },
         inscription,
         sdk,
+        costSummary: await resolveInscriptionCost(
+          waitId,
+          options.network || 'mainnet',
+          options.logging?.level,
+        ),
       };
     }
 
@@ -561,6 +669,11 @@ export async function inscribeWithSigner(
         completed: startResult.completed,
       },
       sdk,
+      costSummary: await resolveInscriptionCost(
+        waitId,
+        options.network || 'mainnet',
+        options.logging?.level,
+      ),
     };
   } catch (error) {
     logger.error('Error during inscription process', error);

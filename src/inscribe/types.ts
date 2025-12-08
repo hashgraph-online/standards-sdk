@@ -134,6 +134,12 @@ export interface QuoteResult {
   };
 }
 
+export interface InscriptionCostSummary {
+  totalCostHbar: string;
+  breakdown: QuoteResult['breakdown'];
+  validUntil?: string;
+}
+
 /**
  * Inscription job response with additional fields from the API
  */
