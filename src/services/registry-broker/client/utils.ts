@@ -167,7 +167,6 @@ export function normaliseBaseUrl(input?: string): string {
       baseCandidate = url.toString();
     }
   } catch {
-    // fall through
   }
 
   const withoutTrailing = stripTrailingSlashes(baseCandidate);
