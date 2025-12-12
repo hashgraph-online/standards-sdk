@@ -138,7 +138,7 @@
   "dependencies": {
     "@hashgraph/proto": "^2.24.0",
     "@hashgraph/sdk": "^2.77.0",
-    "@hashgraphonline/hashinal-wc": "2.0.4",
+    "@hashgraphonline/hashinal-wc": "2.0.5",
     "@hiero-did-sdk/registrar": "0.1.2",
     "@hiero-did-sdk/resolver": "0.1.2",
     "@kiloscribe/inscription-sdk": "^2.0.5",
@@ -168,7 +168,8 @@
       "@hashgraphonline/standards-sdk": "workspace:*",
       "@hashgraph/sdk": "^2.77.0",
       "@kiloscribe/inscription-sdk": "^2.0.5",
-      "@hashgraph/hedera-wallet-connect": "2.0.4"
+      "@hashgraph/hedera-wallet-connect": "2.0.4",
+      "@hashgraphonline/hashinal-wc": "2.0.5"
     }
   },
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
