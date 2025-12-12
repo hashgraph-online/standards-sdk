@@ -166,8 +166,7 @@ export function normaliseBaseUrl(input?: string): string {
       url.hostname = 'hol.org';
       baseCandidate = url.toString();
     }
-  } catch {
-  }
+  } catch {}
 
   const withoutTrailing = stripTrailingSlashes(baseCandidate);
   if (/\/api\/v\d+$/i.test(withoutTrailing)) {

@@ -166,19 +166,20 @@ RegistryBrokerClient.prototype.submitAdapterRegistryAdapter = async function (
   );
 };
 
-RegistryBrokerClient.prototype.adapterRegistrySubmissionStatus = async function (
-  this: RegistryBrokerClient,
-  submissionId: string,
-): Promise<AdapterRegistrySubmissionStatusResponse> {
-  const raw = await this.requestJson<JsonValue>(
-    `/adapters/registry/submissions/${encodeURIComponent(submissionId)}`,
-    {
-      method: 'GET',
-    },
-  );
-  return this.parseWithSchema(
-    raw,
-    adapterRegistrySubmissionStatusResponseSchema,
-    'adapter registry submission status response',
-  );
-};
+RegistryBrokerClient.prototype.adapterRegistrySubmissionStatus =
+  async function (
+    this: RegistryBrokerClient,
+    submissionId: string,
+  ): Promise<AdapterRegistrySubmissionStatusResponse> {
+    const raw = await this.requestJson<JsonValue>(
+      `/adapters/registry/submissions/${encodeURIComponent(submissionId)}`,
+      {
+        method: 'GET',
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      adapterRegistrySubmissionStatusResponseSchema,
+      'adapter registry submission status response',
+    );
+  };
