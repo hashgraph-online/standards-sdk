@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { Buffer } from 'node:buffer';
+import { Buffer } from 'buffer';
 import { randomBytes } from 'node:crypto';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import type {

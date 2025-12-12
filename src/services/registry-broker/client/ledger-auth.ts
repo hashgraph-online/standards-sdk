@@ -1,4 +1,4 @@
-import { Buffer } from 'node:buffer';
+import { Buffer } from 'buffer';
 import type { SignerSignature } from '@hashgraph/sdk';
 import type {
   JsonObject,

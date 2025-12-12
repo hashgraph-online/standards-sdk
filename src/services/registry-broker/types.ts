@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Signer } from '@hashgraph/sdk';
-import type { Buffer } from 'node:buffer';
+import type { Buffer } from 'buffer';
 import type {
   AdapterConfigContext,
   AdapterManifest,
