@@ -5,7 +5,11 @@
     "outDir": "./dist/.tsbuild",
     "declaration": true,
     "declarationMap": true,
-    "composite": false
+    "composite": false,
+    "baseUrl": ".",
+    "paths": {
+      "@hashgraph/hedera-wallet-connect": ["./types/hedera-wallet-connect.d.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
