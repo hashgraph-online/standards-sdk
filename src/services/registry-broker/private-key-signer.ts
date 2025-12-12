@@ -6,6 +6,7 @@ import type {
   TransactionRecord,
   SignerSignature,
 } from '@hashgraph/sdk';
+import { createRequire } from 'node:module';
 import { optionalImportSync } from '../../utils/dynamic-import';
 
 const unsupported = (method: string): Error =>
@@ -84,11 +85,19 @@ const loadHashgraphSdk = (): HashgraphSdk => {
     return cachedSdk;
   }
   const resolved = optionalImportSync<HashgraphSdk>('@hashgraph/sdk');
-  if (!resolved) {
+  if (resolved) {
+    cachedSdk = resolved;
+    return resolved;
+  }
+
+  try {
+    const requireFn = createRequire(import.meta.url);
+    const required = requireFn('@hashgraph/sdk') as HashgraphSdk;
+    cachedSdk = required;
+    return required;
+  } catch {
     const message =
       '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
     throw new Error(message);
   }
-  cachedSdk = resolved;
-  return resolved;
 };
