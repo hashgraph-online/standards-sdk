@@ -106,6 +106,7 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
+    "@hashgraph/hedera-wallet-connect": "^2.0.4",
     "@hashgraphonline/conversational-agent": "0.2.104",
     "@swc/jest": "^0.2.39",
     "@types/jest": "^29.5.14",
@@ -151,6 +152,7 @@
     "dotenv": "^16.6.1",
     "ethers": "^6.15.0",
     "file-type": "^20.5.0",
+    "long": "^5.3.2",
     "mime-types": "^2.1.35",
     "viem": "^2.19.9",
     "x402-axios": "^0.7.0",
@@ -165,7 +167,8 @@
     "overrides": {
       "@hashgraphonline/standards-sdk": "workspace:*",
       "@hashgraph/sdk": "^2.77.0",
-      "@kiloscribe/inscription-sdk": "^2.0.5"
+      "@kiloscribe/inscription-sdk": "^2.0.5",
+      "@hashgraph/hedera-wallet-connect": "2.0.4"
     }
   },
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"

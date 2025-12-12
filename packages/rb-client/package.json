@@ -43,7 +43,7 @@
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "@hashgraph/hedera-wallet-connect": "*",
+    "@hashgraph/hedera-wallet-connect": "^2.0.4",
     "@hashgraph/sdk": "^2.77.0",
     "axios": "*",
     "viem": "*",
