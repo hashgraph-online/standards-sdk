@@ -4,7 +4,7 @@ import {
   createDecipheriv,
   createHash,
   randomBytes,
-} from 'node:crypto';
+} from 'crypto';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { ZodError, z } from 'zod';
 import type {
