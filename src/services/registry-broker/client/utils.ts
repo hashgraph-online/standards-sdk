@@ -14,6 +14,14 @@ export const JSON_CONTENT_TYPE = /application\/json/i;
 export const DEFAULT_HISTORY_TOP_UP_HBAR = 0.25;
 export const MINIMUM_REGISTRATION_AUTO_TOP_UP_CREDITS = 1;
 
+const stripTrailingSlashes = (value: string): string => {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+};
+
 export const createAbortError = (): Error =>
   typeof DOMException === 'function'
     ? new DOMException('Aborted', 'AbortError')
@@ -138,7 +146,7 @@ export function normaliseBaseUrl(input?: string): string {
     trimmed && trimmed.length > 0 ? trimmed : DEFAULT_BASE_URL;
 
   try {
-    const url = new URL(baseCandidate.replace(/\/+$/, ''));
+    const url = new URL(stripTrailingSlashes(baseCandidate));
     const hostname = url.hostname.toLowerCase();
     const ensureRegistryPrefix = (): void => {
       if (!url.pathname.startsWith('/registry')) {
@@ -162,7 +170,7 @@ export function normaliseBaseUrl(input?: string): string {
     // fall through
   }
 
-  const withoutTrailing = baseCandidate.replace(/\/+$/, '');
+  const withoutTrailing = stripTrailingSlashes(baseCandidate);
   if (/\/api\/v\d+$/i.test(withoutTrailing)) {
     return withoutTrailing;
   }
