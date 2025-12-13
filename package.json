@@ -117,9 +117,11 @@
     "@typescript-eslint/parser": "^8.46.2",
     "concurrently": "^8.2.2",
     "eslint-plugin-sonarjs": "^3.0.5",
+    "ioredis": "^5.8.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "json-to-plain-text": "^1.2.0",
+    "jszip": "^3.10.1",
     "localtunnel": "^2.0.2",
     "nodemon": "^3.1.10",
     "openai": "^4.104.0",
@@ -132,16 +134,15 @@
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4",
-    "vite-plugin-node-polyfills": "^0.24.0",
-    "ioredis": "^5.8.2"
+    "vite-plugin-node-polyfills": "^0.24.0"
   },
   "dependencies": {
     "@hashgraph/proto": "^2.24.0",
     "@hashgraph/sdk": "^2.77.0",
-    "@hashgraphonline/hashinal-wc": "2.0.6",
+    "@hashgraphonline/hashinal-wc": "2.0.12",
     "@hiero-did-sdk/registrar": "0.1.2",
     "@hiero-did-sdk/resolver": "0.1.2",
-    "@kiloscribe/inscription-sdk": "^2.0.5",
+    "@kiloscribe/inscription-sdk": "^2.0.6",
     "@noble/curves": "^2.0.1",
     "agent0-sdk": "0.2.1",
     "axios": "^1.12.2",
@@ -167,9 +168,9 @@
     "overrides": {
       "@hashgraphonline/standards-sdk": "workspace:*",
       "@hashgraph/sdk": "^2.77.0",
-      "@kiloscribe/inscription-sdk": "^2.0.5",
+      "@kiloscribe/inscription-sdk": "^2.0.6",
       "@hashgraph/hedera-wallet-connect": "2.0.4",
-      "@hashgraphonline/hashinal-wc": "2.0.6"
+      "@hashgraphonline/hashinal-wc": "2.0.12"
     }
   },
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
