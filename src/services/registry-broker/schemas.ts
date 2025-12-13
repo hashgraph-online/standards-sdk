@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { adapterDeclarationSchema } from '../../hcs-21/types';
 
 export enum AIAgentType {
   MANUAL = 0,
@@ -811,6 +812,117 @@ export const x402MinimumsResponseSchema = z.object({
 
 export const adaptersResponseSchema = z.object({
   adapters: z.array(z.string()),
+});
+
+export const adapterRegistryCategorySchema = z.object({
+  id: z.number().int(),
+  network: z.string(),
+  type: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  topicId: z.string(),
+  versionTopicId: z.string(),
+  registryTransactionId: z.string().nullable().optional(),
+  versionTransactionId: z.string().nullable().optional(),
+  metadataPointer: z.string().nullable().optional(),
+  metadataSequence: z.number().int().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  metadata: jsonValueSchema.optional().nullable(),
+});
+
+export const adapterRegistryCategoriesResponseSchema = z.object({
+  categories: z.array(adapterRegistryCategorySchema),
+});
+
+export const adapterRegistryAdapterSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).optional(),
+    network: z.string().optional(),
+    categoryId: z.union([z.string(), z.number()]).nullable().optional(),
+    operation: z.string().optional(),
+    adapterId: z.string(),
+    adapterName: z.string(),
+    entity: z.string(),
+    manifestPointer: z.string().nullable().optional(),
+    manifestSequence: z.number().int().nullable().optional(),
+    packageRegistry: z.string().nullable().optional(),
+    packageName: z.string().nullable().optional(),
+    packageVersion: z.string().nullable().optional(),
+    packageIntegrity: z.string().nullable().optional(),
+    stateModel: z.string().nullable().optional(),
+    config: jsonValueSchema.nullable().optional(),
+    signature: z.string().nullable().optional(),
+    manifest: jsonValueSchema.nullable().optional(),
+    keywords: z.array(z.string()).optional(),
+    searchText: z.string().nullable().optional(),
+    creditAccountId: z.string().nullable().optional(),
+    registeredByUserId: z.string().nullable().optional(),
+    registeredByEmail: z.string().nullable().optional(),
+    totalCostHbar: z.number().nullable().optional(),
+    totalCostCredits: z.number().nullable().optional(),
+    consensusTimestamp: z.string().nullable().optional(),
+    sequenceNumber: z.number().int().nullable().optional(),
+    payerAccountId: z.string().nullable().optional(),
+    mirrorNodePayload: jsonValueSchema.nullable().optional(),
+    versionTopicId: z.string().nullable().optional(),
+    declarationTopicId: z.string().nullable().optional(),
+    categoryEntrySequence: z.number().int().nullable().optional(),
+    categoryEntryTransactionId: z.string().nullable().optional(),
+    versionPointerSequence: z.number().int().nullable().optional(),
+    versionPointerTransactionId: z.string().nullable().optional(),
+    transactionId: z.string().nullable().optional(),
+    createdAt: z.string().optional(),
+    category: adapterRegistryCategorySchema.optional(),
+  })
+  .passthrough();
+
+export const adapterRegistryAdaptersResponseSchema = z.object({
+  network: z.string(),
+  adapters: z.array(adapterRegistryAdapterSchema),
+});
+
+export const adapterRegistryCreateCategoryResponseSchema = z.object({
+  category: adapterRegistryCategorySchema,
+});
+
+export const adapterRegistrySubmitAdapterResponseSchema = z.object({
+  adapter: z.record(jsonValueSchema),
+  declaration: adapterDeclarationSchema,
+  transactionId: z.string().optional().nullable(),
+  category: adapterRegistryCategorySchema,
+});
+
+export const adapterRegistrySubmitAdapterAcceptedResponseSchema = z
+  .object({
+    submissionId: z.string(),
+    status: z.string().optional(),
+    network: z.string().optional(),
+    message: z.string().optional(),
+  })
+  .passthrough();
+
+export const adapterRegistrySubmissionStatusResponseSchema = z.object({
+  submission: z
+    .object({
+      id: z.string(),
+      network: z.string(),
+      status: z.enum(['pending', 'running', 'completed', 'failed']),
+      adapterId: z.string(),
+      categorySlug: z.string().nullable().optional(),
+      creditAccountId: z.string().nullable().optional(),
+      registeredByUserId: z.string().nullable().optional(),
+      registeredByEmail: z.string().nullable().optional(),
+      requestPayload: jsonValueSchema.optional(),
+      resultPayload: jsonValueSchema.nullable().optional(),
+      error: z.string().nullable().optional(),
+      createdAt: z.string().optional(),
+      updatedAt: z.string().optional(),
+      startedAt: z.string().nullable().optional(),
+      completedAt: z.string().nullable().optional(),
+    })
+    .passthrough(),
 });
 
 export const adapterChatProfileSchema = z.object({

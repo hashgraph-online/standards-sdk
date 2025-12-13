@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import type { Signer } from '@hashgraph/sdk';
-import type { Buffer } from 'node:buffer';
+import type { Buffer } from 'buffer';
+import type {
+  AdapterConfigContext,
+  AdapterManifest,
+  AdapterPackage,
+} from '../../hcs-21/types';
 import {
   adaptersResponseSchema,
   createSessionResponseSchema,
@@ -19,6 +24,13 @@ import {
   registrySearchByNamespaceSchema,
   searchFacetsResponseSchema,
   adapterDetailsResponseSchema,
+  adapterRegistryAdaptersResponseSchema,
+  adapterRegistryCategoriesResponseSchema,
+  adapterRegistryCategorySchema,
+  adapterRegistryCreateCategoryResponseSchema,
+  adapterRegistrySubmitAdapterResponseSchema,
+  adapterRegistrySubmitAdapterAcceptedResponseSchema,
+  adapterRegistrySubmissionStatusResponseSchema,
   adapterDescriptorSchema,
   adapterChatProfileSchema,
   additionalRegistryCatalogResponseSchema,
@@ -552,5 +564,70 @@ export interface AgentAuthConfig {
 }
 
 export type AdaptersResponse = z.infer<typeof adaptersResponseSchema>;
+
+export type AdapterRegistryCategory = z.infer<
+  typeof adapterRegistryCategorySchema
+>;
+
+export type AdapterRegistryCategoriesResponse = z.infer<
+  typeof adapterRegistryCategoriesResponseSchema
+>;
+
+export type AdapterRegistryAdaptersResponse = z.infer<
+  typeof adapterRegistryAdaptersResponseSchema
+>;
+
+export type AdapterRegistryCreateCategoryResponse = z.infer<
+  typeof adapterRegistryCreateCategoryResponseSchema
+>;
+
+export type AdapterRegistrySubmitAdapterResponse = z.infer<
+  typeof adapterRegistrySubmitAdapterResponseSchema
+>;
+
+export type AdapterRegistrySubmitAdapterAcceptedResponse = z.infer<
+  typeof adapterRegistrySubmitAdapterAcceptedResponseSchema
+>;
+
+export type AdapterRegistrySubmissionStatusResponse = z.infer<
+  typeof adapterRegistrySubmissionStatusResponseSchema
+>;
+
+export interface CreateAdapterRegistryCategoryRequest {
+  name: string;
+  description?: string;
+  type?: 'adapter-type' | 'custom';
+  slug?: string;
+  metadata?: {
+    version?: string;
+    name?: string;
+    description?: string;
+    operator?: {
+      account?: string;
+      name?: string;
+      contact?: string;
+    };
+    entityTypes?: string[];
+    categories?: string[];
+    tags?: string[];
+    links?: Record<string, string>;
+  };
+}
+
+export interface SubmitAdapterRegistryAdapterRequest {
+  adapterId: string;
+  adapterName: string;
+  entity: string;
+  package: AdapterPackage;
+  config: AdapterConfigContext;
+  stateModel?: string;
+  signature?: string;
+  manifest: AdapterManifest;
+  manifestPointer?: string;
+  manifestSequence?: number;
+  keywords?: string[];
+  categorySlug?: string;
+  newCategory?: CreateAdapterRegistryCategoryRequest;
+}
 
 export type SearchFacetsResponse = z.infer<typeof searchFacetsResponseSchema>;
