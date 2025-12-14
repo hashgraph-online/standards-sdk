@@ -84,11 +84,12 @@ const loadHashgraphSdk = (): HashgraphSdk => {
     return cachedSdk;
   }
   const resolved = optionalImportSync<HashgraphSdk>('@hashgraph/sdk');
-  if (!resolved) {
-    const message =
-      '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
-    throw new Error(message);
+  if (resolved) {
+    cachedSdk = resolved;
+    return resolved;
   }
-  cachedSdk = resolved;
-  return resolved;
+
+  const message =
+    '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
+  throw new Error(message);
 };

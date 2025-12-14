@@ -2,14 +2,17 @@
   "transform": {
     "^.+\\.(t|j)sx?$": ["@swc/jest"]
   },
+  "extensionsToTreatAsEsm": [".ts", ".tsx"],
   "testEnvironment": "./jest-environment-hedera.js",
   "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"],
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
   "testPathIgnorePatterns": ["/node_modules/"],
+  "transformIgnorePatterns": ["/node_modules/(?!(?:@noble)/)"],
   "testMatch": ["**/__tests__/**/*.test.ts"],
   "moduleNameMapper": {
     "^file-type$": "<rootDir>/__mocks__/file-type.js",
-    "^../src$": "<rootDir>/src"
+    "^../src$": "<rootDir>/src",
+    "^@hashgraphonline/standards-sdk$": "<rootDir>/src/index.ts"
   },
   "collectCoverage": true,
   "collectCoverageFrom": ["src/**/*.{ts,tsx}", "!src/**/*.d.ts"],
