@@ -65,6 +65,10 @@ export class HCS16Client extends HCS16BaseClient {
     this.client = this.operatorCtx.client;
   }
 
+  private async ensureOperatorReady(): Promise<void> {
+    await this.operatorCtx.ensureInitialized();
+  }
+
   /**
    * Create a Flora topic with memo `hcs-16:<floraAccountId>:<topicType>`.
    */
@@ -76,6 +80,7 @@ export class HCS16Client extends HCS16BaseClient {
     autoRenewAccountId?: string;
     signerKeys?: PrivateKey[];
   }): Promise<string> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16CreateFloraTopicTx({
       floraAccountId: params.floraAccountId,
       topicType: params.topicType,
@@ -111,6 +116,7 @@ export class HCS16Client extends HCS16BaseClient {
     initialBalanceHbar?: number;
     maxAutomaticTokenAssociations?: number;
   }): Promise<{ accountId: string; receipt: TransactionReceipt }> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16CreateAccountTx({
       keyList: params.keyList,
       initialBalanceHbar: params.initialBalanceHbar,
@@ -130,6 +136,7 @@ export class HCS16Client extends HCS16BaseClient {
     floraAccountId: string;
     topics: { communication: string; transaction: string; state: string };
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraCreatedTx(params);
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
@@ -144,6 +151,7 @@ export class HCS16Client extends HCS16BaseClient {
     scheduleId: string;
     data?: string;
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16TransactionTx(params);
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
@@ -157,6 +165,7 @@ export class HCS16Client extends HCS16BaseClient {
     scheduleId: string;
     signerKey: PrivateKey;
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = await new ScheduleSignTransaction()
       .setScheduleId(params.scheduleId)
       .freezeWith(this.client);
@@ -176,6 +185,7 @@ export class HCS16Client extends HCS16BaseClient {
     transactionMemo?: string;
     signerKeys?: PrivateKey[];
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16StateUpdateTx({
       topicId: params.topicId,
       operatorId: params.operatorId,
@@ -208,6 +218,7 @@ export class HCS16Client extends HCS16BaseClient {
     connectionSeq: number;
     signerKey?: PrivateKey;
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraJoinRequestTx(params);
     if (params.signerKey) {
       const frozen = await tx.freezeWith(this.client);
@@ -228,6 +239,7 @@ export class HCS16Client extends HCS16BaseClient {
     connectionSeq: number;
     signerKey?: PrivateKey;
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraJoinVoteTx(params);
     if (params.signerKey) {
       const frozen = await tx.freezeWith(this.client);
@@ -246,6 +258,7 @@ export class HCS16Client extends HCS16BaseClient {
     epoch?: number;
     signerKeys?: PrivateKey[];
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraJoinAcceptedTx(params);
     if (params.signerKeys && params.signerKeys.length > 0) {
       const frozen = await tx.freezeWith(this.client);
@@ -283,6 +296,7 @@ export class HCS16Client extends HCS16BaseClient {
     floraAccountId: string;
     topics: { communication: string; transaction: string; state: string };
   }> {
+    await this.ensureOperatorReady();
     const keyList = await this.assembleKeyList({
       members: params.members,
       threshold: params.threshold,
@@ -341,6 +355,7 @@ export class HCS16Client extends HCS16BaseClient {
     floraAccountId: string;
     topics: { communication: string; transaction: string; state: string };
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraCreatedTx({
       topicId: params.communicationTopicId,
       operatorId: params.operatorId,

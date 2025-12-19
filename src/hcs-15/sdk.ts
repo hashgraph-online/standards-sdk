@@ -49,6 +49,10 @@ export class HCS15Client extends HCS15BaseClient {
     } catch {}
   }
 
+  private async ensureOperatorReady(): Promise<void> {
+    await this.operatorCtx.ensureInitialized();
+  }
+
   /**
    * Create a new base account with a newly generated ECDSA key and EVM alias.
    */
@@ -65,6 +69,7 @@ export class HCS15Client extends HCS15BaseClient {
     evmAddress: string;
     receipt: TransactionReceipt;
   }> {
+    await this.ensureOperatorReady();
     const priv = PrivateKey.generateECDSA();
     const pub = priv.publicKey;
     const tx = buildHcs15BaseAccountCreateTx({
@@ -102,6 +107,7 @@ export class HCS15Client extends HCS15BaseClient {
     accountMemo?: string;
     transactionMemo?: string;
   }): Promise<{ accountId: string; receipt: TransactionReceipt }> {
+    await this.ensureOperatorReady();
     const baseKey =
       typeof params.basePrivateKey === 'string'
         ? PrivateKey.fromStringECDSA(params.basePrivateKey)

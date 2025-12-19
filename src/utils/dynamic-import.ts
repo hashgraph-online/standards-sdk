@@ -1,4 +1,3 @@
-import { createRequire } from 'module';
 import { isBrowser } from './is-browser';
 
 let nodeRequire: NodeRequire | null | undefined;
@@ -102,8 +101,7 @@ export function optionalImportSync<T>(specifier: string): T | null {
         : globalThis;
     const req =
       globalObject.process?.mainModule?.require ??
-      (globalObject as { require?: NodeRequire }).require ??
-      createRequire(import.meta.url);
+      (globalObject as { require?: NodeRequire }).require;
 
     if (
       typeof req === 'function' &&
