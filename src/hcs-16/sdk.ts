@@ -137,8 +137,23 @@ export class HCS16Client extends HCS16BaseClient {
     operatorId: string;
     hash: string;
     epoch?: number;
+    signerKeys?: PrivateKey[];
   }): Promise<TransactionReceipt> {
-    const tx = buildHcs16StateUpdateTx(params);
+    const tx = buildHcs16StateUpdateTx({
+      topicId: params.topicId,
+      operatorId: params.operatorId,
+      hash: params.hash,
+      epoch: params.epoch,
+    });
+    if (params.signerKeys && params.signerKeys.length > 0) {
+      const frozen = await tx.freezeWith(this.client);
+      let signed = frozen;
+      for (const key of params.signerKeys) {
+        signed = await signed.sign(key);
+      }
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
   }
