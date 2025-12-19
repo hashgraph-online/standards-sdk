@@ -20,6 +20,9 @@ jest.mock('@hashgraph/sdk', () => {
     setAccountMemo() {
       return this;
     }
+    setTransactionMemo() {
+      return this;
+    }
     async freezeWithSigner() {
       const id = this._isBase ? '0.0.7100001' : '0.0.7100002';
       return {
@@ -58,17 +61,6 @@ const { PrivateKey } = require('@hashgraph/sdk');
 const { HCS15BrowserClient } = require('../../src/hcs-15');
 
 class FakeSigner {}
-
-jest.mock('@hashgraph/sdk', () => ({
-  PrivateKey: {
-    generateECDSA: jest.fn(() => ({
-      toString: () => 'priv-hex',
-      toStringRaw: () => 'priv-raw',
-      publicKey: { toEvmAddress: () => 'deadbeef', toString: () => 'pub' },
-    })),
-  },
-  Hbar: jest.fn((v: any) => v),
-}));
 
 describe('HCS-15 Browser client', () => {
   it('creates base account via signer', async () => {

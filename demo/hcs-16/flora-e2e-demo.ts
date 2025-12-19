@@ -152,9 +152,9 @@ async function createJoinConnection(params: {
   });
   const requestFrozen = await requestTx.freezeWith(params.nodeClient);
   const requestSigned = await requestFrozen.sign(params.candidate.baseKey);
-  await (await requestSigned.execute(params.nodeClient)).getReceipt(
-    params.nodeClient,
-  );
+  await (
+    await requestSigned.execute(params.nodeClient)
+  ).getReceipt(params.nodeClient);
 
   const requestMessage = await waitForTopicMessage({
     mirror: params.mirror,
@@ -189,9 +189,9 @@ async function createJoinConnection(params: {
   });
   const proposalFrozen = await proposalTx.freezeWith(params.nodeClient);
   const proposalSigned = await proposalFrozen.sign(params.candidate.baseKey);
-  await (await proposalSigned.execute(params.nodeClient)).getReceipt(
-    params.nodeClient,
-  );
+  await (
+    await proposalSigned.execute(params.nodeClient)
+  ).getReceipt(params.nodeClient);
 
   const proposalMessage = await waitForTopicMessage({
     mirror: params.mirror,
@@ -465,7 +465,11 @@ async function main() {
   const floraInboundTopicId = await seq.run(
     'Create Flora inbound topic (HCS-10)',
     async () => {
-      return h10.createInboundTopic(floraAccountId, InboundTopicType.PUBLIC, 300);
+      return h10.createInboundTopic(
+        floraAccountId,
+        InboundTopicType.PUBLIC,
+        300,
+      );
     },
   );
 

@@ -56,6 +56,7 @@ export class HCS15Client extends HCS15BaseClient {
     initialBalance?: number;
     maxAutomaticTokenAssociations?: number;
     accountMemo?: string;
+    transactionMemo?: string;
   }): Promise<{
     accountId: string;
     privateKey: PrivateKey;
@@ -71,6 +72,7 @@ export class HCS15Client extends HCS15BaseClient {
       initialBalance: new Hbar(options?.initialBalance ?? 10),
       maxAutomaticTokenAssociations: options?.maxAutomaticTokenAssociations,
       accountMemo: options?.accountMemo,
+      transactionMemo: options?.transactionMemo,
     });
     const resp = await tx.execute(this.client);
     const receipt = await resp.getReceipt(this.client);
@@ -98,6 +100,7 @@ export class HCS15Client extends HCS15BaseClient {
     initialBalance?: number;
     maxAutomaticTokenAssociations?: number;
     accountMemo?: string;
+    transactionMemo?: string;
   }): Promise<{ accountId: string; receipt: TransactionReceipt }> {
     const baseKey =
       typeof params.basePrivateKey === 'string'
@@ -109,6 +112,7 @@ export class HCS15Client extends HCS15BaseClient {
       initialBalance: new Hbar(params.initialBalance ?? 1),
       maxAutomaticTokenAssociations: params.maxAutomaticTokenAssociations,
       accountMemo: params.accountMemo,
+      transactionMemo: params.transactionMemo,
     });
     const resp = await tx.execute(this.client);
     const receipt = await resp.getReceipt(this.client);

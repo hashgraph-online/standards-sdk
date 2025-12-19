@@ -70,8 +70,7 @@ const main = async () => {
 
   const localAgentHandle = await startLocalA2AAgent({ agentId: alias });
   activeAgentHandle = localAgentHandle;
-  const endpoint =
-    localAgentHandle.publicUrl ?? localAgentHandle.a2aEndpoint;
+  const endpoint = localAgentHandle.publicUrl ?? localAgentHandle.a2aEndpoint;
 
   const registrationPayload: AgentRegistrationRequest = {
     profile: buildAiProfile(alias, endpoint),
@@ -104,9 +103,7 @@ const main = async () => {
     additionalRegistries: ERC8004_NETWORKS,
   };
 
-  let updateResponse: Awaited<
-    ReturnType<RegistryBrokerClient['updateAgent']>
-  >;
+  let updateResponse: Awaited<ReturnType<RegistryBrokerClient['updateAgent']>>;
   try {
     updateResponse = await client.updateAgent(
       registrationResponse.uaid,

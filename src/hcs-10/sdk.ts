@@ -273,6 +273,32 @@ export class HCS10Client extends HCS10BaseClient {
     return topicId;
   }
 
+  async createConnectionTopic(params: {
+    inboundTopicId: string;
+    connectionId: number;
+    ttl?: number;
+    adminKey?: PublicKey | KeyList;
+    submitKey?: PublicKey | KeyList;
+    feeConfigBuilder?: FeeConfigBuilderInterface;
+  }): Promise<string> {
+    await this.ensureInitialized();
+    const transaction = buildHcs10CreateConnectionTopicTx({
+      ttl: params.ttl ?? 60,
+      inboundTopicId: params.inboundTopicId,
+      connectionId: params.connectionId,
+      adminKey: params.adminKey,
+      submitKey: params.submitKey,
+      operatorPublicKey:
+        this.client.operatorPublicKey || this.operatorCtx.operatorKey.publicKey,
+    });
+    const feeConfig = params.feeConfigBuilder?.build();
+    const { topicId } = await this.executeTopicCreateTransaction({
+      transaction,
+      feeConfig,
+    });
+    return topicId;
+  }
+
   /**
    * Creates a new agent with inbound and outbound topics
    * @param builder The agent builder object

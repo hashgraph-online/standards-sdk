@@ -23,6 +23,7 @@ import {
 const DEFAULT_BASE_URL = 'https://hol.org/registry/api/v1';
 const DEFAULT_MODE: DemoProfileMode = 'ai';
 const DEFAULT_SOLANA_REGISTRY = 'erc-8004-solana:solana-devnet';
+const DEFAULT_DASHBOARD_PATH = '/dashboard/api-key-history';
 
 const headersTimeoutMs = Number(
   process.env.REGISTRY_BROKER_DEMO_HEADERS_TIMEOUT_MS ?? '600000',
@@ -65,14 +66,62 @@ const resolveSolanaSelection = (): string => {
   return raw && raw.length > 0 ? raw : DEFAULT_SOLANA_REGISTRY;
 };
 
+const resolveAppUrl = (baseUrl: string): string => {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  const apiSuffix = '/api/v1';
+  if (trimmed.toLowerCase().endsWith(apiSuffix)) {
+    const withoutSuffix = trimmed.slice(0, -apiSuffix.length);
+    return withoutSuffix.length > 0 ? withoutSuffix : trimmed;
+  }
+  return trimmed;
+};
+
+const printTutorialIntro = (options: {
+  baseUrl: string;
+  appUrl: string;
+  solanaSelection: string;
+  preferLedger: boolean;
+  apiKey?: string;
+}): void => {
+  console.log('Solana ERC-8004 registration demo');
+  console.log(`  Broker API: ${options.baseUrl}`);
+  console.log(`  Solana registry: ${options.solanaSelection}`);
+  console.log('Steps:');
+  console.log(
+    '  1) Authenticate with API key (recommended) or ledger credentials.',
+  );
+  console.log('  2) Start a local A2A agent for registration.');
+  console.log('  3) Register the agent and publish to Solana devnet.');
+  console.log('  4) Review the registration summary.');
+  if (!options.preferLedger) {
+    if (options.apiKey) {
+      console.log('  Auth mode: API key');
+    } else {
+      console.log('  Auth mode: API key (missing).');
+      console.log(
+        `  Create a key at ${options.appUrl}${DEFAULT_DASHBOARD_PATH}`,
+      );
+      console.log('  Then set REGISTRY_BROKER_API_KEY=<your key>');
+      console.log(
+        '  To use ledger auth instead, set REGISTRY_BROKER_DEMO_USE_LEDGER=1',
+      );
+    }
+  } else {
+    console.log('  Auth mode: ledger');
+  }
+  console.log('');
+};
+
 const main = async (): Promise<void> => {
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() || DEFAULT_BASE_URL;
   const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
   const preferLedger = parseBooleanFlag(
     process.env.REGISTRY_BROKER_DEMO_USE_LEDGER,
-    !apiKey,
+    false,
   );
+  const solanaSelection = resolveSolanaSelection();
+  const appUrl = resolveAppUrl(baseUrl);
   const ledgerMode = resolveDemoLedgerAuthMode();
   const hederaLedgerConfig =
     preferLedger && ledgerMode === 'hedera'
@@ -90,9 +139,17 @@ const main = async (): Promise<void> => {
         }
       : undefined;
 
+  printTutorialIntro({
+    baseUrl,
+    appUrl,
+    solanaSelection,
+    preferLedger,
+    apiKey,
+  });
+
   if (!preferLedger && !apiKey) {
     throw new Error(
-      'Provide REGISTRY_BROKER_API_KEY or enable ledger authentication via REGISTRY_BROKER_DEMO_USE_LEDGER=1.',
+      'Missing authentication. Provide REGISTRY_BROKER_API_KEY or set REGISTRY_BROKER_DEMO_USE_LEDGER=1.',
     );
   }
 
@@ -159,8 +216,6 @@ const main = async (): Promise<void> => {
 
   const alias =
     process.argv[2]?.trim() || `sdk-solana-demo-${Date.now().toString(36)}`;
-
-  const solanaSelection = resolveSolanaSelection();
 
   const registerOptions: RegisterAgentOptions = {
     ...(hederaLedgerConfig
@@ -287,9 +342,7 @@ main()
         try {
           await dispatcher.close();
           process.exit(0);
-        } catch {
-          // ignore shutdown errors
-        }
+        } catch {}
       })(),
     ]);
     process.exit(0);

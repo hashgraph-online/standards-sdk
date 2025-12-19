@@ -69,8 +69,7 @@ const main = async () => {
 
   const localAgentHandle = await startLocalA2AAgent({ agentId: alias });
   activeAgentHandle = localAgentHandle;
-  const endpoint =
-    localAgentHandle.publicUrl ?? localAgentHandle.a2aEndpoint;
+  const endpoint = localAgentHandle.publicUrl ?? localAgentHandle.a2aEndpoint;
 
   const registrationPayload: AgentRegistrationRequest = {
     profile: buildAiProfile(alias, endpoint),

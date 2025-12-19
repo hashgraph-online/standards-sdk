@@ -19,11 +19,57 @@ import {
 } from '../common/tx/tx-utils';
 import { FloraOperation, FloraTopicType, type FloraMessage } from './types';
 
+export const HCS16_FLORA_ACCOUNT_CREATE_TRANSACTION_MEMO =
+  'hcs-16:op:flora_account_create';
+export const HCS17_STATE_HASH_TRANSACTION_MEMO = 'hcs-17:op:6:2';
+export const HCS16_ACCOUNT_KEY_UPDATE_TRANSACTION_MEMO =
+  'hcs-16:op:account_key_update';
+export const HCS16_TOPIC_KEY_UPDATE_TRANSACTION_MEMO =
+  'hcs-16:op:topic_key_update';
+
+function normalizeTransactionMemo(
+  value: string | undefined,
+  fallback: string,
+): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed;
+}
+
 function encodeHcs16FloraMemo(params: {
   floraAccountId: string;
   topicType: FloraTopicType;
 }): string {
   return `hcs-16:${params.floraAccountId}:${params.topicType}`;
+}
+
+function encodeHcs16TopicCreateTransactionMemo(
+  topicType: FloraTopicType,
+): string {
+  return `hcs-16:op:topic_create:${topicType}`;
+}
+
+const HCS16_OPERATION_ENUM_BY_OP: Record<FloraOperation, number> = {
+  [FloraOperation.FLORA_CREATED]: 0,
+  [FloraOperation.TRANSACTION]: 1,
+  [FloraOperation.STATE_UPDATE]: 2,
+  [FloraOperation.FLORA_JOIN_REQUEST]: 3,
+  [FloraOperation.FLORA_JOIN_VOTE]: 4,
+  [FloraOperation.FLORA_JOIN_ACCEPTED]: 5,
+};
+
+const HCS16_TOPIC_TYPE_BY_OP: Record<FloraOperation, FloraTopicType> = {
+  [FloraOperation.FLORA_CREATED]: FloraTopicType.COMMUNICATION,
+  [FloraOperation.TRANSACTION]: FloraTopicType.TRANSACTION,
+  [FloraOperation.STATE_UPDATE]: FloraTopicType.STATE,
+  [FloraOperation.FLORA_JOIN_REQUEST]: FloraTopicType.COMMUNICATION,
+  [FloraOperation.FLORA_JOIN_VOTE]: FloraTopicType.COMMUNICATION,
+  [FloraOperation.FLORA_JOIN_ACCEPTED]: FloraTopicType.STATE,
+};
+
+function encodeHcs16MessageSubmitTransactionMemo(op: FloraOperation): string {
+  return `hcs-16:op:${HCS16_OPERATION_ENUM_BY_OP[op]}:${HCS16_TOPIC_TYPE_BY_OP[op]}`;
 }
 
 /**
@@ -36,6 +82,7 @@ export function buildHcs16CreateFloraTopicTx(params: {
   submitKey?: MaybeKey;
   operatorPublicKey?: PublicKey;
   autoRenewAccountId?: string;
+  transactionMemo?: string;
 }): TopicCreateTransaction {
   const memo = encodeHcs16FloraMemo({
     floraAccountId: params.floraAccountId,
@@ -47,6 +94,12 @@ export function buildHcs16CreateFloraTopicTx(params: {
     submitKey: params.submitKey,
     operatorPublicKey: params.operatorPublicKey,
   });
+  tx.setTransactionMemo(
+    normalizeTransactionMemo(
+      params.transactionMemo,
+      encodeHcs16TopicCreateTransactionMemo(params.topicType),
+    ),
+  );
   if (params.autoRenewAccountId) {
     tx.setAutoRenewAccountId(AccountId.fromString(params.autoRenewAccountId));
   }
@@ -105,6 +158,7 @@ export function buildHcs16CreateAccountTx(params: {
   keyList: KeyList;
   initialBalanceHbar?: number;
   maxAutomaticTokenAssociations?: number;
+  transactionMemo?: string;
 }): AccountCreateTransaction {
   const tx = new AccountCreateTransaction().setKey(params.keyList);
   const initial =
@@ -117,6 +171,12 @@ export function buildHcs16CreateAccountTx(params: {
       ? params.maxAutomaticTokenAssociations
       : -1;
   tx.setMaxAutomaticTokenAssociations(maxAssoc);
+  tx.setTransactionMemo(
+    normalizeTransactionMemo(
+      params.transactionMemo,
+      HCS16_FLORA_ACCOUNT_CREATE_TRANSACTION_MEMO,
+    ),
+  );
   return tx;
 }
 
@@ -128,13 +188,17 @@ export function buildHcs16ScheduleAccountKeyUpdateTx(params: {
   floraAccountId: string;
   newKeyList: KeyList;
   memo?: string;
+  transactionMemo?: string;
 }): ScheduleCreateTransaction {
   const inner = new AccountUpdateTransaction()
     .setAccountId(AccountId.fromString(params.floraAccountId))
     .setKey(params.newKeyList);
-  if (params.memo) {
-    inner.setTransactionMemo(params.memo);
-  }
+  inner.setTransactionMemo(
+    normalizeTransactionMemo(
+      params.transactionMemo ?? params.memo,
+      HCS16_ACCOUNT_KEY_UPDATE_TRANSACTION_MEMO,
+    ),
+  );
   return new ScheduleCreateTransaction().setScheduledTransaction(inner);
 }
 
@@ -147,6 +211,7 @@ export function buildHcs16ScheduleTopicKeyUpdateTx(params: {
   adminKey?: KeyList | PublicKey;
   submitKey?: KeyList | PublicKey;
   memo?: string;
+  transactionMemo?: string;
 }): ScheduleCreateTransaction {
   const inner = new TopicUpdateTransaction().setTopicId(params.topicId);
   if (params.adminKey) {
@@ -155,9 +220,12 @@ export function buildHcs16ScheduleTopicKeyUpdateTx(params: {
   if (params.submitKey) {
     inner.setSubmitKey(params.submitKey);
   }
-  if (params.memo) {
-    inner.setTransactionMemo(params.memo);
-  }
+  inner.setTransactionMemo(
+    normalizeTransactionMemo(
+      params.transactionMemo ?? params.memo,
+      HCS16_TOPIC_KEY_UPDATE_TRANSACTION_MEMO,
+    ),
+  );
   return new ScheduleCreateTransaction().setScheduledTransaction(inner);
 }
 
@@ -170,6 +238,7 @@ export function buildHcs16MessageTx(params: {
   operatorId: string;
   op: FloraOperation;
   body?: Record<string, unknown>;
+  transactionMemo?: string;
 }): TopicMessageSubmitTransaction {
   const payload: FloraMessage = {
     p: 'hcs-16',
@@ -181,6 +250,10 @@ export function buildHcs16MessageTx(params: {
   return buildMessageTx({
     topicId: params.topicId,
     message: JSON.stringify(payload),
+    transactionMemo: normalizeTransactionMemo(
+      params.transactionMemo,
+      encodeHcs16MessageSubmitTransactionMemo(params.op),
+    ),
   });
 }
 
@@ -251,7 +324,10 @@ export function buildHcs16StateUpdateTx(params: {
   return buildMessageTx({
     topicId: params.topicId,
     message: JSON.stringify(payload),
-    transactionMemo: params.transactionMemo,
+    transactionMemo: normalizeTransactionMemo(
+      params.transactionMemo,
+      HCS17_STATE_HASH_TRANSACTION_MEMO,
+    ),
   });
 }
 
