@@ -91,6 +91,24 @@ export class HCS16Client extends HCS16BaseClient {
     return receipt.topicId.toString();
   }
 
+  async createFloraAccount(params: {
+    keyList: KeyList;
+    initialBalanceHbar?: number;
+    maxAutomaticTokenAssociations?: number;
+  }): Promise<{ accountId: string; receipt: TransactionReceipt }> {
+    const tx = buildHcs16CreateAccountTx({
+      keyList: params.keyList,
+      initialBalanceHbar: params.initialBalanceHbar,
+      maxAutomaticTokenAssociations: params.maxAutomaticTokenAssociations,
+    });
+    const resp = await tx.execute(this.client);
+    const receipt = await resp.getReceipt(this.client);
+    if (!receipt.accountId) {
+      throw new Error('Failed to create Flora account');
+    }
+    return { accountId: receipt.accountId.toString(), receipt };
+  }
+
   async sendFloraCreated(params: {
     topicId: string;
     operatorId: string;
