@@ -74,6 +74,7 @@ export class HCS16Client extends HCS16BaseClient {
     adminKey?: PublicKey | KeyList;
     submitKey?: PublicKey | KeyList;
     autoRenewAccountId?: string;
+    signerKeys?: PrivateKey[];
   }): Promise<string> {
     const tx = buildHcs16CreateFloraTopicTx({
       floraAccountId: params.floraAccountId,
@@ -83,6 +84,20 @@ export class HCS16Client extends HCS16BaseClient {
       operatorPublicKey: this.client.operatorPublicKey || undefined,
       autoRenewAccountId: params.autoRenewAccountId,
     });
+    const signerKeys = params.signerKeys ?? [];
+    if (signerKeys.length > 0) {
+      const frozen = await tx.freezeWith(this.client);
+      let signed = frozen;
+      for (const key of signerKeys) {
+        signed = await signed.sign(key);
+      }
+      const resp = await signed.execute(this.client);
+      const receipt = await resp.getReceipt(this.client);
+      if (!receipt.topicId) {
+        throw new Error('Failed to create Flora topic');
+      }
+      return receipt.topicId.toString();
+    }
     const resp = await tx.execute(this.client);
     const receipt = await resp.getReceipt(this.client);
     if (!receipt.topicId) {
