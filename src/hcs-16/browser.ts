@@ -224,7 +224,10 @@ export class HCS16BrowserClient extends HCS16BaseClient {
   async sendFloraJoinRequest(params: {
     topicId: string;
     operatorId: string;
-    candidateAccountId: string;
+    accountId: string;
+    connectionRequestId: number;
+    connectionTopicId: string;
+    connectionSeq: number;
   }): Promise<void> {
     const signer = this.getSigner();
     const tx = buildHcs16FloraJoinRequestTx(params);
@@ -236,8 +239,10 @@ export class HCS16BrowserClient extends HCS16BaseClient {
   async sendFloraJoinVote(params: {
     topicId: string;
     operatorId: string;
-    candidateAccountId: string;
+    accountId: string;
     approve: boolean;
+    connectionRequestId: number;
+    connectionSeq: number;
   }): Promise<void> {
     const signer = this.getSigner();
     const tx = buildHcs16FloraJoinVoteTx(params);

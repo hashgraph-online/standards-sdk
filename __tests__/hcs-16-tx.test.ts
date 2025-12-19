@@ -105,13 +105,19 @@ describe('HCS-16 tx builders', () => {
     const tx: any = buildHcs16FloraJoinRequestTx({
       topicId: '0.0.comm',
       operatorId: '0.0.op@0.0.flora',
-      candidateAccountId: '0.0.cand',
+      accountId: '0.0.cand',
+      connectionRequestId: 12,
+      connectionTopicId: '0.0.conn',
+      connectionSeq: 5,
     });
     const payload = JSON.parse(tx._message);
     expect(payload).toMatchObject({
       p: 'hcs-16',
       op: 'flora_join_request',
-      candidate_account_id: '0.0.cand',
+      account_id: '0.0.cand',
+      connection_request_id: 12,
+      connection_topic_id: '0.0.conn',
+      connection_seq: 5,
     });
   });
 
@@ -119,15 +125,19 @@ describe('HCS-16 tx builders', () => {
     const tx: any = buildHcs16FloraJoinVoteTx({
       topicId: '0.0.comm',
       operatorId: '0.0.op@0.0.flora',
-      candidateAccountId: '0.0.cand',
+      accountId: '0.0.cand',
       approve: true,
+      connectionRequestId: 12,
+      connectionSeq: 5,
     });
     const payload = JSON.parse(tx._message);
     expect(payload).toMatchObject({
       p: 'hcs-16',
       op: 'flora_join_vote',
-      candidate_account_id: '0.0.cand',
+      account_id: '0.0.cand',
       approve: true,
+      connection_request_id: 12,
+      connection_seq: 5,
     });
   });
 

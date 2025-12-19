@@ -252,14 +252,20 @@ export function buildHcs16StateUpdateTx(params: {
 export function buildHcs16FloraJoinRequestTx(params: {
   topicId: string;
   operatorId: string;
-  candidateAccountId: string;
+  accountId: string;
+  connectionRequestId: number;
+  connectionTopicId: string;
+  connectionSeq: number;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.FLORA_JOIN_REQUEST,
     body: {
-      candidate_account_id: params.candidateAccountId,
+      account_id: params.accountId,
+      connection_request_id: params.connectionRequestId,
+      connection_topic_id: params.connectionTopicId,
+      connection_seq: params.connectionSeq,
     },
   });
 }
@@ -270,16 +276,20 @@ export function buildHcs16FloraJoinRequestTx(params: {
 export function buildHcs16FloraJoinVoteTx(params: {
   topicId: string;
   operatorId: string;
-  candidateAccountId: string;
+  accountId: string;
   approve: boolean;
+  connectionRequestId: number;
+  connectionSeq: number;
 }): TopicMessageSubmitTransaction {
   return buildHcs16MessageTx({
     topicId: params.topicId,
     operatorId: params.operatorId,
     op: FloraOperation.FLORA_JOIN_VOTE,
     body: {
-      candidate_account_id: params.candidateAccountId,
+      account_id: params.accountId,
       approve: params.approve,
+      connection_request_id: params.connectionRequestId,
+      connection_seq: params.connectionSeq,
     },
   });
 }
