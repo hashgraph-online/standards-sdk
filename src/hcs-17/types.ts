@@ -44,6 +44,7 @@ export interface StateHashMessage {
   state_hash: string;
   topics: string[];
   account_id: string;
+  epoch?: number;
   timestamp?: string;
   m?: string;
 }
@@ -54,6 +55,7 @@ export const hcs17MessageSchema = z.object({
   state_hash: z.string().min(1),
   topics: z.array(z.string()),
   account_id: z.string().min(1),
+  epoch: z.number().int().nonnegative().optional(),
   timestamp: z.string().optional(),
   m: z.string().optional(),
 });

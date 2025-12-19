@@ -226,23 +226,32 @@ export function buildHcs16TransactionTx(params: {
 }
 
 /**
- * Build HCS‑16 state_update message.
+ * Build HCS‑17 state_hash message for Flora STopic state updates.
  */
 export function buildHcs16StateUpdateTx(params: {
   topicId: string;
   operatorId: string;
   hash: string;
   epoch?: number;
+  accountId?: string;
+  topics?: string[];
+  memo?: string;
+  transactionMemo?: string;
 }): TopicMessageSubmitTransaction {
-  return buildHcs16MessageTx({
+  const payload = {
+    p: 'hcs-17',
+    op: 'state_hash',
+    state_hash: params.hash,
+    topics: params.topics ?? [],
+    account_id: params.accountId ?? params.operatorId,
+    epoch: params.epoch,
+    timestamp: new Date().toISOString(),
+    m: params.memo,
+  };
+  return buildMessageTx({
     topicId: params.topicId,
-    operatorId: params.operatorId,
-    op: FloraOperation.STATE_UPDATE,
-    body: {
-      hash: params.hash,
-      epoch: params.epoch,
-      timestamp: new Date().toISOString(),
-    },
+    message: JSON.stringify(payload),
+    transactionMemo: params.transactionMemo,
   });
 }
 

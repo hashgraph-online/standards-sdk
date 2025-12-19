@@ -170,6 +170,10 @@ export class HCS16Client extends HCS16BaseClient {
     operatorId: string;
     hash: string;
     epoch?: number;
+    accountId?: string;
+    topics?: string[];
+    memo?: string;
+    transactionMemo?: string;
     signerKeys?: PrivateKey[];
   }): Promise<TransactionReceipt> {
     const tx = buildHcs16StateUpdateTx({
@@ -177,6 +181,10 @@ export class HCS16Client extends HCS16BaseClient {
       operatorId: params.operatorId,
       hash: params.hash,
       epoch: params.epoch,
+      accountId: params.accountId,
+      topics: params.topics,
+      memo: params.memo,
+      transactionMemo: params.transactionMemo,
     });
     if (params.signerKeys && params.signerKeys.length > 0) {
       const frozen = await tx.freezeWith(this.client);

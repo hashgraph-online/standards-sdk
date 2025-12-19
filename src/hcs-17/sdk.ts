@@ -91,6 +91,8 @@ export class HCS17Client extends HCS17BaseClient {
       accountId: message.account_id,
       topics: message.topics,
       memo: message.m,
+      epoch: message.epoch,
+      timestamp: message.timestamp,
     });
     const resp = await tx.execute(this.client);
     const receipt = await resp.getReceipt(this.client);

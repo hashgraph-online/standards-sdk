@@ -124,6 +124,10 @@ export class HCS16BrowserClient extends HCS16BaseClient {
     operatorId: string;
     hash: string;
     epoch?: number;
+    accountId?: string;
+    topics?: string[];
+    memo?: string;
+    transactionMemo?: string;
   }): Promise<void> {
     const signer = this.getSigner();
     const tx = buildHcs16StateUpdateTx(params);

@@ -37,6 +37,8 @@ export function buildHcs17MessageTx(params: {
   accountId: string;
   topics: string[];
   memo?: string;
+  epoch?: number;
+  timestamp?: string;
   transactionMemo?: string;
 }): TopicMessageSubmitTransaction {
   const payload: StateHashMessage = {
@@ -45,7 +47,8 @@ export function buildHcs17MessageTx(params: {
     state_hash: params.stateHash,
     topics: params.topics,
     account_id: params.accountId,
-    timestamp: new Date().toISOString(),
+    epoch: params.epoch,
+    timestamp: params.timestamp ?? new Date().toISOString(),
     m: params.memo,
   };
   return buildMessageTx({
