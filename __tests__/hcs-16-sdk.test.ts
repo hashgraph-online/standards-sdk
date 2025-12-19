@@ -125,6 +125,35 @@ describe('HCS-16 Node client', () => {
     expect(rs).toBeDefined();
   });
 
+  it('sends join request/vote/accepted', async () => {
+    const c = new HCS16Client(cfg);
+    const req = await c.sendFloraJoinRequest({
+      topicId: '0.0.comm',
+      operatorId: '0.0.op@0.0.fl',
+      accountId: '0.0.cand',
+      connectionRequestId: 12,
+      connectionTopicId: '0.0.conn',
+      connectionSeq: 7,
+    });
+    const vote = await c.sendFloraJoinVote({
+      topicId: '0.0.comm',
+      operatorId: '0.0.op@0.0.fl',
+      accountId: '0.0.cand',
+      approve: true,
+      connectionRequestId: 12,
+      connectionSeq: 7,
+    });
+    const accepted = await c.sendFloraJoinAccepted({
+      topicId: '0.0.state',
+      operatorId: '0.0.op@0.0.fl',
+      members: ['0.0.a', '0.0.b'],
+      epoch: 2,
+    });
+    expect(req).toBeDefined();
+    expect(vote).toBeDefined();
+    expect(accepted).toBeDefined();
+  });
+
   it('signs schedule via helper', async () => {
     const c = new HCS16Client(cfg);
     const signer: any = { dummy: true };

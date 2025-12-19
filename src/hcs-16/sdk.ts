@@ -143,6 +143,67 @@ export class HCS16Client extends HCS16BaseClient {
     return resp.getReceipt(this.client);
   }
 
+  async sendFloraJoinRequest(params: {
+    topicId: string;
+    operatorId: string;
+    accountId: string;
+    connectionRequestId: number;
+    connectionTopicId: string;
+    connectionSeq: number;
+    signerKey?: PrivateKey;
+  }): Promise<TransactionReceipt> {
+    const tx = buildHcs16FloraJoinRequestTx(params);
+    if (params.signerKey) {
+      const frozen = await tx.freezeWith(this.client);
+      const signed = await frozen.sign(params.signerKey);
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  async sendFloraJoinVote(params: {
+    topicId: string;
+    operatorId: string;
+    accountId: string;
+    approve: boolean;
+    connectionRequestId: number;
+    connectionSeq: number;
+    signerKey?: PrivateKey;
+  }): Promise<TransactionReceipt> {
+    const tx = buildHcs16FloraJoinVoteTx(params);
+    if (params.signerKey) {
+      const frozen = await tx.freezeWith(this.client);
+      const signed = await frozen.sign(params.signerKey);
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  async sendFloraJoinAccepted(params: {
+    topicId: string;
+    operatorId: string;
+    members: string[];
+    epoch?: number;
+    signerKeys?: PrivateKey[];
+  }): Promise<TransactionReceipt> {
+    const tx = buildHcs16FloraJoinAcceptedTx(params);
+    if (params.signerKeys && params.signerKeys.length > 0) {
+      const frozen = await tx.freezeWith(this.client);
+      let signed = frozen;
+      for (const key of params.signerKeys) {
+        signed = await signed.sign(key);
+      }
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
   /**
    * Resolve member public keys from Mirror Node and build a KeyList with the given threshold.
    */
