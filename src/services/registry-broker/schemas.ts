@@ -216,6 +216,60 @@ export const resolveResponseSchema = z.object({
   agent: searchHitSchema,
 });
 
+const agentFeedbackSummarySchema = z.object({
+  averageScore: z.number(),
+  totalFeedbacks: z.number(),
+  registry: z.string().optional(),
+  network: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+const agentFeedbackEntrySchema = z.object({
+  registry: z.string(),
+  network: z.string().optional(),
+  agentId: z.number(),
+  client: z.string(),
+  score: z.number(),
+  tag1: z.string().nullable().optional(),
+  tag2: z.string().nullable().optional(),
+  revoked: z.boolean(),
+  feedbackIndex: z.number().nullable().optional(),
+  fileUri: z.string().nullable().optional(),
+  fileHash: z.string().nullable().optional(),
+  createdAt: z.string().nullable().optional(),
+});
+
+export const agentFeedbackResponseSchema = z.object({
+  uaid: z.string(),
+  summary: agentFeedbackSummarySchema,
+  entries: z.array(agentFeedbackEntrySchema),
+});
+
+export const agentFeedbackEligibilityResponseSchema = z.object({
+  uaid: z.string(),
+  sessionId: z.string(),
+  eligible: z.boolean(),
+  messageCount: z.number(),
+  minimumMessages: z.number(),
+  reason: z.string().optional(),
+});
+
+export const agentFeedbackSubmissionResponseSchema = z.object({
+  uaid: z.string(),
+  registry: z.string(),
+  network: z.string().optional(),
+  agentId: z.number(),
+  score: z.number(),
+  tag1: z.string().nullable().optional(),
+  tag2: z.string().nullable().optional(),
+  fileUri: z.string().nullable().optional(),
+  fileHash: z.string().nullable().optional(),
+  feedbackIndex: z.number().nullable().optional(),
+  transactionHash: z.string().nullable().optional(),
+  signature: z.string().nullable().optional(),
+  submittedAt: z.string(),
+});
+
 export const createSessionResponseSchema = z.object({
   sessionId: z.string(),
   uaid: z.string().nullable().optional(),

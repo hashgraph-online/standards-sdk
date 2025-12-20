@@ -19,8 +19,7 @@ import {
 } from '../common/tx/tx-utils';
 import { FloraOperation, FloraTopicType, type FloraMessage } from './types';
 
-export const HCS16_FLORA_ACCOUNT_CREATE_TRANSACTION_MEMO =
-  'hcs-16:op:flora_account_create';
+export const HCS16_FLORA_ACCOUNT_CREATE_TRANSACTION_MEMO = 'hcs-16:op:0:0';
 export const HCS17_STATE_HASH_TRANSACTION_MEMO = 'hcs-17:op:6:2';
 export const HCS16_ACCOUNT_KEY_UPDATE_TRANSACTION_MEMO = 'hcs-16:op:1:1';
 export const HCS16_TOPIC_KEY_UPDATE_TRANSACTION_MEMO = 'hcs-16:op:1:1';

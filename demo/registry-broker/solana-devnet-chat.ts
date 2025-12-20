@@ -97,15 +97,16 @@ const run = async (): Promise<void> => {
 
   if (!registryApiKey) {
     logger.warn(
-      'REGISTRY_BROKER_API_KEY is not set; API key access is recommended for production usage.',
+      'REGISTRY_BROKER_API_KEY is not set; falling back to ledger authentication.',
     );
+    await authenticateWithDemoLedger(client, {
+      label: 'solana-devnet-chat',
+      expiresInMinutes: 30,
+      setAccountHeader: true,
+    });
+  } else {
+    logger.info('Using API key authentication for registry broker access.');
   }
-
-  await authenticateWithDemoLedger(client, {
-    label: 'solana-devnet-chat',
-    expiresInMinutes: 30,
-    setAccountHeader: true,
-  });
 
   logger.info('Searching for Solana devnet agent', {
     registry,
@@ -141,6 +142,38 @@ const run = async (): Promise<void> => {
     message: response.message,
     historyEntries: response.history?.length ?? 0,
   });
+
+  const followUp = 'Reply with a short sentence acknowledging receipt.';
+  const followUpResponse = await client.chat.sendMessage({
+    sessionId: session.sessionId,
+    uaid: agent.uaid,
+    message: followUp,
+  });
+
+  logger.info('Follow-up response received', {
+    message: followUpResponse.message,
+    historyEntries: followUpResponse.history?.length ?? 0,
+  });
+
+  const eligibility = await client.checkAgentFeedbackEligibility(agent.uaid, {
+    sessionId: session.sessionId,
+  });
+  logger.info('Feedback eligibility', eligibility);
+
+  if (eligibility.eligible) {
+    const feedback = await client.submitAgentFeedback(agent.uaid, {
+      sessionId: session.sessionId,
+      score: 92,
+      tag1: 'helpful',
+      tag2: 'responsive',
+    });
+    logger.info('Feedback submitted', {
+      signature: feedback.signature,
+      feedbackIndex: feedback.feedbackIndex,
+    });
+  } else {
+    logger.warn('Feedback submission skipped', eligibility);
+  }
 
   await client.chat.endSession(session.sessionId);
   logger.info('Session closed', { sessionId: session.sessionId });
