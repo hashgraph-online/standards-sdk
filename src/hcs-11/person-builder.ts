@@ -64,6 +64,11 @@ export class PersonBuilder {
     return this;
   }
 
+  setBaseAccount(baseAccountId: string): this {
+    this.config.base_account = baseAccountId;
+    return this;
+  }
+
   setExistingProfilePicture(pfpTopicId: string): this {
     this.config.profileImage = `hcs://1/${pfpTopicId}`;
     return this;
@@ -115,6 +120,7 @@ export class PersonBuilder {
       bio: this.config.bio,
       socials: this.config.socials,
       profileImage: this.config.profileImage,
+      base_account: this.config.base_account,
       properties: this.config.properties,
       inboundTopicId: this.config.inboundTopicId,
       outboundTopicId: this.config.outboundTopicId,

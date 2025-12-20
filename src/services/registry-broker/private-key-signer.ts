@@ -6,7 +6,7 @@ import type {
   TransactionRecord,
   SignerSignature,
 } from '@hashgraph/sdk';
-import { optionalImportSync } from '../../utils/dynamic-import';
+import { optionalImport, optionalImportSync } from '../../utils/dynamic-import';
 
 const unsupported = (method: string): Error =>
   new Error(`${method} is not supported by the in-memory signer`);
@@ -17,10 +17,43 @@ export interface PrivateKeySignerOptions {
   network: 'mainnet' | 'testnet';
 }
 
-export const createPrivateKeySigner = (
+type HashgraphSdk = typeof import('@hashgraph/sdk');
+
+let cachedSdk: HashgraphSdk | null = null;
+
+const loadHashgraphSdk = (): HashgraphSdk => {
+  if (cachedSdk) {
+    return cachedSdk;
+  }
+  const resolved = optionalImportSync<HashgraphSdk>('@hashgraph/sdk');
+  if (resolved) {
+    cachedSdk = resolved;
+    return resolved;
+  }
+
+  const message =
+    '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
+  throw new Error(message);
+};
+
+const loadHashgraphSdkAsync = async (): Promise<HashgraphSdk> => {
+  if (cachedSdk) {
+    return cachedSdk;
+  }
+  const resolved = await optionalImport<HashgraphSdk>('@hashgraph/sdk');
+  if (resolved) {
+    cachedSdk = resolved;
+    return resolved;
+  }
+  const message =
+    '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
+  throw new Error(message);
+};
+
+const buildSigner = (
+  sdk: HashgraphSdk,
   options: PrivateKeySignerOptions,
 ): Signer => {
-  const sdk = loadHashgraphSdk();
   const { AccountId, LedgerId, PrivateKey, SignerSignature } = sdk;
   if (!options.privateKey) {
     throw new Error('privateKey is required to create a ledger signer.');
@@ -75,21 +108,10 @@ export const createPrivateKeySigner = (
   };
 };
 
-type HashgraphSdk = typeof import('@hashgraph/sdk');
+export const createPrivateKeySigner = (
+  options: PrivateKeySignerOptions,
+): Signer => buildSigner(loadHashgraphSdk(), options);
 
-let cachedSdk: HashgraphSdk | null = null;
-
-const loadHashgraphSdk = (): HashgraphSdk => {
-  if (cachedSdk) {
-    return cachedSdk;
-  }
-  const resolved = optionalImportSync<HashgraphSdk>('@hashgraph/sdk');
-  if (resolved) {
-    cachedSdk = resolved;
-    return resolved;
-  }
-
-  const message =
-    '@hashgraph/sdk is required for ledger signing. Install it as a dependency to enable createPrivateKeySigner.';
-  throw new Error(message);
-};
+export const createPrivateKeySignerAsync = async (
+  options: PrivateKeySignerOptions,
+): Promise<Signer> => buildSigner(await loadHashgraphSdkAsync(), options);

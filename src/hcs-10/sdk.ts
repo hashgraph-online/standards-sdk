@@ -2316,6 +2316,7 @@ export class HCS10Client extends HCS10BaseClient {
             inboundTopicId,
             outboundTopicId,
             creator: agentProfile.metadata?.creator,
+            baseAccount: agentProfile.baseAccount,
           },
         );
       } else {
@@ -2335,6 +2336,7 @@ export class HCS10Client extends HCS10BaseClient {
             properties: personProfile.properties,
             inboundTopicId,
             outboundTopicId,
+            baseAccount: personProfile.base_account,
           },
         );
       }

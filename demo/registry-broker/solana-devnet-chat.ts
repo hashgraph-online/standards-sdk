@@ -6,6 +6,7 @@ import {
   RegistryBrokerParseError,
   type AgentSearchHit,
 } from '../../src/services/registry-broker';
+import { authenticateWithDemoLedger } from '../utils/registry-auth';
 
 const logger = new Logger({
   module: 'demo/registry-broker/solana-devnet-chat',
@@ -99,6 +100,12 @@ const run = async (): Promise<void> => {
       'REGISTRY_BROKER_API_KEY is not set; API key access is recommended for production usage.',
     );
   }
+
+  await authenticateWithDemoLedger(client, {
+    label: 'solana-devnet-chat',
+    expiresInMinutes: 30,
+    setAccountHeader: true,
+  });
 
   logger.info('Searching for Solana devnet agent', {
     registry,

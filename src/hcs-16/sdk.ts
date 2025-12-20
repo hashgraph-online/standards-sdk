@@ -10,6 +10,7 @@ import {
 } from '@hashgraph/sdk';
 import type { NetworkType } from '../utils/types';
 import type { Logger } from '../utils/logger';
+import { HCS11Client } from '../hcs-11';
 import {
   createNodeOperatorContext,
   type NodeOperatorContext,
@@ -22,7 +23,7 @@ import {
   buildHcs16TransactionTx,
   buildHcs16StateUpdateTx,
 } from './tx';
-import { FloraTopicType } from './types';
+import { FloraTopicType, type FloraMember, type FloraProfile } from './types';
 import {
   buildHcs16FloraJoinRequestTx,
   buildHcs16FloraJoinVoteTx,
@@ -36,6 +37,20 @@ export interface HCS16ClientConfig {
   operatorKey: string;
   keyType?: 'ecdsa' | 'ed25519';
   logger?: Logger;
+}
+
+export interface FloraProfileOptions {
+  floraAccountId: string;
+  displayName: string;
+  members: FloraMember[];
+  threshold: number;
+  topics: { communication: string; transaction: string; state: string };
+  inboundTopicId?: string;
+  outboundTopicId?: string;
+  bio?: string;
+  metadata?: Record<string, unknown>;
+  policies?: Record<string, string>;
+  signerKeys: PrivateKey[];
 }
 
 /**
@@ -344,6 +359,70 @@ export class HCS16Client extends HCS16BaseClient {
       state: stateR.topicId!.toString(),
     };
     return { floraAccountId, topics };
+  }
+
+  async createFloraProfile(params: FloraProfileOptions): Promise<{
+    profileTopicId: string;
+    transactionId: string;
+  }> {
+    await this.ensureOperatorReady();
+    if (params.signerKeys.length === 0) {
+      throw new Error('Flora profile creation requires signer keys');
+    }
+
+    const profile: FloraProfile = {
+      version: '1.0',
+      type: 3,
+      display_name: params.displayName,
+      members: params.members,
+      threshold: params.threshold,
+      topics: params.topics,
+      inboundTopicId: params.inboundTopicId ?? params.topics.communication,
+      outboundTopicId: params.outboundTopicId ?? params.topics.transaction,
+      bio: params.bio,
+      metadata: params.metadata,
+      policies: params.policies,
+    };
+
+    const hcs11 = new HCS11Client({
+      network: this.network,
+      auth: {
+        operatorId: this.operatorId.toString(),
+        privateKey: this.operatorCtx.operatorKey.toString(),
+      },
+      logLevel: this.logger.getLevel(),
+    });
+
+    try {
+      await hcs11.initializeOperator();
+      const profileResult = await hcs11.inscribeProfile(profile);
+      if (!profileResult.success) {
+        throw new Error(
+          profileResult.error ?? 'Failed to inscribe Flora profile',
+        );
+      }
+
+      const memoResult = await hcs11.updateAccountMemoWithProfile(
+        params.floraAccountId,
+        profileResult.profileTopicId,
+        params.signerKeys,
+      );
+
+      if (!memoResult.success) {
+        throw new Error(
+          memoResult.error ?? 'Failed to update Flora account memo',
+        );
+      }
+
+      return {
+        profileTopicId: profileResult.profileTopicId,
+        transactionId: profileResult.transactionId,
+      };
+    } finally {
+      try {
+        hcs11.getClient().close();
+      } catch {}
+    }
   }
 
   /**

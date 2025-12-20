@@ -15,7 +15,11 @@ import {
   buildHcs15BaseAccountCreateTx,
   buildHcs15PetalAccountCreateTx,
 } from './tx';
-import type { SDKHCS15ClientConfig } from './types';
+import type {
+  PetalProfileOptions,
+  PetalProfileResult,
+  SDKHCS15ClientConfig,
+} from './types';
 import { HCS15BaseClient } from './base-client';
 
 export class HCS15Client extends HCS15BaseClient {
@@ -106,7 +110,12 @@ export class HCS15Client extends HCS15BaseClient {
     maxAutomaticTokenAssociations?: number;
     accountMemo?: string;
     transactionMemo?: string;
-  }): Promise<{ accountId: string; receipt: TransactionReceipt }> {
+    profile?: PetalProfileOptions;
+  }): Promise<{
+    accountId: string;
+    receipt: TransactionReceipt;
+    profile?: PetalProfileResult;
+  }> {
     await this.ensureOperatorReady();
     const baseKey =
       typeof params.basePrivateKey === 'string'
@@ -127,6 +136,89 @@ export class HCS15Client extends HCS15BaseClient {
     }
     const accountId = receipt.accountId.toString();
     this.logger.info('Created HCS-15 petal account', { accountId });
-    return { accountId, receipt };
+    let profile: PetalProfileResult | undefined;
+    if (params.profile) {
+      profile = await this.createPetalProfile({
+        accountId,
+        basePrivateKey: baseKey,
+        profile: params.profile,
+      });
+    }
+    return { accountId, receipt, profile };
+  }
+
+  private async createPetalProfile(params: {
+    accountId: string;
+    basePrivateKey: PrivateKey;
+    profile: PetalProfileOptions;
+  }): Promise<PetalProfileResult> {
+    const { HCS10Client } = await import('../hcs-10');
+    const { PersonBuilder } = await import('../hcs-11');
+    const hcs10 = new HCS10Client({
+      network: this.network,
+      operatorId: params.accountId,
+      operatorPrivateKey: params.basePrivateKey.toString(),
+      logLevel: this.logger.getLevel(),
+    });
+
+    try {
+      const builder = new PersonBuilder()
+        .setName(params.profile.displayName)
+        .setBaseAccount(params.profile.baseAccountId);
+
+      if (params.profile.alias) {
+        builder.setAlias(params.profile.alias);
+      }
+
+      if (params.profile.bio) {
+        builder.setBio(params.profile.bio);
+      }
+
+      if (params.profile.profileImage) {
+        builder.setProfileImage(params.profile.profileImage);
+      }
+
+      if (params.profile.socials) {
+        for (const social of params.profile.socials) {
+          builder.addSocial(social.platform, social.handle);
+        }
+      }
+
+      if (params.profile.properties) {
+        for (const [key, value] of Object.entries(params.profile.properties)) {
+          builder.addProperty(key, value);
+        }
+      }
+
+      const result = await hcs10.create(builder, {
+        ttl: params.profile.ttl ?? 300,
+        updateAccountMemo: true,
+      });
+
+      if ('success' in result && result.success === false) {
+        throw new Error(result.error ?? 'Failed to create petal profile');
+      }
+
+      const inboundTopicId =
+        'inboundTopicId' in result ? result.inboundTopicId : '';
+      const outboundTopicId =
+        'outboundTopicId' in result ? result.outboundTopicId : '';
+      const profileTopicId =
+        'profileTopicId' in result ? result.profileTopicId : '';
+
+      if (!profileTopicId) {
+        throw new Error('Failed to resolve petal profile topic ID');
+      }
+
+      return {
+        profileTopicId,
+        inboundTopicId,
+        outboundTopicId,
+      };
+    } finally {
+      try {
+        hcs10.getClient().close();
+      } catch {}
+    }
   }
 }
