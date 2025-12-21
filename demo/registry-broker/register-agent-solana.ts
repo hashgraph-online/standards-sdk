@@ -81,6 +81,7 @@ const printTutorialIntro = (options: {
   appUrl: string;
   solanaSelection: string;
   preferLedger: boolean;
+  allowAnonymous: boolean;
   apiKey?: string;
 }): void => {
   console.log('Solana ERC-8004 registration demo');
@@ -94,6 +95,11 @@ const printTutorialIntro = (options: {
   console.log('  3) Register the agent and publish to Solana devnet.');
   console.log('  4) Review the registration summary.');
   if (!options.preferLedger) {
+    if (options.allowAnonymous) {
+      console.log('  Auth mode: none (local broker)');
+      console.log('');
+      return;
+    }
     if (options.apiKey) {
       console.log('  Auth mode: API key');
     } else {
@@ -115,6 +121,9 @@ const printTutorialIntro = (options: {
 const main = async (): Promise<void> => {
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() || DEFAULT_BASE_URL;
+  const allowAnonymous =
+    baseUrl.startsWith('http://localhost') ||
+    baseUrl.startsWith('http://127.0.0.1');
   const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
   const preferLedger = parseBooleanFlag(
     process.env.REGISTRY_BROKER_DEMO_USE_LEDGER,
@@ -144,10 +153,11 @@ const main = async (): Promise<void> => {
     appUrl,
     solanaSelection,
     preferLedger,
+    allowAnonymous,
     apiKey,
   });
 
-  if (!preferLedger && !apiKey) {
+  if (!allowAnonymous && !preferLedger && !apiKey) {
     throw new Error(
       'Missing authentication. Provide REGISTRY_BROKER_API_KEY or set REGISTRY_BROKER_DEMO_USE_LEDGER=1.',
     );
@@ -210,8 +220,10 @@ const main = async (): Promise<void> => {
       }
       throw error;
     }
-  } else {
+  } else if (apiKey) {
     console.log('Using provided REGISTRY_BROKER_API_KEY for authentication.');
+  } else {
+    console.log('Skipping authentication (local broker).');
   }
 
   const alias =

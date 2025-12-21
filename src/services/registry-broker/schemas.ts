@@ -37,7 +37,7 @@ type JsonValue =
   | { [key: string]: JsonValue };
 
 const capabilitySchema = z.nativeEnum(AIAgentCapability);
-const capabilityValueSchema = z.union([capabilitySchema, z.string()]);
+const capabilityValueSchema = z.union([z.number(), z.string()]);
 const jsonPrimitiveSchema = z.union([
   z.string(),
   z.number(),
@@ -65,7 +65,9 @@ const agentProfileSchema = z
         type: z.nativeEnum(AIAgentType),
         creator: z.string().optional(),
         model: z.string().optional(),
-        capabilities: z.array(capabilitySchema).optional(),
+        capabilities: z
+          .array(z.union([capabilitySchema, z.number()]))
+          .optional(),
       })
       .optional(),
     uaid: z.string().optional(),
@@ -252,6 +254,15 @@ export const agentFeedbackEligibilityResponseSchema = z.object({
   messageCount: z.number(),
   minimumMessages: z.number(),
   reason: z.string().optional(),
+  onchain: z
+    .object({
+      eligible: z.boolean(),
+      reason: z.string().optional(),
+      estimatedCredits: z.number().optional(),
+      usdEstimate: z.number().optional(),
+      nativeFeeEstimate: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const agentFeedbackSubmissionResponseSchema = z.object({
@@ -268,6 +279,34 @@ export const agentFeedbackSubmissionResponseSchema = z.object({
   transactionHash: z.string().nullable().optional(),
   signature: z.string().nullable().optional(),
   submittedAt: z.string(),
+});
+
+export const agentFeedbackIndexResponseSchema = z.object({
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+  items: z.array(
+    z.object({
+      uaid: z.string(),
+      registry: z.string(),
+      network: z.string().optional(),
+      agentId: z.number().nullable().optional(),
+      summary: agentFeedbackSummarySchema.nullable(),
+      trustScore: z.number().nullable().optional(),
+    }),
+  ),
+});
+
+export const agentFeedbackEntriesIndexResponseSchema = z.object({
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+  items: z.array(
+    z.object({
+      uaid: z.string(),
+      entry: agentFeedbackEntrySchema,
+    }),
+  ),
 });
 
 export const createSessionResponseSchema = z.object({

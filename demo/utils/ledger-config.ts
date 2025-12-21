@@ -29,6 +29,18 @@ const getScopedEnv = (
     : undefined;
 };
 
+const getOperatorEnv = (
+  network: HederaNetwork,
+  suffix: 'ID' | 'KEY',
+): string | undefined => {
+  const prefix = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
+  const key = `HEDERA_${prefix}_OPERATOR_${suffix}`;
+  const value = process.env[key as keyof NodeJS.ProcessEnv];
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+};
+
 export const resolveAccountId = (): string => {
   const account = process.env.HEDERA_ACCOUNT_ID?.trim();
   if (account) {
@@ -44,11 +56,12 @@ export const resolveLedgerAccountId = (): string => {
   const network = resolveLedgerNetwork();
   const scoped =
     getScopedEnv(network, 'ACCOUNT_ID') ||
+    getOperatorEnv(network, 'ID') ||
     process.env.HEDERA_ACCOUNT_ID?.trim() ||
     process.env.HEDERA_OPERATOR_ID?.trim();
   if (!scoped) {
     throw new Error(
-      `Set ${network === 'mainnet' ? 'MAINNET' : 'TESTNET'}_HEDERA_ACCOUNT_ID or HEDERA_ACCOUNT_ID for ledger auth.`,
+      `Set ${network === 'mainnet' ? 'MAINNET' : 'TESTNET'}_HEDERA_ACCOUNT_ID or HEDERA_${network.toUpperCase()}_OPERATOR_ID for ledger auth.`,
     );
   }
   return scoped;
@@ -58,11 +71,12 @@ export const resolveLedgerPrivateKey = (): string => {
   const network = resolveLedgerNetwork();
   const scoped =
     getScopedEnv(network, 'PRIVATE_KEY') ||
+    getOperatorEnv(network, 'KEY') ||
     process.env.HEDERA_PRIVATE_KEY?.trim() ||
     process.env.HEDERA_OPERATOR_KEY?.trim();
   if (!scoped) {
     throw new Error(
-      `Set ${network === 'mainnet' ? 'MAINNET' : 'TESTNET'}_HEDERA_PRIVATE_KEY or HEDERA_PRIVATE_KEY for ledger auth.`,
+      `Set ${network === 'mainnet' ? 'MAINNET' : 'TESTNET'}_HEDERA_PRIVATE_KEY or HEDERA_${network.toUpperCase()}_OPERATOR_KEY for ledger auth.`,
     );
   }
   return scoped;

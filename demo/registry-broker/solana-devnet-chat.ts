@@ -99,11 +99,21 @@ const run = async (): Promise<void> => {
     logger.warn(
       'REGISTRY_BROKER_API_KEY is not set; falling back to ledger authentication.',
     );
-    await authenticateWithDemoLedger(client, {
-      label: 'solana-devnet-chat',
-      expiresInMinutes: 30,
-      setAccountHeader: true,
-    });
+    try {
+      await authenticateWithDemoLedger(client, {
+        label: 'solana-devnet-chat',
+        expiresInMinutes: 30,
+        setAccountHeader: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(
+        'Ledger authentication unavailable; continuing without auth.',
+        {
+          error: message,
+        },
+      );
+    }
   } else {
     logger.info('Using API key authentication for registry broker access.');
   }

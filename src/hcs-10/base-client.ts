@@ -463,9 +463,13 @@ export abstract class HCS10BaseClient extends Registration {
         const profile = profileResult?.profile;
         let topicInfo: TopicInfo | null = null;
         const inboundTopic =
-          profileResult?.topicInfo?.inboundTopic || profile?.inboundTopicId || '';
+          profileResult?.topicInfo?.inboundTopic ||
+          profile?.inboundTopicId ||
+          '';
         const outboundTopic =
-          profileResult?.topicInfo?.outboundTopic || profile?.outboundTopicId || '';
+          profileResult?.topicInfo?.outboundTopic ||
+          profile?.outboundTopicId ||
+          '';
         const profileTopicId = profileResult?.topicInfo?.profileTopicId || '';
         if (inboundTopic && outboundTopic) {
           topicInfo = {

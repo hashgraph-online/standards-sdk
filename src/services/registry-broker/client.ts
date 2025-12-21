@@ -18,3 +18,7 @@ export {
 } from './client/base-client';
 
 export { RegistryBrokerError, RegistryBrokerParseError } from './client/errors';
+export {
+  createFeedbackClient,
+  type RegistryBrokerFeedbackClient,
+} from './client/feedback';
