@@ -285,7 +285,8 @@ export class ResourceManager {
         return true;
       }
 
-      if (typeof crypto === 'undefined' || !crypto.subtle) {
+      const webCrypto = globalThis.crypto;
+      if (typeof webCrypto === 'undefined' || !webCrypto.subtle) {
         this.logger.warn(
           'WebCrypto not available, skipping integrity verification',
         );
@@ -302,7 +303,7 @@ export class ResourceManager {
           ? buffer
           : new Uint8Array(buffer as ArrayBufferLike);
       const copy = new Uint8Array(bytes);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', copy.buffer);
+      const hashBuffer = await webCrypto.subtle.digest('SHA-256', copy.buffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const actualHash = hashArray
         .map(b => b.toString(16).padStart(2, '0'))

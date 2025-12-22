@@ -56,7 +56,11 @@ export class WebHmacAdapter implements HmacAdapter {
   async digest(encoding?: string): Promise<string | Buffer> {
     const combined = Buffer.concat(this.data);
     const keyBytes = new Uint8Array(this.key);
-    const keyBuffer = await crypto.subtle.importKey(
+    const webCrypto = globalThis.crypto;
+    if (!webCrypto?.subtle) {
+      throw new Error('WebCrypto not available');
+    }
+    const keyBuffer = await webCrypto.subtle.importKey(
       'raw',
       keyBytes,
       { name: 'HMAC', hash: this.mapAlgorithm(this.algorithm) },
@@ -64,7 +68,7 @@ export class WebHmacAdapter implements HmacAdapter {
       ['sign'],
     );
 
-    const signature = await crypto.subtle.sign(
+    const signature = await webCrypto.subtle.sign(
       'HMAC',
       keyBuffer,
       new Uint8Array(combined),
@@ -215,7 +219,11 @@ export class WebCryptoAdapter implements CryptoAdapter {
     digest: string,
   ): Promise<Buffer> {
     const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
+    const webCrypto = globalThis.crypto;
+    if (!webCrypto?.subtle) {
+      throw new Error('WebCrypto not available');
+    }
+    const keyMaterial = await webCrypto.subtle.importKey(
       'raw',
       encoder.encode(password),
       { name: 'PBKDF2' },
@@ -223,7 +231,7 @@ export class WebCryptoAdapter implements CryptoAdapter {
       ['deriveBits'],
     );
 
-    const derivedBits = await crypto.subtle.deriveBits(
+    const derivedBits = await webCrypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
         salt: new Uint8Array(salt),
