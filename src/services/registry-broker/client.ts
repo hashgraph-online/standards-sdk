@@ -6,7 +6,6 @@ import './client/agents';
 import './client/ledger-auth';
 import './client/chat-history';
 import './client/chat';
-import './client/feedback';
 
 export {
   RegistryBrokerClient,
@@ -18,7 +17,3 @@ export {
 } from './client/base-client';
 
 export { RegistryBrokerError, RegistryBrokerParseError } from './client/errors';
-export {
-  createFeedbackClient,
-  type RegistryBrokerFeedbackClient,
-} from './client/feedback';

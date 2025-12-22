@@ -44,7 +44,7 @@ function encodeHcs16FloraMemo(params: {
 function encodeHcs16TopicCreateTransactionMemo(
   topicType: FloraTopicType,
 ): string {
-  return `hcs-16:op:topic_create:${topicType}`;
+  return `hcs-16:op:${HCS16_OPERATION_ENUM_BY_OP[FloraOperation.FLORA_CREATED]}:${topicType}`;
 }
 
 const HCS16_OPERATION_ENUM_BY_OP: Record<FloraOperation, number> = {

@@ -22,8 +22,13 @@ jest.mock('@hashgraph/sdk', () => ({
   },
   TopicCreateTransaction: class {
     private _topicMemo: any;
+    private _transactionMemo: any;
     setTopicMemo(m: any) {
       this._topicMemo = m;
+      return this;
+    }
+    setTransactionMemo(m: any) {
+      this._transactionMemo = m;
       return this;
     }
     setAdminKey() {
@@ -42,7 +47,23 @@ jest.mock('@hashgraph/sdk', () => ({
       return this;
     }
   },
-  AccountCreateTransaction: class {},
+  AccountCreateTransaction: class {
+    setKey() {
+      return this;
+    }
+    setInitialBalance() {
+      return this;
+    }
+    setMaxAutomaticTokenAssociations() {
+      return this;
+    }
+    setTransactionMemo() {
+      return this;
+    }
+    setAutoRenewAccountId() {
+      return this;
+    }
+  },
   TopicId: { fromString: (s: string) => ({ toString: () => s }) },
 }));
 
@@ -164,5 +185,6 @@ describe('HCS-16 tx builders', () => {
       topicType: 2,
     });
     expect(tx._topicMemo).toBe('hcs-16:0.0.fl:2');
+    expect(tx._transactionMemo).toBe('hcs-16:op:0:2');
   });
 });
