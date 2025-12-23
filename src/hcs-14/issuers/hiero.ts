@@ -9,10 +9,87 @@ const hieroRegistrarModuleId = ['@hiero-did-sdk', 'registrar'].join('/');
 
 let registrarPromise: Promise<CreateDID | null> | null = null;
 
+type PublisherClientLike = {
+  ledgerId?: {
+    isMainnet: () => boolean;
+    isTestnet: () => boolean;
+    isPreviewnet: () => boolean;
+    isLocalNode: () => boolean;
+    toString: () => string;
+  };
+  operatorPublicKey?: unknown;
+  operatorAccountId?: unknown;
+};
+
+type AutoRenewTransactionLike = {
+  getAutoRenewAccountId?: () => unknown;
+  setAutoRenewAccountId?: (value: string) => unknown;
+  freezeWith: (client: unknown) => {
+    execute: (client: unknown) => Promise<{ getReceipt: (client: unknown) => Promise<unknown> }>;
+  };
+};
+
+function toAccountIdString(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  if (value && typeof (value as { toString?: () => string }).toString === 'function') {
+    const result = (value as { toString: () => string }).toString();
+    return typeof result === 'string' && result.trim() ? result : null;
+  }
+
+  return null;
+}
+
+function createHieroPublisher(client: PublisherClientLike) {
+  return {
+    network: () => {
+      const ledgerId = client.ledgerId;
+      if (!ledgerId) {
+        throw new Error('Hedera SDK Client must be configured with a network');
+      }
+      if (ledgerId.isMainnet()) return 'mainnet';
+      if (ledgerId.isTestnet()) return 'testnet';
+      if (ledgerId.isPreviewnet()) return 'previewnet';
+      if (ledgerId.isLocalNode()) return 'local-node';
+      throw new Error(`Unknown network, ledger ID: ${ledgerId.toString()}`);
+    },
+    publicKey: () => {
+      if (!client.operatorPublicKey) {
+        throw new Error(
+          'Hedera SDK Client must be configured with an operator account',
+        );
+      }
+      return client.operatorPublicKey;
+    },
+    publish: async (transaction: AutoRenewTransactionLike) => {
+      const current =
+        typeof transaction.getAutoRenewAccountId === 'function'
+          ? transaction.getAutoRenewAccountId()
+          : null;
+      const autoRenewAccountId = toAccountIdString(client.operatorAccountId);
+
+      if (
+        !current &&
+        autoRenewAccountId &&
+        typeof transaction.setAutoRenewAccountId === 'function'
+      ) {
+        transaction.setAutoRenewAccountId(autoRenewAccountId);
+      }
+
+      const response = await transaction.freezeWith(client).execute(client);
+      return response.getReceipt(client);
+    },
+  };
+}
+
 async function loadCreateDID(): Promise<CreateDID | null> {
   if (!registrarPromise) {
+    // Prefer ESM to keep @hashgraph/sdk classes consistent across caller + registrar.
     registrarPromise = optionalImport<HieroRegistrarModule>(
       hieroRegistrarModuleId,
+      { preferImport: true },
     ).then(mod => mod?.createDID ?? null);
   }
   return registrarPromise;
@@ -51,9 +128,10 @@ export class HederaHieroIssuer implements DidIssuer {
         'Hiero registrar unavailable. Ensure @hiero-did-sdk/registrar is installed.',
       );
     }
+    const client = (request as DidIssueRequestHedera).client;
     const did = await createDID(
       {},
-      { client: (request as DidIssueRequestHedera).client },
+      { publisher: createHieroPublisher(client) },
     );
     return did.did;
   }

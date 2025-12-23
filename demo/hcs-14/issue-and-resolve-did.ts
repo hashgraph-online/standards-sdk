@@ -51,6 +51,7 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch(err => {
+    console.log(err);
     process.stderr.write(
       `Error: ${err instanceof Error ? err.message : String(err)}\n`,
     );
