@@ -637,21 +637,21 @@ export const startLocalA2AAgent = async (
     if (skipPublicUrlCheck) {
       console.log(`  🔗 Using preconfigured public URL: ${publicUrl}`);
     } else {
-    const waitForPublicUrlHealth = async (): Promise<boolean> => {
-      const deadline = Date.now() + CLOUD_FLARE_HEALTH_TIMEOUT_MS;
-      let attempt = 0;
-      while (Date.now() < deadline) {
-        attempt += 1;
-        const ok = await verifyPublicUrlReachable(publicUrl!, demoResolver);
-        if (ok) {
-          return true;
+      const waitForPublicUrlHealth = async (): Promise<boolean> => {
+        const deadline = Date.now() + CLOUD_FLARE_HEALTH_TIMEOUT_MS;
+        let attempt = 0;
+        while (Date.now() < deadline) {
+          attempt += 1;
+          const ok = await verifyPublicUrlReachable(publicUrl!, demoResolver);
+          if (ok) {
+            return true;
+          }
+          await new Promise(resolve =>
+            setTimeout(resolve, CLOUD_FLARE_HEALTH_INTERVAL_MS),
+          );
         }
-        await new Promise(resolve =>
-          setTimeout(resolve, CLOUD_FLARE_HEALTH_INTERVAL_MS),
-        );
-      }
-      return false;
-    };
+        return false;
+      };
 
       const preconfiguredHealthy = await waitForPublicUrlHealth();
       if (preconfiguredHealthy) {

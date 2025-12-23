@@ -36,6 +36,9 @@ importers:
       '@noble/curves':
         specifier: ^2.0.1
         version: 2.0.1
+      '@types/localtunnel':
+        specifier: ^2.0.4
+        version: 2.0.4
       agent0-sdk:
         specifier: 0.2.1
         version: 0.2.1(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(utf-8-validate@5.0.10)
@@ -3270,6 +3273,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/localtunnel@2.0.4':
+    resolution: {integrity: sha512-7WM5nlEfEKp8MpwthPa2utdy+f/7ZBxMPzu8qw6EijFFTcpzh5CXgt2YoncxWAZNOPNieMofXCKFudtDEY4bag==}
 
   '@types/lodash@4.17.20':
     resolution: {integrity: sha512-H3MHACvFUEiujabxhaI/ImO6gUrd8oOurg7LQtS7mbwIXA/cUqWrvBsaeJ23aZEPk1TAYkurjfMbSELfoCXlGA==}
@@ -13362,6 +13368,10 @@ snapshots:
       parse5: 7.3.0
 
   '@types/json-schema@7.0.15': {}
+
+  '@types/localtunnel@2.0.4':
+    dependencies:
+      '@types/node': 22.18.13
 
   '@types/lodash@4.17.20': {}
 

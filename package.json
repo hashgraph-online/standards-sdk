@@ -144,6 +144,7 @@
     "@hiero-did-sdk/resolver": "0.1.8",
     "@kiloscribe/inscription-sdk": "^2.0.8",
     "@noble/curves": "^2.0.1",
+    "@types/localtunnel": "^2.0.4",
     "agent0-sdk": "0.2.1",
     "axios": "^1.12.2",
     "bignumber.js": "^9.3.1",

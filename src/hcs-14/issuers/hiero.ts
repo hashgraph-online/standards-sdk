@@ -1,6 +1,7 @@
 import { DidIssueRequest, DidIssueRequestHedera, DidIssuer } from './types';
 import type { AdapterMeta } from '../adapters/types';
 import { optionalImport } from '../../utils/dynamic-import';
+import type { PublicKey, TransactionReceipt } from '@hashgraph/sdk';
 
 type CreateDID = typeof import('@hiero-did-sdk/registrar').createDID;
 type HieroRegistrarModule = typeof import('@hiero-did-sdk/registrar');
@@ -17,15 +18,19 @@ type PublisherClientLike = {
     isLocalNode: () => boolean;
     toString: () => string;
   };
-  operatorPublicKey?: unknown;
-  operatorAccountId?: unknown;
+  operatorPublicKey?: PublicKey;
+  operatorAccountId?: { toString: () => string };
 };
 
 type AutoRenewTransactionLike = {
   getAutoRenewAccountId?: () => unknown;
-  setAutoRenewAccountId?: (value: string) => unknown;
-  freezeWith: (client: unknown) => {
-    execute: (client: unknown) => Promise<{ getReceipt: (client: unknown) => Promise<unknown> }>;
+  setAutoRenewAccountId?: (value: string) => void;
+  freezeWith: (client: PublisherClientLike) => {
+    execute: (
+      client: PublisherClientLike,
+    ) => Promise<{
+      getReceipt: (client: PublisherClientLike) => Promise<TransactionReceipt>;
+    }>;
   };
 };
 
@@ -34,7 +39,10 @@ function toAccountIdString(value: unknown): string | null {
     return value;
   }
 
-  if (value && typeof (value as { toString?: () => string }).toString === 'function') {
+  if (
+    value &&
+    typeof (value as { toString?: () => string }).toString === 'function'
+  ) {
     const result = (value as { toString: () => string }).toString();
     return typeof result === 'string' && result.trim() ? result : null;
   }
