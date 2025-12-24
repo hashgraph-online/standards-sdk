@@ -1,109 +1,154 @@
-import dotenv from 'dotenv';
-import fetch from 'node-fetch';
+import 'dotenv/config';
+import { createServer, type IncomingMessage, type Server } from 'http';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import localtunnel from 'localtunnel';
+import { HCS10Client } from '../../src/hcs-10/sdk';
 import {
-  LocalA2AAgentHandle,
-  startLocalA2AAgent,
-} from '../utils/local-a2a-agent';
+  AgentBuilder,
+  AIAgentCapability,
+  AIAgentType,
+  HCS11Client,
+  InboundTopicType,
+  ProfileType,
+  type HCS11Profile,
+} from '../../src/hcs-11';
+import { toHederaCaip10 } from '../../src/hcs-14/caip';
 import {
-  assertAdapterSupport,
-  normaliseMessage,
-  startDemoHcs10Agent,
-  waitForAgentAvailability,
-} from '../utils/registry-broker';
-import {
+  JsonObject,
   RegistryBrokerClient,
   RegistryBrokerError,
   type AgentRegistrationRequest,
-  type RegisterAgentResponse,
 } from '../../src/services/registry-broker';
-import {
-  HCS11Client,
-  type HCS11Profile,
-  ProfileType,
-  AIAgentType,
-  AIAgentCapability,
-} from '../../src/hcs-11';
-import { parseHcs14Did, toHederaCaip10 } from '../../src/hcs-14';
 import { Logger } from '../../src/utils/logger';
-import {
-  normaliseNetwork,
-  resolveNetwork,
-  resolveNetworkScopedLedgerValue,
-} from './network';
+import { resolveHederaLedgerAuthConfig } from '../utils/ledger-config';
+import { authenticateWithHederaLedger } from '../utils/registry-auth';
 
-dotenv.config();
+const logger = new Logger({ module: 'RegistryBrokerHcs10ChatDemo' });
 
-interface DemoConfig {
+const BASE_URL =
+  process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
+  'http://127.0.0.1:4000/api/v1';
+const REGISTRY = 'hashgraph-online';
+
+interface LocalA2AAgentHandle {
+  agentId: string;
+  port: number;
   baseUrl: string;
-  apiKey?: string;
-  ledgerAccountId?: string;
-  ledgerPrivateKey?: string;
-  bearerEmail: string;
-  prompt: string;
-  adapterCheck: string;
+  publicUrl?: string;
+  a2aEndpoint: string;
+  agentCardUrl: string;
+  stop: () => Promise<void>;
 }
 
-const DEFAULT_BASE_URL = 'https://hol.org/registry/api/v1';
-const TARGET_REGISTRY = 'hashgraph-online';
+interface TunnelHandle {
+  url: string;
+  close: () => Promise<void>;
+}
 
-const REQUEST_TIMEOUT_MS =
-  Number.parseInt(process.env.HCS10_CHAT_TIMEOUT_MS ?? '', 10) || 120_000;
-const FALLBACK_TOPUP_HBAR = Math.max(
-  Number.parseFloat(process.env.HCS10_CHAT_TOPUP_HBAR ?? '0.2') || 0.2,
-  0.01,
-);
-const logger = new Logger({ module: 'Hcs10ChatDemo' });
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const readConfig = (): DemoConfig => {
-  const baseUrl =
-    process.env.REGISTRY_BROKER_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  let apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
-  try {
-    const parsed = new URL(baseUrl);
-    const host = parsed.hostname.toLowerCase();
-    const isLocal =
-      host === '127.0.0.1' || host === 'localhost' || host === '::1';
-    if (isLocal) {
-      apiKey = undefined;
-    }
-  } catch {
-    // ignore parse errors
+const readBody = (request: IncomingMessage): Promise<string> =>
+  new Promise((resolve, reject) => {
+    let data = '';
+    request.setEncoding('utf8');
+    request.on('data', chunk => {
+      data += chunk;
+    });
+    request.on('end', () => resolve(data));
+    request.on('error', reject);
+  });
+
+const jsonResponse = (
+  response: NodeJS.WritableStream & {
+    writeHead: (status: number, headers: Record<string, string>) => void;
+  },
+  status: number,
+  payload: unknown,
+): void => {
+  const body = JSON.stringify(payload);
+  response.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+  });
+  response.end(body);
+};
+
+const buildAgentCard = (agentId: string, baseUrl: string) => ({
+  id: agentId,
+  name: `Local Demo Agent (${agentId})`,
+  description: 'Local A2A agent used by the HCS-10 registry demo.',
+  version: '1.0.0',
+  capabilities: {
+    streaming: false,
+    messageHandling: true,
+  },
+  url: `${baseUrl}/a2a`,
+  serviceEndpoint: `${baseUrl}/a2a`,
+  endpoints: {
+    a2a: `${baseUrl}/a2a`,
+  },
+  created: new Date().toISOString(),
+});
+
+const buildAgentReply = (agentId: string, text: string) => ({
+  kind: 'message',
+  role: 'agent',
+  messageId: `msg-${Date.now()}`,
+  parts: [
+    {
+      kind: 'text',
+      text:
+        text.length > 0 ? text : `Agent ${agentId} received an empty message.`,
+    },
+  ],
+});
+
+const extractMessageText = (payload: Record<string, unknown>): string => {
+  const params = payload.params;
+  if (!isRecord(params)) {
+    return 'Hello from the local A2A demo agent.';
   }
-  const ledgerAccountId =
-    process.env.HEDERA_ACCOUNT_ID?.trim() ||
-    process.env.HEDERA_OPERATOR_ID?.trim() ||
-    undefined;
-  const ledgerPrivateKey =
-    process.env.HEDERA_PRIVATE_KEY?.trim() ||
-    process.env.HEDERA_OPERATOR_KEY?.trim() ||
-    undefined;
-  const bearerEmail =
-    process.env.HCS10_CHAT_EMAIL?.trim() || 'demo@hashgraphonline.com';
-  const prompt =
-    process.env.HCS10_CHAT_PROMPT?.trim() ||
-    'Hello from the cross-protocol chat demo. Please introduce yourself.';
-  const adapterCheck =
-    process.env.HCS10_CHAT_REQUIRED_ADAPTER?.trim() || 'openconvai-adapter';
+  const message = params.message;
+  if (!isRecord(message)) {
+    return 'Hello from the local A2A demo agent.';
+  }
+  const parts = message.parts;
+  if (!Array.isArray(parts)) {
+    return 'Hello from the local A2A demo agent.';
+  }
+  const first = parts[0];
+  if (!isRecord(first)) {
+    return 'Hello from the local A2A demo agent.';
+  }
+  const text = first.text;
+  if (typeof text !== 'string') {
+    return 'Hello from the local A2A demo agent.';
+  }
+  const trimmed = text.trim();
+  return trimmed.length > 0 ? trimmed : 'Hello from the local A2A demo agent.';
+};
 
-  return {
-    baseUrl,
-    apiKey,
-    ledgerAccountId,
-    ledgerPrivateKey,
-    bearerEmail,
-    prompt,
-    adapterCheck,
-  };
+const resolvePayloadId = (payload: unknown): string | number | null => {
+  if (!isRecord(payload)) {
+    return null;
+  }
+  const id = payload.id;
+  if (typeof id === 'string' || typeof id === 'number') {
+    return id;
+  }
+  return null;
 };
 
 const describeError = (error: unknown): string => {
   if (error instanceof RegistryBrokerError) {
-    const statusSuffix = error.status ? ` status=${error.status}` : '';
-    const bodyFragment =
+    const status = error.status ? ` status=${error.status}` : '';
+    const body =
       error.body && typeof error.body === 'object'
         ? ` body=${JSON.stringify(error.body)}`
         : '';
-    return `${error.message}${statusSuffix}${bodyFragment}`;
+    return `${error.message}${status}${body}`;
   }
   if (error instanceof Error) {
     return error.stack ?? error.message;
@@ -111,757 +156,583 @@ const describeError = (error: unknown): string => {
   return String(error);
 };
 
-const withRequestTimeout = async <T>(
-  promise: Promise<T>,
-  label: string,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-): Promise<T> => {
-  let timeoutHandle: NodeJS.Timeout | undefined;
-  return await Promise.race([
-    promise.finally(() => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    }),
-    new Promise<T>((_, reject) => {
-      timeoutHandle = setTimeout(() => {
-        reject(
-          new Error(
-            `${label} timed out after ${timeoutMs}ms. Set HCS10_CHAT_TIMEOUT_MS to adjust.`,
-          ),
-        );
-      }, timeoutMs);
-    }),
-  ]);
+const isLedgerAuthDisabledError = (error: unknown): boolean => {
+  if (!(error instanceof RegistryBrokerError)) {
+    return false;
+  }
+  if (error.status !== 503) {
+    return false;
+  }
+  if (!error.body || typeof error.body !== 'object') {
+    return false;
+  }
+  const body = error.body as Record<string, unknown>;
+  return body.error === 'Ledger authentication is disabled';
 };
 
-const withAgentGuard = async <T>(
-  agent: LocalA2AAgentHandle,
-  action: () => Promise<T>,
-): Promise<T> => {
+const startLocalA2AAgent = async (
+  agentId: string,
+  port: number,
+  publicUrl?: string,
+): Promise<LocalA2AAgentHandle> => {
+  const server: Server = createServer(async (request, response) => {
+    if (!request.url) {
+      jsonResponse(response, 404, { error: 'missing url' });
+      return;
+    }
+
+    if (request.method === 'GET' && request.url.startsWith('/health')) {
+      jsonResponse(response, 200, { status: 'ok', agentId });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      request.url.startsWith('/.well-known/agent.json')
+    ) {
+      const hostHeader = request.headers.host || `localhost:${port}`;
+      const baseUrl = `${request.headers['x-forwarded-proto'] || 'http'}://${hostHeader}`;
+      jsonResponse(response, 200, buildAgentCard(agentId, baseUrl));
+      return;
+    }
+
+    if (request.method === 'POST' && request.url.startsWith('/a2a')) {
+      const raw = await readBody(request);
+      let payload: unknown;
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        jsonResponse(response, 400, { error: 'invalid json' });
+        return;
+      }
+      if (!isRecord(payload) || payload.method !== 'message/send') {
+        jsonResponse(response, 200, {
+          jsonrpc: '2.0',
+          id: resolvePayloadId(payload),
+          error: { code: -32601, message: 'Method not found' },
+        });
+        return;
+      }
+      const text = extractMessageText(payload);
+      jsonResponse(response, 200, {
+        jsonrpc: '2.0',
+        id: resolvePayloadId(payload),
+        result: buildAgentReply(agentId, text),
+      });
+      return;
+    }
+
+    jsonResponse(response, 404, { error: 'not found' });
+  });
+
+  await new Promise<void>(resolve => {
+    server.listen(port, '0.0.0.0', resolve);
+  });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const resolvedPublicUrl = publicUrl?.replace(/\/$/, '');
+  const endpointBase = resolvedPublicUrl ?? baseUrl;
+
+  return {
+    agentId,
+    port,
+    baseUrl,
+    publicUrl: resolvedPublicUrl,
+    a2aEndpoint: `${endpointBase}/a2a`,
+    agentCardUrl: `${endpointBase}/.well-known/agent.json`,
+    stop: async () =>
+      await new Promise<void>((resolve, reject) =>
+        server.close(error => (error ? reject(error) : resolve())),
+      ),
+  };
+};
+
+const detectCloudflared = async (): Promise<boolean> =>
+  await new Promise(resolve => {
+    const child = spawn('cloudflared', ['--version']);
+    child.once('error', () => resolve(false));
+    child.once('exit', code => resolve(code === 0));
+  });
+
+const startCloudflareTunnel = async (port: number): Promise<TunnelHandle> => {
+  const child = spawn('cloudflared', [
+    'tunnel',
+    '--url',
+    `http://127.0.0.1:${port}`,
+    '--no-autoupdate',
+  ]);
+
+  const urlPattern = /https:\/\/[^\s]+trycloudflare\.com/;
+
+  return await new Promise((resolve, reject) => {
+    let resolved = false;
+    const timeout = setTimeout(() => {
+      if (resolved) {
+        return;
+      }
+      child.kill();
+      reject(new Error('Cloudflare tunnel startup timed out'));
+    }, 15000);
+
+    const handleOutput = (chunk: unknown) => {
+      const text = (chunk ?? '').toString();
+      const match = text.match(urlPattern);
+      if (!match || resolved) {
+        return;
+      }
+      resolved = true;
+      clearTimeout(timeout);
+      resolve({
+        url: match[0],
+        close: async () => {
+          child.kill();
+          try {
+            await once(child, 'exit');
+          } catch {}
+        },
+      });
+    };
+
+    child.stdout?.on('data', handleOutput);
+    child.stderr?.on('data', handleOutput);
+    child.once('error', reject);
+    child.once('exit', code => {
+      if (!resolved) {
+        reject(
+          new Error(
+            `Cloudflare tunnel exited early (code ${code ?? 'unknown'})`,
+          ),
+        );
+      }
+    });
+  });
+};
+
+const startLocaltunnel = async (port: number): Promise<TunnelHandle> => {
+  const tunnel = await localtunnel({ port });
+  return {
+    url: tunnel.url,
+    close: async () => {
+      await new Promise<void>(resolve => {
+        tunnel.close();
+        resolve();
+      });
+    },
+  };
+};
+
+const preflightAgentCard = async (baseUrl: string): Promise<boolean> => {
   try {
-    return await action();
-  } finally {
-    await agent.stop();
+    const response = await fetch(new URL('/.well-known/agent.json', baseUrl));
+    return response.ok;
+  } catch {
+    return false;
   }
 };
 
-const extractCreditShortfall = (
+const buildUserAgentBuilder = (
+  alias: string,
+  network: 'mainnet' | 'testnet',
+): AgentBuilder =>
+  new AgentBuilder()
+    .setName('HCS-10 User Agent')
+    .setAlias(alias)
+    .setBio('User agent created via the HCS-10 SDK client.')
+    .setCapabilities([AIAgentCapability.TEXT_GENERATION])
+    .setType('manual')
+    .setModel('hcs10-user-demo')
+    .setCreator('standards-sdk demo')
+    .setNetwork(network)
+    .setInboundTopicType(InboundTopicType.PUBLIC);
+
+const fetchProfileWithRetry = async (
+  client: HCS11Client,
+  accountId: string,
+  network: 'mainnet' | 'testnet',
+  attempts = 6,
+  delayMs = 5000,
+): Promise<HCS11Profile> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const result = await client.fetchProfileByAccountId(accountId, network);
+    if (result.success && result.profile) {
+      return result.profile;
+    }
+    if (attempt < attempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error('Unable to fetch HCS-11 profile after retries.');
+};
+
+const waitForUaid = async (
+  client: RegistryBrokerClient,
+  uaid: string,
+  timeoutMs = 60000,
+): Promise<void> => {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      await client.resolveUaid(uaid);
+      return;
+    } catch {}
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  throw new Error(`UAID ${uaid} was not resolved within ${timeoutMs}ms.`);
+};
+
+const resolveShortfall = (
   error: unknown,
 ): { shortfallCredits: number; creditsPerHbar: number } | null => {
-  if (error instanceof RegistryBrokerError && error.status === 402) {
-    const body = error.body;
-    if (body && typeof body === 'object') {
-      const shortfall = Number(
-        (body as Record<string, unknown>).shortfallCredits,
-      );
-      const perHbar = Number((body as Record<string, unknown>).creditsPerHbar);
-      if (
-        Number.isFinite(shortfall) &&
-        shortfall > 0 &&
-        Number.isFinite(perHbar) &&
-        perHbar > 0
-      ) {
-        return { shortfallCredits: shortfall, creditsPerHbar: perHbar };
-      }
-    }
+  if (!(error instanceof RegistryBrokerError) || error.status !== 402) {
+    return null;
+  }
+  const body = isRecord(error.body) ? error.body : undefined;
+  const shortfall = Number(body?.shortfallCredits);
+  const perHbar = Number(body?.creditsPerHbar);
+  if (
+    Number.isFinite(shortfall) &&
+    shortfall > 0 &&
+    Number.isFinite(perHbar) &&
+    perHbar > 0
+  ) {
+    return { shortfallCredits: shortfall, creditsPerHbar: perHbar };
   }
   return null;
 };
 
-const registerLocalA2aAgent = async (
+const withCreditTopUp = async <T>(
+  action: () => Promise<T>,
   client: RegistryBrokerClient,
-  local: LocalA2AAgentHandle,
-): Promise<string> => {
-  const publicBase =
-    (local.publicUrl && local.publicUrl.replace(/\/$/, '')) || null;
-  const localBase = local.baseUrl.replace(/\/$/, '');
-  const reachableBase = publicBase ?? localBase;
-  if (!reachableBase) {
-    throw new Error('Local A2A agent is missing a reachable base URL');
+  accountId: string,
+  privateKey: string,
+): Promise<T> => {
+  try {
+    return await action();
+  } catch (error) {
+    const shortfall = resolveShortfall(error);
+    if (!shortfall) {
+      throw error;
+    }
+    const estimated = shortfall.shortfallCredits / shortfall.creditsPerHbar;
+    const hbarAmount = Math.max(estimated * 1.1, 0.02);
+    logger.warn(
+      `Purchasing registry credits (~${hbarAmount.toFixed(4)} HBAR) due to insufficient balance.`,
+    );
+    await client.purchaseCreditsWithHbar({
+      accountId,
+      privateKey,
+      hbarAmount,
+      memo: 'registry-broker-demo',
+      metadata: { purpose: 'demo' },
+    });
+    return await action();
+  }
+};
+
+const withRetries = async <T>(
+  action: (attempt: number) => Promise<T>,
+  attempts = 3,
+  delayMs = 2000,
+): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await action(attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError;
+};
+
+const withTimeout = async <T>(
+  action: Promise<T>,
+  label: string,
+  timeoutMs = 5000,
+): Promise<T> => {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  return await Promise.race([
+    action.finally(() => {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }),
+    timeoutPromise,
+  ]);
+};
+
+const main = async (): Promise<void> => {
+  const hederaLedgerConfig = resolveHederaLedgerAuthConfig();
+  const network = hederaLedgerConfig.network;
+  const accountId = hederaLedgerConfig.accountId;
+  const privateKey = hederaLedgerConfig.privateKey;
+  const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
+
+  const client = new RegistryBrokerClient({
+    baseUrl: BASE_URL,
+    ...(apiKey ? { apiKey } : {}),
+  });
+
+  logger.info(`Registry broker base URL: ${BASE_URL}`);
+  logger.info(`Using Hedera network: ${network}`);
+
+  try {
+    await withRetries(
+      async () =>
+        await authenticateWithHederaLedger(client, {
+          expiresInMinutes: 30,
+          label: 'registry-broker-demo',
+          setAccountHeader: true,
+        }),
+      3,
+      3000,
+    );
+  } catch (error) {
+    if (!isLedgerAuthDisabledError(error)) {
+      throw error;
+    }
+    logger.warn('Ledger authentication is disabled; continuing without it.');
   }
 
-  const profile: HCS11Profile = {
+  const hcs10Client = new HCS10Client({
+    network,
+    operatorId: accountId,
+    operatorPrivateKey: privateKey,
+    logLevel: 'info',
+  });
+
+  const userAlias = `hcs10-user-${Date.now().toString(36)}`;
+  const userBuilder = buildUserAgentBuilder(userAlias, network);
+  const creationResult = await hcs10Client.create(userBuilder, {
+    ttl: 120,
+    updateAccountMemo: true,
+  });
+
+  if (
+    !creationResult.inboundTopicId ||
+    !creationResult.outboundTopicId ||
+    !creationResult.profileTopicId
+  ) {
+    throw new Error('HCS-10 agent creation did not return topic identifiers.');
+  }
+
+  const hcs11Client = new HCS11Client({
+    network,
+    auth: {
+      operatorId: accountId,
+      privateKey,
+    },
+  });
+
+  const profile = await fetchProfileWithRetry(hcs11Client, accountId, network);
+  const profileUaid = profile.uaid ?? toHederaCaip10(network, accountId);
+
+  const enrichedProfile: HCS11Profile = {
+    ...profile,
+    inboundTopicId: profile.inboundTopicId ?? creationResult.inboundTopicId,
+    outboundTopicId: profile.outboundTopicId ?? creationResult.outboundTopicId,
+    base_account: accountId,
+    properties: {
+      ...(profile.properties ?? {}),
+      network,
+    },
+  };
+
+  logger.info('Registering HCS-10 user agent with Registry Broker.');
+  const hcs10RegistrationPayload: AgentRegistrationRequest = {
+    profile: enrichedProfile as unknown as JsonObject,
+    protocol: 'hcs-10',
+    communicationProtocol: 'hcs-10',
+    registry: REGISTRY,
+    metadata: {
+      adapter: 'openconvai-adapter',
+      openConvAICompatible: true,
+    },
+  };
+
+  const userRegistration = await withCreditTopUp(
+    () => client.registerAgent(hcs10RegistrationPayload),
+    client,
+    accountId,
+    privateKey,
+  );
+  const userAttemptId = userRegistration.attemptId?.trim();
+  if (userAttemptId) {
+    await client.waitForRegistrationCompletion(userAttemptId, {
+      intervalMs: 1000,
+      timeoutMs: 60000,
+      throwOnFailure: false,
+    });
+  }
+  const userUaid = userRegistration.uaid?.trim() ?? profileUaid;
+  if (!userUaid) {
+    throw new Error('User agent registration did not return a UAID.');
+  }
+  await waitForUaid(client, userUaid, 60000);
+  logger.info(`User agent UAID: ${userUaid}`);
+
+  const a2aAgentId = `a2a-demo-${Date.now().toString(36)}`;
+  const a2aPort = Number(process.env.A2A_DEMO_PORT || '6102');
+  let tunnel: TunnelHandle | null = null;
+  const explicitPublicUrl =
+    process.env.REGISTRY_BROKER_DEMO_A2A_PUBLIC_URL?.trim();
+  let publicUrl = explicitPublicUrl || undefined;
+  let localAgent: LocalA2AAgentHandle | null = null;
+
+  if (!publicUrl) {
+    const tunnelPref =
+      process.env.REGISTRY_BROKER_DEMO_TUNNEL?.trim().toLowerCase();
+    const preferLocaltunnel = tunnelPref === 'localtunnel';
+    if (!preferLocaltunnel) {
+      const hasCloudflared = await detectCloudflared();
+      if (hasCloudflared) {
+        tunnel = await startCloudflareTunnel(a2aPort);
+        publicUrl = tunnel.url;
+        const reachable = await preflightAgentCard(publicUrl);
+        if (!reachable) {
+          logger.warn(
+            `Cloudflared URL ${publicUrl} is not reachable. Falling back to localtunnel.`,
+          );
+          await tunnel.close();
+          tunnel = null;
+          publicUrl = undefined;
+        }
+      }
+    }
+    if (!publicUrl) {
+      tunnel = await startLocaltunnel(a2aPort);
+      publicUrl = tunnel.url;
+    }
+  }
+
+  localAgent = await startLocalA2AAgent(a2aAgentId, a2aPort, publicUrl);
+
+  logger.info(`Local A2A agent URL: ${localAgent.a2aEndpoint}`);
+
+  const a2aProfile: HCS11Profile = {
     version: '1.0',
     type: ProfileType.AI_AGENT,
-    display_name: `HCS-10 Local Bridge (${local.agentId})`,
-    alias: local.agentId,
-    bio: 'Local A2A bridge agent used by the HCS-10 cross-protocol chat demo.',
+    display_name: a2aAgentId,
+    alias: a2aAgentId,
+    bio: 'Local A2A demo agent registered via Registry Broker.',
     properties: {
-      tags: ['demo', 'hcs-10', 'a2a'],
+      tags: ['demo', 'a2a', 'registry-broker'],
+      agentFactsUrl: localAgent.agentCardUrl,
     },
     socials: [],
     aiAgent: {
       type: AIAgentType.MANUAL,
-      model: 'hcs10-local-bridge',
+      model: 'a2a-demo',
       capabilities: [AIAgentCapability.TEXT_GENERATION],
       creator: 'standards-sdk demo',
     },
   };
 
-  const payload: AgentRegistrationRequest = {
-    profile,
-    protocol: 'a2a',
+  const a2aRegistrationPayload: AgentRegistrationRequest = {
+    profile: a2aProfile as unknown as JsonObject,
     communicationProtocol: 'a2a',
-    registry: TARGET_REGISTRY,
-    endpoint: `${reachableBase}/.well-known/agent.json`,
-    metadata: {
-      adapter: 'nanda-adapter',
-      source: 'hcs10-demo',
-      tunnelUrl: local.publicUrl,
-      localEndpoint: local.localA2aEndpoint,
-      nativeId: local.agentId,
-    },
+    registry: REGISTRY,
+    metadata: { provider: 'registry-broker-demo', local: true },
+    endpoint: localAgent.agentCardUrl,
   };
-
-  const response: RegisterAgentResponse = await client.registerAgent(payload);
-  const attemptId = response.attemptId?.trim();
-  if (attemptId) {
-    await client.waitForRegistrationCompletion(attemptId, {
-      intervalMs: 1_000,
-      timeoutMs: 60_000,
-      throwOnFailure: false,
-    });
-  }
-
-  const uaid = response.uaid?.trim();
-  if (!uaid) {
-    throw new Error('Local A2A agent registration did not return a UAID');
-  }
-
-  await waitForAgentAvailability(client, uaid, 60_000);
-  return uaid;
-};
-
-interface CreditTopUpContext {
-  client: RegistryBrokerClient;
-  ledgerAccountId?: string;
-  ledgerPrivateKey?: string;
-  context: string;
-  metadata?: Record<string, unknown>;
-}
-
-const attemptWithCreditTopup = async <T>(
-  operation: () => Promise<T>,
-  params: CreditTopUpContext,
-): Promise<T> => {
-  try {
-    return await operation();
-  } catch (error) {
-    const shortfall = extractCreditShortfall(error);
-    const canTopUp =
-      params.ledgerAccountId &&
-      params.ledgerPrivateKey &&
-      (shortfall ||
-        (error instanceof RegistryBrokerError && error.status === 402));
-
-    if (!canTopUp) {
-      throw error;
-    }
-
-    const hbarAmount = shortfall
-      ? Math.max(shortfall.shortfallCredits / shortfall.creditsPerHbar, 0.01)
-      : FALLBACK_TOPUP_HBAR;
-    const logMessage = shortfall
-      ? `Insufficient registry credits (${shortfall.shortfallCredits}) during ${params.context}; purchasing ~${hbarAmount.toFixed(4)} HBAR...`
-      : `Credit balance unavailable during ${params.context}; purchasing fallback ${hbarAmount.toFixed(4)} HBAR...`;
-    logger.warn(logMessage);
-
-    await withRequestTimeout(
-      params.client.purchaseCreditsWithHbar({
-        accountId: params.ledgerAccountId!,
-        privateKey: params.ledgerPrivateKey!,
-        hbarAmount,
-        memo: `hcs-10-chat-${params.context}`,
-        metadata: params.metadata,
-      }),
-      `purchaseCreditsWithHbar (${params.context})`,
-    );
-
-    return await operation();
-  }
-};
-
-const resolveDockerReachableUrl = (raw: string): string => {
-  try {
-    const url = new URL(raw);
-    if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') {
-      const bridgeHost =
-        process.env.LOCAL_AGENT_DOCKER_HOST?.trim() || 'localhost';
-      url.hostname = bridgeHost;
-      return url.toString();
-    }
-  } catch {
-    return raw;
-  }
-  return raw;
-};
-
-const ensureAgentRegistration = async ({
-  client,
-  uaid,
-  profile,
-  network,
-  accountId,
-  ledgerAccountId,
-  ledgerPrivateKey,
-}: {
-  client: RegistryBrokerClient;
-  uaid: string;
-  profile: HCS11Profile;
-  network: 'mainnet' | 'testnet';
-  accountId: string;
-  ledgerAccountId?: string;
-  ledgerPrivateKey?: string;
-}): Promise<string> => {
-  const attemptResolve = async (
-    candidate: string | undefined,
-  ): Promise<string | null> => {
-    if (!candidate) {
-      return null;
-    }
-    try {
-      await withRequestTimeout(
-        client.resolveUaid(candidate),
-        'resolveUaid pre-registration',
-      );
-      logger.info(`UAID ${candidate} already present in registry.`);
-      return candidate;
-    } catch (error) {
-      const notFound =
-        error instanceof RegistryBrokerError && error.status === 404;
-      if (notFound) {
-        return null;
-      }
-      throw error;
-    }
-  };
-
-  const existingRegistryUaid = uaid.startsWith('uaid:aid:')
-    ? await attemptResolve(uaid)
-    : null;
-  if (existingRegistryUaid) {
-    return existingRegistryUaid;
-  }
-
-  const nativeId = toHederaCaip10(network, accountId);
-  const registrationProfile: HCS11Profile = {
-    ...profile,
-    base_account: accountId,
-    properties: {
-      ...(profile.properties ?? {}),
-      network,
-      registry: TARGET_REGISTRY,
-      nativeId,
-    },
-  };
-
-  const customFields: Record<string, string> = {
-    network,
-    registry: TARGET_REGISTRY,
-    nativeId,
-    accountId,
-  };
-  if (registrationProfile.inboundTopicId) {
-    customFields.inboundTopicId = registrationProfile.inboundTopicId;
-  }
-  if (registrationProfile.outboundTopicId) {
-    customFields.outboundTopicId = registrationProfile.outboundTopicId;
-  }
-
-  logger.info(
-    `Registering agent with Registry Broker (${TARGET_REGISTRY}, hcs-10)...`,
-  );
-  let registration;
-  const attemptRegistration = async (): Promise<void> => {
-    registration = await withRequestTimeout(
-      client.registerAgent(
-        {
-          profile: registrationProfile,
-          protocol: 'hcs-10',
-          communicationProtocol: 'hcs-10',
-          registry: TARGET_REGISTRY,
-          metadata: {
-            adapter: 'openconvai-adapter',
-            openConvAICompatible: true,
-            customFields,
-          },
-        },
-        undefined,
-      ),
-      'registerAgent',
-    );
-  };
-  await attemptWithCreditTopup(attemptRegistration, {
-    client,
-    ledgerAccountId,
-    ledgerPrivateKey,
-    context: 'registration',
-    metadata: { uaid },
-  });
-
-  if (!registration.success) {
-    throw new Error(
-      `Registry broker registration failed: ${registration.message ?? 'unknown error'}`,
-    );
-  }
-
-  const registryUaid = registration.uaid ?? uaid;
-  logger.info(
-    `Registry broker registration ${registration.status ?? 'created'} for ${registryUaid}`,
-  );
-  return registryUaid;
-};
-
-const run = async (): Promise<void> => {
-  const config = readConfig();
-  logger.info('=== HCS-10 Cross-Protocol Chat Demo ===');
-  logger.info(`Registry Broker: ${config.baseUrl}`);
-  const network = resolveNetwork(config.baseUrl);
-  logger.info(`Derived Hedera network: ${network}`);
-
-  const scopedAccountId = resolveNetworkScopedLedgerValue(
-    network,
-    'ACCOUNT_ID',
-  );
-  const scopedPrivateKey = resolveNetworkScopedLedgerValue(
-    network,
-    'PRIVATE_KEY',
-  );
-
-  const ledgerAccountId = scopedAccountId ?? config.ledgerAccountId;
-  const ledgerPrivateKey = scopedPrivateKey ?? config.ledgerPrivateKey;
-
-  if (!ledgerAccountId || !ledgerPrivateKey) {
-    throw new Error(
-      'Set HEDERA_ACCOUNT_ID/HEDERA_PRIVATE_KEY (or MAINNET_/TESTNET_ variants) before running the HCS-10 chat demo.',
-    );
-  }
-
-  logger.info(`Ledger Account: ${ledgerAccountId}`);
-
-  const hederaAccountId = ledgerAccountId;
-  const hederaPrivateKey = ledgerPrivateKey;
-  const clientOptions = {
-    baseUrl: config.baseUrl,
-    ...(config.apiKey ? { apiKey: config.apiKey } : {}),
-  };
-
-  const userClient = new RegistryBrokerClient(clientOptions);
-  const registrationClient = new RegistryBrokerClient(clientOptions);
-  const brokerHost = (() => {
-    try {
-      return new URL(config.baseUrl).hostname;
-    } catch {
-      return config.baseUrl;
-    }
-  })();
-  const brokerIsLocal =
-    brokerHost === '127.0.0.1' ||
-    brokerHost === 'localhost' ||
-    brokerHost === '::1';
-
-  await assertAdapterSupport(userClient, config.baseUrl, config.adapterCheck);
-  logger.info(`Broker adapter check: ${config.adapterCheck} available.`);
-
-  logger.info('Starting local HCS-10 demo agent (Bob)...');
-  const recreateAgent =
-    process.env.HCS10_CHAT_RECREATE_AGENT?.toLowerCase() === 'true';
-  const hcsAgent = await startDemoHcs10Agent({
-    registryUrl: config.baseUrl,
-    hederaAccountId,
-    hederaPrivateKey,
-    hederaNetwork: network,
-    enableDemoPfp: false,
-    reuseExistingAgent: !recreateAgent,
-    startupTimeoutMs:
-      Number.parseInt(process.env.HCS10_AGENT_STARTUP_TIMEOUT_MS ?? '', 10) ||
-      240_000,
-  });
 
   try {
-    const hcs11Client = new HCS11Client({
-      network,
-      auth: {
-        operatorId: hederaAccountId,
-        privateKey: hederaPrivateKey,
-      },
-    });
-
-    logger.info('Fetching HCS-11 profile for demo agent...');
-    const profileResult = await hcs11Client.fetchProfileByAccountId(
-      hcsAgent.accountId,
-      network,
+    const a2aRegistration = await withRetries(
+      async attempt =>
+        await withCreditTopUp(
+          () => client.registerAgent(a2aRegistrationPayload),
+          client,
+          accountId,
+          privateKey,
+        ).catch(error => {
+          if (attempt < 3) {
+            logger.warn(
+              `A2A registration attempt ${attempt} failed: ${describeError(
+                error,
+              )}`,
+            );
+          }
+          throw error;
+        }),
+      3,
+      2500,
     );
-
-    if (!profileResult.success || !profileResult.profile?.uaid) {
-      throw new Error(
-        `Unable to resolve UAID for agent account ${hcsAgent.accountId}: ${profileResult.error ?? 'profile is missing UAID'}`,
-      );
-    }
-
-    const profileUaid = profileResult.profile.uaid;
-    const enrichedProfile: HCS11Profile = {
-      ...profileResult.profile,
-      inboundTopicId:
-        profileResult.profile.inboundTopicId ?? hcsAgent.inboundTopicId,
-      outboundTopicId:
-        profileResult.profile.outboundTopicId ?? hcsAgent.outboundTopicId,
-      base_account: hcsAgent.accountId,
-      properties: {
-        ...(profileResult.profile.properties ?? {}),
-        network,
-      },
-    };
-    await registrationClient.authenticateWithLedgerCredentials({
-      accountId: ledgerAccountId,
-      network: `hedera:${network}`,
-      hederaPrivateKey: ledgerPrivateKey,
-      label: 'registration client',
-      logger,
-    });
-    const registryUaid = await ensureAgentRegistration({
-      client: registrationClient,
-      uaid: profileUaid,
-      profile: enrichedProfile,
-      network,
-      accountId: hcsAgent.accountId,
-      ledgerAccountId,
-      ledgerPrivateKey,
-    });
-    if (registryUaid !== profileUaid) {
-      logger.warn(
-        `Registry UAID (${registryUaid}) differs from profile UAID (${profileUaid}); continuing with registry-provided identifier.`,
-      );
-    }
-    const parsedDid = parseHcs14Did(registryUaid);
-    const routedAgentId =
-      typeof parsedDid.params?.uid === 'string'
-        ? parsedDid.params.uid.trim()
-        : '';
-    if (!routedAgentId) {
-      throw new Error(
-        `Registry UAID ${registryUaid} is missing a uid parameter; cannot route to the HCS-10 agent.`,
-      );
-    }
-    const registryFromUaid = (
-      typeof parsedDid.params?.registry === 'string' &&
-      parsedDid.params.registry.trim().length > 0
-        ? parsedDid.params.registry.trim()
-        : TARGET_REGISTRY
-    ).toLowerCase();
-
-    logger.info(`Profile UAID: ${profileUaid}`);
-    logger.info(`Registry UAID: ${registryUaid}`);
-    logger.info(`Resolved agent identifier from UAID: ${routedAgentId}`);
-    logger.info(
-      `Ensuring UAID is available in the ${registryFromUaid} registry...`,
-    );
-    try {
-      try {
-        await waitForAgentAvailability(userClient, registryUaid, 120_000);
-      } catch (error) {
-        logger.warn(
-          `UAID ${registryUaid} did not become available: ${describeError(error)}`,
-        );
-      }
-    } catch (error) {
-      throw new Error(
-        `UAID ${registryUaid} did not become available: ${describeError(error)}`,
-      );
-    }
-
-    await userClient.authenticateWithLedgerCredentials({
-      accountId: ledgerAccountId,
-      network: `hedera:${network}`,
-      hederaPrivateKey: ledgerPrivateKey,
-      label: 'user client',
-      logger,
-    });
-
-    const resolvedAgent = await withRequestTimeout(
-      userClient.resolveUaid(registryUaid),
-      'resolveUaid post-registration',
-    );
-    const resolvedName =
-      resolvedAgent?.profile?.displayName ??
-      resolvedAgent?.profile?.name ??
-      resolvedAgent?.uaid ??
-      registryUaid;
-    logger.info(`Resolved agent profile: ${resolvedName}`);
-
-    if (!brokerIsLocal) {
-      logger.info(
-        'Skipping local A2A roundtrip because registry broker is remote and cannot reach localhost.',
-      );
-      const hcsSession = await attemptWithCreditTopup(
-        () =>
-          withRequestTimeout(
-            userClient.chat.createSession({
-              uaid: registryUaid,
-            }),
-            'chat.createSession',
-          ),
-        {
-          client: userClient,
-          ledgerAccountId,
-          ledgerPrivateKey,
-          context: 'session',
-          metadata: { uaid: registryUaid },
-        },
-      );
-
-      logger.info(`Created HCS-10 chat session: ${hcsSession.sessionId}`);
-      const hcsResponse = await attemptWithCreditTopup(
-        () =>
-          withRequestTimeout(
-            userClient.chat.sendMessage({
-              sessionId: hcsSession.sessionId,
-              message: config.prompt,
-              uaid: registryUaid,
-            }),
-            'chat.sendMessage (hcs-10)',
-          ),
-        {
-          client: userClient,
-          ledgerAccountId,
-          ledgerPrivateKey,
-          context: 'message',
-          metadata: { uaid: registryUaid },
-        },
-      );
-      const hcsMessage = normaliseMessage(hcsResponse);
-      logger.info('HCS-10 agent response:');
-      logger.info(`  ${hcsMessage}`);
-
-      await withRequestTimeout(
-        userClient.chat.endSession(hcsSession.sessionId),
-        'chat.endSession (hcs-10)',
-      );
-      return;
-    }
-
-    const explicitPort = process.env.REGISTRY_BROKER_DEMO_A2A_PORT
-      ? Number(process.env.REGISTRY_BROKER_DEMO_A2A_PORT)
-      : undefined;
-    const explicitPublicUrl =
-      process.env.REGISTRY_BROKER_DEMO_A2A_PUBLIC_URL?.trim() || undefined;
-
-    const localAgent = await startLocalA2AAgent({
-      agentId: `interop-local-${Date.now()}`,
-      port: Number.isFinite(explicitPort) ? explicitPort : undefined,
-      publicUrl: explicitPublicUrl,
-    });
-    logger.info(`Started local A2A agent at ${localAgent.baseUrl}`);
-
-    let localUaid: string | null = null;
-    try {
-      localUaid = await attemptWithCreditTopup(
-        () => registerLocalA2aAgent(userClient, localAgent),
-        {
-          client: userClient,
-          ledgerAccountId,
-          ledgerPrivateKey,
-          context: 'local-a2a-registration',
-          metadata: { source: 'hcs10-demo' },
-        },
-      );
-      logger.info(`Registered local A2A agent with UAID: ${localUaid}`);
-    } catch (error) {
-      logger.warn(
-        `Failed to register local A2A agent with broker, falling back to direct JSON-RPC: ${describeError(error)}`,
-      );
-    }
-
-    const sendLocalA2aMessage = async (
-      endpoint: string,
-      messageText: string,
-    ): Promise<string> => {
-      const body = {
-        jsonrpc: '2.0',
-        id: `hcs10-local-${Date.now().toString(36)}`,
-        method: 'message/send',
-        params: {
-          message: {
-            kind: 'message',
-            messageId: `msg-${Date.now().toString(36)}`,
-            role: 'user',
-            parts: [
-              {
-                kind: 'text',
-                text: messageText,
-              },
-            ],
-          },
-        },
-      };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
+    const a2aAttemptId = a2aRegistration.attemptId?.trim();
+    if (a2aAttemptId) {
+      await client.waitForRegistrationCompletion(a2aAttemptId, {
+        intervalMs: 1000,
+        timeoutMs: 60000,
+        throwOnFailure: false,
       });
+    }
+    const a2aUaid = a2aRegistration.uaid?.trim() ?? '';
+    if (!a2aUaid) {
+      throw new Error('A2A registration did not return a UAID.');
+    }
+    await waitForUaid(client, a2aUaid, 60000);
+    logger.info(`A2A agent UAID: ${a2aUaid}`);
 
-      let payload: unknown;
-      try {
-        payload = await response.json();
-      } catch {
-        return `Local A2A agent returned non-JSON response (status ${response.status}).`;
-      }
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const isRecord = (value: unknown): value is Record<string, unknown> =>
-        typeof value === 'object' && value !== null && !Array.isArray(value);
-
-      if (!isRecord(payload)) {
-        return `Local A2A agent returned unexpected payload: ${JSON.stringify(
-          payload,
-        )}`;
-      }
-
-      const result = payload.result;
-      if (!isRecord(result)) {
-        return `Local A2A agent response missing result: ${JSON.stringify(
-          payload,
-        )}`;
-      }
-
-      const parts = result.parts;
-      if (!Array.isArray(parts) || parts.length === 0) {
-        return `Local A2A agent response missing parts: ${JSON.stringify(
-          result,
-        )}`;
-      }
-
-      const first = parts[0];
-      if (!isRecord(first) || typeof first.text !== 'string') {
-        return `Local A2A agent response missing text part: ${JSON.stringify(
-          first,
-        )}`;
-      }
-
-      const text = first.text.trim();
-      return text.length > 0
-        ? text
-        : `Local A2A agent returned an empty message.`;
-    };
-
-    await withAgentGuard(localAgent, async () => {
-      const hcsSession = await attemptWithCreditTopup(
-        () =>
-          withRequestTimeout(
-            userClient.chat.createSession({
-              uaid: registryUaid,
-            }),
-            'chat.createSession',
-          ),
-        {
-          client: userClient,
-          ledgerAccountId,
-          ledgerPrivateKey,
-          context: 'session',
-          metadata: { uaid: registryUaid },
-        },
-      );
-
-      logger.info(`Created HCS-10 chat session: ${hcsSession.sessionId}`);
-      const hcsResponse = await attemptWithCreditTopup(
-        () =>
-          withRequestTimeout(
-            userClient.chat.sendMessage({
-              sessionId: hcsSession.sessionId,
-              message: config.prompt,
-              uaid: registryUaid,
-            }),
-            'chat.sendMessage (hcs-10)',
-          ),
-        {
-          client: userClient,
-          ledgerAccountId,
-          ledgerPrivateKey,
-          context: 'message',
-          metadata: { uaid: registryUaid },
-        },
-      );
-      const hcsMessage = normaliseMessage(hcsResponse);
-      logger.info('HCS-10 agent response:');
-      logger.info(`  ${hcsMessage}`);
-
-      await withRequestTimeout(
-        userClient.chat.endSession(hcsSession.sessionId),
-        'chat.endSession (hcs-10)',
-      );
-
-      const localPrompt = `HCS-10 agent replied with: "${hcsMessage}". Craft a friendly acknowledgement.`;
-
-      if (localUaid) {
-        const localSession = await attemptWithCreditTopup(
-          () =>
-            withRequestTimeout(
-              userClient.chat.createSession({
-                uaid: localUaid as string,
-              }),
-              'chat.createSession (local-a2a)',
-            ),
-          {
-            client: userClient,
-            ledgerAccountId,
-            ledgerPrivateKey,
-            context: 'session-local-a2a',
-            metadata: { uaid: localUaid },
-          },
-        );
-
-        const localResponse = await attemptWithCreditTopup(
-          () =>
-            withRequestTimeout(
-              userClient.chat.sendMessage({
-                sessionId: localSession.sessionId,
-                uaid: localUaid as string,
-                message: localPrompt,
-              }),
-              'chat.sendMessage (local-a2a)',
-            ),
-          {
-            client: userClient,
-            ledgerAccountId,
-            ledgerPrivateKey,
-            context: 'message-local-a2a',
-            metadata: { uaid: localUaid },
-          },
-        );
-
-        const localMessage = normaliseMessage(localResponse);
-        logger.info('Local A2A agent response via broker:');
-        logger.info(`  ${localMessage}`);
-
-        await withRequestTimeout(
-          userClient.chat.endSession(localSession.sessionId),
-          'chat.endSession (local-a2a)',
-        );
-      } else {
-        const localMessage = await sendLocalA2aMessage(
-          localAgent.localA2aEndpoint,
-          localPrompt,
-        );
-        logger.info('Local A2A agent response (direct):');
-        logger.info(`  ${localMessage}`);
-      }
-    });
+    const session = await withCreditTopUp(
+      () =>
+        client.chat.createSession({
+          uaid: a2aUaid,
+          historyTtlSeconds: 600,
+        }),
+      client,
+      accountId,
+      privateKey,
+    );
+    const response = await withCreditTopUp(
+      () =>
+        client.chat.sendMessage({
+          sessionId: session.sessionId,
+          uaid: a2aUaid,
+          message:
+            process.env.A2A_DEMO_PROMPT?.trim() ||
+            'Please reply with a friendly greeting for the demo.',
+        }),
+      client,
+      accountId,
+      privateKey,
+    );
+    const reply =
+      response.message ?? response.content ?? 'No response content.';
+    logger.info(`A2A reply: ${reply}`);
+    await client.chat.endSession(session.sessionId);
   } finally {
-    await hcsAgent.stop().catch(error => {
-      logger.warn(
-        `Failed to cleanly stop HCS-10 demo agent: ${describeError(error)}`,
-      );
-    });
+    if (tunnel) {
+      try {
+        await withTimeout(tunnel.close(), 'tunnel shutdown');
+      } catch (error) {
+        logger.warn(`Tunnel shutdown issue: ${describeError(error)}`);
+      }
+    }
+    if (localAgent) {
+      try {
+        await withTimeout(localAgent.stop(), 'local agent shutdown');
+      } catch (error) {
+        logger.warn(`Local agent shutdown issue: ${describeError(error)}`);
+      }
+    }
   }
 };
 
-run()
+main()
   .then(() => {
     logger.info('Demo complete.');
     process.exit(0);
   })
   .catch(error => {
-    logger.error('Demo failed', describeError(error));
+    logger.error(describeError(error));
     process.exit(1);
   });

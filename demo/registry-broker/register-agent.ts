@@ -78,8 +78,14 @@ const parseAdditionalRegistriesFromEnv = (): string[] => {
   const enableErc8004 =
     process.env.REGISTRY_BROKER_DEMO_ENABLE_ERC8004 === '1' ||
     process.env.REGISTRY_BROKER_ENABLE_ERC8004 === '1';
+  const enableSolana =
+    process.env.REGISTRY_BROKER_DEMO_ENABLE_SOLANA === '1' ||
+    process.env.REGISTRY_BROKER_ENABLE_SOLANA === '1';
   if (enableErc8004) {
     extras.add('erc-8004');
+  }
+  if (enableSolana) {
+    extras.add('erc-8004-solana');
   }
   return Array.from(extras);
 };

@@ -16,7 +16,7 @@ import {
   ledgerVerifyResponseSchema,
 } from '../schemas';
 import { canonicalizeLedgerNetwork } from '../ledger-network';
-import { createPrivateKeySigner } from '../private-key-signer';
+import { createPrivateKeySignerAsync } from '../private-key-signer';
 import { RegistryBrokerClient } from './base-client';
 
 declare module './base-client' {
@@ -225,7 +225,7 @@ RegistryBrokerClient.prototype.authenticateWithLedgerCredentials =
           'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
         );
       }
-      authOptions.signer = createPrivateKeySigner({
+      authOptions.signer = await createPrivateKeySignerAsync({
         accountId,
         privateKey: hederaPrivateKey,
         network: resolvedNetwork.hederaNetwork,

@@ -17,34 +17,32 @@ export interface CryptoEnvironment {
  */
 export function detectCryptoEnvironment(): CryptoEnvironment {
   const isSSR = typeof window === 'undefined';
+  const globalCrypto =
+    typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
 
   let hasNodeCrypto = false;
   let hasWebCrypto = false;
 
   try {
-    hasNodeCrypto =
-      typeof require !== 'undefined' &&
-      typeof process !== 'undefined' &&
-      !!process.versions?.node;
+    hasNodeCrypto = typeof process !== 'undefined' && !!process.versions?.node;
   } catch {
     hasNodeCrypto = false;
   }
 
   try {
     hasWebCrypto =
-      typeof crypto !== 'undefined' &&
-      typeof crypto.subtle !== 'undefined' &&
-      !isSSR;
+      typeof globalCrypto !== 'undefined' &&
+      typeof globalCrypto.subtle !== 'undefined';
   } catch {
     hasWebCrypto = false;
   }
 
   let preferredAPI: 'node' | 'web' | 'none';
 
-  if (hasNodeCrypto && isSSR) {
-    preferredAPI = 'node';
-  } else if (hasWebCrypto && !isSSR) {
+  if (hasWebCrypto) {
     preferredAPI = 'web';
+  } else if (hasNodeCrypto) {
+    preferredAPI = 'node';
   } else {
     preferredAPI = 'none';
   }

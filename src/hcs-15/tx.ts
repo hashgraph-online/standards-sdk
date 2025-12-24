@@ -1,5 +1,20 @@
 import { AccountCreateTransaction, Hbar, PublicKey } from '@hashgraph/sdk';
 
+export const HCS15_BASE_ACCOUNT_CREATE_TRANSACTION_MEMO =
+  'hcs-15:op:base_create';
+export const HCS15_PETAL_ACCOUNT_CREATE_TRANSACTION_MEMO =
+  'hcs-15:op:petal_create';
+
+function normalizeTransactionMemo(
+  value: string | undefined,
+  fallback: string,
+): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed;
+}
+
 /**
  * Build AccountCreateTransaction for an HCS-15 base account.
  * Uses an ECDSA public key and sets the EVM alias from it.
@@ -9,6 +24,7 @@ export function buildHcs15BaseAccountCreateTx(params: {
   initialBalance?: Hbar | number;
   maxAutomaticTokenAssociations?: number;
   accountMemo?: string;
+  transactionMemo?: string;
 }): AccountCreateTransaction {
   const tx = new AccountCreateTransaction()
     .setECDSAKeyWithAlias(params.publicKey)
@@ -24,6 +40,12 @@ export function buildHcs15BaseAccountCreateTx(params: {
   if (params.accountMemo) {
     tx.setAccountMemo(params.accountMemo);
   }
+  tx.setTransactionMemo(
+    normalizeTransactionMemo(
+      params.transactionMemo,
+      HCS15_BASE_ACCOUNT_CREATE_TRANSACTION_MEMO,
+    ),
+  );
   return tx;
 }
 
@@ -36,6 +58,7 @@ export function buildHcs15PetalAccountCreateTx(params: {
   initialBalance?: Hbar | number;
   maxAutomaticTokenAssociations?: number;
   accountMemo?: string;
+  transactionMemo?: string;
 }): AccountCreateTransaction {
   const tx = new AccountCreateTransaction()
     .setKeyWithoutAlias(params.publicKey)
@@ -51,5 +74,11 @@ export function buildHcs15PetalAccountCreateTx(params: {
   if (params.accountMemo) {
     tx.setAccountMemo(params.accountMemo);
   }
+  tx.setTransactionMemo(
+    normalizeTransactionMemo(
+      params.transactionMemo,
+      HCS15_PETAL_ACCOUNT_CREATE_TRANSACTION_MEMO,
+    ),
+  );
   return tx;
 }

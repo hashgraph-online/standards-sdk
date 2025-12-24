@@ -12,6 +12,7 @@ import {
   AIAgentProfile,
   MCPServerProfile,
   ProfileType,
+  SocialLink,
 } from '../hcs-11/types';
 import { AgentBuilder, PersonBuilder, MCPServerBuilder } from '../hcs-11';
 
@@ -27,6 +28,17 @@ export interface PetalConfig {
   stateTopicId?: string;
 }
 
+export interface PetalProfileOptions {
+  baseAccountId: string;
+  displayName: string;
+  alias?: string;
+  bio?: string;
+  socials?: SocialLink[];
+  profileImage?: string;
+  properties?: Record<string, unknown>;
+  ttl?: number;
+}
+
 export interface PetalAccount {
   accountId: AccountId;
   baseAccountId: string;
@@ -36,6 +48,12 @@ export interface PetalAccount {
   inboundTopicId?: string;
   outboundTopicId?: string;
   stateTopicId?: string;
+}
+
+export interface PetalProfileResult {
+  profileTopicId: string;
+  inboundTopicId: string;
+  outboundTopicId: string;
 }
 
 export type PetalProfile = (

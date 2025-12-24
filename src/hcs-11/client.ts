@@ -821,6 +821,7 @@ export class HCS11Client {
   public async updateAccountMemoWithProfile(
     accountId: string | AccountId,
     profileTopicId: string,
+    signerKeys?: PrivateKey[],
   ): Promise<TransactionResult> {
     try {
       this.logger.info(
@@ -831,6 +832,26 @@ export class HCS11Client {
       const transaction = new AccountUpdateTransaction()
         .setAccountMemo(memo)
         .setAccountId(accountId);
+
+      if (signerKeys && signerKeys.length > 0) {
+        const frozen = await transaction.freezeWith(this.client);
+        let signed = frozen;
+        for (const key of signerKeys) {
+          signed = await signed.sign(key);
+        }
+        const response = await signed.execute(this.client);
+        const receipt = await response.getReceipt(this.client);
+        if (receipt.status.toString() !== Status.Success.toString()) {
+          return {
+            success: false,
+            error: `Transaction failed: ${receipt.status.toString()}`,
+          };
+        }
+        return {
+          success: true,
+          result: receipt,
+        };
+      }
 
       return this.executeTransaction(transaction);
     } catch (error) {

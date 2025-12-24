@@ -70,18 +70,27 @@ async function dynamicImport<T>(specifier: string): Promise<T | null> {
   }
 }
 
-export async function optionalImport<T>(specifier: string): Promise<T | null> {
+type OptionalImportOptions = {
+  preferImport?: boolean;
+};
+
+export async function optionalImport<T>(
+  specifier: string,
+  options: OptionalImportOptions = {},
+): Promise<T | null> {
   if (isBrowser) {
     return dynamicImport<T>(specifier);
   }
 
-  const requireFn = await resolveNodeRequire();
-  if (requireFn) {
-    try {
-      return requireFn(specifier) as T;
-    } catch (error) {
-      if (!isModuleNotFound(specifier, error)) {
-        throw error as Error;
+  if (!options.preferImport) {
+    const requireFn = await resolveNodeRequire();
+    if (requireFn) {
+      try {
+        return requireFn(specifier) as T;
+      } catch (error) {
+        if (!isModuleNotFound(specifier, error)) {
+          throw error as Error;
+        }
       }
     }
   }

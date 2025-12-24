@@ -17,6 +17,13 @@ import type { NetworkType } from '../../src/utils/types';
 import { HCS16BaseClient } from '../../src/hcs-16/base-client';
 import { Logger } from '../../src/utils/logger';
 import {
+  buildHcs10CreateConnectionTopicTx,
+  buildHcs10SendMessageTx,
+  buildHcs10SubmitConnectionRequestTx,
+} from '../../src/hcs-10/tx';
+import type { HCSMessageWithCommonFields } from '../../src/services/types';
+import type { HederaMirrorNode } from '../../src/services/mirror-node';
+import {
   buildHcs16FloraJoinRequestTx,
   buildHcs16FloraJoinVoteTx,
   buildHcs16FloraJoinAcceptedTx,
@@ -27,6 +34,12 @@ type Petal = {
   baseAccountId: string | undefined;
   petalAccountId: string;
   inboundTopicId: string;
+};
+
+type JoinConnection = {
+  connectionRequestId: number;
+  connectionTopicId: string;
+  connectionSeq: number;
 };
 
 /**
@@ -95,6 +108,107 @@ async function createPetal(h15: HCS15Client, h10: HCS10Client): Promise<Petal> {
   };
 }
 
+/**
+ * Wait for a mirror-node message that satisfies the predicate.
+ */
+async function waitForTopicMessage(params: {
+  mirror: HederaMirrorNode;
+  topicId: string;
+  predicate: (message: HCSMessageWithCommonFields) => boolean;
+  timeoutMs?: number;
+  intervalMs?: number;
+}): Promise<HCSMessageWithCommonFields> {
+  const timeoutMs = params.timeoutMs ?? 60000;
+  const intervalMs = params.intervalMs ?? 2000;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const messages = await params.mirror.getTopicMessages(params.topicId, {
+      limit: 10,
+      order: 'desc',
+    });
+    const match = messages.find(params.predicate);
+    if (match) {
+      return match;
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(`Timed out waiting for mirror message on ${params.topicId}`);
+}
+
+/**
+ * Create an HCS-10 join connection and return the sequence references.
+ */
+async function createJoinConnection(params: {
+  nodeClient: Client;
+  mirror: HederaMirrorNode;
+  inboundTopicId: string;
+  candidate: Petal;
+  memo?: string;
+}): Promise<JoinConnection> {
+  const requestTx = buildHcs10SubmitConnectionRequestTx({
+    inboundTopicId: params.inboundTopicId,
+    operatorId: params.candidate.petalAccountId,
+    memo: params.memo,
+  });
+  const requestFrozen = await requestTx.freezeWith(params.nodeClient);
+  const requestSigned = await requestFrozen.sign(params.candidate.baseKey);
+  await (
+    await requestSigned.execute(params.nodeClient)
+  ).getReceipt(params.nodeClient);
+
+  const requestMessage = await waitForTopicMessage({
+    mirror: params.mirror,
+    topicId: params.inboundTopicId,
+    predicate: message =>
+      message.p === 'hcs-10' &&
+      message.op === 'connection_request' &&
+      message.operator_id === params.candidate.petalAccountId,
+  });
+  const connectionRequestId = requestMessage.sequence_number;
+
+  const connectionTx = buildHcs10CreateConnectionTopicTx({
+    ttl: 300,
+    inboundTopicId: params.inboundTopicId,
+    connectionId: connectionRequestId,
+  });
+  const connectionResp = await connectionTx.execute(params.nodeClient);
+  const connectionReceipt = await connectionResp.getReceipt(params.nodeClient);
+  const connectionTopicId = connectionReceipt.topicId?.toString();
+  if (!connectionTopicId) {
+    throw new Error('Failed to create connection topic');
+  }
+
+  const proposalTx = buildHcs10SendMessageTx({
+    connectionTopicId,
+    operatorId: params.candidate.petalAccountId,
+    data: JSON.stringify({
+      account_id: params.candidate.petalAccountId,
+      proposal: 'Join Flora membership',
+    }),
+    memo: params.memo,
+  });
+  const proposalFrozen = await proposalTx.freezeWith(params.nodeClient);
+  const proposalSigned = await proposalFrozen.sign(params.candidate.baseKey);
+  await (
+    await proposalSigned.execute(params.nodeClient)
+  ).getReceipt(params.nodeClient);
+
+  const proposalMessage = await waitForTopicMessage({
+    mirror: params.mirror,
+    topicId: connectionTopicId,
+    predicate: message =>
+      message.p === 'hcs-10' &&
+      message.op === 'message' &&
+      message.operator_id === params.candidate.petalAccountId,
+  });
+
+  return {
+    connectionRequestId,
+    connectionTopicId,
+    connectionSeq: proposalMessage.sequence_number,
+  };
+}
+
 async function scheduleTransferFromFlora(
   client: Client,
   floraAccountId: string,
@@ -131,7 +245,9 @@ async function main() {
       'Post transaction with schedule_id (TTopic)',
       'Sign schedule A',
       'Sign schedule B (execute)',
-      'Create Petal D and post flora_join_request',
+      'Create Flora inbound topic (HCS-10)',
+      'Create Petal D and post HCS-10 join request',
+      'Post flora_join_request proxy (CTopic)',
       'Members A/B post flora_join_vote approvals',
       'Publish flora_join_accepted (STopic)',
       'Mirror readback latest messages',
@@ -346,6 +462,17 @@ async function main() {
   const topics = { communication: commId, transaction: trnId, state: stateId };
   log.info('Topics ready');
 
+  const floraInboundTopicId = await seq.run(
+    'Create Flora inbound topic (HCS-10)',
+    async () => {
+      return h10.createInboundTopic(
+        floraAccountId,
+        InboundTopicType.PUBLIC,
+        300,
+      );
+    },
+  );
+
   await dcA.complete({
     discoveryTopicId,
     data: {
@@ -426,34 +553,51 @@ async function main() {
   }
 
   console.log('Creating Petal D and issuing flora_join_request...');
-  const petalD = await seq.run(
-    'Create Petal D and post flora_join_request',
+  const { petalD, joinContext } = await seq.run(
+    'Create Petal D and post HCS-10 join request',
     async () => {
       const pd = await createPetal(h15, h10);
-      const tx = buildHcs16FloraJoinRequestTx({
-        topicId: topics.communication,
-        operatorId: pd.petalAccountId,
-        candidateAccountId: pd.petalAccountId,
+      const join = await createJoinConnection({
+        nodeClient,
+        mirror: h10.mirrorNode,
+        inboundTopicId: floraInboundTopicId,
+        candidate: pd,
+        memo: 'Request to join Flora',
       });
-      const frozen = await tx.freezeWith(nodeClient);
-      const signed = await frozen.sign(petalA.baseKey);
-      await (await signed.execute(nodeClient)).getReceipt(nodeClient);
-      return pd;
+      return { petalD: pd, joinContext: join };
     },
   );
+
+  await seq.run('Post flora_join_request proxy (CTopic)', async () => {
+    const tx = buildHcs16FloraJoinRequestTx({
+      topicId: topics.communication,
+      operatorId: `${petalA.petalAccountId}@${floraAccountId}`,
+      accountId: petalD.petalAccountId,
+      connectionRequestId: joinContext.connectionRequestId,
+      connectionTopicId: joinContext.connectionTopicId,
+      connectionSeq: joinContext.connectionSeq,
+    });
+    const frozen = await tx.freezeWith(nodeClient);
+    const signed = await frozen.sign(petalA.baseKey);
+    await (await signed.execute(nodeClient)).getReceipt(nodeClient);
+  });
 
   await seq.run('Members A/B post flora_join_vote approvals', async () => {
     const v1 = buildHcs16FloraJoinVoteTx({
       topicId: topics.communication,
       operatorId: `${petalA.petalAccountId}@${floraAccountId}`,
-      candidateAccountId: petalD.petalAccountId,
+      accountId: petalD.petalAccountId,
       approve: true,
+      connectionRequestId: joinContext.connectionRequestId,
+      connectionSeq: joinContext.connectionSeq,
     });
     const v2 = buildHcs16FloraJoinVoteTx({
       topicId: topics.communication,
       operatorId: `${petalB.petalAccountId}@${floraAccountId}`,
-      candidateAccountId: petalD.petalAccountId,
+      accountId: petalD.petalAccountId,
       approve: true,
+      connectionRequestId: joinContext.connectionRequestId,
+      connectionSeq: joinContext.connectionSeq,
     });
     const f1 = await v1.freezeWith(nodeClient);
     const s1 = await f1.sign(petalA.baseKey);

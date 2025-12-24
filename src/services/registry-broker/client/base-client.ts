@@ -8,6 +8,14 @@ import {
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { ZodError, z } from 'zod';
 import type {
+  AgentFeedbackEligibilityRequest,
+  AgentFeedbackEligibilityResponse,
+  AgentFeedbackIndexResponse,
+  AgentFeedbackEntriesIndexResponse,
+  AgentFeedbackQuery,
+  AgentFeedbackResponse,
+  AgentFeedbackSubmissionRequest,
+  AgentFeedbackSubmissionResponse,
   AutoTopUpOptions,
   ClientEncryptionOptions,
   CreateSessionRequestPayload,
@@ -26,6 +34,13 @@ import type {
   RegistryBrokerClientOptions,
   SharedSecretInput,
 } from '../types';
+import {
+  agentFeedbackEligibilityResponseSchema,
+  agentFeedbackEntriesIndexResponseSchema,
+  agentFeedbackIndexResponseSchema,
+  agentFeedbackResponseSchema,
+  agentFeedbackSubmissionResponseSchema,
+} from '../schemas';
 import {
   createAbortError,
   DEFAULT_BASE_URL,
@@ -214,6 +229,123 @@ export class RegistryBrokerClient {
       );
     }
     return (await response.json()) as T;
+  }
+
+  async getAgentFeedback(
+    uaid: string,
+    options: AgentFeedbackQuery = {},
+  ): Promise<AgentFeedbackResponse> {
+    const normalized = uaid.trim();
+    if (!normalized) {
+      throw new Error('uaid is required');
+    }
+    const query = options.includeRevoked === true ? '?includeRevoked=true' : '';
+    const raw = await this.requestJson<JsonValue>(
+      `/agents/${encodeURIComponent(normalized)}/feedback${query}`,
+      { method: 'GET' },
+    );
+    return this.parseWithSchema(
+      raw,
+      agentFeedbackResponseSchema,
+      'agent feedback response',
+    );
+  }
+
+  async listAgentFeedbackIndex(
+    options: { page?: number; limit?: number; registries?: string[] } = {},
+  ): Promise<AgentFeedbackIndexResponse> {
+    const params = new URLSearchParams();
+    if (typeof options.page === 'number' && Number.isFinite(options.page)) {
+      params.set('page', String(Math.trunc(options.page)));
+    }
+    if (typeof options.limit === 'number' && Number.isFinite(options.limit)) {
+      params.set('limit', String(Math.trunc(options.limit)));
+    }
+    if (options.registries?.length) {
+      params.set('registry', options.registries.join(','));
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+
+    const raw = await this.requestJson<JsonValue>(`/agents/feedback${suffix}`, {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      agentFeedbackIndexResponseSchema,
+      'agent feedback index response',
+    );
+  }
+
+  async listAgentFeedbackEntriesIndex(
+    options: { page?: number; limit?: number; registries?: string[] } = {},
+  ): Promise<AgentFeedbackEntriesIndexResponse> {
+    const params = new URLSearchParams();
+    if (typeof options.page === 'number' && Number.isFinite(options.page)) {
+      params.set('page', String(Math.trunc(options.page)));
+    }
+    if (typeof options.limit === 'number' && Number.isFinite(options.limit)) {
+      params.set('limit', String(Math.trunc(options.limit)));
+    }
+    if (options.registries?.length) {
+      params.set('registry', options.registries.join(','));
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+
+    const raw = await this.requestJson<JsonValue>(
+      `/agents/feedback/entries${suffix}`,
+      { method: 'GET' },
+    );
+    return this.parseWithSchema(
+      raw,
+      agentFeedbackEntriesIndexResponseSchema,
+      'agent feedback entries index response',
+    );
+  }
+
+  async checkAgentFeedbackEligibility(
+    uaid: string,
+    payload: AgentFeedbackEligibilityRequest,
+  ): Promise<AgentFeedbackEligibilityResponse> {
+    const normalized = uaid.trim();
+    if (!normalized) {
+      throw new Error('uaid is required');
+    }
+    const raw = await this.requestJson<JsonValue>(
+      `/agents/${encodeURIComponent(normalized)}/feedback/eligibility`,
+      {
+        method: 'POST',
+        body: payload,
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      agentFeedbackEligibilityResponseSchema,
+      'agent feedback eligibility response',
+    );
+  }
+
+  async submitAgentFeedback(
+    uaid: string,
+    payload: AgentFeedbackSubmissionRequest,
+  ): Promise<AgentFeedbackSubmissionResponse> {
+    const normalized = uaid.trim();
+    if (!normalized) {
+      throw new Error('uaid is required');
+    }
+    const raw = await this.requestJson<JsonValue>(
+      `/agents/${encodeURIComponent(normalized)}/feedback`,
+      {
+        method: 'POST',
+        body: payload,
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      agentFeedbackSubmissionResponseSchema,
+      'agent feedback submission response',
+    );
   }
 
   private async extractErrorBody(response: Response): Promise<JsonValue> {

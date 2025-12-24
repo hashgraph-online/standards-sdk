@@ -20,6 +20,9 @@ jest.mock('@hashgraph/sdk', () => {
     setAccountMemo() {
       return this;
     }
+    setTransactionMemo() {
+      return this;
+    }
     async execute() {
       const id = this._isBase ? '0.0.7000001' : '0.0.7000002';
       return {

@@ -246,6 +246,7 @@ export interface AgentConfiguration {
   inboundTopicType: InboundTopicType;
   feeConfig?: FeeConfigBuilderInterface;
   connectionFeeConfig?: FeeConfigBuilderInterface;
+  baseAccount?: string;
   existingAccount?: {
     accountId: string;
     privateKey: string;

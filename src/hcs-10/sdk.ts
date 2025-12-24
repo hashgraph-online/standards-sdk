@@ -1,5 +1,3 @@
-import '../patches/topic-autorenew-patch';
-
 import {
   Client,
   AccountCreateTransaction,
@@ -270,6 +268,32 @@ export class HCS10Client extends HCS10BaseClient {
       feeConfig: finalFeeConfig,
     });
 
+    return topicId;
+  }
+
+  async createConnectionTopic(params: {
+    inboundTopicId: string;
+    connectionId: number;
+    ttl?: number;
+    adminKey?: PublicKey | KeyList;
+    submitKey?: PublicKey | KeyList;
+    feeConfigBuilder?: FeeConfigBuilderInterface;
+  }): Promise<string> {
+    await this.ensureInitialized();
+    const transaction = buildHcs10CreateConnectionTopicTx({
+      ttl: params.ttl ?? 60,
+      inboundTopicId: params.inboundTopicId,
+      connectionId: params.connectionId,
+      adminKey: params.adminKey,
+      submitKey: params.submitKey,
+      operatorPublicKey:
+        this.client.operatorPublicKey || this.operatorCtx.operatorKey.publicKey,
+    });
+    const feeConfig = params.feeConfigBuilder?.build();
+    const { topicId } = await this.executeTopicCreateTransaction({
+      transaction,
+      feeConfig,
+    });
     return topicId;
   }
 
@@ -2290,6 +2314,7 @@ export class HCS10Client extends HCS10BaseClient {
             inboundTopicId,
             outboundTopicId,
             creator: agentProfile.metadata?.creator,
+            baseAccount: agentProfile.baseAccount,
           },
         );
       } else {
@@ -2309,6 +2334,7 @@ export class HCS10Client extends HCS10BaseClient {
             properties: personProfile.properties,
             inboundTopicId,
             outboundTopicId,
+            baseAccount: personProfile.base_account,
           },
         );
       }

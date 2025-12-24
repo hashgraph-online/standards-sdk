@@ -1,6 +1,6 @@
 {
   "name": "@hol-org/rb-client",
-  "version": "0.1.141-canary.15",
+  "version": "0.1.144",
   "description": "Lightweight Registry Broker client for HOL registries.",
   "type": "module",
   "files": [

@@ -35,6 +35,7 @@ export class HCS15BrowserClient extends HCS15BaseClient {
     initialBalance?: number;
     maxAutomaticTokenAssociations?: number;
     accountMemo?: string;
+    transactionMemo?: string;
   }): Promise<{
     accountId?: string;
     privateKey: PrivateKey;
@@ -50,6 +51,7 @@ export class HCS15BrowserClient extends HCS15BaseClient {
       initialBalance: new Hbar(options?.initialBalance ?? 10),
       maxAutomaticTokenAssociations: options?.maxAutomaticTokenAssociations,
       accountMemo: options?.accountMemo,
+      transactionMemo: options?.transactionMemo,
     });
     const frozen = await tx.freezeWithSigner(signer);
     const res: TransactionResponse = await frozen.executeWithSigner(signer);
@@ -77,6 +79,7 @@ export class HCS15BrowserClient extends HCS15BaseClient {
     initialBalance?: number;
     maxAutomaticTokenAssociations?: number;
     accountMemo?: string;
+    transactionMemo?: string;
   }): Promise<{ accountId?: string }> {
     const signer = this.requireSigner();
     const baseKey =
@@ -88,6 +91,7 @@ export class HCS15BrowserClient extends HCS15BaseClient {
       initialBalance: new Hbar(params.initialBalance ?? 1),
       maxAutomaticTokenAssociations: params.maxAutomaticTokenAssociations,
       accountMemo: params.accountMemo,
+      transactionMemo: params.transactionMemo,
     });
     const frozen = await tx.freezeWithSigner(signer);
     const res: TransactionResponse = await frozen.executeWithSigner(signer);

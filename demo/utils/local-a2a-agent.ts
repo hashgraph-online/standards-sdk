@@ -632,33 +632,39 @@ export const startLocalA2AAgent = async (
     );
   }
   if (publicUrl && !usingIngressProxy) {
-    const waitForPublicUrlHealth = async (): Promise<boolean> => {
-      const deadline = Date.now() + CLOUD_FLARE_HEALTH_TIMEOUT_MS;
-      let attempt = 0;
-      while (Date.now() < deadline) {
-        attempt += 1;
-        const ok = await verifyPublicUrlReachable(publicUrl!, demoResolver);
-        if (ok) {
-          return true;
-        }
-        await new Promise(resolve =>
-          setTimeout(resolve, CLOUD_FLARE_HEALTH_INTERVAL_MS),
-        );
-      }
-      return false;
-    };
-
-    const preconfiguredHealthy = await waitForPublicUrlHealth();
-    if (preconfiguredHealthy) {
+    const skipPublicUrlCheck =
+      process.env.REGISTRY_BROKER_DEMO_SKIP_PUBLIC_URL_CHECK === '1';
+    if (skipPublicUrlCheck) {
       console.log(`  🔗 Using preconfigured public URL: ${publicUrl}`);
     } else {
-      const message = `  ⚠️  Preconfigured public URL ${publicUrl} was unreachable after ${CLOUD_FLARE_HEALTH_TIMEOUT_MS}ms.`;
-      if (requirePreconfiguredTunnel) {
-        throw new Error(
-          `${message} Set REGISTRY_BROKER_DEMO_REQUIRE_PUBLIC_URL=0 to suppress.`,
-        );
+      const waitForPublicUrlHealth = async (): Promise<boolean> => {
+        const deadline = Date.now() + CLOUD_FLARE_HEALTH_TIMEOUT_MS;
+        let attempt = 0;
+        while (Date.now() < deadline) {
+          attempt += 1;
+          const ok = await verifyPublicUrlReachable(publicUrl!, demoResolver);
+          if (ok) {
+            return true;
+          }
+          await new Promise(resolve =>
+            setTimeout(resolve, CLOUD_FLARE_HEALTH_INTERVAL_MS),
+          );
+        }
+        return false;
+      };
+
+      const preconfiguredHealthy = await waitForPublicUrlHealth();
+      if (preconfiguredHealthy) {
+        console.log(`  🔗 Using preconfigured public URL: ${publicUrl}`);
+      } else {
+        const message = `  ⚠️  Preconfigured public URL ${publicUrl} was unreachable after ${CLOUD_FLARE_HEALTH_TIMEOUT_MS}ms.`;
+        if (requirePreconfiguredTunnel) {
+          throw new Error(
+            `${message} Set REGISTRY_BROKER_DEMO_REQUIRE_PUBLIC_URL=0 to suppress.`,
+          );
+        }
+        console.warn(`${message} Continuing with provided URL.`);
       }
-      console.warn(`${message} Continuing with provided URL.`);
     }
   }
   if (!publicUrl && !usingIngressProxy && shouldTryCloudflare) {

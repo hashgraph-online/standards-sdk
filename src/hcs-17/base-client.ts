@@ -44,6 +44,7 @@ export class HCS17BaseClient {
     accountId: string;
     topics: string[];
     memo?: string;
+    epoch?: number;
   }): StateHashMessage {
     const msg: StateHashMessage = {
       p: 'hcs-17',
@@ -51,6 +52,7 @@ export class HCS17BaseClient {
       state_hash: params.stateHash,
       topics: params.topics,
       account_id: params.accountId,
+      epoch: params.epoch,
       timestamp: new Date().toISOString(),
       m: params.memo,
     };
@@ -154,6 +156,7 @@ export class HCS17BaseClient {
             state_hash: envelope.state_hash,
             topics: envelope.topics,
             account_id: envelope.account_id,
+            epoch: envelope.epoch,
             timestamp: envelope.timestamp,
             m: envelope.m,
           },

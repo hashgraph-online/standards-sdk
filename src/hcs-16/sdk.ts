@@ -10,6 +10,7 @@ import {
 } from '@hashgraph/sdk';
 import type { NetworkType } from '../utils/types';
 import type { Logger } from '../utils/logger';
+import { HCS11Client } from '../hcs-11';
 import {
   createNodeOperatorContext,
   type NodeOperatorContext,
@@ -22,7 +23,7 @@ import {
   buildHcs16TransactionTx,
   buildHcs16StateUpdateTx,
 } from './tx';
-import { FloraTopicType } from './types';
+import { FloraTopicType, type FloraMember, type FloraProfile } from './types';
 import {
   buildHcs16FloraJoinRequestTx,
   buildHcs16FloraJoinVoteTx,
@@ -36,6 +37,20 @@ export interface HCS16ClientConfig {
   operatorKey: string;
   keyType?: 'ecdsa' | 'ed25519';
   logger?: Logger;
+}
+
+export interface FloraProfileOptions {
+  floraAccountId: string;
+  displayName: string;
+  members: FloraMember[];
+  threshold: number;
+  topics: { communication: string; transaction: string; state: string };
+  inboundTopicId?: string;
+  outboundTopicId?: string;
+  bio?: string;
+  metadata?: Record<string, unknown>;
+  policies?: Record<string, string>;
+  signerKeys: PrivateKey[];
 }
 
 /**
@@ -65,6 +80,10 @@ export class HCS16Client extends HCS16BaseClient {
     this.client = this.operatorCtx.client;
   }
 
+  private async ensureOperatorReady(): Promise<void> {
+    await this.operatorCtx.ensureInitialized();
+  }
+
   /**
    * Create a Flora topic with memo `hcs-16:<floraAccountId>:<topicType>`.
    */
@@ -74,7 +93,9 @@ export class HCS16Client extends HCS16BaseClient {
     adminKey?: PublicKey | KeyList;
     submitKey?: PublicKey | KeyList;
     autoRenewAccountId?: string;
+    signerKeys?: PrivateKey[];
   }): Promise<string> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16CreateFloraTopicTx({
       floraAccountId: params.floraAccountId,
       topicType: params.topicType,
@@ -83,6 +104,20 @@ export class HCS16Client extends HCS16BaseClient {
       operatorPublicKey: this.client.operatorPublicKey || undefined,
       autoRenewAccountId: params.autoRenewAccountId,
     });
+    const signerKeys = params.signerKeys ?? [];
+    if (signerKeys.length > 0) {
+      const frozen = await tx.freezeWith(this.client);
+      let signed = frozen;
+      for (const key of signerKeys) {
+        signed = await signed.sign(key);
+      }
+      const resp = await signed.execute(this.client);
+      const receipt = await resp.getReceipt(this.client);
+      if (!receipt.topicId) {
+        throw new Error('Failed to create Flora topic');
+      }
+      return receipt.topicId.toString();
+    }
     const resp = await tx.execute(this.client);
     const receipt = await resp.getReceipt(this.client);
     if (!receipt.topicId) {
@@ -91,12 +126,32 @@ export class HCS16Client extends HCS16BaseClient {
     return receipt.topicId.toString();
   }
 
+  async createFloraAccount(params: {
+    keyList: KeyList;
+    initialBalanceHbar?: number;
+    maxAutomaticTokenAssociations?: number;
+  }): Promise<{ accountId: string; receipt: TransactionReceipt }> {
+    await this.ensureOperatorReady();
+    const tx = buildHcs16CreateAccountTx({
+      keyList: params.keyList,
+      initialBalanceHbar: params.initialBalanceHbar,
+      maxAutomaticTokenAssociations: params.maxAutomaticTokenAssociations,
+    });
+    const resp = await tx.execute(this.client);
+    const receipt = await resp.getReceipt(this.client);
+    if (!receipt.accountId) {
+      throw new Error('Failed to create Flora account');
+    }
+    return { accountId: receipt.accountId.toString(), receipt };
+  }
+
   async sendFloraCreated(params: {
     topicId: string;
     operatorId: string;
     floraAccountId: string;
     topics: { communication: string; transaction: string; state: string };
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraCreatedTx(params);
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
@@ -111,6 +166,7 @@ export class HCS16Client extends HCS16BaseClient {
     scheduleId: string;
     data?: string;
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16TransactionTx(params);
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
@@ -124,6 +180,7 @@ export class HCS16Client extends HCS16BaseClient {
     scheduleId: string;
     signerKey: PrivateKey;
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = await new ScheduleSignTransaction()
       .setScheduleId(params.scheduleId)
       .freezeWith(this.client);
@@ -137,8 +194,96 @@ export class HCS16Client extends HCS16BaseClient {
     operatorId: string;
     hash: string;
     epoch?: number;
+    accountId?: string;
+    topics?: string[];
+    memo?: string;
+    transactionMemo?: string;
+    signerKeys?: PrivateKey[];
   }): Promise<TransactionReceipt> {
-    const tx = buildHcs16StateUpdateTx(params);
+    await this.ensureOperatorReady();
+    const tx = buildHcs16StateUpdateTx({
+      topicId: params.topicId,
+      operatorId: params.operatorId,
+      hash: params.hash,
+      epoch: params.epoch,
+      accountId: params.accountId,
+      topics: params.topics,
+      memo: params.memo,
+      transactionMemo: params.transactionMemo,
+    });
+    if (params.signerKeys && params.signerKeys.length > 0) {
+      const frozen = await tx.freezeWith(this.client);
+      let signed = frozen;
+      for (const key of params.signerKeys) {
+        signed = await signed.sign(key);
+      }
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  async sendFloraJoinRequest(params: {
+    topicId: string;
+    operatorId: string;
+    accountId: string;
+    connectionRequestId: number;
+    connectionTopicId: string;
+    connectionSeq: number;
+    signerKey?: PrivateKey;
+  }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
+    const tx = buildHcs16FloraJoinRequestTx(params);
+    if (params.signerKey) {
+      const frozen = await tx.freezeWith(this.client);
+      const signed = await frozen.sign(params.signerKey);
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  async sendFloraJoinVote(params: {
+    topicId: string;
+    operatorId: string;
+    accountId: string;
+    approve: boolean;
+    connectionRequestId: number;
+    connectionSeq: number;
+    signerKey?: PrivateKey;
+  }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
+    const tx = buildHcs16FloraJoinVoteTx(params);
+    if (params.signerKey) {
+      const frozen = await tx.freezeWith(this.client);
+      const signed = await frozen.sign(params.signerKey);
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
+    const resp = await tx.execute(this.client);
+    return resp.getReceipt(this.client);
+  }
+
+  async sendFloraJoinAccepted(params: {
+    topicId: string;
+    operatorId: string;
+    members: string[];
+    epoch?: number;
+    signerKeys?: PrivateKey[];
+  }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
+    const tx = buildHcs16FloraJoinAcceptedTx(params);
+    if (params.signerKeys && params.signerKeys.length > 0) {
+      const frozen = await tx.freezeWith(this.client);
+      let signed = frozen;
+      for (const key of params.signerKeys) {
+        signed = await signed.sign(key);
+      }
+      const resp = await signed.execute(this.client);
+      return resp.getReceipt(this.client);
+    }
     const resp = await tx.execute(this.client);
     return resp.getReceipt(this.client);
   }
@@ -166,6 +311,7 @@ export class HCS16Client extends HCS16BaseClient {
     floraAccountId: string;
     topics: { communication: string; transaction: string; state: string };
   }> {
+    await this.ensureOperatorReady();
     const keyList = await this.assembleKeyList({
       members: params.members,
       threshold: params.threshold,
@@ -215,6 +361,70 @@ export class HCS16Client extends HCS16BaseClient {
     return { floraAccountId, topics };
   }
 
+  async createFloraProfile(params: FloraProfileOptions): Promise<{
+    profileTopicId: string;
+    transactionId: string;
+  }> {
+    await this.ensureOperatorReady();
+    if (params.signerKeys.length === 0) {
+      throw new Error('Flora profile creation requires signer keys');
+    }
+
+    const profile: FloraProfile = {
+      version: '1.0',
+      type: 3,
+      display_name: params.displayName,
+      members: params.members,
+      threshold: params.threshold,
+      topics: params.topics,
+      inboundTopicId: params.inboundTopicId ?? params.topics.communication,
+      outboundTopicId: params.outboundTopicId ?? params.topics.transaction,
+      bio: params.bio,
+      metadata: params.metadata,
+      policies: params.policies,
+    };
+
+    const hcs11 = new HCS11Client({
+      network: this.network,
+      auth: {
+        operatorId: this.operatorId.toString(),
+        privateKey: this.operatorCtx.operatorKey.toString(),
+      },
+      logLevel: this.logger.getLevel(),
+    });
+
+    try {
+      await hcs11.initializeOperator();
+      const profileResult = await hcs11.inscribeProfile(profile);
+      if (!profileResult.success) {
+        throw new Error(
+          profileResult.error ?? 'Failed to inscribe Flora profile',
+        );
+      }
+
+      const memoResult = await hcs11.updateAccountMemoWithProfile(
+        params.floraAccountId,
+        profileResult.profileTopicId,
+        params.signerKeys,
+      );
+
+      if (!memoResult.success) {
+        throw new Error(
+          memoResult.error ?? 'Failed to update Flora account memo',
+        );
+      }
+
+      return {
+        profileTopicId: profileResult.profileTopicId,
+        transactionId: profileResult.transactionId,
+      };
+    } finally {
+      try {
+        hcs11.getClient().close();
+      } catch {}
+    }
+  }
+
   /**
    * Convenience: publish flora_created on the communication topic.
    */
@@ -224,6 +434,7 @@ export class HCS16Client extends HCS16BaseClient {
     floraAccountId: string;
     topics: { communication: string; transaction: string; state: string };
   }): Promise<TransactionReceipt> {
+    await this.ensureOperatorReady();
     const tx = buildHcs16FloraCreatedTx({
       topicId: params.communicationTopicId,
       operatorId: params.operatorId,

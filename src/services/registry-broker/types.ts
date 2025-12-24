@@ -56,6 +56,11 @@ import {
   registrationProgressResponseSchema,
   registerEncryptionKeyResponseSchema,
   searchStatusResponseSchema,
+  agentFeedbackResponseSchema,
+  agentFeedbackEligibilityResponseSchema,
+  agentFeedbackSubmissionResponseSchema,
+  agentFeedbackIndexResponseSchema,
+  agentFeedbackEntriesIndexResponseSchema,
   AIAgentType,
   AIAgentCapability,
 } from './schemas';
@@ -236,6 +241,37 @@ export type ChatHistorySnapshotResponse = z.infer<
 export type ChatHistoryCompactionResponse = z.infer<
   typeof chatHistoryCompactionResponseSchema
 >;
+
+export type AgentFeedbackResponse = z.infer<typeof agentFeedbackResponseSchema>;
+export type AgentFeedbackEligibilityResponse = z.infer<
+  typeof agentFeedbackEligibilityResponseSchema
+>;
+export type AgentFeedbackSubmissionResponse = z.infer<
+  typeof agentFeedbackSubmissionResponseSchema
+>;
+export type AgentFeedbackIndexResponse = z.infer<
+  typeof agentFeedbackIndexResponseSchema
+>;
+export type AgentFeedbackEntriesIndexResponse = z.infer<
+  typeof agentFeedbackEntriesIndexResponseSchema
+>;
+
+export interface AgentFeedbackQuery {
+  includeRevoked?: boolean;
+}
+
+export interface AgentFeedbackEligibilityRequest {
+  sessionId: string;
+}
+
+export interface AgentFeedbackSubmissionRequest {
+  sessionId: string;
+  score: number;
+  tag1?: string;
+  tag2?: string;
+  fileUri?: string;
+  fileHash?: string;
+}
 
 export type RegisterAgentSuccessResponse = z.infer<
   typeof registerAgentSuccessResponseSchema
