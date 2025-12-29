@@ -1,6 +1,6 @@
 {
   "name": "@hol-org/rb-client",
-  "version": "0.1.144",
+  "version": "0.1.147",
   "description": "Lightweight Registry Broker client for HOL registries.",
   "type": "module",
   "files": [
