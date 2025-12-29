@@ -50,10 +50,7 @@ const describeError = (error: unknown): string => {
 const main = async (): Promise<void> => {
   const baseUrl =
     process.env.REGISTRY_BROKER_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  const apiKeyFromEnv =
-    process.env.REGISTRY_BROKER_API_KEY?.trim() || undefined;
-  const useApiKey = process.env.REGISTRY_BROKER_DEMO_USE_API_KEY === '1';
-  const apiKey = useApiKey ? apiKeyFromEnv : undefined;
+  const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim() || undefined;
 
   const encryptionEnabled = process.env.REGISTRY_BROKER_DEMO_ENCRYPTION !== '0';
 
