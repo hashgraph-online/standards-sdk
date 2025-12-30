@@ -145,19 +145,11 @@ export async function startLocalXmtpAgent(
   const wallet = options.privateKey
     ? new Wallet(options.privateKey.trim())
     : Wallet.createRandom();
-  const env =
-    options.env ??
-    (process.env.REGISTRY_BROKER_DEMO_XMTP_ENV?.trim() as
-      | 'dev'
-      | 'production'
-      | 'local'
-      | undefined) ??
-    'production';
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
   const relayEnabled = options.relayEnabled ?? false;
 
   const client = await XmtpClient.create(createSigner(wallet), {
-    env,
+    env: 'dev',
     dbPath: null,
   });
 
