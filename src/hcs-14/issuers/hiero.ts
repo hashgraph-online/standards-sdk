@@ -26,9 +26,7 @@ type AutoRenewTransactionLike = {
   getAutoRenewAccountId?: () => unknown;
   setAutoRenewAccountId?: (value: string) => void;
   freezeWith: (client: PublisherClientLike) => {
-    execute: (
-      client: PublisherClientLike,
-    ) => Promise<{
+    execute: (client: PublisherClientLike) => Promise<{
       getReceipt: (client: PublisherClientLike) => Promise<TransactionReceipt>;
     }>;
   };

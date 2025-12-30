@@ -6,3 +6,4 @@ target
 /scripts
 *.log
 coverage
+.pnpm-store
