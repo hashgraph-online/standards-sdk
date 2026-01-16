@@ -28,7 +28,7 @@ export interface RegisteredAgent {
   agentId: string;
   alias: string;
   registry: string;
-  protocol: 'a2a' | 'mcp';
+  protocol: 'a2a' | 'mcp' | 'xmtp';
   profile: HCS11Profile;
   endpoint?: string;
   metadata: AgentRegistrationRequestMetadata;
@@ -48,6 +48,7 @@ export interface RegisteredAgent {
 export interface RegisterAgentOptions {
   registry?: string;
   metadata?: AgentRegistrationRequestMetadata;
+  communicationProtocol?: 'a2a' | 'mcp' | 'xmtp' | 'xmpt';
   additionalRegistries?: string[];
   updateAdditionalRegistries?: string[];
   skipAdditionalRegistryUpdate?: boolean;
@@ -745,12 +746,20 @@ export default async function registerDemoAgent(
     );
   }
 
+  const defaultProtocol = mode === 'ai' ? 'a2a' : 'mcp';
+  let communicationProtocol = defaultProtocol;
+  const overrideProtocol = options.communicationProtocol?.trim().toLowerCase();
+  if (overrideProtocol) {
+    communicationProtocol =
+      overrideProtocol === 'xmpt' ? 'xmtp' : overrideProtocol;
+  }
+
   const payload: AgentRegistrationRequest = {
     profile:
       mode === 'ai'
         ? buildAiProfile(alias, endpoint)
         : buildMcpProfile(alias, endpoint),
-    communicationProtocol: mode === 'ai' ? 'a2a' : 'mcp',
+    communicationProtocol,
     registry,
     metadata,
   };
@@ -1047,7 +1056,7 @@ export default async function registerDemoAgent(
     agentId: response.agentId,
     alias,
     registry,
-    protocol: payload.communicationProtocol === 'mcp' ? 'mcp' : 'a2a',
+    protocol: communicationProtocol === 'xmtp' ? 'xmtp' : defaultProtocol,
     profile: payload.profile,
     endpoint: payload.endpoint,
     metadata,
