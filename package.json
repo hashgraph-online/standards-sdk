@@ -6,7 +6,7 @@
   "files": [
     "dist"
   ],
-  "homepage": "https://hashgraphonline.com/docs/libraries/standards-sdk/",
+  "homepage": "https://hol.org/docs/libraries/standards-sdk/",
   "author": "Hashgraph Online <hello@hashgraphonline.com>",
   "funding": {
     "type": "individual",
@@ -24,12 +24,16 @@
     "access": "public"
   },
   "keywords": [
+    "blockchain",
     "hashgraph online",
     "hcs",
     "hedera",
     "hashgraph",
+    "consensus",
     "web3",
     "bitcoin",
+    "mcp",
+    "ai-agents",
     "standards",
     "sdk"
   ],
@@ -104,7 +108,8 @@
     "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
     "lint:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" \"demo/**/*.{ts,tsx,js,jsx,json}\" \"__tests__/**/*.{ts,tsx,js,jsx,json}\"",
     "format": "npm run lint:fix",
-    "format:check": "npm run lint"
+    "format:check": "npm run lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@hashgraph/hedera-wallet-connect": "^2.0.4",
@@ -116,6 +121,7 @@
     "@types/node": "^22.18.12",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
+    "agent0-sdk": "0.2.1",
     "concurrently": "^8.2.2",
     "eslint-plugin-sonarjs": "^3.0.5",
     "ioredis": "^5.8.2",
@@ -133,20 +139,22 @@
     "ts-jest": "^29.4.5",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
+    "viem": "^2.19.9",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4",
-    "vite-plugin-node-polyfills": "^0.24.0"
+    "vite-plugin-node-polyfills": "^0.24.0",
+    "x402": "^1.1.0",
+    "x402-axios": "^1.1.0"
   },
   "dependencies": {
     "@hashgraph/proto": "^2.24.0",
-    "@hashgraph/sdk": "^2.78.0",
-    "@hashgraphonline/hashinal-wc": "2.0.15",
+    "@hashgraph/sdk": "^2.79.0",
+    "@hashgraphonline/hashinal-wc": "2.0.35",
     "@hiero-did-sdk/registrar": "0.1.8",
     "@hiero-did-sdk/resolver": "0.1.8",
     "@kiloscribe/inscription-sdk": "^2.0.8",
     "@noble/curves": "^2.0.1",
     "@types/localtunnel": "^2.0.4",
-    "agent0-sdk": "0.2.1",
     "axios": "^1.12.2",
     "bignumber.js": "^9.3.1",
     "buffer": "^6.0.3",
@@ -157,22 +165,39 @@
     "file-type": "^20.5.0",
     "long": "^5.3.2",
     "mime-types": "^2.1.35",
-    "viem": "^2.19.9",
-    "x402-axios": "^0.7.0",
     "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "ioredis": "^5.0.0",
+    "viem": "*",
+    "x402": "*",
+    "x402-axios": "*"
   },
   "peerDependenciesMeta": {
     "ioredis": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
+    },
+    "x402": {
+      "optional": true
+    },
+    "x402-axios": {
       "optional": true
     }
   },
   "pnpm": {
     "overrides": {
       "@hashgraphonline/standards-sdk": "workspace:*",
-      "@hashgraph/sdk": "^2.78.0",
+      "@hashgraph/sdk": "^2.79.0",
       "@kiloscribe/inscription-sdk": "^2.0.8",
       "@hashgraph/hedera-wallet-connect": "2.0.4",
-      "@hashgraphonline/hashinal-wc": "2.0.15"
+      "@hashgraphonline/hashinal-wc": "2.0.35",
+      "x402": "1.1.0",
+      "h3": "1.15.5",
+      "hono": "4.11.4",
+      "preact": "10.28.2"
     }
   },
   "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"

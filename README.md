@@ -1,6 +1,6 @@
 # Hashgraph Online Standards SDK
 
-| ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online.<br><br>This SDK is built and maintained by [Hashgraph Online](https://hashgraphonline.com), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hashgraphonline.com/docs/standards) |
+| ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online.<br><br>This SDK is built and maintained by [Hashgraph Online](https://hol.org), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hol.org/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hol.org/docs/standards) |
 | :-------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 
 ## Quick Start
@@ -36,7 +36,7 @@ Core agent search/chat flows only require a `fetch` implementation.
 
 For complete documentation, examples, and API references, visit:
 
-- [Standards SDK Documentation](https://hashgraphonline.com/docs/libraries/standards-sdk/)
+- [Standards SDK Documentation](https://hol.org/docs/libraries/standards-sdk/)
 
 ## Interactive CLI and Demos
 
