@@ -33,6 +33,22 @@ import type {
   RegisterAgentSuccessResponse,
   RegistryBrokerClientOptions,
   SharedSecretInput,
+  SearchParams,
+  SearchResult,
+  RegistryStatsResponse,
+  RegistriesResponse,
+  AdditionalRegistryCatalogResponse,
+  PopularSearchesResponse,
+  ProtocolsResponse,
+  ProtocolDetectionMessage,
+  DetectProtocolResponse,
+  RegistrySearchByNamespaceResponse,
+  VectorSearchRequest,
+  VectorSearchResponse,
+  SearchStatusResponse,
+  WebsocketStatsResponse,
+  MetricsSummaryResponse,
+  SearchFacetsResponse,
 } from '../types';
 import {
   agentFeedbackEligibilityResponseSchema,
@@ -40,6 +56,19 @@ import {
   agentFeedbackIndexResponseSchema,
   agentFeedbackResponseSchema,
   agentFeedbackSubmissionResponseSchema,
+  searchResponseSchema,
+  statsResponseSchema,
+  registriesResponseSchema,
+  additionalRegistryCatalogResponseSchema,
+  popularResponseSchema,
+  protocolsResponseSchema,
+  detectProtocolResponseSchema,
+  registrySearchByNamespaceSchema,
+  vectorSearchResponseSchema,
+  searchStatusResponseSchema,
+  websocketStatsResponseSchema,
+  metricsSummaryResponseSchema,
+  searchFacetsResponseSchema,
 } from '../schemas';
 import {
   createAbortError,
@@ -51,6 +80,7 @@ import {
   isBrowserRuntime,
   normaliseBaseUrl,
   normaliseHeaderName,
+  buildSearchQuery,
 } from './utils';
 import {
   RegistryBrokerError,
@@ -614,6 +644,221 @@ export class RegistryBrokerClient {
     _options?: ClientEncryptionOptions,
   ): Promise<{ publicKey: string; privateKey?: string } | null> {
     return Promise.resolve(null);
+  }
+
+  /**
+   * Encryption utilities - stub implementation
+   * Full encryption support available in npm version
+   */
+  readonly encryption = {
+    ensureAgentKey: async (_options: {
+      uaid: string;
+      generateIfMissing?: boolean;
+    }): Promise<{ publicKey: string; privateKey?: string }> => {
+      throw new Error(
+        'Encryption not available in JSR version. Use npm: @hashgraphonline/standards-sdk',
+      );
+    },
+    registerKey: async (_payload: unknown): Promise<unknown> => {
+      throw new Error(
+        'Encryption not available in JSR version. Use npm: @hashgraphonline/standards-sdk',
+      );
+    },
+  };
+
+  /**
+   * Purchase credits with HBAR - stub implementation
+   * Full credits support available in npm version
+   */
+  async purchaseCreditsWithHbar(_options: {
+    accountId: string;
+    privateKey: string;
+    hbarAmount: number;
+    memo?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    throw new Error(
+      'Credits not available in JSR version. Use npm: @hashgraphonline/standards-sdk',
+    );
+  }
+
+  async search(params: SearchParams = {}): Promise<SearchResult> {
+    const query = buildSearchQuery(params);
+    const raw = await this.requestJson<JsonValue>(`/search${query}`, {
+      method: 'GET',
+    });
+    return this.parseWithSchema(raw, searchResponseSchema, 'search response');
+  }
+
+  async stats(): Promise<RegistryStatsResponse> {
+    const raw = await this.requestJson<JsonValue>('/stats', { method: 'GET' });
+    return this.parseWithSchema(raw, statsResponseSchema, 'stats response');
+  }
+
+  async registries(): Promise<RegistriesResponse> {
+    const raw = await this.requestJson<JsonValue>('/registries', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      registriesResponseSchema,
+      'registries response',
+    );
+  }
+
+  async getAdditionalRegistries(): Promise<AdditionalRegistryCatalogResponse> {
+    const raw = await this.requestJson<JsonValue>(
+      '/register/additional-registries',
+      {
+        method: 'GET',
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      additionalRegistryCatalogResponseSchema,
+      'additional registry catalog response',
+    );
+  }
+
+  async popularSearches(): Promise<PopularSearchesResponse> {
+    const raw = await this.requestJson<JsonValue>('/popular', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      popularResponseSchema,
+      'popular searches response',
+    );
+  }
+
+  async listProtocols(): Promise<ProtocolsResponse> {
+    const raw = await this.requestJson<JsonValue>('/protocols', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      protocolsResponseSchema,
+      'protocols response',
+    );
+  }
+
+  async detectProtocol(
+    message: ProtocolDetectionMessage,
+  ): Promise<DetectProtocolResponse> {
+    const raw = await this.requestJson<JsonValue>('/detect-protocol', {
+      method: 'POST',
+      body: { message },
+      headers: { 'content-type': 'application/json' },
+    });
+    return this.parseWithSchema(
+      raw,
+      detectProtocolResponseSchema,
+      'detect protocol response',
+    );
+  }
+
+  async registrySearchByNamespace(
+    registry: string,
+    query?: string,
+  ): Promise<RegistrySearchByNamespaceResponse> {
+    const params = new URLSearchParams();
+    if (query) {
+      params.set('q', query);
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const raw = await this.requestJson<JsonValue>(
+      `/registries/${encodeURIComponent(registry)}/search${suffix}`,
+      {
+        method: 'GET',
+      },
+    );
+    return this.parseWithSchema(
+      raw,
+      registrySearchByNamespaceSchema,
+      'registry search response',
+    );
+  }
+
+  async vectorSearch(request: VectorSearchRequest): Promise<VectorSearchResponse> {
+    try {
+      const raw = await this.requestJson<JsonValue>('/search', {
+        method: 'POST',
+        body: request,
+        headers: { 'content-type': 'application/json' },
+      });
+      return this.parseWithSchema(
+        raw,
+        vectorSearchResponseSchema,
+        'vector search response',
+      );
+    } catch (error) {
+      if (error instanceof RegistryBrokerError && error.status === 501) {
+        const fallbackParams: SearchParams = { q: request.query };
+        if (request.limit) fallbackParams.limit = request.limit;
+        if (request.filter?.registry) fallbackParams.registry = request.filter.registry;
+        if (request.filter?.protocols?.length) fallbackParams.protocols = [...request.filter.protocols];
+        const fallback = await this.search(fallbackParams);
+        return {
+          hits: fallback.hits.map(agent => ({ agent, score: 0, highlights: {} })),
+          total: fallback.total,
+          took: 0,
+          totalAvailable: fallback.total,
+          visible: fallback.hits.length,
+          limited: fallback.total > fallback.limit,
+          credits_used: 0,
+        };
+      }
+      throw error;
+    }
+  }
+
+  async searchStatus(): Promise<SearchStatusResponse> {
+    const raw = await this.requestJson<JsonValue>('/search/status', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      searchStatusResponseSchema,
+      'search status response',
+    );
+  }
+
+  async websocketStats(): Promise<WebsocketStatsResponse> {
+    const raw = await this.requestJson<JsonValue>('/websocket/stats', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      websocketStatsResponseSchema,
+      'websocket stats response',
+    );
+  }
+
+  async metricsSummary(): Promise<MetricsSummaryResponse> {
+    const raw = await this.requestJson<JsonValue>('/metrics', {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      metricsSummaryResponseSchema,
+      'metrics summary response',
+    );
+  }
+
+  async facets(adapter?: string): Promise<SearchFacetsResponse> {
+    const params = new URLSearchParams();
+    if (adapter) {
+      params.set('adapter', adapter);
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const raw = await this.requestJson<JsonValue>(`/search/facets${suffix}`, {
+      method: 'GET',
+    });
+    return this.parseWithSchema(
+      raw,
+      searchFacetsResponseSchema,
+      'search facets response',
+    );
   }
 }
 

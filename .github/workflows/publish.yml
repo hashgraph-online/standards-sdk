@@ -86,13 +86,12 @@ jobs:
 
       - name: Publish to JSR
         if: steps.version_check.outputs.exists == 'false'
-        working-directory: packages/jsr-client
         run: |
           # Update jsr.json version to match
           NEW_VERSION="${{ steps.version.outputs.new }}"
           jq --arg v "$NEW_VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
-          # Publish to JSR (provenance is automatic with id-token permission)
-          npx jsr publish --allow-dirty
+          # Publish to JSR with full SDK (allow-slow-types needed for module augmentation)
+          npx jsr publish --allow-dirty --allow-slow-types
 
       - name: Create Git tag
         if: steps.version_check.outputs.exists == 'false'

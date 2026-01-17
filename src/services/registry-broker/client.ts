@@ -1,12 +1,7 @@
-import './client/encryption';
-import './client/search';
-import './client/adapters';
-import './client/credits';
-import './client/agents';
-import './client/ledger-auth';
-import './client/chat-history';
-import './client/chat';
-
+/**
+ * Registry Broker Client
+ * Exports the main client and helpers.
+ */
 export {
   RegistryBrokerClient,
   isPendingRegisterAgentResponse,

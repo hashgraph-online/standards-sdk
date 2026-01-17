@@ -2,33 +2,10 @@
   "name": "@hol-org/standards-sdk",
   "version": "0.1.146",
   "license": "Apache-2.0",
-  "exports": "./src/jsr-entry.ts",
+  "description": "SDK for Hashgraph Consensus Standards - HCS-10 agents, profiles, inscribe, registry broker",
+  "exports": "./src/index.ts",
   "publish": {
     "include": ["src/**/*.ts", "README.md", "LICENSE"],
-    "exclude": [
-      "src/**/*.d.ts",
-      "src/index.ts",
-      "src/services/registry-broker/client.ts",
-      "src/services/registry-broker/index.ts",
-      "src/services/registry-broker/client/adapters.ts",
-      "src/services/registry-broker/client/agents.ts",
-      "src/services/registry-broker/client/chat.ts",
-      "src/services/registry-broker/client/chat-history.ts",
-      "src/services/registry-broker/client/credits.ts",
-      "src/services/registry-broker/client/encrypted-chat-manager.ts",
-      "src/services/registry-broker/client/encryption.ts",
-      "src/services/registry-broker/client/ledger-auth.ts",
-      "src/services/registry-broker/client/search.ts",
-      "src/services/registry-broker/client/feedback.ts",
-      "src/hcs-3/**/*",
-      "src/hcs-6/**/*",
-      "src/hcs-7/**/*",
-      "src/hcs-10/**/*",
-      "src/hcs-11/**/*",
-      "src/hcs-20/**/*",
-      "src/inscribe/**/*",
-      "src/services/index.ts",
-      "src/services/mirror-node.ts"
-    ]
+    "exclude": ["src/**/*.d.ts"]
   }
 }

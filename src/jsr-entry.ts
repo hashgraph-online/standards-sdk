@@ -1,56 +1,40 @@
 /**
- * JSR-compatible entry point for @hol-org/standards-sdk
- * 
- * This version exports the base RegistryBrokerClient without the extended
- * methods that use TypeScript module augmentation (which JSR doesn't support).
- * 
- * For the full SDK with all features (chat, credits, encryption, etc.),
- * install from npm: npm install @hashgraphonline/standards-sdk
+ * JSR entry point for @hol-org/standards-sdk
+ *
+ * Full SDK for Hashgraph Consensus Standards including:
+ * - HCS-10: Agent Communication
+ * - HCS-11: Profiles & Identity
+ * - HCS-15: Petals (Profile Accounts)
+ * - HCS-16: Floras (AppNet Accounts)
+ * - Registry Broker Client
+ * - Inscribe utilities
+ * - And more
+ *
+ * For npm:
+ * npm install @hashgraphonline/standards-sdk
  */
 
-// Base client with core methods (no module augmentation)
-export {
-  RegistryBrokerClient,
-  isPendingRegisterAgentResponse,
-  isPartialRegisterAgentResponse,
-  isSuccessRegisterAgentResponse,
-  type InitializedAgentClient,
-  type GenerateEncryptionKeyPairOptions,
-  type RequestConfig,
-} from './services/registry-broker/client/base-client.ts';
+// HCS Standards
+export * from './hcs-2';
+export * from './hcs-3/src';
+export * from './hcs-5';
+export * from './hcs-6';
+export * from './hcs-7';
+export * from './hcs-10';
+export * from './hcs-11';
+export * from './hcs-12';
+export * from './hcs-14';
+export * from './hcs-15';
+export * from './hcs-16';
+export * from './hcs-17';
+export * from './hcs-18';
+export * from './hcs-20';
+export * from './hcs-21';
 
-export {
-  RegistryBrokerError,
-  RegistryBrokerParseError,
-} from './services/registry-broker/client/errors.ts';
+// Core utilities
+export * from './utils';
+export * from './inscribe';
+export * from './services';
+export * from './fees';
+export * from './content-store';
 
-// Types (safe to export)
-export type {
-  JsonValue,
-  JsonObject,
-  SearchParams,
-  SearchResult,
-  RegistryBrokerClientOptions,
-  RegisterAgentResponse,
-  RegisterAgentPendingResponse,
-  RegisterAgentPartialResponse,
-  RegisterAgentSuccessResponse,
-  AgentFeedbackQuery,
-  AgentFeedbackResponse,
-  AgentFeedbackEligibilityRequest,
-  AgentFeedbackEligibilityResponse,
-  AgentFeedbackSubmissionRequest,
-  AgentFeedbackSubmissionResponse,
-} from './services/registry-broker/types.ts';
-
-// Schemas (useful for validation)
-export {
-  searchResponseSchema,
-  agentFeedbackResponseSchema,
-  agentFeedbackEligibilityResponseSchema,
-  agentFeedbackSubmissionResponseSchema,
-} from './services/registry-broker/schemas.ts';
-
-// Utils
-export { Logger, type ILogger } from './utils/logger.ts';
-export { sleep } from './utils/sleep.ts';
