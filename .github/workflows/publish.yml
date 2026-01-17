@@ -84,6 +84,16 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm --filter @hol-org/rb-client publish --access public --no-git-checks --provenance
 
+      - name: Publish to JSR
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/jsr-client
+        run: |
+          # Update jsr.json version to match
+          NEW_VERSION="${{ steps.version.outputs.new }}"
+          jq --arg v "$NEW_VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
+          # Publish to JSR with provenance
+          npx jsr publish --allow-dirty --provenance
+
       - name: Create Git tag
         if: steps.version_check.outputs.exists == 'false'
         run: |
