@@ -1175,3 +1175,392 @@ export async function waitForInscriptionConfirmation(
     throw error;
   }
 }
+
+const DEFAULT_REGISTRY_BROKER_URL = 'https://hol.org/registry/api/v1';
+const DEFAULT_POLL_INTERVAL_MS = 2000;
+const DEFAULT_WAIT_TIMEOUT_MS = 120000;
+
+/**
+ * Options for inscribing via Registry Broker with ledger authentication
+ */
+export interface InscribeViaRegistryBrokerOptions {
+  /** Registry Broker base URL */
+  baseUrl?: string;
+  /** Ledger API key (from authenticateWithLedger) */
+  ledgerApiKey?: string;
+  /** Standard API key */
+  apiKey?: string;
+  /** Inscription mode */
+  mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection';
+  /** Optional metadata */
+  metadata?: Record<string, unknown>;
+  /** Optional tags */
+  tags?: string[];
+  /** File standard */
+  fileStandard?: string;
+  /** Chunk size for large files */
+  chunkSize?: number;
+  /** Wait for confirmation (default: true) */
+  waitForConfirmation?: boolean;
+  /** Timeout for waiting (default: 120000ms) */
+  waitTimeoutMs?: number;
+  /** Poll interval (default: 2000ms) */
+  pollIntervalMs?: number;
+  /** Logging options */
+  logging?: { level?: LogLevel };
+}
+
+/**
+ * Result from Registry Broker inscription
+ */
+export interface RegistryBrokerInscriptionResult {
+  confirmed: boolean;
+  jobId: string;
+  status: string;
+  hrl?: string;
+  topicId?: string;
+  network?: string;
+  credits?: number;
+  usdCents?: number;
+  sizeBytes?: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RegistryBrokerJobResponse {
+  jobId?: string;
+  id?: string;
+  status: string;
+  hrl?: string;
+  topicId?: string;
+  network?: string;
+  credits?: number;
+  quoteCredits?: number;
+  usdCents?: number;
+  quoteUsdCents?: number;
+  sizeBytes?: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RegistryBrokerQuoteResponse {
+  quoteId: string;
+  contentHash: string;
+  sizeBytes: number;
+  totalCostHbar: number;
+  credits: number;
+  usdCents: number;
+  expiresAt: string;
+  mode: string;
+}
+
+async function fetchRegistryBroker<T>(
+  url: string,
+  options: RequestInit & { headers?: Record<string, string> },
+): Promise<T> {
+  const response = await fetch(url, options);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMessage =
+      typeof body === 'object' && body && 'error' in body
+        ? String((body as { error?: unknown }).error)
+        : `HTTP ${response.status}`;
+    throw new Error(errorMessage);
+  }
+  return body as T;
+}
+
+/**
+ * Inscribe content via the Registry Broker API using credits.
+ *
+ * This function allows inscribing content using Registry Broker credits instead
+ * of direct Hedera transactions. It supports both ledger authentication (EVM/Hedera)
+ * and standard API key authentication.
+ *
+ * @param input - The content to inscribe (URL, file path, or buffer)
+ * @param options - Configuration options including auth credentials
+ * @returns Promise containing the inscription result with HRL
+ *
+ * @example
+ * ```typescript
+ * // Using ledger authentication
+ * const result = await inscribeViaRegistryBroker(
+ *   { type: 'buffer', buffer: myData, fileName: 'data.json' },
+ *   { ledgerApiKey: 'rbk_...', mode: 'file' }
+ * );
+ * console.log('Inscribed at:', result.hrl);
+ * ```
+ */
+export async function inscribeViaRegistryBroker(
+  input: InscriptionInput,
+  options: InscribeViaRegistryBrokerOptions = {},
+): Promise<RegistryBrokerInscriptionResult> {
+  const logger = Logger.getInstance({
+    module: 'InscribeViaBroker',
+    ...options.logging,
+  });
+
+  const baseUrl = options.baseUrl ?? DEFAULT_REGISTRY_BROKER_URL;
+  const waitForConfirmation = options.waitForConfirmation ?? true;
+  const waitTimeoutMs = options.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+
+  if (options.ledgerApiKey) {
+    headers['x-ledger-api-key'] = options.ledgerApiKey;
+  } else if (options.apiKey) {
+    headers['x-api-key'] = options.apiKey;
+  } else {
+    throw new Error(
+      'Either ledgerApiKey or apiKey is required for Registry Broker inscription',
+    );
+  }
+
+  logger.info('Starting inscription via Registry Broker', {
+    baseUrl,
+    inputType: input.type,
+    mode: options.mode ?? 'file',
+  });
+
+  let base64Content: string;
+  let fileName: string;
+  let mimeType: string | undefined;
+
+  switch (input.type) {
+    case 'url':
+      logger.debug('Creating job with URL input');
+      break;
+    case 'file': {
+      const fileData = await convertFileToBase64(input.path);
+      base64Content = fileData.base64;
+      fileName = fileData.fileName;
+      mimeType = fileData.mimeType;
+      break;
+    }
+    case 'buffer':
+      base64Content = Buffer.from(
+        input.buffer instanceof ArrayBuffer
+          ? new Uint8Array(input.buffer)
+          : input.buffer,
+      ).toString('base64');
+      fileName = input.fileName;
+      mimeType = input.mimeType;
+      break;
+  }
+
+  const requestBody: Record<string, unknown> = {
+    inputType: input.type === 'url' ? 'url' : 'base64',
+    mode: options.mode ?? 'file',
+  };
+
+  if (input.type === 'url') {
+    requestBody.url = input.url;
+  } else {
+    requestBody.base64 = base64Content!;
+    requestBody.fileName = fileName!;
+    if (mimeType) {
+      requestBody.mimeType = mimeType;
+    }
+  }
+
+  if (options.metadata) {
+    requestBody.metadata = options.metadata;
+  }
+  if (options.tags) {
+    requestBody.tags = options.tags;
+  }
+  if (options.fileStandard) {
+    requestBody.fileStandard = options.fileStandard;
+  }
+  if (options.chunkSize) {
+    requestBody.chunkSize = options.chunkSize;
+  }
+
+  logger.debug('Creating inscription job');
+  const job = await fetchRegistryBroker<RegistryBrokerJobResponse>(
+    `${baseUrl}/inscribe/content`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+    },
+  );
+
+  const jobId = job.jobId ?? job.id ?? '';
+  logger.info('Inscription job created', { jobId, status: job.status });
+
+  if (!waitForConfirmation) {
+    return {
+      confirmed: false,
+      jobId,
+      status: job.status,
+      credits: job.credits ?? job.quoteCredits,
+      usdCents: job.usdCents ?? job.quoteUsdCents,
+      sizeBytes: job.sizeBytes,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      network: job.network,
+    };
+  }
+
+  logger.debug('Polling for job completion', { jobId, waitTimeoutMs });
+  const startTime = Date.now();
+  let lastStatus = '';
+
+  while (Date.now() - startTime < waitTimeoutMs) {
+    const currentJob = await fetchRegistryBroker<RegistryBrokerJobResponse>(
+      `${baseUrl}/inscribe/content/${jobId}`,
+      { method: 'GET', headers },
+    );
+
+    if (currentJob.status !== lastStatus) {
+      logger.debug('Job status update', { jobId, status: currentJob.status });
+      lastStatus = currentJob.status;
+    }
+
+    if (currentJob.status === 'completed') {
+      logger.info('Inscription completed', {
+        jobId,
+        hrl: currentJob.hrl,
+        topicId: currentJob.topicId,
+      });
+
+      return {
+        confirmed: true,
+        jobId,
+        status: currentJob.status,
+        hrl: currentJob.hrl,
+        topicId: currentJob.topicId,
+        network: currentJob.network,
+        credits: currentJob.credits ?? currentJob.quoteCredits,
+        usdCents: currentJob.usdCents ?? currentJob.quoteUsdCents,
+        sizeBytes: currentJob.sizeBytes,
+        createdAt: currentJob.createdAt,
+        updatedAt: currentJob.updatedAt,
+      };
+    }
+
+    if (currentJob.status === 'failed') {
+      logger.error('Inscription failed', { jobId, error: currentJob.error });
+      return {
+        confirmed: false,
+        jobId,
+        status: currentJob.status,
+        error: currentJob.error ?? 'Inscription failed',
+        credits: currentJob.credits ?? currentJob.quoteCredits,
+        createdAt: currentJob.createdAt,
+        updatedAt: currentJob.updatedAt,
+      };
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  throw new Error(
+    `Inscription job ${jobId} did not complete within ${waitTimeoutMs}ms`,
+  );
+}
+
+/**
+ * Get an inscription quote from the Registry Broker without creating a job.
+ *
+ * @param input - The content to get a quote for
+ * @param options - Configuration options
+ * @returns Promise containing the quote with cost information
+ */
+export async function getRegistryBrokerQuote(
+  input: InscriptionInput,
+  options: InscribeViaRegistryBrokerOptions = {},
+): Promise<RegistryBrokerQuoteResponse> {
+  const logger = Logger.getInstance({
+    module: 'InscribeViaBroker',
+    ...options.logging,
+  });
+
+  const baseUrl = options.baseUrl ?? DEFAULT_REGISTRY_BROKER_URL;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+
+  if (options.ledgerApiKey) {
+    headers['x-ledger-api-key'] = options.ledgerApiKey;
+  } else if (options.apiKey) {
+    headers['x-api-key'] = options.apiKey;
+  } else {
+    throw new Error(
+      'Either ledgerApiKey or apiKey is required for Registry Broker quotes',
+    );
+  }
+
+  let base64Content: string | undefined;
+  let fileName: string | undefined;
+  let mimeType: string | undefined;
+
+  switch (input.type) {
+    case 'url':
+      break;
+    case 'file': {
+      const fileData = await convertFileToBase64(input.path);
+      base64Content = fileData.base64;
+      fileName = fileData.fileName;
+      mimeType = fileData.mimeType;
+      break;
+    }
+    case 'buffer':
+      base64Content = Buffer.from(
+        input.buffer instanceof ArrayBuffer
+          ? new Uint8Array(input.buffer)
+          : input.buffer,
+      ).toString('base64');
+      fileName = input.fileName;
+      mimeType = input.mimeType;
+      break;
+  }
+
+  const requestBody: Record<string, unknown> = {
+    inputType: input.type === 'url' ? 'url' : 'base64',
+    mode: options.mode ?? 'file',
+  };
+
+  if (input.type === 'url') {
+    requestBody.url = input.url;
+  } else {
+    requestBody.base64 = base64Content;
+    requestBody.fileName = fileName;
+    if (mimeType) {
+      requestBody.mimeType = mimeType;
+    }
+  }
+
+  if (options.metadata) {
+    requestBody.metadata = options.metadata;
+  }
+  if (options.tags) {
+    requestBody.tags = options.tags;
+  }
+  if (options.fileStandard) {
+    requestBody.fileStandard = options.fileStandard;
+  }
+  if (options.chunkSize) {
+    requestBody.chunkSize = options.chunkSize;
+  }
+
+  logger.debug('Getting inscription quote from Registry Broker');
+
+  return fetchRegistryBroker<RegistryBrokerQuoteResponse>(
+    `${baseUrl}/inscribe/content/quote`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+    },
+  );
+}

@@ -330,6 +330,7 @@ export const sendMessageResponseSchema = z.object({
   timestamp: z.string(),
   rawResponse: jsonValueSchema.optional(),
   content: z.string().optional(),
+  ops: z.array(z.record(jsonValueSchema)).optional(),
   history: z.array(chatHistoryEntrySchema).optional(),
   historyTtlSeconds: z.number().nullable().optional(),
   encrypted: z.boolean().optional(),

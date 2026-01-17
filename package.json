@@ -1,7 +1,7 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.144",
-  "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hiero Consensus Standards (HCS), giving developers all the tools needed to build wonderful decentralized applications on the Hashgraph network.",
+  "version": "0.1.146",
+  "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hiero Consensus Standards (HCS), giving developers all the tools needed to build wonderful decentralized applications on the Hashgraph network. https://hol.org",
   "type": "module",
   "files": [
     "dist"
@@ -96,6 +96,7 @@
     "demo:registry-broker-x402": "tsx demo/registry-broker/registry-broker-x402-demo.ts",
     "demo:registry-broker-erc8004-x402": "tsx demo/registry-broker/registry-broker-erc8004-x402-demo.ts",
     "demo:registry-broker-x402-topup": "tsx demo/registry-broker/registry-broker-x402-topup.ts",
+    "demo:registry-broker-nanda-a2a": "tsx demo/registry-broker/registry-broker-nanda-a2a-demo.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest --config jest.config.json",
     "test:unit-list": "jest --config jest.config.json --listTests --testPathPattern __tests__/utils/ --testPathPattern __tests__/services/ --testPathPattern __tests__/content-store/ --testPathPattern __tests__/fees/ --testPathPattern __tests__/common/tx/",

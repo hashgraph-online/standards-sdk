@@ -182,11 +182,27 @@ async function run(): Promise<void> {
     await new Promise(r => setTimeout(r, 1000));
   }
 
-  const ledgerAuth = await authenticateWithDemoLedger(registrationClient, {
-    label: 'agentverse-demo',
-    expiresInMinutes: 30,
-    setAccountHeader: true,
-  });
+  const skipLedgerAuth = (process.env.REGISTRY_BROKER_SKIP_LEDGER_AUTH ?? '')
+    .trim()
+    .toLowerCase()
+    .startsWith('t');
+  let ledgerAuth: unknown = null;
+  if (!skipLedgerAuth) {
+    try {
+      ledgerAuth = await authenticateWithDemoLedger(registrationClient, {
+        label: 'agentverse-demo',
+        expiresInMinutes: 30,
+        setAccountHeader: true,
+      });
+    } catch (error) {
+      log(
+        `  ⚠️  Ledger auth failed; continuing without it: ${describeError(error)}`,
+      );
+      ledgerAuth = null;
+    }
+  } else {
+    log('  Skipping ledger auth (REGISTRY_BROKER_SKIP_LEDGER_AUTH=true)');
+  }
 
   const attemptWithCreditTopup = async <T>(
     operation: () => Promise<T>,
@@ -377,7 +393,8 @@ async function run(): Promise<void> {
     return inputs.some(inp => normalize(inp) === nm);
   };
 
-  const decideInitialPrompt = (uaid: string): string => 'Track AA123';
+  const defaultPrompt = process.env.AGENTVERSE_PROMPT?.trim() || 'Track AA123';
+  const decideInitialPrompt = (_uaid: string): string => defaultPrompt;
 
   const waitForNonEmptyHistory = async (
     sid: string,
