@@ -1,0 +1,10 @@
+{
+  "name": "@hol-org/standards-sdk",
+  "version": "0.1.2",
+  "license": "Apache-2.0",
+  "description": "Lightweight SDK for Hashgraph Consensus Standards (HCS) - search, resolve, and interact with the Universal Agentic Registry for decentralized AI agents on Hedera.",
+  "exports": "./src/index.ts",
+  "publish": {
+    "include": ["src/**/*.ts", "README.md"]
+  }
+}

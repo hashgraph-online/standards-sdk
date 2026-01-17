@@ -84,6 +84,16 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm --filter @hol-org/rb-client publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
 
+      - name: Publish to JSR (canary)
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/jsr-client
+        run: |
+          # Update jsr.json version to match canary
+          VERSION="${{ steps.canary.outputs.version }}"
+          jq --arg v "$VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
+          # Publish to JSR (provenance is automatic with id-token permission)
+          npx jsr publish --allow-dirty
+
       - name: Skip publish (version already exists)
         if: steps.version_check.outputs.exists == 'true'
         run: echo "Version ${{ steps.canary.outputs.version }} already exists on npm; skipping publish."
