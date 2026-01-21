@@ -17,7 +17,7 @@
     "cloudflared": "^0.7.1",
     "dotenv": "^16.6.1",
     "env-paths": "^3.0.0",
-    "execa": "^9.5.1",
+    "execa": "^9.6.1",
     "ink": "^5.0.1",
     "ink-select-input": "^6.0.0",
     "pastel": "^3.0.0",
