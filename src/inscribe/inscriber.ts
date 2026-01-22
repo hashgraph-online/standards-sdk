@@ -45,11 +45,11 @@ const HASHPACK_EXTENSION_ID = 'gjagmgiddbbciopjhllkdnddhcglnemk';
 
 /**
  * Triggers the HashPack browser extension popup for signing on desktop.
- * This is needed when the signer doesn't have an extensionId set
- * (e.g., when connecting via the Reown AppKit modal).
+ * This should be called before any transaction that needs signing.
+ * The extensionOpen() call opens the extension popup so the user can see and sign the request.
  */
 async function triggerExtensionPopupIfNeeded(
-  signer: DAppSigner,
+  _signer: DAppSigner,
   logger: ILogger,
 ): Promise<void> {
   if (typeof window === 'undefined') {
@@ -62,10 +62,6 @@ async function triggerExtensionPopupIfNeeded(
     );
 
   if (isMobile) {
-    return;
-  }
-
-  if (signer.extensionId) {
     return;
   }
 
