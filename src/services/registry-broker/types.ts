@@ -483,6 +483,9 @@ export interface ChatConversationHandle {
   summary?: SessionEncryptionSummary | null;
   send: (options: EncryptedChatSendOptions) => Promise<SendMessageResponse>;
   decryptHistoryEntry: (entry: ChatHistoryEntry) => string | null;
+  fetchHistory: (
+    options?: ChatHistoryFetchOptions,
+  ) => Promise<DecryptedHistoryEntry[]>;
 }
 
 export interface EncryptedChatSessionHandle extends ChatConversationHandle {

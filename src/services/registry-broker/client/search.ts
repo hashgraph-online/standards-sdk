@@ -32,32 +32,9 @@ import {
   vectorSearchResponseSchema,
   websocketStatsResponseSchema,
 } from '../schemas';
-import { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient } from './base-client';
 import { buildSearchQuery } from './utils';
 import { RegistryBrokerError } from './errors';
-
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    search(params?: SearchParams): Promise<SearchResult>;
-    stats(): Promise<RegistryStatsResponse>;
-    registries(): Promise<RegistriesResponse>;
-    getAdditionalRegistries(): Promise<AdditionalRegistryCatalogResponse>;
-    popularSearches(): Promise<PopularSearchesResponse>;
-    listProtocols(): Promise<ProtocolsResponse>;
-    detectProtocol(
-      message: ProtocolDetectionMessage,
-    ): Promise<DetectProtocolResponse>;
-    registrySearchByNamespace(
-      registry: string,
-      query?: string,
-    ): Promise<RegistrySearchByNamespaceResponse>;
-    vectorSearch(request: VectorSearchRequest): Promise<VectorSearchResponse>;
-    searchStatus(): Promise<SearchStatusResponse>;
-    websocketStats(): Promise<WebsocketStatsResponse>;
-    metricsSummary(): Promise<MetricsSummaryResponse>;
-    facets(adapter?: string): Promise<SearchFacetsResponse>;
-  }
-}
 
 function buildVectorFallbackSearchParams(
   request: VectorSearchRequest,
@@ -124,97 +101,97 @@ function convertSearchResultToVectorResponse(
   };
 }
 
-RegistryBrokerClient.prototype.search = async function (
-  this: RegistryBrokerClient,
+export async function search(
+  client: RegistryBrokerClient,
   params: SearchParams = {},
 ): Promise<SearchResult> {
   const query = buildSearchQuery(params);
-  const raw = await this.requestJson<JsonValue>(`/search${query}`, {
+  const raw = await client.requestJson<JsonValue>(`/search${query}`, {
     method: 'GET',
   });
-  return this.parseWithSchema(raw, searchResponseSchema, 'search response');
-};
+  return client.parseWithSchema(raw, searchResponseSchema, 'search response');
+}
 
-RegistryBrokerClient.prototype.stats = async function (
-  this: RegistryBrokerClient,
+export async function stats(
+  client: RegistryBrokerClient,
 ): Promise<RegistryStatsResponse> {
-  const raw = await this.requestJson<JsonValue>('/stats', { method: 'GET' });
-  return this.parseWithSchema(raw, statsResponseSchema, 'stats response');
-};
+  const raw = await client.requestJson<JsonValue>('/stats', { method: 'GET' });
+  return client.parseWithSchema(raw, statsResponseSchema, 'stats response');
+}
 
-RegistryBrokerClient.prototype.registries = async function (
-  this: RegistryBrokerClient,
+export async function registries(
+  client: RegistryBrokerClient,
 ): Promise<RegistriesResponse> {
-  const raw = await this.requestJson<JsonValue>('/registries', {
+  const raw = await client.requestJson<JsonValue>('/registries', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     registriesResponseSchema,
     'registries response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.getAdditionalRegistries = async function (
-  this: RegistryBrokerClient,
-) {
-  const raw = await this.requestJson<JsonValue>(
+export async function getAdditionalRegistries(
+  client: RegistryBrokerClient,
+): Promise<AdditionalRegistryCatalogResponse> {
+  const raw = await client.requestJson<JsonValue>(
     '/register/additional-registries',
     {
       method: 'GET',
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     additionalRegistryCatalogResponseSchema,
     'additional registry catalog response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.popularSearches = async function (
-  this: RegistryBrokerClient,
+export async function popularSearches(
+  client: RegistryBrokerClient,
 ): Promise<PopularSearchesResponse> {
-  const raw = await this.requestJson<JsonValue>('/popular', {
+  const raw = await client.requestJson<JsonValue>('/popular', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     popularResponseSchema,
     'popular searches response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.listProtocols = async function (
-  this: RegistryBrokerClient,
+export async function listProtocols(
+  client: RegistryBrokerClient,
 ): Promise<ProtocolsResponse> {
-  const raw = await this.requestJson<JsonValue>('/protocols', {
+  const raw = await client.requestJson<JsonValue>('/protocols', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     protocolsResponseSchema,
     'protocols response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.detectProtocol = async function (
-  this: RegistryBrokerClient,
+export async function detectProtocol(
+  client: RegistryBrokerClient,
   message: ProtocolDetectionMessage,
 ): Promise<DetectProtocolResponse> {
-  const raw = await this.requestJson<JsonValue>('/detect-protocol', {
+  const raw = await client.requestJson<JsonValue>('/detect-protocol', {
     method: 'POST',
     body: { message },
     headers: { 'content-type': 'application/json' },
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     detectProtocolResponseSchema,
     'detect protocol response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.registrySearchByNamespace = async function (
-  this: RegistryBrokerClient,
+export async function registrySearchByNamespace(
+  client: RegistryBrokerClient,
   registry: string,
   query?: string,
 ): Promise<RegistrySearchByNamespaceResponse> {
@@ -223,86 +200,87 @@ RegistryBrokerClient.prototype.registrySearchByNamespace = async function (
     params.set('q', query);
   }
   const suffix = params.size > 0 ? `?${params.toString()}` : '';
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/registries/${encodeURIComponent(registry)}/search${suffix}`,
     {
       method: 'GET',
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     registrySearchByNamespaceSchema,
     'registry search response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.vectorSearch = async function (
-  this: RegistryBrokerClient,
+export async function vectorSearch(
+  client: RegistryBrokerClient,
   request: VectorSearchRequest,
 ): Promise<VectorSearchResponse> {
   try {
-    const raw = await this.requestJson<JsonValue>('/search', {
+    const raw = await client.requestJson<JsonValue>('/search', {
       method: 'POST',
       body: request,
       headers: { 'content-type': 'application/json' },
     });
-    return this.parseWithSchema(
+    return client.parseWithSchema(
       raw,
       vectorSearchResponseSchema,
       'vector search response',
     );
   } catch (error) {
     if (error instanceof RegistryBrokerError && error.status === 501) {
-      const fallback = await this.search(
+      const fallback = await search(
+        client,
         buildVectorFallbackSearchParams(request),
       );
       return convertSearchResultToVectorResponse(fallback);
     }
     throw error;
   }
-};
+}
 
-RegistryBrokerClient.prototype.searchStatus = async function (
-  this: RegistryBrokerClient,
+export async function searchStatus(
+  client: RegistryBrokerClient,
 ): Promise<SearchStatusResponse> {
-  const raw = await this.requestJson<JsonValue>('/search/status', {
+  const raw = await client.requestJson<JsonValue>('/search/status', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     searchStatusResponseSchema,
     'search status response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.websocketStats = async function (
-  this: RegistryBrokerClient,
+export async function websocketStats(
+  client: RegistryBrokerClient,
 ): Promise<WebsocketStatsResponse> {
-  const raw = await this.requestJson<JsonValue>('/websocket/stats', {
+  const raw = await client.requestJson<JsonValue>('/websocket/stats', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     websocketStatsResponseSchema,
     'websocket stats response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.metricsSummary = async function (
-  this: RegistryBrokerClient,
+export async function metricsSummary(
+  client: RegistryBrokerClient,
 ): Promise<MetricsSummaryResponse> {
-  const raw = await this.requestJson<JsonValue>('/metrics', {
+  const raw = await client.requestJson<JsonValue>('/metrics', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     metricsSummaryResponseSchema,
     'metrics summary response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.facets = async function (
-  this: RegistryBrokerClient,
+export async function facets(
+  client: RegistryBrokerClient,
   adapter?: string,
 ): Promise<SearchFacetsResponse> {
   const params = new URLSearchParams();
@@ -310,12 +288,12 @@ RegistryBrokerClient.prototype.facets = async function (
     params.set('adapter', adapter);
   }
   const suffix = params.size > 0 ? `?${params.toString()}` : '';
-  const raw = await this.requestJson<JsonValue>(`/search/facets${suffix}`, {
+  const raw = await client.requestJson<JsonValue>(`/search/facets${suffix}`, {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     searchFacetsResponseSchema,
     'search facets response',
   );
-};
+}

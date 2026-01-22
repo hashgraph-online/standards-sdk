@@ -17,24 +17,7 @@ import {
 } from '../schemas';
 import { canonicalizeLedgerNetwork } from '../ledger-network';
 import { createPrivateKeySignerAsync } from '../private-key-signer';
-import { RegistryBrokerClient } from './base-client';
-
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    createLedgerChallenge(
-      payload: LedgerChallengeRequest,
-    ): Promise<LedgerChallengeResponse>;
-    verifyLedgerChallenge(
-      payload: LedgerVerifyRequest,
-    ): Promise<LedgerVerifyResponse>;
-    authenticateWithLedger(
-      options: LedgerAuthenticationOptions,
-    ): Promise<LedgerVerifyResponse>;
-    authenticateWithLedgerCredentials(
-      options: LedgerCredentialAuthOptions,
-    ): Promise<LedgerVerifyResponse>;
-  }
-}
+import type { RegistryBrokerClient } from './base-client';
 
 async function loadViemAccount(privateKey: `0x${string}`): Promise<{
   publicKey: string;
@@ -98,8 +81,8 @@ async function resolveLedgerAuthSignature(
   };
 }
 
-RegistryBrokerClient.prototype.createLedgerChallenge = async function (
-  this: RegistryBrokerClient,
+export async function createLedgerChallenge(
+  client: RegistryBrokerClient,
   payload: LedgerChallengeRequest,
 ): Promise<LedgerChallengeResponse> {
   const resolvedNetwork = canonicalizeLedgerNetwork(payload.network);
@@ -107,7 +90,7 @@ RegistryBrokerClient.prototype.createLedgerChallenge = async function (
     resolvedNetwork.kind === 'hedera'
       ? (resolvedNetwork.hederaNetwork ?? resolvedNetwork.canonical)
       : resolvedNetwork.canonical;
-  const raw = await this.requestJson<JsonValue>('/auth/ledger/challenge', {
+  const raw = await client.requestJson<JsonValue>('/auth/ledger/challenge', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: {
@@ -116,15 +99,15 @@ RegistryBrokerClient.prototype.createLedgerChallenge = async function (
     },
   });
 
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     ledgerChallengeResponseSchema,
     'ledger challenge response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.verifyLedgerChallenge = async function (
-  this: RegistryBrokerClient,
+export async function verifyLedgerChallenge(
+  client: RegistryBrokerClient,
   payload: LedgerVerifyRequest,
 ): Promise<LedgerVerifyResponse> {
   const resolvedNetwork = canonicalizeLedgerNetwork(payload.network);
@@ -149,32 +132,32 @@ RegistryBrokerClient.prototype.verifyLedgerChallenge = async function (
     body.expiresInMinutes = payload.expiresInMinutes;
   }
 
-  const raw = await this.requestJson<JsonValue>('/auth/ledger/verify', {
+  const raw = await client.requestJson<JsonValue>('/auth/ledger/verify', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body,
   });
 
-  const result = this.parseWithSchema(
+  const result = client.parseWithSchema(
     raw,
     ledgerVerifyResponseSchema,
     'ledger verification response',
   );
 
-  this.setLedgerApiKey(result.key);
+  client.setLedgerApiKey(result.key);
   return result;
-};
+}
 
-RegistryBrokerClient.prototype.authenticateWithLedger = async function (
-  this: RegistryBrokerClient,
+export async function authenticateWithLedger(
+  client: RegistryBrokerClient,
   options: LedgerAuthenticationOptions,
 ): Promise<LedgerVerifyResponse> {
-  const challenge = await this.createLedgerChallenge({
+  const challenge = await client.createLedgerChallenge({
     accountId: options.accountId,
     network: options.network,
   });
   const signed = await resolveLedgerAuthSignature(challenge.message, options);
-  const verification = await this.verifyLedgerChallenge({
+  const verification = await client.verifyLedgerChallenge({
     challengeId: challenge.challengeId,
     accountId: options.accountId,
     network: options.network,
@@ -184,82 +167,81 @@ RegistryBrokerClient.prototype.authenticateWithLedger = async function (
     expiresInMinutes: options.expiresInMinutes,
   });
   return verification;
-};
+}
 
-RegistryBrokerClient.prototype.authenticateWithLedgerCredentials =
-  async function (
-    this: RegistryBrokerClient,
-    options: LedgerCredentialAuthOptions,
-  ): Promise<LedgerVerifyResponse> {
-    const {
-      accountId,
-      network,
-      signer,
-      sign,
-      hederaPrivateKey,
-      evmPrivateKey,
-      expiresInMinutes,
-      setAccountHeader = true,
-      label,
-      logger,
-    } = options;
+export async function authenticateWithLedgerCredentials(
+  client: RegistryBrokerClient,
+  options: LedgerCredentialAuthOptions,
+): Promise<LedgerVerifyResponse> {
+  const {
+    accountId,
+    network,
+    signer,
+    sign,
+    hederaPrivateKey,
+    evmPrivateKey,
+    expiresInMinutes,
+    setAccountHeader = true,
+    label,
+    logger,
+  } = options;
 
-    const resolvedNetwork = canonicalizeLedgerNetwork(network);
-    const labelSuffix = label ? ` for ${label}` : '';
+  const resolvedNetwork = canonicalizeLedgerNetwork(network);
+  const labelSuffix = label ? ` for ${label}` : '';
 
-    const networkPayload = resolvedNetwork.canonical;
+  const networkPayload = resolvedNetwork.canonical;
 
-    const authOptions: LedgerAuthenticationOptions = {
-      accountId,
-      network: networkPayload,
-      expiresInMinutes,
-    };
+  const authOptions: LedgerAuthenticationOptions = {
+    accountId,
+    network: networkPayload,
+    expiresInMinutes,
+  };
 
-    if (sign) {
-      authOptions.sign = sign;
-    } else if (signer) {
-      authOptions.signer = signer;
-    } else if (hederaPrivateKey) {
-      if (resolvedNetwork.kind !== 'hedera' || !resolvedNetwork.hederaNetwork) {
-        throw new Error(
-          'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
-        );
-      }
-      authOptions.signer = await createPrivateKeySignerAsync({
-        accountId,
-        privateKey: hederaPrivateKey,
-        network: resolvedNetwork.hederaNetwork,
-      });
-    } else if (evmPrivateKey) {
-      if (resolvedNetwork.kind !== 'evm') {
-        throw new Error(
-          'evmPrivateKey can only be used with CAIP-2 EVM networks (eip155:<chainId>).',
-        );
-      }
-      const formattedKey = evmPrivateKey.startsWith('0x')
-        ? (evmPrivateKey as `0x${string}`)
-        : (`0x${evmPrivateKey}` as `0x${string}`);
-      const account = await loadViemAccount(formattedKey);
-      authOptions.sign = async message => ({
-        signature: await account.signMessage({ message }),
-        signatureKind: 'evm',
-        publicKey: account.publicKey,
-      });
-    } else {
+  if (sign) {
+    authOptions.sign = sign;
+  } else if (signer) {
+    authOptions.signer = signer;
+  } else if (hederaPrivateKey) {
+    if (resolvedNetwork.kind !== 'hedera' || !resolvedNetwork.hederaNetwork) {
       throw new Error(
-        'Provide a signer, sign function, hederaPrivateKey, or evmPrivateKey to authenticate with the ledger.',
+        'hederaPrivateKey can only be used with hedera:mainnet or hedera:testnet networks.',
       );
     }
-
-    logger?.info?.(
-      `Authenticating ledger account ${accountId} (${resolvedNetwork.canonical})${labelSuffix}...`,
-    );
-    const verification = await this.authenticateWithLedger(authOptions);
-    if (setAccountHeader) {
-      this.setDefaultHeader('x-account-id', verification.accountId);
+    authOptions.signer = await createPrivateKeySignerAsync({
+      accountId,
+      privateKey: hederaPrivateKey,
+      network: resolvedNetwork.hederaNetwork,
+    });
+  } else if (evmPrivateKey) {
+    if (resolvedNetwork.kind !== 'evm') {
+      throw new Error(
+        'evmPrivateKey can only be used with CAIP-2 EVM networks (eip155:<chainId>).',
+      );
     }
-    logger?.info?.(
-      `Ledger authentication complete${labelSuffix}. Issued key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
+    const formattedKey = evmPrivateKey.startsWith('0x')
+      ? (evmPrivateKey as `0x${string}`)
+      : (`0x${evmPrivateKey}` as `0x${string}`);
+    const account = await loadViemAccount(formattedKey);
+    authOptions.sign = async message => ({
+      signature: await account.signMessage({ message }),
+      signatureKind: 'evm',
+      publicKey: account.publicKey,
+    });
+  } else {
+    throw new Error(
+      'Provide a signer, sign function, hederaPrivateKey, or evmPrivateKey to authenticate with the ledger.',
     );
-    return verification;
-  };
+  }
+
+  logger?.info?.(
+    `Authenticating ledger account ${accountId} (${resolvedNetwork.canonical})${labelSuffix}...`,
+  );
+  const verification = await client.authenticateWithLedger(authOptions);
+  if (setAccountHeader) {
+    client.setDefaultHeader('x-account-id', verification.accountId);
+  }
+  logger?.info?.(
+    `Ledger authentication complete${labelSuffix}. Issued key prefix: ${verification.apiKey.prefix}…${verification.apiKey.lastFour}`,
+  );
+  return verification;
+}

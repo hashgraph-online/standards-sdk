@@ -368,6 +368,70 @@ describe('RegistryBrokerClient', () => {
     fetchImplementation = jest.fn();
   });
 
+  it('exposes the full RegistryBrokerClient surface', () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const requiredClientMethods = [
+      'search',
+      'stats',
+      'registries',
+      'popularSearches',
+      'listProtocols',
+      'detectProtocol',
+      'vectorSearch',
+      'facets',
+      'resolveUaid',
+      'registerAgent',
+      'updateAgent',
+      'validateUaid',
+      'dashboardStats',
+      'adapters',
+      'adaptersDetailed',
+      'adapterRegistryCategories',
+      'adapterRegistryAdapters',
+      'purchaseCreditsWithHbar',
+      'getX402Minimums',
+      'buyCreditsWithX402',
+      'generateEncryptionKeyPair',
+      'createLedgerChallenge',
+      'verifyLedgerChallenge',
+      'authenticateWithLedger',
+      'fetchHistorySnapshot',
+      'attachDecryptedHistory',
+    ] as const;
+
+    const missingClientMethods = requiredClientMethods.filter(
+      methodName => typeof (client as any)[methodName] !== 'function',
+    );
+    expect(missingClientMethods).toEqual([]);
+
+    expect(typeof client.chat).toBe('object');
+    const requiredChatMethods = [
+      'start',
+      'createSession',
+      'sendMessage',
+      'getHistory',
+    ] as const;
+    const missingChatMethods = requiredChatMethods.filter(
+      methodName => typeof (client.chat as any)[methodName] !== 'function',
+    );
+    expect(missingChatMethods).toEqual([]);
+
+    expect(typeof client.encryption).toBe('object');
+    const requiredEncryptionMethods = [
+      'registerKey',
+      'ensureAgentKey',
+    ] as const;
+    const missingEncryptionMethods = requiredEncryptionMethods.filter(
+      methodName =>
+        typeof (client.encryption as any)[methodName] !== 'function',
+    );
+    expect(missingEncryptionMethods).toEqual([]);
+  });
+
   it('normalises base URL and appends version suffix', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({

@@ -3,6 +3,7 @@ import type {
   AcceptEncryptedChatSessionOptions,
   AgentAuthConfig,
   ChatConversationHandle,
+  DecryptedHistoryEntry,
   ChatHistoryCompactionResponse,
   ChatHistoryFetchOptions,
   ChatHistorySnapshotWithDecryptedEntries,
@@ -29,141 +30,84 @@ import {
   sendMessageResponseSchema,
   sessionEncryptionStatusResponseSchema,
 } from '../schemas';
-import { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient } from './base-client';
 import { serialiseAuthConfig, toJsonObject } from './utils';
 import {
   EncryptedChatManager,
   EncryptionUnavailableError,
 } from './encrypted-chat-manager';
-const encryptedManagers = new WeakMap<
-  RegistryBrokerClient,
-  EncryptedChatManager
->();
-const chatApis = new WeakMap<
-  RegistryBrokerClient,
-  RegistryBrokerClient['chat']
->();
-function getEncryptedChatManager(
-  client: RegistryBrokerClient,
-): EncryptedChatManager {
-  const existing = encryptedManagers.get(client);
-  if (existing) {
-    return existing;
-  }
-  const created = new EncryptedChatManager(client);
-  encryptedManagers.set(client, created);
-  return created;
+
+export interface RegistryBrokerChatApi {
+  start: (options: StartChatOptions) => Promise<ChatConversationHandle>;
+  createSession: (
+    payload: CreateSessionRequestPayload,
+  ) => Promise<CreateSessionResponse>;
+  sendMessage: (
+    payload: SendMessageRequestPayload,
+  ) => Promise<SendMessageResponse>;
+  endSession: (sessionId: string) => Promise<void>;
+  getHistory: (
+    sessionId: string,
+    options?: ChatHistoryFetchOptions,
+  ) => Promise<ChatHistorySnapshotWithDecryptedEntries>;
+  compactHistory: (
+    payload: CompactHistoryRequestPayload,
+  ) => Promise<ChatHistoryCompactionResponse>;
+  getEncryptionStatus: (
+    sessionId: string,
+  ) => Promise<SessionEncryptionStatusResponse>;
+  submitEncryptionHandshake: (
+    sessionId: string,
+    payload: EncryptionHandshakeSubmissionPayload,
+  ) => Promise<EncryptionHandshakeRecord>;
+  createEncryptedSession: (
+    options: StartEncryptedChatSessionOptions,
+  ) => Promise<EncryptedChatSessionHandle>;
+  acceptEncryptedSession: (
+    options: AcceptEncryptedChatSessionOptions,
+  ) => Promise<EncryptedChatSessionHandle>;
+  startConversation: (
+    options: StartConversationOptions,
+  ) => Promise<ChatConversationHandle>;
+  acceptConversation: (
+    options: AcceptConversationOptions,
+  ) => Promise<ChatConversationHandle>;
 }
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    readonly chat: {
-      start: (options: StartChatOptions) => Promise<ChatConversationHandle>;
-      createSession: (
-        payload: CreateSessionRequestPayload,
-      ) => Promise<CreateSessionResponse>;
-      sendMessage: (
-        payload: SendMessageRequestPayload,
-      ) => Promise<SendMessageResponse>;
-      endSession: (sessionId: string) => Promise<void>;
-      getHistory: (
-        sessionId: string,
-        options?: ChatHistoryFetchOptions,
-      ) => Promise<ChatHistorySnapshotWithDecryptedEntries>;
-      compactHistory: (
-        payload: CompactHistoryRequestPayload,
-      ) => Promise<ChatHistoryCompactionResponse>;
-      getEncryptionStatus: (
-        sessionId: string,
-      ) => Promise<SessionEncryptionStatusResponse>;
-      submitEncryptionHandshake: (
-        sessionId: string,
-        payload: EncryptionHandshakeSubmissionPayload,
-      ) => Promise<EncryptionHandshakeRecord>;
-      createEncryptedSession?: (
-        options: StartEncryptedChatSessionOptions,
-      ) => Promise<EncryptedChatSessionHandle>;
-      acceptEncryptedSession?: (
-        options: AcceptEncryptedChatSessionOptions,
-      ) => Promise<EncryptedChatSessionHandle>;
-      startConversation: (
-        options: StartConversationOptions,
-      ) => Promise<ChatConversationHandle>;
-      acceptConversation: (
-        options: AcceptConversationOptions,
-      ) => Promise<ChatConversationHandle>;
-    };
-    createSession(
-      payload: CreateSessionRequestPayload,
-      allowHistoryAutoTopUp?: boolean,
-    ): Promise<CreateSessionResponse>;
-    startChat(options: StartChatOptions): Promise<ChatConversationHandle>;
-    startConversation(
-      options: StartConversationOptions,
-    ): Promise<ChatConversationHandle>;
-    acceptConversation(
-      options: AcceptConversationOptions,
-    ): Promise<ChatConversationHandle>;
-    compactHistory(
-      payload: CompactHistoryRequestPayload,
-    ): Promise<ChatHistoryCompactionResponse>;
-    fetchEncryptionStatus(
-      sessionId: string,
-    ): Promise<SessionEncryptionStatusResponse>;
-    postEncryptionHandshake(
+
+export function createChatApi(
+  client: RegistryBrokerClient,
+  encryptedManager: EncryptedChatManager,
+): RegistryBrokerChatApi {
+  return {
+    start: (options: StartChatOptions) => client.startChat(options),
+    createSession: (payload: CreateSessionRequestPayload) =>
+      client.createSession(payload),
+    sendMessage: (payload: SendMessageRequestPayload) =>
+      client.sendMessage(payload),
+    endSession: (sessionId: string) => client.endSession(sessionId),
+    getHistory: (sessionId: string, options?: ChatHistoryFetchOptions) =>
+      client.fetchHistorySnapshot(sessionId, options),
+    compactHistory: (payload: CompactHistoryRequestPayload) =>
+      client.compactHistory(payload),
+    getEncryptionStatus: (sessionId: string) =>
+      client.fetchEncryptionStatus(sessionId),
+    submitEncryptionHandshake: (
       sessionId: string,
       payload: EncryptionHandshakeSubmissionPayload,
-    ): Promise<EncryptionHandshakeRecord>;
-    sendMessage(
-      payload: SendMessageRequestPayload,
-    ): Promise<SendMessageResponse>;
-    endSession(sessionId: string): Promise<void>;
-    createPlaintextConversationHandle(
-      sessionId: string,
-      summary: SessionEncryptionSummary | null,
-      defaultAuth?: AgentAuthConfig,
-      context?: { uaid?: string; agentUrl?: string },
-    ): ChatConversationHandle;
-  }
+    ) => client.postEncryptionHandshake(sessionId, payload),
+    startConversation: (options: StartConversationOptions) =>
+      client.startConversation(options),
+    acceptConversation: (options: AcceptConversationOptions) =>
+      client.acceptConversation(options),
+    createEncryptedSession: (options: StartEncryptedChatSessionOptions) =>
+      encryptedManager.startSession(options),
+    acceptEncryptedSession: (options: AcceptEncryptedChatSessionOptions) =>
+      encryptedManager.acceptSession(options),
+  };
 }
-Object.defineProperty(RegistryBrokerClient.prototype, 'chat', {
-  get(this: RegistryBrokerClient) {
-    const existing = chatApis.get(this);
-    if (existing) {
-      return existing;
-    }
-    const encryptedManager = getEncryptedChatManager(this);
-    const api = {
-      start: (options: StartChatOptions) => this.startChat(options),
-      createSession: (payload: CreateSessionRequestPayload) =>
-        this.createSession(payload),
-      sendMessage: (payload: SendMessageRequestPayload) =>
-        this.sendMessage(payload),
-      endSession: (sessionId: string) => this.endSession(sessionId),
-      getHistory: (sessionId: string, options?: ChatHistoryFetchOptions) =>
-        this.fetchHistorySnapshot(sessionId, options),
-      compactHistory: (payload: CompactHistoryRequestPayload) =>
-        this.compactHistory(payload),
-      getEncryptionStatus: (sessionId: string) =>
-        this.fetchEncryptionStatus(sessionId),
-      submitEncryptionHandshake: (
-        sessionId: string,
-        payload: EncryptionHandshakeSubmissionPayload,
-      ) => this.postEncryptionHandshake(sessionId, payload),
-      startConversation: (options: StartConversationOptions) =>
-        this.startConversation(options),
-      acceptConversation: (options: AcceptConversationOptions) =>
-        this.acceptConversation(options),
-      createEncryptedSession: (options: StartEncryptedChatSessionOptions) =>
-        encryptedManager.startSession(options),
-      acceptEncryptedSession: (options: AcceptEncryptedChatSessionOptions) =>
-        encryptedManager.acceptSession(options),
-    };
-    chatApis.set(this, api);
-    return api;
-  },
-});
-RegistryBrokerClient.prototype.createSession = async function (
-  this: RegistryBrokerClient,
+
+export async function createSession(
+  client: RegistryBrokerClient,
   payload: CreateSessionRequestPayload,
   allowHistoryAutoTopUp = true,
 ): Promise<CreateSessionResponse> {
@@ -187,12 +131,12 @@ RegistryBrokerClient.prototype.createSession = async function (
     body.senderUaid = payload.senderUaid;
   }
   try {
-    const raw = await this.requestJson<JsonValue>('/chat/session', {
+    const raw = await client.requestJson<JsonValue>('/chat/session', {
       method: 'POST',
       body,
       headers: { 'content-type': 'application/json' },
     });
-    return this.parseWithSchema(
+    return client.parseWithSchema(
       raw,
       createSessionResponseSchema,
       'chat session response',
@@ -201,20 +145,22 @@ RegistryBrokerClient.prototype.createSession = async function (
     const maybeError = error instanceof Error ? error : null;
     if (
       allowHistoryAutoTopUp &&
-      this.shouldAutoTopUpHistory(payload, maybeError)
+      client.shouldAutoTopUpHistory(payload, maybeError)
     ) {
-      await this.executeHistoryAutoTopUp('chat.session');
-      return this.createSession(payload, false);
+      await client.executeHistoryAutoTopUp('chat.session');
+      return createSession(client, payload, false);
     }
     throw error;
   }
-};
-RegistryBrokerClient.prototype.startChat = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function startChat(
+  client: RegistryBrokerClient,
+  encryptedManager: EncryptedChatManager,
   options: StartChatOptions,
 ): Promise<ChatConversationHandle> {
   if ('uaid' in options && options.uaid) {
-    return this.startConversation({
+    return startConversation(client, encryptedManager, {
       uaid: options.uaid,
       senderUaid: options.senderUaid,
       historyTtlSeconds: options.historyTtlSeconds,
@@ -224,14 +170,15 @@ RegistryBrokerClient.prototype.startChat = async function (
     });
   }
   if ('agentUrl' in options && options.agentUrl) {
-    const session = await this.createSession({
+    const session = await createSession(client, {
       agentUrl: options.agentUrl,
       auth: options.auth,
       historyTtlSeconds: options.historyTtlSeconds,
       senderUaid: options.senderUaid,
     });
     options.onSessionCreated?.(session.sessionId);
-    return this.createPlaintextConversationHandle(
+    return createPlaintextConversationHandle(
+      client,
       session.sessionId,
       session.encryption ?? null,
       options.auth,
@@ -239,15 +186,17 @@ RegistryBrokerClient.prototype.startChat = async function (
     );
   }
   throw new Error('startChat requires either uaid or agentUrl');
-};
-RegistryBrokerClient.prototype.startConversation = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function startConversation(
+  client: RegistryBrokerClient,
+  encryptedManager: EncryptedChatManager,
   options: StartConversationOptions,
 ): Promise<ChatConversationHandle> {
   const preference = options.encryption?.preference ?? 'preferred';
   const requestEncryption = preference !== 'disabled';
   if (!requestEncryption) {
-    const session = await this.createSession({
+    const session = await createSession(client, {
       uaid: options.uaid,
       auth: options.auth,
       historyTtlSeconds: options.historyTtlSeconds,
@@ -255,7 +204,8 @@ RegistryBrokerClient.prototype.startConversation = async function (
       encryptionRequested: false,
     });
     options.onSessionCreated?.(session.sessionId);
-    return this.createPlaintextConversationHandle(
+    return createPlaintextConversationHandle(
+      client,
       session.sessionId,
       session.encryption ?? null,
       options.auth,
@@ -263,7 +213,6 @@ RegistryBrokerClient.prototype.startConversation = async function (
     );
   }
   try {
-    const encryptedManager = getEncryptedChatManager(this);
     const handle = await encryptedManager.startSession({
       uaid: options.uaid,
       senderUaid: options.senderUaid,
@@ -281,7 +230,8 @@ RegistryBrokerClient.prototype.startConversation = async function (
       if (preference === 'required') {
         throw error;
       }
-      return this.createPlaintextConversationHandle(
+      return createPlaintextConversationHandle(
+        client,
         error.sessionId,
         error.summary ?? null,
         options.auth,
@@ -290,17 +240,18 @@ RegistryBrokerClient.prototype.startConversation = async function (
     }
     throw error;
   }
-};
-RegistryBrokerClient.prototype.acceptConversation = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function acceptConversation(
+  client: RegistryBrokerClient,
+  encryptedManager: EncryptedChatManager,
   options: AcceptConversationOptions,
 ): Promise<ChatConversationHandle> {
   const preference = options.encryption?.preference ?? 'preferred';
   if (preference === 'disabled') {
-    return this.createPlaintextConversationHandle(options.sessionId, null);
+    return createPlaintextConversationHandle(client, options.sessionId, null);
   }
   try {
-    const encryptedManager = getEncryptedChatManager(this);
     const handle = await encryptedManager.acceptSession({
       sessionId: options.sessionId,
       responderUaid: options.responderUaid,
@@ -313,7 +264,8 @@ RegistryBrokerClient.prototype.acceptConversation = async function (
       error instanceof EncryptionUnavailableError &&
       preference !== 'required'
     ) {
-      return this.createPlaintextConversationHandle(
+      return createPlaintextConversationHandle(
+        client,
         options.sessionId,
         null,
         undefined,
@@ -322,9 +274,10 @@ RegistryBrokerClient.prototype.acceptConversation = async function (
     }
     throw error;
   }
-};
-RegistryBrokerClient.prototype.createPlaintextConversationHandle = function (
-  this: RegistryBrokerClient,
+}
+
+export function createPlaintextConversationHandle(
+  client: RegistryBrokerClient,
   sessionId: string,
   summary: SessionEncryptionSummary | null,
   defaultAuth?: AgentAuthConfig,
@@ -332,6 +285,18 @@ RegistryBrokerClient.prototype.createPlaintextConversationHandle = function (
 ): ChatConversationHandle {
   const uaid = context?.uaid?.trim();
   const agentUrl = context?.agentUrl?.trim();
+  const fetchHistory = async (
+    options?: ChatHistoryFetchOptions,
+  ): Promise<DecryptedHistoryEntry[]> => {
+    const snapshot = await client.fetchHistorySnapshot(sessionId, options);
+    if (snapshot.decryptedHistory) {
+      return snapshot.decryptedHistory;
+    }
+    return snapshot.history.map(entry => ({
+      entry,
+      plaintext: entry.content,
+    }));
+  };
   return {
     sessionId,
     mode: 'plaintext',
@@ -342,7 +307,7 @@ RegistryBrokerClient.prototype.createPlaintextConversationHandle = function (
         throw new Error('plaintext is required for chat messages');
       }
       const message = options.message ?? plaintext;
-      return this.sendMessage({
+      return sendMessage(client, {
         sessionId,
         message,
         streaming: options.streaming,
@@ -352,10 +317,12 @@ RegistryBrokerClient.prototype.createPlaintextConversationHandle = function (
       });
     },
     decryptHistoryEntry: entry => entry.content,
+    fetchHistory,
   };
-};
-RegistryBrokerClient.prototype.compactHistory = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function compactHistory(
+  client: RegistryBrokerClient,
   payload: CompactHistoryRequestPayload,
 ): Promise<ChatHistoryCompactionResponse> {
   if (!payload.sessionId || payload.sessionId.trim().length === 0) {
@@ -369,7 +336,7 @@ RegistryBrokerClient.prototype.compactHistory = async function (
   ) {
     body.preserveEntries = Math.floor(payload.preserveEntries);
   }
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/chat/session/${encodeURIComponent(payload.sessionId)}/compact`,
     {
       method: 'POST',
@@ -377,40 +344,42 @@ RegistryBrokerClient.prototype.compactHistory = async function (
       body,
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     chatHistoryCompactionResponseSchema,
     'chat history compaction response',
   );
-};
-RegistryBrokerClient.prototype.fetchEncryptionStatus = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function fetchEncryptionStatus(
+  client: RegistryBrokerClient,
   sessionId: string,
 ): Promise<SessionEncryptionStatusResponse> {
   if (!sessionId || sessionId.trim().length === 0) {
     throw new Error('sessionId is required for encryption status');
   }
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/chat/session/${encodeURIComponent(sessionId)}/encryption`,
     {
       method: 'GET',
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     sessionEncryptionStatusResponseSchema,
     'session encryption status response',
   );
-};
-RegistryBrokerClient.prototype.postEncryptionHandshake = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function postEncryptionHandshake(
+  client: RegistryBrokerClient,
   sessionId: string,
   payload: EncryptionHandshakeSubmissionPayload,
 ): Promise<EncryptionHandshakeRecord> {
   if (!sessionId || sessionId.trim().length === 0) {
     throw new Error('sessionId is required for encryption handshake');
   }
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/chat/session/${encodeURIComponent(sessionId)}/encryption-handshake`,
     {
       method: 'POST',
@@ -428,15 +397,16 @@ RegistryBrokerClient.prototype.postEncryptionHandshake = async function (
       },
     },
   );
-  const response = this.parseWithSchema(
+  const response = client.parseWithSchema(
     raw,
     encryptionHandshakeResponseSchema,
     'encryption handshake response',
   );
   return response.handshake;
-};
-RegistryBrokerClient.prototype.sendMessage = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function sendMessage(
+  client: RegistryBrokerClient,
   payload: SendMessageRequestPayload,
 ): Promise<SendMessageResponse> {
   const body: JsonObject = {
@@ -470,7 +440,7 @@ RegistryBrokerClient.prototype.sendMessage = async function (
     if (!payload.encryption.recipients?.length) {
       throw new Error('recipients are required for encrypted chat payloads');
     }
-    cipherEnvelope = this.encryption.encryptCipherEnvelope({
+    cipherEnvelope = client.encryption.encryptCipherEnvelope({
       ...payload.encryption,
       sessionId: sessionIdForEncryption,
     });
@@ -478,22 +448,23 @@ RegistryBrokerClient.prototype.sendMessage = async function (
   if (cipherEnvelope) {
     body.cipherEnvelope = toJsonObject(cipherEnvelope);
   }
-  const raw = await this.requestJson<JsonValue>('/chat/message', {
+  const raw = await client.requestJson<JsonValue>('/chat/message', {
     method: 'POST',
     body,
     headers: { 'content-type': 'application/json' },
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     sendMessageResponseSchema,
     'chat message response',
   );
-};
-RegistryBrokerClient.prototype.endSession = async function (
-  this: RegistryBrokerClient,
+}
+
+export async function endSession(
+  client: RegistryBrokerClient,
   sessionId: string,
 ): Promise<void> {
-  await this.request(`/chat/session/${encodeURIComponent(sessionId)}`, {
+  await client.request(`/chat/session/${encodeURIComponent(sessionId)}`, {
     method: 'DELETE',
   });
-};
+}

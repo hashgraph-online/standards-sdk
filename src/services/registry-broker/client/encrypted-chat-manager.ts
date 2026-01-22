@@ -1,7 +1,9 @@
 import type {
   AcceptEncryptedChatSessionOptions,
   ChatHistoryEntry,
+  ChatHistoryFetchOptions,
   CipherEnvelopeRecipient,
+  DecryptedHistoryEntry,
   EncryptedChatSessionHandle,
   EncryptionHandshakeRecord,
   RecipientIdentity,
@@ -9,7 +11,7 @@ import type {
   SharedSecretInput,
   StartEncryptedChatSessionOptions,
 } from '../types';
-import { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient } from './base-client';
 
 interface EncryptedSessionContext {
   sessionId: string;
@@ -23,14 +25,6 @@ interface ConversationContextInput {
   sessionId: string;
   sharedSecret: Uint8Array | Buffer;
   identity?: RecipientIdentity;
-}
-
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    registerConversationContextForEncryption(
-      context: ConversationContextInput,
-    ): void;
-  }
 }
 
 export class EncryptionUnavailableError extends Error {
@@ -262,6 +256,23 @@ export class EncryptedChatManager {
       context.summary.requester?.uaid ??
       context.summary.responder?.uaid ??
       context.identity?.uaid;
+    const decryptHistoryEntry = (entry: ChatHistoryEntry): string | null =>
+      this.decryptEntry(entry, context.identity, sharedSecret);
+    const fetchHistory = async (
+      options?: ChatHistoryFetchOptions,
+    ): Promise<DecryptedHistoryEntry[]> => {
+      const snapshot = await this.client.fetchHistorySnapshot(
+        context.sessionId,
+        options,
+      );
+      if (snapshot.decryptedHistory) {
+        return snapshot.decryptedHistory;
+      }
+      return snapshot.history.map(entry => ({
+        entry,
+        plaintext: decryptHistoryEntry(entry),
+      }));
+    };
     const handle: EncryptedChatSessionHandle = {
       sessionId: context.sessionId,
       mode: 'encrypted',
@@ -281,8 +292,8 @@ export class EncryptedChatManager {
           },
         });
       },
-      decryptHistoryEntry: entry =>
-        this.decryptEntry(entry, context.identity, sharedSecret),
+      decryptHistoryEntry,
+      fetchHistory,
     };
     this.registerConversationContext({
       sessionId: context.sessionId,

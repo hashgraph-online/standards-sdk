@@ -8,35 +8,18 @@ import type {
   RecipientIdentity,
 } from '../types';
 import { chatHistorySnapshotResponseSchema } from '../schemas';
-import { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient } from './base-client';
 
-interface ConversationContextInput {
+export interface ConversationContextInput {
   sessionId: string;
   sharedSecret: Uint8Array | Buffer;
   identity?: RecipientIdentity;
 }
 
-interface ConversationContextState {
+export interface ConversationContextState {
   sessionId: string;
   sharedSecret: Buffer;
   identity?: RecipientIdentity;
-}
-
-const conversationContexts = new WeakMap<
-  RegistryBrokerClient,
-  Map<string, ConversationContextState[]>
->();
-
-function getConversationContextMap(
-  client: RegistryBrokerClient,
-): Map<string, ConversationContextState[]> {
-  const existing = conversationContexts.get(client);
-  if (existing) {
-    return existing;
-  }
-  const created = new Map<string, ConversationContextState[]>();
-  conversationContexts.set(client, created);
-  return created;
 }
 
 function identitiesMatch(
@@ -68,56 +51,38 @@ function identitiesMatch(
   return false;
 }
 
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    fetchHistorySnapshot(
-      sessionId: string,
-      options?: ChatHistoryFetchOptions,
-    ): Promise<ChatHistorySnapshotWithDecryptedEntries>;
-    attachDecryptedHistory(
-      sessionId: string,
-      snapshot: ChatHistorySnapshotResponse,
-      options?: ChatHistoryFetchOptions,
-    ): ChatHistorySnapshotWithDecryptedEntries;
-    registerConversationContextForEncryption(
-      context: ConversationContextInput,
-    ): void;
-    resolveDecryptionContext(
-      sessionId: string,
-      options?: ChatHistoryFetchOptions,
-    ): ConversationContextState | null;
-    decryptHistoryEntryFromContext(
-      sessionId: string,
-      entry: ChatHistoryEntry,
-      context: ConversationContextState,
-    ): string | null;
-  }
-}
-
-RegistryBrokerClient.prototype.fetchHistorySnapshot = async function (
-  this: RegistryBrokerClient,
+export async function fetchHistorySnapshot(
+  conversationContexts: Map<string, ConversationContextState[]>,
+  client: RegistryBrokerClient,
   sessionId: string,
   options?: ChatHistoryFetchOptions,
 ): Promise<ChatHistorySnapshotWithDecryptedEntries> {
   if (!sessionId || sessionId.trim().length === 0) {
     throw new Error('sessionId is required to fetch chat history');
   }
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/chat/session/${encodeURIComponent(sessionId)}/history`,
     {
       method: 'GET',
     },
   );
-  const snapshot = this.parseWithSchema(
+  const snapshot = client.parseWithSchema(
     raw,
     chatHistorySnapshotResponseSchema,
     'chat history snapshot response',
   );
-  return this.attachDecryptedHistory(sessionId, snapshot, options);
-};
+  return attachDecryptedHistory(
+    conversationContexts,
+    client,
+    sessionId,
+    snapshot,
+    options,
+  );
+}
 
-RegistryBrokerClient.prototype.attachDecryptedHistory = function (
-  this: RegistryBrokerClient,
+export function attachDecryptedHistory(
+  conversationContexts: Map<string, ConversationContextState[]>,
+  client: RegistryBrokerClient,
   sessionId: string,
   snapshot: ChatHistorySnapshotResponse,
   options?: ChatHistoryFetchOptions,
@@ -125,11 +90,28 @@ RegistryBrokerClient.prototype.attachDecryptedHistory = function (
   const shouldDecrypt =
     options?.decrypt !== undefined
       ? options.decrypt
-      : this.encryptionOptions?.autoDecryptHistory === true;
+      : client.encryptionOptions?.autoDecryptHistory === true;
   if (!shouldDecrypt) {
     return snapshot;
   }
-  const context = this.resolveDecryptionContext(sessionId, options);
+  const requiresContext = snapshot.history.some(entry =>
+    Boolean(entry.cipherEnvelope),
+  );
+  if (!requiresContext) {
+    return {
+      ...snapshot,
+      decryptedHistory: snapshot.history.map(entry => ({
+        entry,
+        plaintext: entry.content,
+      })),
+    };
+  }
+  const context = resolveDecryptionContext(
+    conversationContexts,
+    client,
+    sessionId,
+    options,
+  );
   if (!context) {
     throw new Error(
       'Unable to decrypt chat history: encryption context unavailable',
@@ -137,48 +119,46 @@ RegistryBrokerClient.prototype.attachDecryptedHistory = function (
   }
   const decryptedHistory = snapshot.history.map(entry => ({
     entry,
-    plaintext: this.decryptHistoryEntryFromContext(sessionId, entry, context),
+    plaintext: decryptHistoryEntryFromContext(client, entry, context),
   }));
   return { ...snapshot, decryptedHistory };
-};
+}
 
-RegistryBrokerClient.prototype.registerConversationContextForEncryption =
-  function (
-    this: RegistryBrokerClient,
-    context: ConversationContextInput,
-  ): void {
-    const normalized: ConversationContextState = {
-      sessionId: context.sessionId,
-      sharedSecret: Buffer.from(context.sharedSecret),
-      identity: context.identity ? { ...context.identity } : undefined,
-    };
-    const map = getConversationContextMap(this);
-    const entries = map.get(context.sessionId) ?? [];
-    const existingIndex = entries.findIndex(existing =>
-      identitiesMatch(existing.identity, normalized.identity),
-    );
-    if (existingIndex >= 0) {
-      entries[existingIndex] = normalized;
-    } else {
-      entries.push(normalized);
-    }
-    map.set(context.sessionId, entries);
+export function registerConversationContextForEncryption(
+  conversationContexts: Map<string, ConversationContextState[]>,
+  context: ConversationContextInput,
+): void {
+  const normalized: ConversationContextState = {
+    sessionId: context.sessionId,
+    sharedSecret: Buffer.from(context.sharedSecret),
+    identity: context.identity ? { ...context.identity } : undefined,
   };
+  const entries = conversationContexts.get(context.sessionId) ?? [];
+  const existingIndex = entries.findIndex(existing =>
+    identitiesMatch(existing.identity, normalized.identity),
+  );
+  if (existingIndex >= 0) {
+    entries[existingIndex] = normalized;
+  } else {
+    entries.push(normalized);
+  }
+  conversationContexts.set(context.sessionId, entries);
+}
 
-RegistryBrokerClient.prototype.resolveDecryptionContext = function (
-  this: RegistryBrokerClient,
+export function resolveDecryptionContext(
+  conversationContexts: Map<string, ConversationContextState[]>,
+  client: RegistryBrokerClient,
   sessionId: string,
   options?: ChatHistoryFetchOptions,
 ): ConversationContextState | null {
   if (options?.sharedSecret) {
     return {
       sessionId,
-      sharedSecret: this.normalizeSharedSecret(options.sharedSecret),
+      sharedSecret: client.normalizeSharedSecret(options.sharedSecret),
       identity: options.identity,
     };
   }
-  const map = getConversationContextMap(this);
-  const contexts = map.get(sessionId);
+  const contexts = conversationContexts.get(sessionId);
   if (!contexts || contexts.length === 0) {
     return null;
   }
@@ -191,11 +171,10 @@ RegistryBrokerClient.prototype.resolveDecryptionContext = function (
     }
   }
   return contexts[0];
-};
+}
 
-RegistryBrokerClient.prototype.decryptHistoryEntryFromContext = function (
-  this: RegistryBrokerClient,
-  sessionId: string,
+export function decryptHistoryEntryFromContext(
+  client: RegistryBrokerClient,
   entry: ChatHistoryEntry,
   context: ConversationContextState,
 ): string | null {
@@ -205,11 +184,11 @@ RegistryBrokerClient.prototype.decryptHistoryEntryFromContext = function (
   }
   const secret = Buffer.from(context.sharedSecret);
   try {
-    return this.encryption.decryptCipherEnvelope({
+    return client.encryption.decryptCipherEnvelope({
       envelope,
       sharedSecret: secret,
     });
   } catch (_error) {
     return null;
   }
-};
+}
