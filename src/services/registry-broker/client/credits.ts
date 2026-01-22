@@ -10,7 +10,7 @@ import {
   x402CreditPurchaseResponseSchema,
   x402MinimumsResponseSchema,
 } from '../schemas';
-import { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient } from './base-client';
 import { normalizeHexPrivateKey, type X402NetworkId } from './utils';
 import { optionalImport } from '../../../utils/dynamic-import';
 
@@ -22,7 +22,7 @@ type PaymentClient = {
   ) => Promise<{ data: JsonValue; headers?: PaymentHeaders }>;
 };
 
-interface PurchaseCreditsWithX402Params {
+export interface PurchaseCreditsWithX402Params {
   accountId: string;
   credits: number;
   usdAmount?: number;
@@ -31,7 +31,7 @@ interface PurchaseCreditsWithX402Params {
   walletClient: object;
 }
 
-interface BuyCreditsWithX402Params {
+export interface BuyCreditsWithX402Params {
   accountId: string;
   credits: number;
   usdAmount?: number;
@@ -42,7 +42,7 @@ interface BuyCreditsWithX402Params {
   rpcUrl?: string;
 }
 
-type X402PurchaseResult = X402CreditPurchaseResponse & {
+export type X402PurchaseResult = X402CreditPurchaseResponse & {
   paymentResponseHeader?: string;
   paymentResponse?: unknown;
 };
@@ -109,27 +109,8 @@ function calculateHbarAmountParam(hbarAmount: number): number {
   return tinybars / 1e8;
 }
 
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    purchaseCreditsWithHbar(params: {
-      accountId: string;
-      privateKey: string;
-      hbarAmount: number;
-      memo?: string;
-      metadata?: JsonObject;
-    }): Promise<CreditPurchaseResponse>;
-    getX402Minimums(): Promise<X402MinimumsResponse>;
-    purchaseCreditsWithX402(
-      params: PurchaseCreditsWithX402Params,
-    ): Promise<X402PurchaseResult>;
-    buyCreditsWithX402(
-      params: BuyCreditsWithX402Params,
-    ): Promise<X402PurchaseResult>;
-  }
-}
-
-RegistryBrokerClient.prototype.purchaseCreditsWithHbar = async function (
-  this: RegistryBrokerClient,
+export async function purchaseCreditsWithHbar(
+  client: RegistryBrokerClient,
   params: {
     accountId: string;
     privateKey: string;
@@ -152,39 +133,39 @@ RegistryBrokerClient.prototype.purchaseCreditsWithHbar = async function (
     body.metadata = params.metadata;
   }
 
-  const raw = await this.requestJson<JsonValue>('/credits/purchase', {
+  const raw = await client.requestJson<JsonValue>('/credits/purchase', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body,
   });
 
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     creditPurchaseResponseSchema,
     'credit purchase response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.getX402Minimums = async function (
-  this: RegistryBrokerClient,
+export async function getX402Minimums(
+  client: RegistryBrokerClient,
 ): Promise<X402MinimumsResponse> {
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     '/credits/purchase/x402/minimums',
     { method: 'GET' },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     x402MinimumsResponseSchema,
     'x402 minimums response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.purchaseCreditsWithX402 = async function (
-  this: RegistryBrokerClient,
+export async function purchaseCreditsWithX402(
+  client: RegistryBrokerClient,
   params: PurchaseCreditsWithX402Params,
 ): Promise<X402PurchaseResult> {
   const { createPaymentClient, decodePaymentResponse } =
-    await loadX402Dependencies(this);
+    await loadX402Dependencies(client);
 
   if (!Number.isFinite(params.credits) || params.credits <= 0) {
     throw new Error('credits must be a positive number');
@@ -215,7 +196,7 @@ RegistryBrokerClient.prototype.purchaseCreditsWithX402 = async function (
 
   const response = await paymentClient.post('/credits/purchase/x402', body);
 
-  const parsed = this.parseWithSchema(
+  const parsed = client.parseWithSchema(
     response.data,
     x402CreditPurchaseResponseSchema,
     'x402 credit purchase response',
@@ -236,18 +217,18 @@ RegistryBrokerClient.prototype.purchaseCreditsWithX402 = async function (
     paymentResponseHeader: paymentHeader,
     paymentResponse: decodedPayment,
   };
-};
+}
 
-RegistryBrokerClient.prototype.buyCreditsWithX402 = async function (
-  this: RegistryBrokerClient,
+export async function buyCreditsWithX402(
+  client: RegistryBrokerClient,
   params: BuyCreditsWithX402Params,
 ): Promise<X402PurchaseResult> {
   const network: X402NetworkId = params.network ?? 'base';
-  const { createX402Signer } = await loadX402Dependencies(this);
+  const { createX402Signer } = await loadX402Dependencies(client);
   const normalizedKey = normalizeHexPrivateKey(params.evmPrivateKey);
   const walletClient = await createX402Signer(network, normalizedKey);
 
-  return this.purchaseCreditsWithX402({
+  return purchaseCreditsWithX402(client, {
     accountId: params.accountId,
     credits: params.credits,
     usdAmount: params.usdAmount,
@@ -255,4 +236,4 @@ RegistryBrokerClient.prototype.buyCreditsWithX402 = async function (
     metadata: params.metadata,
     walletClient,
   });
-};
+}

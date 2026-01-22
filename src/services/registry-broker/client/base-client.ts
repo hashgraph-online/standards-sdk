@@ -32,7 +32,74 @@ import type {
   RegisterAgentPendingResponse,
   RegisterAgentSuccessResponse,
   RegistryBrokerClientOptions,
+  AcceptConversationOptions,
+  AcceptEncryptedChatSessionOptions,
+  AdapterDetailsResponse,
+  AdapterRegistryAdaptersResponse,
+  AdapterRegistryCategoriesResponse,
+  AdapterRegistryCategory,
+  AdapterRegistrySubmitAdapterAcceptedResponse,
+  AdapterRegistrySubmissionStatusResponse,
+  AdaptersResponse,
+  AdditionalRegistryCatalogResponse,
+  AgentAuthConfig,
+  AgentRegistrationRequest,
+  ChatConversationHandle,
+  ChatHistoryCompactionResponse,
+  ChatHistoryEntry,
+  ChatHistoryFetchOptions,
+  ChatHistorySnapshotResponse,
+  ChatHistorySnapshotWithDecryptedEntries,
+  CipherEnvelope,
+  CompactHistoryRequestPayload,
+  CreateAdapterRegistryCategoryRequest,
+  CreateSessionResponse,
+  CreditPurchaseResponse,
+  DashboardStatsResponse,
+  DetectProtocolResponse,
+  EncryptionHandshakeRecord,
+  EncryptionHandshakeSubmissionPayload,
+  EncryptedChatSessionHandle,
+  EnsureAgentKeyOptions,
+  LedgerAuthenticationOptions,
+  LedgerChallengeRequest,
+  LedgerChallengeResponse,
+  LedgerCredentialAuthOptions,
+  LedgerVerifyRequest,
+  LedgerVerifyResponse,
+  MetricsSummaryResponse,
+  PopularSearchesResponse,
+  ProtocolDetectionMessage,
+  ProtocolsResponse,
+  RegisterAgentOptions,
+  RegisterAgentQuoteResponse,
+  RegisterEncryptionKeyPayload,
+  RegisterEncryptionKeyResponse,
+  RegistriesResponse,
+  RegistrationProgressRecord,
+  RegistrationProgressWaitOptions,
+  RegistrySearchByNamespaceResponse,
+  RegistryStatsResponse,
+  ResolvedAgentResponse,
+  SearchFacetsResponse,
+  SearchParams,
+  SearchResult,
+  SearchStatusResponse,
+  SendMessageRequestPayload,
+  SendMessageResponse,
+  SessionEncryptionStatusResponse,
+  SessionEncryptionSummary,
   SharedSecretInput,
+  StartChatOptions,
+  StartConversationOptions,
+  StartEncryptedChatSessionOptions,
+  SubmitAdapterRegistryAdapterRequest,
+  UaidConnectionStatus,
+  UaidValidationResponse,
+  VectorSearchRequest,
+  VectorSearchResponse,
+  WebsocketStatsResponse,
+  X402MinimumsResponse,
 } from '../types';
 import {
   agentFeedbackEligibilityResponseSchema,
@@ -40,17 +107,104 @@ import {
   agentFeedbackIndexResponseSchema,
   agentFeedbackResponseSchema,
   agentFeedbackSubmissionResponseSchema,
+  registerAgentResponseSchema,
 } from '../schemas';
+import type {
+  ConversationContextInput,
+  ConversationContextState,
+} from './chat-history';
+import {
+  attachDecryptedHistory as attachDecryptedHistoryImpl,
+  decryptHistoryEntryFromContext as decryptHistoryEntryFromContextImpl,
+  fetchHistorySnapshot as fetchHistorySnapshotImpl,
+  registerConversationContextForEncryption as registerConversationContextForEncryptionImpl,
+  resolveDecryptionContext as resolveDecryptionContextImpl,
+} from './chat-history';
+import type { RegistryBrokerChatApi } from './chat';
+import {
+  acceptConversation as acceptConversationImpl,
+  compactHistory as compactHistoryImpl,
+  createChatApi,
+  createPlaintextConversationHandle as createPlaintextConversationHandleImpl,
+  createSession as createSessionImpl,
+  endSession as endSessionImpl,
+  fetchEncryptionStatus as fetchEncryptionStatusImpl,
+  postEncryptionHandshake as postEncryptionHandshakeImpl,
+  sendMessage as sendMessageImpl,
+  startChat as startChatImpl,
+  startConversation as startConversationImpl,
+} from './chat';
+import { EncryptedChatManager } from './encrypted-chat-manager';
+import type { RegistryBrokerEncryptionApi } from './encryption';
+import {
+  bootstrapEncryptionOptions as bootstrapEncryptionOptionsImpl,
+  createEncryptionApi,
+  generateEncryptionKeyPair as generateEncryptionKeyPairImpl,
+} from './encryption';
+import {
+  adapters as adaptersImpl,
+  adaptersDetailed as adaptersDetailedImpl,
+  adapterRegistryAdapters as adapterRegistryAdaptersImpl,
+  adapterRegistryCategories as adapterRegistryCategoriesImpl,
+  adapterRegistrySubmissionStatus as adapterRegistrySubmissionStatusImpl,
+  createAdapterRegistryCategory as createAdapterRegistryCategoryImpl,
+  submitAdapterRegistryAdapter as submitAdapterRegistryAdapterImpl,
+} from './adapters';
+import {
+  closeUaidConnection as closeUaidConnectionImpl,
+  dashboardStats as dashboardStatsImpl,
+  getRegistrationProgress as getRegistrationProgressImpl,
+  getRegistrationQuote as getRegistrationQuoteImpl,
+  getUaidConnectionStatus as getUaidConnectionStatusImpl,
+  resolveUaid as resolveUaidImpl,
+  updateAgent as updateAgentImpl,
+  validateUaid as validateUaidImpl,
+  waitForRegistrationCompletion as waitForRegistrationCompletionImpl,
+} from './agents';
+import type {
+  BuyCreditsWithX402Params,
+  PurchaseCreditsWithX402Params,
+  X402PurchaseResult,
+} from './credits';
+import {
+  buyCreditsWithX402 as buyCreditsWithX402Impl,
+  getX402Minimums as getX402MinimumsImpl,
+  purchaseCreditsWithHbar as purchaseCreditsWithHbarImpl,
+  purchaseCreditsWithX402 as purchaseCreditsWithX402Impl,
+} from './credits';
+import {
+  authenticateWithLedger as authenticateWithLedgerImpl,
+  authenticateWithLedgerCredentials as authenticateWithLedgerCredentialsImpl,
+  createLedgerChallenge as createLedgerChallengeImpl,
+  verifyLedgerChallenge as verifyLedgerChallengeImpl,
+} from './ledger-auth';
+import {
+  detectProtocol as detectProtocolImpl,
+  facets as facetsImpl,
+  getAdditionalRegistries as getAdditionalRegistriesImpl,
+  listProtocols as listProtocolsImpl,
+  metricsSummary as metricsSummaryImpl,
+  popularSearches as popularSearchesImpl,
+  registries as registriesImpl,
+  registrySearchByNamespace as registrySearchByNamespaceImpl,
+  search as searchImpl,
+  searchStatus as searchStatusImpl,
+  stats as statsImpl,
+  vectorSearch as vectorSearchImpl,
+  websocketStats as websocketStatsImpl,
+} from './search';
 import {
   createAbortError,
   DEFAULT_BASE_URL,
   DEFAULT_HISTORY_TOP_UP_HBAR,
   DEFAULT_USER_AGENT,
   JSON_CONTENT_TYPE,
+  MINIMUM_REGISTRATION_AUTO_TOP_UP_CREDITS,
   isJsonObject,
   isBrowserRuntime,
   normaliseBaseUrl,
   normaliseHeaderName,
+  serialiseAgentRegistrationRequest,
 } from './utils';
 import {
   RegistryBrokerError,
@@ -98,6 +252,10 @@ export class RegistryBrokerClient {
   readonly historyAutoTopUp?: HistoryAutoTopUpOptions;
   readonly encryptionOptions?: ClientEncryptionOptions;
   encryptionBootstrapPromise: Promise<void> | null = null;
+  private chatApi: RegistryBrokerChatApi | null = null;
+  private encryptedChatManager: EncryptedChatManager | null = null;
+  private encryptionApi: RegistryBrokerEncryptionApi | null = null;
+  private conversationContexts = new Map<string, ConversationContextState[]>();
   constructor(options: RegistryBrokerClientOptions = {}) {
     const {
       baseUrl = DEFAULT_BASE_URL,
@@ -110,7 +268,15 @@ export class RegistryBrokerClient {
       encryption,
     } = options;
     this.baseUrl = normaliseBaseUrl(baseUrl);
-    this.fetchImpl = fetchImplementation ?? fetch;
+    const resolvedFetch =
+      fetchImplementation ??
+      (typeof globalThis.fetch === 'function' ? globalThis.fetch : null);
+    if (!resolvedFetch) {
+      throw new Error(
+        'A fetch implementation is required for RegistryBrokerClient',
+      );
+    }
+    this.fetchImpl = resolvedFetch;
     this.defaultHeaders = {
       ...(defaultHeaders ?? {}),
     };
@@ -136,6 +302,24 @@ export class RegistryBrokerClient {
         this.encryptionOptions,
       );
     }
+  }
+
+  get chat(): RegistryBrokerChatApi {
+    if (this.chatApi) {
+      return this.chatApi;
+    }
+    const api = createChatApi(this, this.getEncryptedChatManager());
+    this.chatApi = api;
+    return api;
+  }
+
+  get encryption(): RegistryBrokerEncryptionApi {
+    if (this.encryptionApi) {
+      return this.encryptionApi;
+    }
+    const api = createEncryptionApi(this);
+    this.encryptionApi = api;
+    return api;
   }
 
   setApiKey(apiKey?: string): void {
@@ -348,6 +532,473 @@ export class RegistryBrokerClient {
     );
   }
 
+  async search(params: SearchParams = {}): Promise<SearchResult> {
+    return searchImpl(this, params);
+  }
+
+  async stats(): Promise<RegistryStatsResponse> {
+    return statsImpl(this);
+  }
+
+  async registries(): Promise<RegistriesResponse> {
+    return registriesImpl(this);
+  }
+
+  async getAdditionalRegistries(): Promise<AdditionalRegistryCatalogResponse> {
+    return getAdditionalRegistriesImpl(this);
+  }
+
+  async popularSearches(): Promise<PopularSearchesResponse> {
+    return popularSearchesImpl(this);
+  }
+
+  async listProtocols(): Promise<ProtocolsResponse> {
+    return listProtocolsImpl(this);
+  }
+
+  async detectProtocol(
+    message: ProtocolDetectionMessage,
+  ): Promise<DetectProtocolResponse> {
+    return detectProtocolImpl(this, message);
+  }
+
+  async registrySearchByNamespace(
+    registry: string,
+    query?: string,
+  ): Promise<RegistrySearchByNamespaceResponse> {
+    return registrySearchByNamespaceImpl(this, registry, query);
+  }
+
+  async vectorSearch(
+    request: VectorSearchRequest,
+  ): Promise<VectorSearchResponse> {
+    return vectorSearchImpl(this, request);
+  }
+
+  async searchStatus(): Promise<SearchStatusResponse> {
+    return searchStatusImpl(this);
+  }
+
+  async websocketStats(): Promise<WebsocketStatsResponse> {
+    return websocketStatsImpl(this);
+  }
+
+  async metricsSummary(): Promise<MetricsSummaryResponse> {
+    return metricsSummaryImpl(this);
+  }
+
+  async facets(adapter?: string): Promise<SearchFacetsResponse> {
+    return facetsImpl(this, adapter);
+  }
+
+  async adapters(): Promise<AdaptersResponse> {
+    return adaptersImpl(this);
+  }
+
+  async adaptersDetailed(): Promise<AdapterDetailsResponse> {
+    return adaptersDetailedImpl(this);
+  }
+
+  async adapterRegistryCategories(): Promise<AdapterRegistryCategoriesResponse> {
+    return adapterRegistryCategoriesImpl(this);
+  }
+
+  async adapterRegistryAdapters(filters?: {
+    category?: string;
+    entity?: string;
+    keywords?: string[];
+    query?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<AdapterRegistryAdaptersResponse> {
+    return adapterRegistryAdaptersImpl(this, filters);
+  }
+
+  async createAdapterRegistryCategory(
+    payload: CreateAdapterRegistryCategoryRequest,
+  ): Promise<AdapterRegistryCategory> {
+    return createAdapterRegistryCategoryImpl(this, payload);
+  }
+
+  async submitAdapterRegistryAdapter(
+    payload: SubmitAdapterRegistryAdapterRequest,
+  ): Promise<AdapterRegistrySubmitAdapterAcceptedResponse> {
+    return submitAdapterRegistryAdapterImpl(this, payload);
+  }
+
+  async adapterRegistrySubmissionStatus(
+    submissionId: string,
+  ): Promise<AdapterRegistrySubmissionStatusResponse> {
+    return adapterRegistrySubmissionStatusImpl(this, submissionId);
+  }
+
+  async resolveUaid(uaid: string): Promise<ResolvedAgentResponse> {
+    return resolveUaidImpl(this, uaid);
+  }
+
+  async performRegisterAgent(
+    payload: AgentRegistrationRequest,
+  ): Promise<RegisterAgentResponse> {
+    const raw = await this.requestJson<JsonValue>('/register', {
+      method: 'POST',
+      body: serialiseAgentRegistrationRequest(payload),
+      headers: { 'content-type': 'application/json' },
+    });
+    return this.parseWithSchema(
+      raw,
+      registerAgentResponseSchema,
+      'register agent response',
+    );
+  }
+
+  private calculateHbarAmount(
+    creditsToPurchase: number,
+    creditsPerHbar: number,
+  ): number {
+    if (creditsPerHbar <= 0) {
+      throw new Error('creditsPerHbar must be positive');
+    }
+    if (creditsToPurchase <= 0) {
+      throw new Error('creditsToPurchase must be positive');
+    }
+    const rawHbar = creditsToPurchase / creditsPerHbar;
+    const tinybars = Math.ceil(rawHbar * 1e8);
+    return tinybars / 1e8;
+  }
+
+  private resolveCreditsToPurchase(shortfallCredits: number): number {
+    if (!Number.isFinite(shortfallCredits) || shortfallCredits <= 0) {
+      return 0;
+    }
+    return Math.max(
+      Math.ceil(shortfallCredits),
+      MINIMUM_REGISTRATION_AUTO_TOP_UP_CREDITS,
+    );
+  }
+
+  async ensureCreditsForRegistration(
+    payload: AgentRegistrationRequest,
+    autoTopUp: RegisterAgentOptions['autoTopUp'],
+  ): Promise<void> {
+    const details = autoTopUp ?? null;
+    if (!details) {
+      return;
+    }
+
+    if (!details.accountId || !details.accountId.trim()) {
+      throw new Error('autoTopUp.accountId is required');
+    }
+
+    if (!details.privateKey || !details.privateKey.trim()) {
+      throw new Error('autoTopUp.privateKey is required');
+    }
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const quote = await this.getRegistrationQuote(payload);
+      const shortfall = quote.shortfallCredits ?? 0;
+      if (shortfall <= 0) {
+        return;
+      }
+      const creditsToPurchase = this.resolveCreditsToPurchase(shortfall);
+      if (creditsToPurchase <= 0) {
+        return;
+      }
+
+      const creditsPerHbar = quote.creditsPerHbar ?? null;
+      if (!creditsPerHbar || creditsPerHbar <= 0) {
+        throw new Error('Unable to determine credits per HBAR for auto top-up');
+      }
+
+      const hbarAmount = this.calculateHbarAmount(
+        creditsToPurchase,
+        creditsPerHbar,
+      );
+
+      await this.purchaseCreditsWithHbar({
+        accountId: details.accountId.trim(),
+        privateKey: details.privateKey.trim(),
+        hbarAmount,
+        memo: details.memo ?? 'Registry Broker auto top-up',
+        metadata: {
+          shortfallCredits: shortfall,
+          requiredCredits: quote.requiredCredits,
+          purchasedCredits: creditsToPurchase,
+        },
+      });
+    }
+
+    const finalQuote = await this.getRegistrationQuote(payload);
+    if ((finalQuote.shortfallCredits ?? 0) > 0) {
+      throw new Error('Unable to purchase sufficient credits for registration');
+    }
+  }
+
+  async registerAgent(
+    payload: AgentRegistrationRequest,
+    options?: RegisterAgentOptions,
+  ): Promise<RegisterAgentResponse> {
+    const autoTopUp = options?.autoTopUp ?? this.registrationAutoTopUp;
+
+    if (!autoTopUp) {
+      return this.performRegisterAgent(payload);
+    }
+
+    await this.ensureCreditsForRegistration(payload, autoTopUp);
+
+    let retried = false;
+    while (true) {
+      try {
+        return await this.performRegisterAgent(payload);
+      } catch (error) {
+        const shortfall = this.extractInsufficientCreditsDetails(error);
+        if (shortfall && !retried) {
+          await this.ensureCreditsForRegistration(payload, autoTopUp);
+          retried = true;
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  async getRegistrationQuote(
+    payload: AgentRegistrationRequest,
+  ): Promise<RegisterAgentQuoteResponse> {
+    return getRegistrationQuoteImpl(this, payload);
+  }
+
+  async updateAgent(
+    uaid: string,
+    payload: AgentRegistrationRequest,
+  ): Promise<RegisterAgentResponse> {
+    return updateAgentImpl(this, uaid, payload);
+  }
+
+  async getRegistrationProgress(
+    attemptId: string,
+  ): Promise<RegistrationProgressRecord | null> {
+    return getRegistrationProgressImpl(this, attemptId);
+  }
+
+  async waitForRegistrationCompletion(
+    attemptId: string,
+    options?: RegistrationProgressWaitOptions,
+  ): Promise<RegistrationProgressRecord> {
+    return waitForRegistrationCompletionImpl(this, attemptId, options);
+  }
+
+  async validateUaid(uaid: string): Promise<UaidValidationResponse> {
+    return validateUaidImpl(this, uaid);
+  }
+
+  async getUaidConnectionStatus(uaid: string): Promise<UaidConnectionStatus> {
+    return getUaidConnectionStatusImpl(this, uaid);
+  }
+
+  async closeUaidConnection(uaid: string): Promise<void> {
+    return closeUaidConnectionImpl(this, uaid);
+  }
+
+  async dashboardStats(): Promise<DashboardStatsResponse> {
+    return dashboardStatsImpl(this);
+  }
+
+  async purchaseCreditsWithHbar(params: {
+    accountId: string;
+    privateKey: string;
+    hbarAmount: number;
+    memo?: string;
+    metadata?: JsonObject;
+  }): Promise<CreditPurchaseResponse> {
+    return purchaseCreditsWithHbarImpl(this, params);
+  }
+
+  async getX402Minimums(): Promise<X402MinimumsResponse> {
+    return getX402MinimumsImpl(this);
+  }
+
+  async purchaseCreditsWithX402(
+    params: PurchaseCreditsWithX402Params,
+  ): Promise<X402PurchaseResult> {
+    return purchaseCreditsWithX402Impl(this, params);
+  }
+
+  async buyCreditsWithX402(
+    params: BuyCreditsWithX402Params,
+  ): Promise<X402PurchaseResult> {
+    return buyCreditsWithX402Impl(this, params);
+  }
+
+  async generateEncryptionKeyPair(
+    options: GenerateEncryptionKeyPairOptions = {},
+  ): Promise<{
+    privateKey: string;
+    publicKey: string;
+    envPath?: string;
+    envVar: string;
+  }> {
+    return generateEncryptionKeyPairImpl(this, options);
+  }
+
+  async createLedgerChallenge(
+    payload: LedgerChallengeRequest,
+  ): Promise<LedgerChallengeResponse> {
+    return createLedgerChallengeImpl(this, payload);
+  }
+
+  async verifyLedgerChallenge(
+    payload: LedgerVerifyRequest,
+  ): Promise<LedgerVerifyResponse> {
+    return verifyLedgerChallengeImpl(this, payload);
+  }
+
+  async authenticateWithLedger(
+    options: LedgerAuthenticationOptions,
+  ): Promise<LedgerVerifyResponse> {
+    return authenticateWithLedgerImpl(this, options);
+  }
+
+  async authenticateWithLedgerCredentials(
+    options: LedgerCredentialAuthOptions,
+  ): Promise<LedgerVerifyResponse> {
+    return authenticateWithLedgerCredentialsImpl(this, options);
+  }
+
+  async fetchHistorySnapshot(
+    sessionId: string,
+    options?: ChatHistoryFetchOptions,
+  ): Promise<ChatHistorySnapshotWithDecryptedEntries> {
+    return fetchHistorySnapshotImpl(
+      this.conversationContexts,
+      this,
+      sessionId,
+      options,
+    );
+  }
+
+  attachDecryptedHistory(
+    sessionId: string,
+    snapshot: ChatHistorySnapshotResponse,
+    options?: ChatHistoryFetchOptions,
+  ): ChatHistorySnapshotWithDecryptedEntries {
+    return attachDecryptedHistoryImpl(
+      this.conversationContexts,
+      this,
+      sessionId,
+      snapshot,
+      options,
+    );
+  }
+
+  registerConversationContextForEncryption(
+    context: ConversationContextInput,
+  ): void {
+    registerConversationContextForEncryptionImpl(
+      this.conversationContexts,
+      context,
+    );
+  }
+
+  resolveDecryptionContext(
+    sessionId: string,
+    options?: ChatHistoryFetchOptions,
+  ): ConversationContextState | null {
+    return resolveDecryptionContextImpl(
+      this.conversationContexts,
+      this,
+      sessionId,
+      options,
+    );
+  }
+
+  decryptHistoryEntryFromContext(
+    _sessionId: string,
+    entry: ChatHistoryEntry,
+    context: ConversationContextState,
+  ): string | null {
+    return decryptHistoryEntryFromContextImpl(this, entry, context);
+  }
+
+  async createSession(
+    payload: CreateSessionRequestPayload,
+    allowHistoryAutoTopUp = true,
+  ): Promise<CreateSessionResponse> {
+    return createSessionImpl(this, payload, allowHistoryAutoTopUp);
+  }
+
+  async startChat(options: StartChatOptions): Promise<ChatConversationHandle> {
+    return startChatImpl(this, this.getEncryptedChatManager(), options);
+  }
+
+  async startConversation(
+    options: StartConversationOptions,
+  ): Promise<ChatConversationHandle> {
+    return startConversationImpl(this, this.getEncryptedChatManager(), options);
+  }
+
+  async acceptConversation(
+    options: AcceptConversationOptions,
+  ): Promise<ChatConversationHandle> {
+    return acceptConversationImpl(
+      this,
+      this.getEncryptedChatManager(),
+      options,
+    );
+  }
+
+  compactHistory(
+    payload: CompactHistoryRequestPayload,
+  ): Promise<ChatHistoryCompactionResponse> {
+    return compactHistoryImpl(this, payload);
+  }
+
+  fetchEncryptionStatus(
+    sessionId: string,
+  ): Promise<SessionEncryptionStatusResponse> {
+    return fetchEncryptionStatusImpl(this, sessionId);
+  }
+
+  postEncryptionHandshake(
+    sessionId: string,
+    payload: EncryptionHandshakeSubmissionPayload,
+  ): Promise<EncryptionHandshakeRecord> {
+    return postEncryptionHandshakeImpl(this, sessionId, payload);
+  }
+
+  sendMessage(
+    payload: SendMessageRequestPayload,
+  ): Promise<SendMessageResponse> {
+    return sendMessageImpl(this, payload);
+  }
+
+  endSession(sessionId: string): Promise<void> {
+    return endSessionImpl(this, sessionId);
+  }
+
+  createPlaintextConversationHandle(
+    sessionId: string,
+    summary: SessionEncryptionSummary | null,
+    defaultAuth?: AgentAuthConfig,
+    context?: { uaid?: string; agentUrl?: string },
+  ): ChatConversationHandle {
+    return createPlaintextConversationHandleImpl(
+      this,
+      sessionId,
+      summary,
+      defaultAuth,
+      context,
+    );
+  }
+
+  private getEncryptedChatManager(): EncryptedChatManager {
+    if (this.encryptedChatManager) {
+      return this.encryptedChatManager;
+    }
+    const manager = new EncryptedChatManager(this);
+    this.encryptedChatManager = manager;
+    return manager;
+  }
+
   private async extractErrorBody(response: Response): Promise<JsonValue> {
     const contentType = response.headers?.get('content-type') ?? '';
     if (JSON_CONTENT_TYPE.test(contentType)) {
@@ -439,7 +1090,7 @@ export class RegistryBrokerClient {
     return createHash('sha256').update(Buffer.from(shared)).digest();
   }
 
-  buildCipherEnvelope(options: EncryptCipherEnvelopeOptions) {
+  buildCipherEnvelope(options: EncryptCipherEnvelopeOptions): CipherEnvelope {
     this.assertNodeRuntime('encryptCipherEnvelope');
     const sharedSecret = this.normalizeSharedSecret(options.sharedSecret);
     const iv = randomBytes(12);
@@ -611,9 +1262,9 @@ export class RegistryBrokerClient {
   }
 
   bootstrapEncryptionOptions(
-    _options?: ClientEncryptionOptions,
+    options?: ClientEncryptionOptions,
   ): Promise<{ publicKey: string; privateKey?: string } | null> {
-    return Promise.resolve(null);
+    return bootstrapEncryptionOptionsImpl(this, options);
   }
 }
 

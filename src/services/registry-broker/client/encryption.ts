@@ -17,9 +17,9 @@ import type {
 } from '../types';
 import { registerEncryptionKeyResponseSchema } from '../schemas';
 import { optionalImport } from '../../../utils/dynamic-import';
-import {
+import type {
   RegistryBrokerClient,
-  type GenerateEncryptionKeyPairOptions,
+  GenerateEncryptionKeyPairOptions,
 } from './base-client';
 
 type FsModule = {
@@ -45,45 +45,22 @@ const getFs = async (): Promise<FsModule | null> => {
   return null;
 };
 
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    readonly encryption: {
-      registerKey: (
-        payload: RegisterEncryptionKeyPayload,
-      ) => Promise<RegisterEncryptionKeyResponse>;
-      generateEphemeralKeyPair: () => EphemeralKeyPair;
-      deriveSharedSecret: (options: DeriveSharedSecretOptions) => Buffer;
-      encryptCipherEnvelope: (
-        options: EncryptCipherEnvelopeOptions,
-      ) => CipherEnvelope;
-      decryptCipherEnvelope: (options: DecryptCipherEnvelopeOptions) => string;
-      ensureAgentKey: (
-        options: EnsureAgentKeyOptions,
-      ) => Promise<{ publicKey: string; privateKey?: string }>;
-    };
-
-    generateEncryptionKeyPair(
-      options?: GenerateEncryptionKeyPairOptions,
-    ): Promise<{
-      privateKey: string;
-      publicKey: string;
-      envPath?: string;
-      envVar: string;
-    }>;
-
-    createEphemeralKeyPair(): EphemeralKeyPair;
-    deriveSharedSecret(options: DeriveSharedSecretOptions): Buffer;
-    buildCipherEnvelope(options: EncryptCipherEnvelopeOptions): CipherEnvelope;
-    openCipherEnvelope(options: DecryptCipherEnvelopeOptions): string;
-    normalizeSharedSecret(input: SharedSecretInput): Buffer;
-
-    bootstrapEncryptionOptions(
-      options?: ClientEncryptionOptions,
-    ): Promise<{ publicKey: string; privateKey?: string } | null>;
-  }
+export interface RegistryBrokerEncryptionApi {
+  registerKey: (
+    payload: RegisterEncryptionKeyPayload,
+  ) => Promise<RegisterEncryptionKeyResponse>;
+  generateEphemeralKeyPair: () => EphemeralKeyPair;
+  deriveSharedSecret: (options: DeriveSharedSecretOptions) => Buffer;
+  encryptCipherEnvelope: (
+    options: EncryptCipherEnvelopeOptions,
+  ) => CipherEnvelope;
+  decryptCipherEnvelope: (options: DecryptCipherEnvelopeOptions) => string;
+  ensureAgentKey: (
+    options: EnsureAgentKeyOptions,
+  ) => Promise<{ publicKey: string; privateKey?: string }>;
 }
 
-async function registerEncryptionKey(
+export async function registerEncryptionKey(
   client: RegistryBrokerClient,
   payload: RegisterEncryptionKeyPayload,
 ): Promise<RegisterEncryptionKeyResponse> {
@@ -155,9 +132,6 @@ async function resolveAutoRegisterKeyMaterial(
       envPath: config.envPath,
       overwrite: config.overwriteEnv,
     });
-    if (envVar) {
-      process.env[envVar] = pair.privateKey;
-    }
     return { publicKey: pair.publicKey, privateKey: pair.privateKey };
   }
   if (privateKey) {
@@ -167,7 +141,7 @@ async function resolveAutoRegisterKeyMaterial(
   return null;
 }
 
-async function autoRegisterEncryptionKey(
+export async function autoRegisterEncryptionKey(
   client: RegistryBrokerClient,
   config: AutoRegisterEncryptionKeyOptions,
 ): Promise<{ publicKey: string; privateKey?: string }> {
@@ -191,7 +165,7 @@ async function autoRegisterEncryptionKey(
   return material;
 }
 
-async function ensureAgentEncryptionKey(
+export async function ensureAgentEncryptionKey(
   client: RegistryBrokerClient,
   options: EnsureAgentKeyOptions,
 ): Promise<{ publicKey: string; privateKey?: string }> {
@@ -202,47 +176,36 @@ async function ensureAgentEncryptionKey(
   });
 }
 
-const encryptionApis = new WeakMap<
-  RegistryBrokerClient,
-  RegistryBrokerClient['encryption']
->();
+export function createEncryptionApi(
+  client: RegistryBrokerClient,
+): RegistryBrokerEncryptionApi {
+  return {
+    registerKey: (payload: RegisterEncryptionKeyPayload) =>
+      registerEncryptionKey(client, payload),
+    generateEphemeralKeyPair: () => client.createEphemeralKeyPair(),
+    deriveSharedSecret: (options: DeriveSharedSecretOptions) =>
+      client.deriveSharedSecret(options),
+    encryptCipherEnvelope: (options: EncryptCipherEnvelopeOptions) =>
+      client.buildCipherEnvelope(options),
+    decryptCipherEnvelope: (options: DecryptCipherEnvelopeOptions) =>
+      client.openCipherEnvelope(options),
+    ensureAgentKey: (options: EnsureAgentKeyOptions) =>
+      ensureAgentEncryptionKey(client, options),
+  };
+}
 
-Object.defineProperty(RegistryBrokerClient.prototype, 'encryption', {
-  get(this: RegistryBrokerClient) {
-    const existing = encryptionApis.get(this);
-    if (existing) {
-      return existing;
-    }
-    const api = {
-      registerKey: (payload: RegisterEncryptionKeyPayload) =>
-        registerEncryptionKey(this, payload),
-      generateEphemeralKeyPair: () => this.createEphemeralKeyPair(),
-      deriveSharedSecret: (options: DeriveSharedSecretOptions) =>
-        this.deriveSharedSecret(options),
-      encryptCipherEnvelope: (options: EncryptCipherEnvelopeOptions) =>
-        this.buildCipherEnvelope(options),
-      decryptCipherEnvelope: (options: DecryptCipherEnvelopeOptions) =>
-        this.openCipherEnvelope(options),
-      ensureAgentKey: (options: EnsureAgentKeyOptions) =>
-        ensureAgentEncryptionKey(this, options),
-    };
-    encryptionApis.set(this, api);
-    return api;
-  },
-});
-
-RegistryBrokerClient.prototype.bootstrapEncryptionOptions = async function (
-  this: RegistryBrokerClient,
+export async function bootstrapEncryptionOptions(
+  client: RegistryBrokerClient,
   options?: ClientEncryptionOptions,
 ): Promise<{ publicKey: string; privateKey?: string } | null> {
   if (!options?.autoRegister || options.autoRegister.enabled === false) {
     return null;
   }
-  return autoRegisterEncryptionKey(this, options.autoRegister);
-};
+  return autoRegisterEncryptionKey(client, options.autoRegister);
+}
 
-RegistryBrokerClient.prototype.generateEncryptionKeyPair = async function (
-  this: RegistryBrokerClient,
+export async function generateEncryptionKeyPair(
+  client: RegistryBrokerClient,
   options: GenerateEncryptionKeyPairOptions = {},
 ): Promise<{
   privateKey: string;
@@ -250,7 +213,7 @@ RegistryBrokerClient.prototype.generateEncryptionKeyPair = async function (
   envPath?: string;
   envVar: string;
 }> {
-  this.assertNodeRuntime('generateEncryptionKeyPair');
+  client.assertNodeRuntime('generateEncryptionKeyPair');
 
   const keyType = options.keyType ?? 'secp256k1';
   if (keyType !== 'secp256k1') {
@@ -306,4 +269,4 @@ RegistryBrokerClient.prototype.generateEncryptionKeyPair = async function (
     envPath: resolvedPath,
     envVar,
   };
-};
+}

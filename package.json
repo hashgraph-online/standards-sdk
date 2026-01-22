@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.146",
+  "version": "0.1.148",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hiero Consensus Standards (HCS), giving developers all the tools needed to build wonderful decentralized applications on the Hashgraph network. https://hol.org",
   "type": "module",
   "files": [
@@ -51,6 +51,7 @@
     "build:umd": "BUILD_FORMAT=umd vite build",
     "build:cjs": "BUILD_FORMAT=cjs vite build",
     "build": "npm run clean && npm run build:es && npm run build:cjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "cli": "([ -d cli/standards-cli/node_modules ] || pnpm --dir cli/standards-cli install) && pnpm --dir cli/standards-cli start",
     "cli:build": "([ -d cli/standards-cli/node_modules ] || pnpm --dir cli/standards-cli install) && pnpm --dir cli/standards-cli build",
     "cli:install": "pnpm --dir cli/standards-cli install",

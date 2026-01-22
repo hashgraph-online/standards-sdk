@@ -11,6 +11,7 @@ import {
   InscriptionCostSummary,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
+import { extensionOpen } from '@hashgraph/hedera-wallet-connect';
 import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
@@ -40,6 +41,38 @@ export const normalizeTransactionId = (txId: string): string => {
   const txParts = txId?.split('@');
   return `${txParts[0]}-${txParts[1].replace('.', '-')}`;
 };
+
+const HASHPACK_EXTENSION_ID = 'gjagmgiddbbciopjhllkdnddhcglnemk';
+
+/**
+ * Triggers the HashPack browser extension popup for signing on desktop.
+ * This is needed when the signer doesn't have an extensionId set
+ * (e.g., when connecting via the Reown AppKit modal).
+ */
+function triggerExtensionPopupIfNeeded(
+  signer: DAppSigner,
+  logger: ILogger,
+): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    );
+
+  if (isMobile) {
+    return;
+  }
+
+  if (signer.extensionId) {
+    return;
+  }
+
+  logger.debug('Triggering HashPack extension popup for signing');
+  extensionOpen(HASHPACK_EXTENSION_ID);
+}
 
 async function loadNodeModules(): Promise<void> {
   if (isBrowser || nodeModules.readFileSync) {
@@ -599,6 +632,8 @@ export async function inscribeWithSigner(
       jobId: startResult.id || startResult.tx_id,
       ...startResult,
     });
+
+    triggerExtensionPopupIfNeeded(signer, logger);
 
     if (typeof startResult?.transactionBytes === 'string') {
       logger.debug('Executing inscription transaction with signer from bytes');

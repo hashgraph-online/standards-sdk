@@ -86,13 +86,11 @@ jobs:
 
       - name: Publish to JSR (canary)
         if: steps.version_check.outputs.exists == 'false'
-        working-directory: packages/jsr-client
         run: |
           # Update jsr.json version to match canary
           VERSION="${{ steps.canary.outputs.version }}"
           jq --arg v "$VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
-          # Publish to JSR (provenance is automatic with id-token permission)
-          npx jsr publish --allow-dirty
+          npx jsr publish --allow-dirty --allow-slow-types
 
       - name: Skip publish (version already exists)
         if: steps.version_check.outputs.exists == 'true'
