@@ -11,7 +11,6 @@ import {
   InscriptionCostSummary,
 } from './types';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
-import { extensionOpen } from '@hashgraph/hedera-wallet-connect';
 import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
@@ -49,10 +48,10 @@ const HASHPACK_EXTENSION_ID = 'gjagmgiddbbciopjhllkdnddhcglnemk';
  * This is needed when the signer doesn't have an extensionId set
  * (e.g., when connecting via the Reown AppKit modal).
  */
-function triggerExtensionPopupIfNeeded(
+async function triggerExtensionPopupIfNeeded(
   signer: DAppSigner,
   logger: ILogger,
-): void {
+): Promise<void> {
   if (typeof window === 'undefined') {
     return;
   }
@@ -70,8 +69,13 @@ function triggerExtensionPopupIfNeeded(
     return;
   }
 
-  logger.debug('Triggering HashPack extension popup for signing');
-  extensionOpen(HASHPACK_EXTENSION_ID);
+  try {
+    const { extensionOpen } = await import('@hashgraph/hedera-wallet-connect');
+    logger.debug('Triggering HashPack extension popup for signing');
+    extensionOpen(HASHPACK_EXTENSION_ID);
+  } catch (err) {
+    logger.warn('Failed to trigger extension popup', err);
+  }
 }
 
 async function loadNodeModules(): Promise<void> {
@@ -633,7 +637,7 @@ export async function inscribeWithSigner(
       ...startResult,
     });
 
-    triggerExtensionPopupIfNeeded(signer, logger);
+    await triggerExtensionPopupIfNeeded(signer, logger);
 
     if (typeof startResult?.transactionBytes === 'string') {
       logger.debug('Executing inscription transaction with signer from bytes');
