@@ -80,23 +80,6 @@ jobs:
             return 1
           }
 
-          registry_exists_pkg() {
-            local pkg="$1"
-            local version="$2"
-            local attempt
-            for attempt in 1 2 3 4 5 6 7 8; do
-              if registry_version_exists "$pkg" "$version"; then
-                return 0
-              fi
-              case "$?" in
-                1) return 1 ;;
-                *) sleep $((attempt * 2)) ;;
-              esac
-            done
-            echo "Registry lookup failed for ${pkg}@${version}" >&2
-            exit 1
-          }
-
           registry_max_stable_version_retry() {
             local attempt
             for attempt in 1 2 3; do
@@ -140,7 +123,7 @@ jobs:
           if [ -n "$latest_tag" ] && [ -n "$tag_version" ]; then
             missing=false
             for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
-              if ! registry_exists_pkg "$pkg" "$tag_version"; then
+              if ! registry_version_exists "$pkg" "$tag_version"; then
                 missing=true
               fi
             done
@@ -153,7 +136,7 @@ jobs:
           fi
 
           if [ "$mode" = "release" ]; then
-            while registry_exists_pkg "@hashgraphonline/standards-sdk" "$version" || registry_exists_pkg "@hol-org/standards-sdk" "$version" || registry_exists_pkg "@hol-org/rb-client" "$version"; do
+            while registry_version_exists "@hashgraphonline/standards-sdk" "$version" || registry_version_exists "@hol-org/standards-sdk" "$version" || registry_version_exists "@hol-org/rb-client" "$version"; do
               version="$(bump_patch "$version")"
             done
           fi
