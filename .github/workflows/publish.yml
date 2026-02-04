@@ -59,13 +59,25 @@ jobs:
 
           registry_max_stable_version_for_pkg() {
             local pkg="$1"
-            node -e 'const pkg=process.argv[1]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}`; const parse=(v)=>{const m=/^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(v); return m?[+m[1],+m[2],+m[3]]:null}; const cmp=(a,b)=>{for(let i=0;i<3;i+=1){if(a[i]>b[i])return 1;if(a[i]<b[i])return -1}return 0}; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); if(!res.ok) process.exit(1); const data=await res.json(); const versions=Object.keys(data.versions||{}); let best=null; for(const v of versions){const p=parse(v); if(!p) continue; if(!best||cmp(p,best)>0) best=p;} if(best) process.stdout.write(`${best[0]}.${best[1]}.${best[2]}`);}catch{process.exit(2);}})();' "$pkg"
+            local raw=""
+            raw="$(npm --silent view "$pkg" versions --json 2>/dev/null || true)"
+            if [ -z "$raw" ]; then
+              return 1
+            fi
+            printf '%s' "$raw" | node -e 'const fs=require("fs"); const input=fs.readFileSync(0,"utf8").trim(); let versions=[]; try{ const parsed=JSON.parse(input); versions=Array.isArray(parsed)?parsed:[parsed]; }catch{ process.exit(1); } const parse=(v)=>{const m=/^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(String(v)); return m?[+m[1],+m[2],+m[3]]:null}; const cmp=(a,b)=>{for(let i=0;i<3;i+=1){if(a[i]>b[i])return 1;if(a[i]<b[i])return -1}return 0}; let best=null; for(const v of versions){const p=parse(v); if(!p) continue; if(!best||cmp(p,best)>0) best=p;} if(best) process.stdout.write(`${best[0]}.${best[1]}.${best[2]}`);'
           }
 
           registry_version_exists() {
             local pkg="$1"
             local version="$2"
-            node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); if(res.status===200) process.exit(0); if(res.status===404) process.exit(1); process.exit(2);}catch{process.exit(2);}})();' "$pkg" "$version"
+            local out=""
+            if ! out="$(npm --silent view "${pkg}@${version}" version --json 2>/dev/null)"; then
+              return 1
+            fi
+            if [ "$out" = "\"$version\"" ] || [ "$out" = "$version" ]; then
+              return 0
+            fi
+            return 1
           }
 
           registry_exists_pkg() {
@@ -91,7 +103,7 @@ jobs:
               if registry_max_stable_version_for_pkg "$@"; then
                 return 0
               fi
-              sleep 2
+              sleep $((attempt * 2))
             done
             return 1
           }
@@ -190,15 +202,18 @@ jobs:
           exists_pkg() {
             local pkg="$1"
             local attempt
+            local out=""
             for attempt in 1 2 3 4 5 6; do
-              node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); if(res.status===200) process.exit(0); if(res.status===404) process.exit(1); process.exit(2);}catch{process.exit(2);}})();' "$pkg" "$NEW_VERSION"
-              case "$?" in
-                0) return 0 ;;
-                1) return 1 ;;
-                *) sleep $((attempt * 2)) ;;
-              esac
+              out="$(npm --silent view "${pkg}@${NEW_VERSION}" version --json 2>/dev/null || true)"
+              if [ -n "$out" ]; then
+                if [ "$out" = "\"$NEW_VERSION\"" ] || [ "$out" = "$NEW_VERSION" ]; then
+                  return 0
+                fi
+                return 1
+              fi
+              sleep $((attempt * 2))
             done
-            echo "Registry lookup failed for ${pkg}@${NEW_VERSION}" >&2
+            echo "npm view failed for ${pkg}@${NEW_VERSION}" >&2
             exit 1
           }
 
