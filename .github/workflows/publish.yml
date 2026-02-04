@@ -49,13 +49,25 @@ jobs:
           echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
+
+          stable_version_lines() {
+            grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true
+          }
+
           max_stable_version_for_pkg() {
             local pkg="$1"
-            npm view "$pkg" versions --json 2>/dev/null | node -e 'const fs=require("fs");const raw=fs.readFileSync(0,"utf8").trim();if(!raw)process.exit(0);const parsed=JSON.parse(raw);const versions=Array.isArray(parsed)?parsed:[parsed];const stable=versions.map(String).filter((v)=>/^\\d+\\.\\d+\\.\\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' 2>/dev/null || true
+            npm view "$pkg" versions --json 2>/dev/null \
+              | jq -r 'if type == "array" then .[] else . end' 2>/dev/null \
+              | stable_version_lines \
+              | sort -V \
+              | tail -n 1 || true
           }
 
           max_stable_version() {
-            node -e 'const values=process.argv.slice(1);const stable=values.map(String).filter((v)=>/^\\d+\\.\\d+\\.\\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' "$@" 2>/dev/null || true
+            printf '%s\n' "$@" \
+              | stable_version_lines \
+              | sort -V \
+              | tail -n 1 || true
           }
 
           published_hash="$(max_stable_version_for_pkg "@hashgraphonline/standards-sdk")"
@@ -63,13 +75,20 @@ jobs:
           published_rb="$(max_stable_version_for_pkg "@hol-org/rb-client")"
 
           published_version="$(max_stable_version "$published_hash" "$published_hol" "$published_rb")"
-          base_version="${published_version:-}"
+          base_version="$published_version"
           if [ -z "$base_version" ]; then
-            base_version="$(node -p "require('./package.json').version")"
+            base_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
           fi
 
           bump_patch() {
-            node -e "const v=process.argv[1].split('.').map(Number); console.log([v[0],v[1],v[2]+1].join('.'))" "$1"
+            local input="$1"
+            local major minor patch
+            IFS='.' read -r major minor patch <<<"$input"
+            if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ && "$patch" =~ ^[0-9]+$ ]]; then
+              echo "Invalid stable version: $input" >&2
+              return 1
+            fi
+            echo "${major}.${minor}.$((patch + 1))"
           }
 
           tag_version=""
@@ -83,6 +102,10 @@ jobs:
           }
 
           mode="release"
+          if [ -z "$base_version" ]; then
+            echo "Failed to resolve base_version" >&2
+            exit 1
+          fi
           version="$(bump_patch "$base_version")"
 
           repair_tag=""
