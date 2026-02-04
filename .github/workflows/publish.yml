@@ -71,10 +71,7 @@ jobs:
             versions_json="$(npm_view_retry "$pkg" versions --json || true)"
             if [ -n "$versions_json" ]; then
               printf '%s' "$versions_json" \
-                | jq -r 'if type == "array" then .[] else . end' 2>/dev/null \
-                | stable_version_lines \
-                | sort -V \
-                | tail -n 1 || true
+                | node -e 'const fs=require("fs");const raw=fs.readFileSync(0,"utf8").trim();if(!raw)process.exit(0);const parsed=JSON.parse(raw);const versions=Array.isArray(parsed)?parsed:[parsed];const stable=versions.map(String).filter((v)=>/^\d+\.\d+\.\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' 2>/dev/null || true
               return 0
             fi
 
