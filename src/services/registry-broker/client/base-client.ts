@@ -68,6 +68,8 @@ import type {
   LedgerVerifyRequest,
   LedgerVerifyResponse,
   MetricsSummaryResponse,
+  MoltbookOwnerRegistrationUpdateRequest,
+  MoltbookOwnerRegistrationUpdateResponse,
   PopularSearchesResponse,
   ProtocolDetectionMessage,
   ProtocolsResponse,
@@ -76,6 +78,7 @@ import type {
   RegisterEncryptionKeyPayload,
   RegisterEncryptionKeyResponse,
   RegistriesResponse,
+  RegisterStatusResponse,
   RegistrationProgressRecord,
   RegistrationProgressWaitOptions,
   RegistrySearchByNamespaceResponse,
@@ -99,6 +102,12 @@ import type {
   VectorSearchRequest,
   VectorSearchResponse,
   WebsocketStatsResponse,
+  VerificationChallengeDetailsResponse,
+  VerificationChallengeResponse,
+  VerificationOwnershipResponse,
+  VerificationStatusResponse,
+  VerificationVerifyResponse,
+  VerificationVerifySenderResponse,
   X402MinimumsResponse,
 } from '../types';
 import {
@@ -161,6 +170,16 @@ import {
   validateUaid as validateUaidImpl,
   waitForRegistrationCompletion as waitForRegistrationCompletionImpl,
 } from './agents';
+import {
+  createVerificationChallenge as createVerificationChallengeImpl,
+  getRegisterStatus as getRegisterStatusImpl,
+  getVerificationChallenge as getVerificationChallengeImpl,
+  getVerificationOwnership as getVerificationOwnershipImpl,
+  getVerificationStatus as getVerificationStatusImpl,
+  registerOwnedMoltbookAgent as registerOwnedMoltbookAgentImpl,
+  verifySenderOwnership as verifySenderOwnershipImpl,
+  verifyVerificationChallenge as verifyVerificationChallengeImpl,
+} from './verification';
 import type {
   BuyCreditsWithX402Params,
   PurchaseCreditsWithX402Params,
@@ -262,6 +281,7 @@ export class RegistryBrokerClient {
       fetchImplementation,
       defaultHeaders,
       apiKey,
+      accountId,
       ledgerApiKey,
       registrationAutoTopUp,
       historyAutoTopUp,
@@ -287,11 +307,21 @@ export class RegistryBrokerClient {
         this.defaultHeaders[headerName] = value;
       }
     });
+    const existingLedgerHeader =
+      this.defaultHeaders['x-ledger-api-key']?.trim();
+    if (!this.defaultHeaders['x-api-key'] && existingLedgerHeader) {
+      this.defaultHeaders['x-api-key'] = existingLedgerHeader;
+    }
     if (apiKey) {
       this.defaultHeaders['x-api-key'] = apiKey;
     }
+    if (typeof accountId === 'string' && accountId.trim().length > 0) {
+      this.defaultHeaders['x-account-id'] = accountId.trim();
+    }
     if (ledgerApiKey) {
-      this.defaultHeaders['x-ledger-api-key'] = ledgerApiKey;
+      if (!this.defaultHeaders['x-api-key']) {
+        this.defaultHeaders['x-api-key'] = ledgerApiKey;
+      }
     }
     this.registrationAutoTopUp = registrationAutoTopUp;
     this.historyAutoTopUp = historyAutoTopUp;
@@ -327,7 +357,8 @@ export class RegistryBrokerClient {
   }
 
   setLedgerApiKey(apiKey?: string): void {
-    this.setDefaultHeader('x-ledger-api-key', apiKey);
+    this.setDefaultHeader('x-api-key', apiKey);
+    delete this.defaultHeaders['x-ledger-api-key'];
   }
 
   setDefaultHeader(name: string, value?: string | null): void {
@@ -534,6 +565,45 @@ export class RegistryBrokerClient {
 
   async search(params: SearchParams = {}): Promise<SearchResult> {
     return searchImpl(this, params);
+  }
+
+  async searchErc8004ByAgentId(params: {
+    chainId: number;
+    agentId: number | bigint | string;
+    limit?: number;
+    page?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc' | string;
+  }): Promise<SearchResult> {
+    const chainId = Math.floor(params.chainId);
+    if (!Number.isFinite(chainId) || chainId <= 0) {
+      throw new Error('chainId must be a positive integer');
+    }
+
+    const rawAgentId =
+      typeof params.agentId === 'bigint'
+        ? params.agentId.toString()
+        : String(params.agentId);
+    const agentId = rawAgentId.trim();
+    if (!agentId) {
+      throw new Error('agentId is required');
+    }
+
+    const nativeId = `${chainId}:${agentId}`;
+
+    return searchImpl(this, {
+      registries: ['erc-8004'],
+      limit: params.limit ?? 1,
+      ...(typeof params.page === 'number' ? { page: params.page } : {}),
+      ...(typeof params.sortBy === 'string' ? { sortBy: params.sortBy } : {}),
+      ...(typeof params.sortOrder === 'string'
+        ? { sortOrder: params.sortOrder }
+        : {}),
+      metadata: {
+        nativeId: [nativeId],
+        networkKey: [`eip155:${chainId}`],
+      },
+    });
   }
 
   async stats(): Promise<RegistryStatsResponse> {
@@ -774,6 +844,17 @@ export class RegistryBrokerClient {
     return updateAgentImpl(this, uaid, payload);
   }
 
+  async getRegisterStatus(uaid: string): Promise<RegisterStatusResponse> {
+    return getRegisterStatusImpl(this, uaid);
+  }
+
+  async registerOwnedMoltbookAgent(
+    uaid: string,
+    payload: MoltbookOwnerRegistrationUpdateRequest,
+  ): Promise<MoltbookOwnerRegistrationUpdateResponse> {
+    return registerOwnedMoltbookAgentImpl(this, uaid, payload);
+  }
+
   async getRegistrationProgress(
     attemptId: string,
   ): Promise<RegistrationProgressRecord | null> {
@@ -862,6 +943,43 @@ export class RegistryBrokerClient {
     options: LedgerCredentialAuthOptions,
   ): Promise<LedgerVerifyResponse> {
     return authenticateWithLedgerCredentialsImpl(this, options);
+  }
+
+  async getVerificationStatus(
+    uaid: string,
+  ): Promise<VerificationStatusResponse> {
+    return getVerificationStatusImpl(this, uaid);
+  }
+
+  async createVerificationChallenge(
+    uaid: string,
+  ): Promise<VerificationChallengeResponse> {
+    return createVerificationChallengeImpl(this, uaid);
+  }
+
+  async getVerificationChallenge(
+    challengeId: string,
+  ): Promise<VerificationChallengeDetailsResponse> {
+    return getVerificationChallengeImpl(this, challengeId);
+  }
+
+  async verifyVerificationChallenge(params: {
+    challengeId: string;
+    method?: 'moltbook-post' | string;
+  }): Promise<VerificationVerifyResponse> {
+    return verifyVerificationChallengeImpl(this, params);
+  }
+
+  async getVerificationOwnership(
+    uaid: string,
+  ): Promise<VerificationOwnershipResponse> {
+    return getVerificationOwnershipImpl(this, uaid);
+  }
+
+  async verifySenderOwnership(
+    uaid: string,
+  ): Promise<VerificationVerifySenderResponse> {
+    return verifySenderOwnershipImpl(this, uaid);
   }
 
   async fetchHistorySnapshot(

@@ -1,7 +1,10 @@
 import 'dotenv/config';
 // For safe URL parsing and host validation
 // No additional npm package required as Node's built-in URL class is used
-import { RegistryBrokerClient } from '../../src/services/registry-broker';
+import {
+  RegistryBrokerClient,
+  RegistryBrokerError,
+} from '../../src/services/registry-broker';
 import type {
   AgentSearchHit,
   SendMessageResponse,
@@ -34,6 +37,7 @@ const targetUaid = process.env.ERC8004_AGENT_UAID?.trim() || null;
 const directAgentUrl = process.env.ERC8004_AGENT_URL?.trim() || null;
 const searchQuery =
   process.env.ERC8004_AGENT_QUERY?.trim() || 'defillama-verifiable-agent';
+const localDefaultAgentUrl = 'http://ping-agent:8080/.well-known/agent.json';
 
 const samplePrompt =
   'Provide a concise summary of your capabilities and the type of on-chain data you can access.';
@@ -107,6 +111,41 @@ const extractAgentUrl = (hit: AgentSearchHit): string | null => {
   return null;
 };
 
+const normaliseChatEndpointUrl = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed.endsWith('/mcp/messages')) {
+    return `${trimmed.slice(0, -'/messages'.length)}`;
+  }
+  return trimmed;
+};
+
+const isLikelyChatEndpointUrl = (value: string): boolean => {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return false;
+
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.endsWith('.png') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.gif') ||
+    lower.endsWith('.webp') ||
+    lower.endsWith('.svg')
+  ) {
+    return false;
+  }
+
+  if (lower.includes('/.well-known/agent.json')) {
+    return true;
+  }
+
+  if (lower.includes('/mcp')) {
+    return true;
+  }
+
+  return lower.includes('/ipfs/') || lower.includes('/ipns/');
+};
+
 const extractReplyContent = (payload: SendMessageResponse): string => {
   const content =
     typeof payload.content === 'string' && payload.content.trim().length > 0
@@ -118,14 +157,79 @@ const extractReplyContent = (payload: SendMessageResponse): string => {
   return typeof payload.message === 'string' ? payload.message : '';
 };
 
+type ChatCandidate = {
+  uaid: string | null;
+  name: string;
+  agentUrl: string;
+  score: number;
+};
+
+const scoreCandidateUrl = (value: string): number => {
+  const lower = value.toLowerCase();
+  if (lower.includes('/.well-known/agent.json')) {
+    return 100;
+  }
+  if (lower.includes('/tasks/send')) {
+    return 90;
+  }
+  if (lower.includes('/ipfs/') || lower.includes('/ipns/')) {
+    return 80;
+  }
+  if (lower.includes('/mcp')) {
+    return 10;
+  }
+  return 0;
+};
+
+const buildChatCandidates = (hits: AgentSearchHit[]): ChatCandidate[] => {
+  const seen = new Set<string>();
+  const candidates: ChatCandidate[] = [];
+
+  hits.forEach(hit => {
+    const resolved = extractAgentUrl(hit);
+    if (!resolved) {
+      return;
+    }
+    const normalised = normaliseChatEndpointUrl(resolved);
+    if (!isLikelyChatEndpointUrl(normalised)) {
+      return;
+    }
+    const key = `${hit.uaid ?? ''}|${normalised}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    candidates.push({
+      uaid: hit.uaid ?? null,
+      name: hit.name,
+      agentUrl: normalised,
+      score: scoreCandidateUrl(normalised),
+    });
+  });
+
+  return candidates.sort((a, b) => b.score - a.score);
+};
+
 const run = async (p0: (a: any) => never) => {
   const localBase =
     baseUrl.startsWith('http://127.0.0.1') ||
     baseUrl.startsWith('http://localhost');
+  const localFallbackAgentUrl = localBase ? localDefaultAgentUrl : null;
   const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim();
-  let activeClient = new RegistryBrokerClient({
+  const fetchImplementation: typeof fetch = async (input, init) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+    try {
+      return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const activeClient = new RegistryBrokerClient({
     baseUrl,
     apiKey: !localBase ? apiKey : undefined,
+    fetchImplementation,
   });
 
   const performSearch = async (client: RegistryBrokerClient, query: string) => {
@@ -158,107 +262,137 @@ const run = async (p0: (a: any) => never) => {
     return result;
   };
 
-  let agentUrl: string | null = null;
-  let agentName = 'ERC-8004 Agent';
-  let selectedUaid: string | null = null;
-
-  if (directAgentUrl) {
-    console.log(`Using direct ERC8004 agent URL from env: ${directAgentUrl}`);
-    agentUrl = directAgentUrl;
-  } else {
-    console.log(
-      `Searching for ERC-8004 agents with query "${searchQuery}" via ${baseUrl}…`,
-    );
-    let searchResult = await performSearch(activeClient, searchQuery);
-    console.log(
-      `Broker search returned ${searchResult.total} matches (${searchResult.hits.length} hits)`,
-    );
-    if (searchResult.total === 0 || searchResult.hits.length === 0) {
-      throw new Error('No ERC-8004 agents matched the provided queries');
-    }
-    console.log(
-      `Found ${searchResult.hits.length} candidates (showing first 5):`,
-    );
-    searchResult.hits.slice(0, 5).forEach(hit => {
-      console.log(`- ${hit.name} (${hit.uaid})`);
+  const tryChatCandidate = async (
+    candidate: ChatCandidate,
+  ): Promise<{ sessionId: string }> => {
+    console.log('Opening broker-managed chat session via agentUrl');
+    console.log(`Resolved agentUrl: ${candidate.agentUrl}`);
+    const session = await activeClient.chat.createSession({
+      agentUrl: candidate.agentUrl,
     });
-    const agent =
-      (targetUaid && searchResult.hits.find(hit => hit.uaid === targetUaid)) ||
-      searchResult.hits.find(hit => {
-        const metadata = asRecord(hit.metadata);
-        const registration = metadata ? asRecord(metadata.registration) : null;
-        const tokenUri = registration?.tokenUri;
-        const tokenUriString =
-          typeof tokenUri === 'string' ? tokenUri.toLowerCase() : '';
-        const name = hit.name.toLowerCase();
-        return (
-          tokenUriString.includes('defillama') || name.includes('defillama')
-        );
-      }) ||
-      searchResult.hits[0];
-    agentName = agent.name;
-    selectedUaid = agent.uaid ?? null;
-    console.log(
-      `Selected agent: ${agentName}${selectedUaid ? ` (${selectedUaid})` : ''}`,
-    );
 
-    const resolved = extractAgentUrl(agent);
-    if (!resolved) {
-      console.warn(
-        'Selected agent does not expose an HTTP-compatible endpoint; proceeding with UAID-based chat via broker',
-      );
-      agentUrl = null;
-    } else {
-      agentUrl = resolved;
+    console.log('Session established:');
+    console.log(`  Session ID: ${session.sessionId}`);
+    console.log(
+      `  History TTL: ${session.historyTtlSeconds ?? 'unknown'} seconds`,
+    );
+    console.log(`  Agent name: ${session.agent.name || candidate.name}`);
+
+    console.log('Sending initial prompt through the broker…');
+    const firstResponse = await activeClient.chat.sendMessage({
+      sessionId: session.sessionId,
+      message: samplePrompt,
+    });
+    console.log('Agent reply:');
+    console.log(extractReplyContent(firstResponse));
+
+    const followUpPrompt =
+      'Fetch the current total value locked (TVL) in USD for Uniswap and reply exactly in the format "Uniswap: $<amount>".';
+    console.log('Sending follow-up prompt to validate context retention…');
+    const secondResponse = await activeClient.chat.sendMessage({
+      sessionId: session.sessionId,
+      message: followUpPrompt,
+    });
+    console.log('Follow-up reply:');
+    console.log(extractReplyContent(secondResponse));
+
+    const historySnapshot = await activeClient.chat.getHistory(
+      session.sessionId,
+    );
+    console.log('--- Conversation History Snapshot ---');
+    historySnapshot.history.forEach(entry => {
+      console.log(`  [${entry.role}] ${entry.content}`);
+    });
+
+    await activeClient.chat
+      .endSession(session.sessionId)
+      .catch(() => undefined);
+    return { sessionId: session.sessionId };
+  };
+
+  console.log(
+    `Searching for ERC-8004 agents with query "${searchQuery}" via ${baseUrl}…`,
+  );
+  const searchResult = await performSearch(activeClient, searchQuery);
+  console.log(
+    `Broker search returned ${searchResult.total} matches (${searchResult.hits.length} hits)`,
+  );
+  if (searchResult.total === 0 || searchResult.hits.length === 0) {
+    throw new Error('No ERC-8004 agents matched the provided queries');
+  }
+  console.log(
+    `Found ${searchResult.hits.length} candidates (showing first 5):`,
+  );
+  searchResult.hits.slice(0, 5).forEach(hit => {
+    console.log(`- ${hit.name} (${hit.uaid})`);
+  });
+
+  const candidates = buildChatCandidates(searchResult.hits);
+  if (candidates.length === 0) {
+    throw new Error(
+      'No viable agentUrl candidates were found for ERC-8004 hits',
+    );
+  }
+
+  const ordered = targetUaid
+    ? [
+        ...candidates.filter(candidate => candidate.uaid === targetUaid),
+        ...candidates.filter(candidate => candidate.uaid !== targetUaid),
+      ]
+    : candidates;
+
+  let attemptOrder = ordered;
+  if (directAgentUrl) {
+    const normalised = normaliseChatEndpointUrl(directAgentUrl);
+    console.log(`Including direct agentUrl from env: ${normalised}`);
+    attemptOrder = [
+      {
+        uaid: targetUaid,
+        name: 'Direct agentUrl (env)',
+        agentUrl: normalised,
+        score: scoreCandidateUrl(normalised),
+      },
+      ...attemptOrder.filter(candidate => candidate.agentUrl !== normalised),
+    ];
+  } else if (localFallbackAgentUrl) {
+    const normalised = normaliseChatEndpointUrl(localFallbackAgentUrl);
+    console.log(`Including local demo agentUrl: ${normalised}`);
+    attemptOrder = [
+      {
+        uaid: null,
+        name: 'Local ping-agent',
+        agentUrl: normalised,
+        score: scoreCandidateUrl(normalised),
+      },
+      ...attemptOrder.filter(candidate => candidate.agentUrl !== normalised),
+    ];
+  }
+
+  const maxAttempts = Math.min(10, attemptOrder.length);
+  for (let index = 0; index < maxAttempts; index += 1) {
+    const candidate = attemptOrder[index];
+    console.log(
+      `Selected candidate ${index + 1}/${maxAttempts}: ${candidate.name}${candidate.uaid ? ` (${candidate.uaid})` : ''}`,
+    );
+    try {
+      await tryChatCandidate(candidate);
+      return;
+    } catch (error) {
+      if (error instanceof RegistryBrokerError) {
+        console.warn('Candidate failed; trying next', {
+          status: error.status,
+          statusText: error.statusText,
+          body: error.body,
+        });
+        continue;
+      }
+      console.warn('Candidate failed; trying next', {
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
-  const resolvedUaid = selectedUaid ?? targetUaid;
-  if (!resolvedUaid) {
-    throw new Error('Selected agent does not have a UAID');
-  }
-
-  if (agentUrl) {
-    console.log(`Resolved agentUrl: ${agentUrl}`);
-  }
-  console.log(`Opening broker-managed chat session via UAID: ${resolvedUaid}`);
-
-  const session = await activeClient.chat.createSession({ uaid: resolvedUaid });
-
-  console.log('Session established:');
-  console.log(`  Session ID: ${session.sessionId}`);
-  console.log(
-    `  History TTL: ${session.historyTtlSeconds ?? 'unknown'} seconds`,
-  );
-  console.log(`  Agent name: ${session.agent.name || agentName}`);
-
-  console.log('Sending initial prompt through the broker…');
-  const firstResponse = await activeClient.chat.sendMessage({
-    sessionId: session.sessionId,
-    uaid: resolvedUaid,
-    message: samplePrompt,
-  });
-  console.log('Agent reply:');
-  console.log(extractReplyContent(firstResponse));
-
-  const followUpPrompt =
-    'Fetch the current total value locked (TVL) in USD for Uniswap and reply exactly in the format "Uniswap: $<amount>".';
-  console.log('Sending follow-up prompt to validate context retention…');
-  const secondResponse = await activeClient.chat.sendMessage({
-    sessionId: session.sessionId,
-    uaid: resolvedUaid,
-    message: followUpPrompt,
-  });
-  console.log('Follow-up reply:');
-  console.log(extractReplyContent(secondResponse));
-
-  const historySnapshot = await activeClient.chat.getHistory(session.sessionId);
-  console.log('--- Conversation History Snapshot ---');
-  historySnapshot.history.forEach(entry => {
-    console.log(`  [${entry.role}] ${entry.content}`);
-  });
-
-  await activeClient.chat.endSession(session.sessionId).catch(() => undefined);
+  throw new Error('No candidate chat endpoint succeeded');
 };
 
 run(a => {

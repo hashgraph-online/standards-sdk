@@ -41,39 +41,6 @@ export const normalizeTransactionId = (txId: string): string => {
   return `${txParts[0]}-${txParts[1].replace('.', '-')}`;
 };
 
-const HASHPACK_EXTENSION_ID = 'gjagmgiddbbciopjhllkdnddhcglnemk';
-
-/**
- * Triggers the HashPack browser extension popup for signing on desktop.
- * This should be called before any transaction that needs signing.
- * The extensionOpen() call opens the extension popup so the user can see and sign the request.
- */
-async function triggerExtensionPopupIfNeeded(
-  _signer: DAppSigner,
-  logger: ILogger,
-): Promise<void> {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const isMobile =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    );
-
-  if (isMobile) {
-    return;
-  }
-
-  try {
-    const { extensionOpen } = await import('@hashgraph/hedera-wallet-connect');
-    logger.debug('Triggering HashPack extension popup for signing');
-    extensionOpen(HASHPACK_EXTENSION_ID);
-  } catch (err) {
-    logger.warn('Failed to trigger extension popup', err);
-  }
-}
-
 async function loadNodeModules(): Promise<void> {
   if (isBrowser || nodeModules.readFileSync) {
     return;
@@ -243,7 +210,7 @@ export async function inscribe(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
-        connectionMode: 'auto',
+        connectionMode: 'websocket',
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -253,7 +220,7 @@ export async function inscribe(
         accountId: normalized.accountId,
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
-        connectionMode: 'auto',
+        connectionMode: 'websocket',
       });
     }
 
@@ -632,8 +599,6 @@ export async function inscribeWithSigner(
       jobId: startResult.id || startResult.tx_id,
       ...startResult,
     });
-
-    await triggerExtensionPopupIfNeeded(signer, logger);
 
     if (typeof startResult?.transactionBytes === 'string') {
       logger.debug('Executing inscription transaction with signer from bytes');
@@ -1348,7 +1313,7 @@ export async function inscribeViaRegistryBroker(
   };
 
   if (options.ledgerApiKey) {
-    headers['x-ledger-api-key'] = options.ledgerApiKey;
+    headers['x-api-key'] = options.ledgerApiKey;
   } else if (options.apiKey) {
     headers['x-api-key'] = options.apiKey;
   } else {
@@ -1526,7 +1491,7 @@ export async function getRegistryBrokerQuote(
   };
 
   if (options.ledgerApiKey) {
-    headers['x-ledger-api-key'] = options.ledgerApiKey;
+    headers['x-api-key'] = options.ledgerApiKey;
   } else if (options.apiKey) {
     headers['x-api-key'] = options.apiKey;
   } else {

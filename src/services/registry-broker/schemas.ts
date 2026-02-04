@@ -725,6 +725,9 @@ const registerAgentSuccessResponse = z.object({
   additionalRegistries: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCostPerRegistry: z.number().optional(),
+  additionalRegistrySecrets: z
+    .record(z.string(), z.record(jsonValueSchema))
+    .optional(),
 });
 
 const registerAgentPendingResponse = z.object({
@@ -750,6 +753,9 @@ const registerAgentPendingResponse = z.object({
   additionalRegistries: z.array(additionalRegistryResultSchema),
   additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCostPerRegistry: z.number().optional(),
+  additionalRegistrySecrets: z
+    .record(z.string(), z.record(jsonValueSchema))
+    .optional(),
 });
 
 const registerAgentPartialResponse = z.object({
@@ -775,6 +781,9 @@ const registerAgentPartialResponse = z.object({
   additionalRegistries: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCredits: z.array(additionalRegistryResultSchema).optional(),
   additionalRegistryCostPerRegistry: z.number().optional(),
+  additionalRegistrySecrets: z
+    .record(z.string(), z.record(jsonValueSchema))
+    .optional(),
   errors: z
     .array(
       z.object({
@@ -1072,3 +1081,98 @@ const searchFacetSchema = z.object({
 export const searchFacetsResponseSchema = z.object({
   facets: z.array(searchFacetSchema),
 });
+
+// ----------------------------------------------------------------------------
+// Verification + owner registration (Moltbook/OpenClaw)
+// ----------------------------------------------------------------------------
+
+const verificationExistingOwnershipSchema = z
+  .object({
+    ownerType: z.string(),
+    ownerId: z.string(),
+    ownerHandle: z.string().optional(),
+    verifiedAt: z.string().optional(),
+    method: z.string().optional(),
+  })
+  .passthrough();
+
+export const verificationChallengeResponseSchema = z
+  .object({
+    challengeId: z.string(),
+    code: z.string(),
+    expiresAt: z.string(),
+    expectedHandle: z.string(),
+    instructions: z.string(),
+    existingOwnership: verificationExistingOwnershipSchema.optional(),
+  })
+  .passthrough();
+
+export const verificationChallengeDetailsResponseSchema = z
+  .object({
+    challengeId: z.string(),
+    uaid: z.string(),
+    code: z.string(),
+    expiresAt: z.string(),
+    status: z.string(),
+    message: z.string().optional(),
+  })
+  .passthrough();
+
+export const verificationVerifyResponseSchema = z
+  .object({
+    verified: z.boolean(),
+    uaid: z.string(),
+    ownerType: z.string(),
+    ownerId: z.string(),
+    ownerHandle: z.string().optional(),
+    method: z.string().optional(),
+    verificationPostUrl: z.string().optional(),
+  })
+  .passthrough();
+
+export const verificationOwnershipResponseSchema = z
+  .object({
+    uaid: z.string(),
+    ownerType: z.string(),
+    ownerId: z.string(),
+    ownerHandle: z.string().optional(),
+    chain: z.string(),
+    verifiedAt: z.string(),
+    method: z.string(),
+  })
+  .passthrough();
+
+export const verificationStatusResponseSchema = z
+  .object({
+    uaid: z.string(),
+    verified: z.boolean(),
+    chain: z.string().nullable(),
+  })
+  .passthrough();
+
+export const verificationVerifySenderResponseSchema = z
+  .object({
+    verified: z.boolean(),
+    uaid: z.string(),
+    ownerType: z.string(),
+    ownerId: z.string(),
+  })
+  .passthrough();
+
+export const registerStatusResponseSchema = z
+  .object({
+    registered: z.boolean(),
+    agent: jsonValueSchema.optional(),
+  })
+  .passthrough();
+
+export const moltbookOwnerRegistrationUpdateResponseSchema = z
+  .object({
+    ok: z.boolean(),
+    uaid: z.string(),
+    registered: z.boolean(),
+    registeredAt: z.string().optional(),
+    agent: jsonValueSchema.optional(),
+    warning: z.string().optional(),
+  })
+  .passthrough();

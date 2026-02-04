@@ -64,7 +64,7 @@ const fetchCreditBalance = async (
   const response = await fetch(
     `${baseUrl}/credits/balance?accountId=${encodeURIComponent(accountId)}`,
     {
-      headers: { 'x-ledger-api-key': ledgerApiKey },
+      headers: { 'x-api-key': ledgerApiKey },
     },
   );
   if (!response.ok) {
@@ -344,7 +344,7 @@ const runDemo = async () => {
     expiresInMinutes: 30,
     setAccountHeader: true,
   });
-  const ledgerApiKey = client.getDefaultHeaders()['x-ledger-api-key'];
+  const ledgerApiKey = client.getDefaultHeaders()['x-api-key'];
   const logLedgerBalance = async (label: string) => {
     if (!ledgerApiKey) {
       return;

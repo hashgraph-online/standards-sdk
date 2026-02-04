@@ -1170,7 +1170,7 @@ describe('RegistryBrokerClient', () => {
       baseUrl: 'https://api.example.com',
       fetchImplementation,
       uaid: 'uaid:init',
-      defaultHeaders: { 'x-ledger-api-key': 'demo-ledger-key' },
+      defaultHeaders: { 'x-api-key': 'demo-ledger-key' },
     });
 
     expect(result.client).toBeInstanceOf(RegistryBrokerClient);
