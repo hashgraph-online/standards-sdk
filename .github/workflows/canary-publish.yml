@@ -51,8 +51,8 @@ jobs:
         run: |
           VERSION="${{ steps.canary.outputs.version }}"
           pnpm version "$VERSION" --no-git-tag-version
-          pnpm --filter @hol-org/standards-sdk version "$VERSION" --no-git-tag-version
-          pnpm --filter @hol-org/rb-client version "$VERSION" --no-git-tag-version
+          pnpm -C packages/hol-standards-sdk version "$VERSION" --no-git-tag-version
+          pnpm -C packages/rb-client version "$VERSION" --no-git-tag-version
 
       - name: Check if version already published
         id: version_check

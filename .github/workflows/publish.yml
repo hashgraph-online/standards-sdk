@@ -51,8 +51,8 @@ jobs:
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-          pnpm --filter @hol-org/standards-sdk version "$NEW_VERSION" --no-git-tag-version
-          pnpm --filter @hol-org/rb-client version patch --no-git-tag-version
+          pnpm -C packages/hol-standards-sdk version "$NEW_VERSION" --no-git-tag-version
+          pnpm -C packages/rb-client version "$NEW_VERSION" --no-git-tag-version
 
       - name: Check if version already published
         id: version_check
