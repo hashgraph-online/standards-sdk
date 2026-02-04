@@ -49,16 +49,115 @@ jobs:
           echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
-          published_version="$(npm view @hashgraphonline/standards-sdk version 2>/dev/null || true)"
-          if [ -n "$published_version" ]; then
-            base_version="$published_version"
-          else
+          max_stable_version_for_pkg() {
+            node - "$1" <<'NODE'
+const cp = require('child_process');
+
+const pkg = process.argv[1];
+
+function parseStable(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compare(a, b) {
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] > b[i]) return 1;
+    if (a[i] < b[i]) return -1;
+  }
+  return 0;
+}
+
+function toString(parts) {
+  return `${parts[0]}.${parts[1]}.${parts[2]}`;
+}
+
+try {
+  const raw = cp.execSync(`npm view ${pkg} versions --json`, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  const parsed = JSON.parse(raw);
+  const versions = Array.isArray(parsed) ? parsed : [parsed];
+  let best = null;
+  for (const version of versions) {
+    const parsedVersion = parseStable(version);
+    if (!parsedVersion) continue;
+    if (!best || compare(parsedVersion, best) > 0) {
+      best = parsedVersion;
+    }
+  }
+  if (best) {
+    process.stdout.write(toString(best));
+  }
+} catch {
+  // Best-effort only.
+}
+NODE
+          }
+
+          max_stable_version() {
+            node - "$@" <<'NODE'
+const values = process.argv.slice(1);
+
+function parseStable(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compare(a, b) {
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] > b[i]) return 1;
+    if (a[i] < b[i]) return -1;
+  }
+  return 0;
+}
+
+function toString(parts) {
+  return `${parts[0]}.${parts[1]}.${parts[2]}`;
+}
+
+let best = null;
+for (const value of values) {
+  if (!value) continue;
+  const parsed = parseStable(value);
+  if (!parsed) continue;
+  if (!best || compare(parsed, best) > 0) {
+    best = parsed;
+  }
+}
+
+if (best) {
+  process.stdout.write(toString(best));
+}
+NODE
+          }
+
+          published_hash="$(max_stable_version_for_pkg "@hashgraphonline/standards-sdk")"
+          published_hol="$(max_stable_version_for_pkg "@hol-org/standards-sdk")"
+          published_rb="$(max_stable_version_for_pkg "@hol-org/rb-client")"
+
+          published_version="$(max_stable_version "$published_hash" "$published_hol" "$published_rb")"
+          base_version="${published_version:-}"
+          if [ -z "$base_version" ]; then
             base_version="$(node -p "require('./package.json').version")"
           fi
 
           bump_patch() {
             node -e "const v=process.argv[1].split('.').map(Number); console.log([v[0],v[1],v[2]+1].join('.'))" "$1"
           }
+
+          tag_version=""
+          if [ -n "$latest_tag" ]; then
+            tag_version="${latest_tag#v}"
+            base_version="$(max_stable "$base_version" "$tag_version")"
+          fi
 
           exists_pkg() {
             npm view "$1@$2" version >/dev/null 2>&1
@@ -67,18 +166,20 @@ jobs:
           mode="release"
           version="$(bump_patch "$base_version")"
 
-          missing=false
-          for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
-            if ! exists_pkg "$pkg" "$base_version"; then
-              missing=true
-            fi
-          done
-
           repair_tag=""
-          if [ "$missing" = "true" ] && git rev-parse -q --verify "refs/tags/v$base_version" >/dev/null; then
-            mode="repair"
-            version="$base_version"
-            repair_tag="v$base_version"
+          if [ -n "$latest_tag" ] && [ -n "$tag_version" ]; then
+            missing=false
+            for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
+              if ! exists_pkg "$pkg" "$tag_version"; then
+                missing=true
+              fi
+            done
+
+            if [ "$missing" = "true" ]; then
+              mode="repair"
+              version="$tag_version"
+              repair_tag="$latest_tag"
+            fi
           fi
 
           if [ "$mode" = "release" ]; then
@@ -87,6 +188,9 @@ jobs:
             done
           fi
 
+          echo "base_version=$base_version"
+          echo "tag_version=$tag_version"
+          echo "computed_version=$version"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
