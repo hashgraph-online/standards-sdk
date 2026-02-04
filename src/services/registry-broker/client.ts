@@ -6,6 +6,7 @@ import './client/agents';
 import './client/ledger-auth';
 import './client/chat-history';
 import './client/chat';
+import './client/verification';
 
 export {
   RegistryBrokerClient,

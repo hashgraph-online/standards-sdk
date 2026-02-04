@@ -193,7 +193,7 @@ const ensureBillingAuth = async (options: {
   prompt: ReturnType<typeof createEnhancedPrompt>;
 }): Promise<boolean> => {
   const headers = options.client.getDefaultHeaders();
-  if (headers['x-api-key'] || headers['x-ledger-api-key']) {
+  if (headers['x-api-key']) {
     return true;
   }
 

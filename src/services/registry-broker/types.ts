@@ -61,8 +61,16 @@ import {
   agentFeedbackSubmissionResponseSchema,
   agentFeedbackIndexResponseSchema,
   agentFeedbackEntriesIndexResponseSchema,
+  moltbookOwnerRegistrationUpdateResponseSchema,
   AIAgentType,
   AIAgentCapability,
+  registerStatusResponseSchema,
+  verificationChallengeDetailsResponseSchema,
+  verificationChallengeResponseSchema,
+  verificationOwnershipResponseSchema,
+  verificationStatusResponseSchema,
+  verificationVerifyResponseSchema,
+  verificationVerifySenderResponseSchema,
 } from './schemas';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -76,6 +84,13 @@ export interface RegistryBrokerClientOptions {
   fetchImplementation?: typeof fetch;
   defaultHeaders?: Record<string, string>;
   apiKey?: string;
+  /**
+   * Optional account identifier to send as the `x-account-id` header.
+   *
+   * This is used by some Registry Broker deployments to attribute registrations
+   * when no API key / user session is present (for example local docker E2E).
+   */
+  accountId?: string;
   ledgerApiKey?: string;
   registrationAutoTopUp?: AutoTopUpOptions;
   historyAutoTopUp?: HistoryAutoTopUpOptions;
@@ -252,6 +267,41 @@ export type AgentFeedbackSubmissionResponse = z.infer<
 export type AgentFeedbackIndexResponse = z.infer<
   typeof agentFeedbackIndexResponseSchema
 >;
+
+export type VerificationStatusResponse = z.infer<
+  typeof verificationStatusResponseSchema
+>;
+export type VerificationChallengeResponse = z.infer<
+  typeof verificationChallengeResponseSchema
+>;
+export type VerificationChallengeDetailsResponse = z.infer<
+  typeof verificationChallengeDetailsResponseSchema
+>;
+export type VerificationVerifyResponse = z.infer<
+  typeof verificationVerifyResponseSchema
+>;
+export type VerificationOwnershipResponse = z.infer<
+  typeof verificationOwnershipResponseSchema
+>;
+export type VerificationVerifySenderResponse = z.infer<
+  typeof verificationVerifySenderResponseSchema
+>;
+
+export type RegisterStatusResponse = z.infer<
+  typeof registerStatusResponseSchema
+>;
+
+export type MoltbookOwnerRegistrationUpdateResponse = z.infer<
+  typeof moltbookOwnerRegistrationUpdateResponseSchema
+>;
+
+export interface MoltbookOwnerRegistrationUpdateRequest {
+  registered?: boolean;
+  name?: string;
+  description?: string;
+  endpoint?: string;
+  metadata?: JsonObject;
+}
 export type AgentFeedbackEntriesIndexResponse = z.infer<
   typeof agentFeedbackEntriesIndexResponseSchema
 >;
@@ -483,6 +533,9 @@ export interface ChatConversationHandle {
   summary?: SessionEncryptionSummary | null;
   send: (options: EncryptedChatSendOptions) => Promise<SendMessageResponse>;
   decryptHistoryEntry: (entry: ChatHistoryEntry) => string | null;
+  fetchHistory: (
+    options?: ChatHistoryFetchOptions,
+  ) => Promise<DecryptedHistoryEntry[]>;
 }
 
 export interface EncryptedChatSessionHandle extends ChatConversationHandle {

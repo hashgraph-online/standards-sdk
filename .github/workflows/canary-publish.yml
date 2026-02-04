@@ -48,11 +48,12 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
 
       - name: Update package versions
+        env:
+          VERSION: ${{ steps.canary.outputs.version }}
         run: |
-          VERSION="${{ steps.canary.outputs.version }}"
           pnpm version "$VERSION" --no-git-tag-version
-          pnpm --filter @hol-org/standards-sdk version "$VERSION" --no-git-tag-version
-          pnpm --filter @hol-org/rb-client version "$VERSION" --no-git-tag-version
+          node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
+          node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Check if version already published
         id: version_check
@@ -74,15 +75,17 @@ jobs:
 
       - name: Publish @hol-org/standards-sdk canary
         if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/hol-standards-sdk
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm --filter @hol-org/standards-sdk publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
+        run: npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
 
       - name: Publish @hol-org/rb-client canary
         if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/rb-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm --filter @hol-org/rb-client publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
+        run: npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
 
       - name: Publish to JSR (canary)
         if: steps.version_check.outputs.exists == 'false'
@@ -91,8 +94,7 @@ jobs:
           # Update jsr.json version to match canary
           VERSION="${{ steps.canary.outputs.version }}"
           jq --arg v "$VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
-          # Publish to JSR (provenance is automatic with id-token permission)
-          npx jsr publish --allow-dirty
+          npx jsr publish --allow-dirty --allow-slow-types
 
       - name: Skip publish (version already exists)
         if: steps.version_check.outputs.exists == 'true'

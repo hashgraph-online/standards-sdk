@@ -1,0 +1,11 @@
+{
+  "name": "@hol-org/standards-sdk",
+  "version": "0.1.146",
+  "license": "Apache-2.0",
+  "description": "SDK for Hashgraph Consensus Standards - HCS-10 agents, profiles, inscribe, registry broker",
+  "exports": "./src/index.ts",
+  "publish": {
+    "include": ["src/**/*.ts", "README.md", "LICENSE"],
+    "exclude": ["src/**/*.d.ts"]
+  }
+}

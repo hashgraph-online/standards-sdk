@@ -210,7 +210,7 @@ export async function inscribe(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
-        connectionMode: 'auto',
+        connectionMode: 'websocket',
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -220,7 +220,7 @@ export async function inscribe(
         accountId: normalized.accountId,
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
-        connectionMode: 'auto',
+        connectionMode: 'websocket',
       });
     }
 
@@ -1313,7 +1313,7 @@ export async function inscribeViaRegistryBroker(
   };
 
   if (options.ledgerApiKey) {
-    headers['x-ledger-api-key'] = options.ledgerApiKey;
+    headers['x-api-key'] = options.ledgerApiKey;
   } else if (options.apiKey) {
     headers['x-api-key'] = options.apiKey;
   } else {
@@ -1491,7 +1491,7 @@ export async function getRegistryBrokerQuote(
   };
 
   if (options.ledgerApiKey) {
-    headers['x-ledger-api-key'] = options.ledgerApiKey;
+    headers['x-api-key'] = options.ledgerApiKey;
   } else if (options.apiKey) {
     headers['x-api-key'] = options.apiKey;
   } else {

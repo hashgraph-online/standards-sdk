@@ -20,7 +20,8 @@ import {
   uaidConnectionStatusSchema,
   uaidValidationResponseSchema,
 } from '../schemas';
-import { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient } from './base-client';
+import { purchaseCreditsWithHbar } from './credits';
 import {
   createAbortError,
   DEFAULT_PROGRESS_INTERVAL_MS,
@@ -29,34 +30,6 @@ import {
   serialiseAgentRegistrationRequest,
 } from './utils';
 import { RegistryBrokerError } from './errors';
-
-declare module './base-client' {
-  interface RegistryBrokerClient {
-    resolveUaid(uaid: string): Promise<ResolvedAgentResponse>;
-    registerAgent(
-      payload: AgentRegistrationRequest,
-      options?: RegisterAgentOptions,
-    ): Promise<RegisterAgentResponse>;
-    getRegistrationQuote(
-      payload: AgentRegistrationRequest,
-    ): Promise<RegisterAgentQuoteResponse>;
-    updateAgent(
-      uaid: string,
-      payload: AgentRegistrationRequest,
-    ): Promise<RegisterAgentResponse>;
-    getRegistrationProgress(
-      attemptId: string,
-    ): Promise<RegistrationProgressRecord | null>;
-    waitForRegistrationCompletion(
-      attemptId: string,
-      options?: RegistrationProgressWaitOptions,
-    ): Promise<RegistrationProgressRecord>;
-    validateUaid(uaid: string): Promise<UaidValidationResponse>;
-    getUaidConnectionStatus(uaid: string): Promise<UaidConnectionStatus>;
-    closeUaidConnection(uaid: string): Promise<void>;
-    dashboardStats(): Promise<DashboardStatsResponse>;
-  }
-}
 
 async function performRegisterAgent(
   client: RegistryBrokerClient,
@@ -118,7 +91,7 @@ async function ensureCreditsForRegistration(
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const quote = await client.getRegistrationQuote(payload);
+    const quote = await getRegistrationQuote(client, payload);
     const shortfall = quote.shortfallCredits ?? 0;
     if (shortfall <= 0) {
       return;
@@ -135,7 +108,7 @@ async function ensureCreditsForRegistration(
 
     const hbarAmount = calculateHbarAmount(creditsToPurchase, creditsPerHbar);
 
-    await client.purchaseCreditsWithHbar({
+    await purchaseCreditsWithHbar(client, {
       accountId: details.accountId.trim(),
       privateKey: details.privateKey.trim(),
       hbarAmount,
@@ -148,81 +121,81 @@ async function ensureCreditsForRegistration(
     });
   }
 
-  const finalQuote = await client.getRegistrationQuote(payload);
+  const finalQuote = await getRegistrationQuote(client, payload);
   if ((finalQuote.shortfallCredits ?? 0) > 0) {
     throw new Error('Unable to purchase sufficient credits for registration');
   }
 }
 
-RegistryBrokerClient.prototype.resolveUaid = async function (
-  this: RegistryBrokerClient,
+export async function resolveUaid(
+  client: RegistryBrokerClient,
   uaid: string,
 ): Promise<ResolvedAgentResponse> {
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/resolve/${encodeURIComponent(uaid)}`,
     {
       method: 'GET',
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     resolveResponseSchema,
     'resolve UAID response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.registerAgent = async function (
-  this: RegistryBrokerClient,
+export async function registerAgent(
+  client: RegistryBrokerClient,
   payload: AgentRegistrationRequest,
   options?: RegisterAgentOptions,
 ): Promise<RegisterAgentResponse> {
-  const autoTopUp = options?.autoTopUp ?? this.registrationAutoTopUp;
+  const autoTopUp = options?.autoTopUp ?? client.registrationAutoTopUp;
 
   if (!autoTopUp) {
-    return performRegisterAgent(this, payload);
+    return performRegisterAgent(client, payload);
   }
 
-  await ensureCreditsForRegistration(this, payload, autoTopUp);
+  await ensureCreditsForRegistration(client, payload, autoTopUp);
 
   let retried = false;
   while (true) {
     try {
-      return await performRegisterAgent(this, payload);
+      return await performRegisterAgent(client, payload);
     } catch (error) {
-      const shortfall = this.extractInsufficientCreditsDetails(error);
+      const shortfall = client.extractInsufficientCreditsDetails(error);
       if (shortfall && !retried) {
-        await ensureCreditsForRegistration(this, payload, autoTopUp);
+        await ensureCreditsForRegistration(client, payload, autoTopUp);
         retried = true;
         continue;
       }
       throw error;
     }
   }
-};
+}
 
-RegistryBrokerClient.prototype.getRegistrationQuote = async function (
-  this: RegistryBrokerClient,
+export async function getRegistrationQuote(
+  client: RegistryBrokerClient,
   payload: AgentRegistrationRequest,
 ): Promise<RegisterAgentQuoteResponse> {
-  const raw = await this.requestJson<JsonValue>('/register/quote', {
+  const raw = await client.requestJson<JsonValue>('/register/quote', {
     method: 'POST',
     body: serialiseAgentRegistrationRequest(payload),
     headers: { 'content-type': 'application/json' },
   });
 
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     registrationQuoteResponseSchema,
     'registration quote response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.updateAgent = async function (
-  this: RegistryBrokerClient,
+export async function updateAgent(
+  client: RegistryBrokerClient,
   uaid: string,
   payload: AgentRegistrationRequest,
 ): Promise<RegisterAgentResponse> {
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/register/${encodeURIComponent(uaid)}`,
     {
       method: 'PUT',
@@ -231,15 +204,15 @@ RegistryBrokerClient.prototype.updateAgent = async function (
     },
   );
 
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     registerAgentResponseSchema,
     'update agent response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.getRegistrationProgress = async function (
-  this: RegistryBrokerClient,
+export async function getRegistrationProgress(
+  client: RegistryBrokerClient,
   attemptId: string,
 ): Promise<RegistrationProgressRecord | null> {
   const normalisedAttemptId = attemptId.trim();
@@ -248,12 +221,12 @@ RegistryBrokerClient.prototype.getRegistrationProgress = async function (
   }
 
   try {
-    const raw = await this.requestJson<JsonValue>(
+    const raw = await client.requestJson<JsonValue>(
       `/register/progress/${encodeURIComponent(normalisedAttemptId)}`,
       { method: 'GET' },
     );
 
-    const parsed = this.parseWithSchema(
+    const parsed = client.parseWithSchema(
       raw,
       registrationProgressResponseSchema,
       'registration progress response',
@@ -266,10 +239,10 @@ RegistryBrokerClient.prototype.getRegistrationProgress = async function (
     }
     throw error;
   }
-};
+}
 
-RegistryBrokerClient.prototype.waitForRegistrationCompletion = async function (
-  this: RegistryBrokerClient,
+export async function waitForRegistrationCompletion(
+  client: RegistryBrokerClient,
   attemptId: string,
   options: RegistrationProgressWaitOptions = {},
 ): Promise<RegistrationProgressRecord> {
@@ -292,7 +265,7 @@ RegistryBrokerClient.prototype.waitForRegistrationCompletion = async function (
       throw createAbortError();
     }
 
-    const progress = await this.getRegistrationProgress(normalisedAttemptId);
+    const progress = await client.getRegistrationProgress(normalisedAttemptId);
 
     if (progress) {
       options.onProgress?.(progress);
@@ -322,62 +295,62 @@ RegistryBrokerClient.prototype.waitForRegistrationCompletion = async function (
       );
     }
 
-    await this.delay(interval, signal);
+    await client.delay(interval, signal);
   }
-};
+}
 
-RegistryBrokerClient.prototype.validateUaid = async function (
-  this: RegistryBrokerClient,
+export async function validateUaid(
+  client: RegistryBrokerClient,
   uaid: string,
 ): Promise<UaidValidationResponse> {
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/uaids/validate/${encodeURIComponent(uaid)}`,
     {
       method: 'GET',
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     uaidValidationResponseSchema,
     'UAID validation response',
   );
-};
+}
 
-RegistryBrokerClient.prototype.getUaidConnectionStatus = async function (
-  this: RegistryBrokerClient,
+export async function getUaidConnectionStatus(
+  client: RegistryBrokerClient,
   uaid: string,
 ): Promise<UaidConnectionStatus> {
-  const raw = await this.requestJson<JsonValue>(
+  const raw = await client.requestJson<JsonValue>(
     `/uaids/connections/${encodeURIComponent(uaid)}/status`,
     {
       method: 'GET',
     },
   );
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     uaidConnectionStatusSchema,
     'UAID connection status',
   );
-};
+}
 
-RegistryBrokerClient.prototype.closeUaidConnection = async function (
-  this: RegistryBrokerClient,
+export async function closeUaidConnection(
+  client: RegistryBrokerClient,
   uaid: string,
 ): Promise<void> {
-  await this.request(`/uaids/connections/${encodeURIComponent(uaid)}`, {
+  await client.request(`/uaids/connections/${encodeURIComponent(uaid)}`, {
     method: 'DELETE',
   });
-};
+}
 
-RegistryBrokerClient.prototype.dashboardStats = async function (
-  this: RegistryBrokerClient,
+export async function dashboardStats(
+  client: RegistryBrokerClient,
 ): Promise<DashboardStatsResponse> {
-  const raw = await this.requestJson<JsonValue>('/dashboard/stats', {
+  const raw = await client.requestJson<JsonValue>('/dashboard/stats', {
     method: 'GET',
   });
-  return this.parseWithSchema(
+  return client.parseWithSchema(
     raw,
     dashboardStatsResponseSchema,
     'dashboard stats response',
   );
-};
+}

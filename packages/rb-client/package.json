@@ -7,6 +7,14 @@
     "dist"
   ],
   "sideEffects": false,
+  "homepage": "https://hol.org",
+  "bugs": {
+    "url": "https://github.com/hashgraph-online/standards-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hashgraph-online/standards-sdk.git"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
