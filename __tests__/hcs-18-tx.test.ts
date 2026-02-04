@@ -3,12 +3,7 @@ import {
   buildHcs18SubmitDiscoveryMessageTx,
 } from '../src/hcs-18/tx';
 import { DiscoveryOperation } from '../src/hcs-18/types';
-jest.mock('@hashgraph/sdk', () => {
-  return {
-    TopicId: { fromString: (s: string) => ({ toString: () => s }) },
-    TopicMessageSubmitTransaction: jest.fn(),
-  };
-});
+jest.mock('@hashgraph/sdk');
 
 describe('HCS-18 tx builders', () => {
   it('builds discovery memo correctly', () => {

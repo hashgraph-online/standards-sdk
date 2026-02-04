@@ -1,53 +1,6 @@
 import { HCS18Client } from '../src/hcs-18';
 
-jest.mock('@hashgraph/sdk', () => {
-  class AccountId {
-    constructor(value: string) {
-      this.value = String(value);
-    }
-    value: string;
-    static fromString(value: string) {
-      return new AccountId(value);
-    }
-    toString() {
-      return this.value;
-    }
-  }
-
-  class PublicKey {
-    constructor(value = 'mock-public-key') {
-      this.value = String(value);
-    }
-    value: string;
-    toString() {
-      return this.value;
-    }
-  }
-
-  class PrivateKey {
-    constructor(value = 'mock-private-key') {
-      this.value = String(value);
-      this.publicKey = new PublicKey('mock-public-key');
-    }
-    value: string;
-    publicKey: PublicKey;
-    static fromStringED25519(value: string) {
-      return new PrivateKey(value);
-    }
-    static fromStringECDSA(value: string) {
-      return new PrivateKey(value);
-    }
-  }
-
-  class Client {
-    static forName = jest.fn(() => new Client());
-    static forMainnet = jest.fn(() => new Client());
-    static forTestnet = jest.fn(() => new Client());
-    setOperator = jest.fn().mockReturnThis();
-  }
-
-  return { AccountId, Client, PrivateKey, PublicKey };
-});
+jest.mock('@hashgraph/sdk');
 
 describe('HCS18BaseClient helpers (via HCS18Client)', () => {
   beforeEach(() => {
