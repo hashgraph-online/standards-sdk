@@ -50,93 +50,12 @@ jobs:
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
           max_stable_version_for_pkg() {
-            node - "$1" <<'NODE'
-const cp = require('child_process');
-
-const pkg = process.argv[1];
-
-function parseStable(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-  if (!match) {
-    return null;
-  }
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
-function compare(a, b) {
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] > b[i]) return 1;
-    if (a[i] < b[i]) return -1;
-  }
-  return 0;
-}
-
-function toString(parts) {
-  return `${parts[0]}.${parts[1]}.${parts[2]}`;
-}
-
-try {
-  const raw = cp.execSync(`npm view ${pkg} versions --json`, {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
-  const parsed = JSON.parse(raw);
-  const versions = Array.isArray(parsed) ? parsed : [parsed];
-  let best = null;
-  for (const version of versions) {
-    const parsedVersion = parseStable(version);
-    if (!parsedVersion) continue;
-    if (!best || compare(parsedVersion, best) > 0) {
-      best = parsedVersion;
-    }
-  }
-  if (best) {
-    process.stdout.write(toString(best));
-  }
-} catch {
-  // Best-effort only.
-}
-NODE
+            local pkg="$1"
+            npm view "$pkg" versions --json 2>/dev/null | node -e 'const fs=require("fs");const raw=fs.readFileSync(0,"utf8").trim();if(!raw)process.exit(0);const parsed=JSON.parse(raw);const versions=Array.isArray(parsed)?parsed:[parsed];const stable=versions.map(String).filter((v)=>/^\\d+\\.\\d+\\.\\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' 2>/dev/null || true
           }
 
           max_stable_version() {
-            node - "$@" <<'NODE'
-const values = process.argv.slice(1);
-
-function parseStable(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-  if (!match) {
-    return null;
-  }
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
-function compare(a, b) {
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] > b[i]) return 1;
-    if (a[i] < b[i]) return -1;
-  }
-  return 0;
-}
-
-function toString(parts) {
-  return `${parts[0]}.${parts[1]}.${parts[2]}`;
-}
-
-let best = null;
-for (const value of values) {
-  if (!value) continue;
-  const parsed = parseStable(value);
-  if (!parsed) continue;
-  if (!best || compare(parsed, best) > 0) {
-    best = parsed;
-  }
-}
-
-if (best) {
-  process.stdout.write(toString(best));
-}
-NODE
+            node -e 'const values=process.argv.slice(1);const stable=values.map(String).filter((v)=>/^\\d+\\.\\d+\\.\\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' "$@" 2>/dev/null || true
           }
 
           published_hash="$(max_stable_version_for_pkg "@hashgraphonline/standards-sdk")"
@@ -156,7 +75,7 @@ NODE
           tag_version=""
           if [ -n "$latest_tag" ]; then
             tag_version="${latest_tag#v}"
-            base_version="$(max_stable "$base_version" "$tag_version")"
+            base_version="$(max_stable_version "$base_version" "$tag_version")"
           fi
 
           exists_pkg() {
