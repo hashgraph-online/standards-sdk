@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'If true, do not publish (use npm/pnpm dry-run)'
+        required: false
+        default: 'false'
 
 concurrency:
   group: standards-sdk-publish-${{ github.ref_name }}
@@ -34,60 +39,160 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
+      - name: Determine publish plan
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DRY_RUN="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}"
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+
+          latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
+          if [ -n "$latest_tag" ]; then
+            base_version="${latest_tag#v}"
+          else
+            base_version="$(node -p "require('./package.json').version")"
+          fi
+
+          bump_patch() {
+            node -e "const v=process.argv[1].split('.').map(Number); console.log([v[0],v[1],v[2]+1].join('.'))" "$1"
+          }
+
+          exists_pkg() {
+            npm view "$1@$2" version >/dev/null 2>&1
+          }
+
+          mode="release"
+          version="$(bump_patch "$base_version")"
+
+          if [ -n "$latest_tag" ]; then
+            missing=false
+            for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
+              if ! exists_pkg "$pkg" "$base_version"; then
+                missing=true
+              fi
+            done
+
+            if [ "$missing" = "true" ]; then
+              mode="repair"
+              version="$base_version"
+            fi
+          fi
+
+          if [ "$mode" = "release" ]; then
+            while exists_pkg "@hashgraphonline/standards-sdk" "$version" || exists_pkg "@hol-org/standards-sdk" "$version" || exists_pkg "@hol-org/rb-client" "$version"; do
+              version="$(bump_patch "$version")"
+            done
+          fi
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${latest_tag:-}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag (repair mode)
+        if: steps.plan.outputs.mode == 'repair'
+        run: git checkout "${{ steps.plan.outputs.latest_tag }}"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm -r run build
 
-      - name: Bump version
+      - name: Set versions
         id: version
+        shell: bash
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
 
-          pnpm version patch --no-git-tag-version
-
-          NEW_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION="${{ steps.plan.outputs.version }}"
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
+          pnpm version "$NEW_VERSION" --no-git-tag-version
           NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
           NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
-      - name: Check if version already published
-        id: version_check
+      - name: Compute publish targets
+        id: targets
+        shell: bash
         run: |
+          set -euo pipefail
+
           NEW_VERSION="${{ steps.version.outputs.new }}"
-          if npm view @hashgraphonline/standards-sdk@$NEW_VERSION version >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Version $NEW_VERSION already exists on npm"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Version $NEW_VERSION is new, will publish"
+
+          exists_pkg() {
+            npm view "$1@$NEW_VERSION" version >/dev/null 2>&1
+          }
+
+          publish_hash=true
+          publish_hol=true
+          publish_rb=true
+
+          if exists_pkg "@hashgraphonline/standards-sdk"; then
+            publish_hash=false
+          fi
+          if exists_pkg "@hol-org/standards-sdk"; then
+            publish_hol=false
+          fi
+          if exists_pkg "@hol-org/rb-client"; then
+            publish_rb=false
           fi
 
+          publish_any=false
+          if [ "$publish_hash" = "true" ] || [ "$publish_hol" = "true" ] || [ "$publish_rb" = "true" ]; then
+            publish_any=true
+          fi
+
+          echo "publish_hash=$publish_hash" >> "$GITHUB_OUTPUT"
+          echo "publish_hol=$publish_hol" >> "$GITHUB_OUTPUT"
+          echo "publish_rb=$publish_rb" >> "$GITHUB_OUTPUT"
+          echo "publish_any=$publish_any" >> "$GITHUB_OUTPUT"
+
       - name: Publish @hashgraphonline/standards-sdk
-        if: steps.version_check.outputs.exists == 'false'
+        if: steps.targets.outputs.publish_hash == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm publish --access public --no-git-checks --provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.plan.outputs.dry_run }}" = "true" ]; then
+            pnpm publish --access public --no-git-checks --provenance --dry-run
+          else
+            pnpm publish --access public --no-git-checks --provenance
+          fi
 
       - name: Publish @hol-org/standards-sdk
-        if: steps.version_check.outputs.exists == 'false'
+        if: steps.targets.outputs.publish_hol == 'true'
         working-directory: packages/hol-standards-sdk
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.plan.outputs.dry_run }}" = "true" ]; then
+            npm publish --access public --provenance --dry-run
+          else
+            npm publish --access public --provenance
+          fi
 
       - name: Publish @hol-org/rb-client
-        if: steps.version_check.outputs.exists == 'false'
+        if: steps.targets.outputs.publish_rb == 'true'
         working-directory: packages/rb-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.plan.outputs.dry_run }}" = "true" ]; then
+            npm publish --access public --provenance --dry-run
+          else
+            npm publish --access public --provenance
+          fi
 
       - name: Publish to JSR
-        if: steps.version_check.outputs.exists == 'false'
+        if: steps.targets.outputs.publish_any == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true')
         working-directory: packages/jsr-client
         run: |
           # Update jsr.json version to match
@@ -96,11 +201,11 @@ jobs:
           npx jsr publish --allow-dirty --allow-slow-types
 
       - name: Create Git tag
-        if: steps.version_check.outputs.exists == 'false'
+        if: steps.plan.outputs.mode == 'release' && steps.targets.outputs.publish_any == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true')
         run: |
           git tag "v${{ steps.version.outputs.new }}"
           git push --tags
 
-      - name: Skip publish (version already exists)
-        if: steps.version_check.outputs.exists == 'true'
-        run: echo "Version ${{ steps.version.outputs.new }} already exists on npm; skipping publish."
+      - name: Skip publish (already published)
+        if: steps.targets.outputs.publish_any != 'true'
+        run: echo "All packages for version ${{ steps.version.outputs.new }} already exist; skipping publish."
