@@ -49,8 +49,9 @@ jobs:
           echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
-          if [ -n "$latest_tag" ]; then
-            base_version="${latest_tag#v}"
+          published_version="$(npm view @hashgraphonline/standards-sdk version 2>/dev/null || true)"
+          if [ -n "$published_version" ]; then
+            base_version="$published_version"
           else
             base_version="$(node -p "require('./package.json').version")"
           fi
@@ -66,18 +67,18 @@ jobs:
           mode="release"
           version="$(bump_patch "$base_version")"
 
-          if [ -n "$latest_tag" ]; then
-            missing=false
-            for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
-              if ! exists_pkg "$pkg" "$base_version"; then
-                missing=true
-              fi
-            done
-
-            if [ "$missing" = "true" ]; then
-              mode="repair"
-              version="$base_version"
+          missing=false
+          for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
+            if ! exists_pkg "$pkg" "$base_version"; then
+              missing=true
             fi
+          done
+
+          repair_tag=""
+          if [ "$missing" = "true" ] && git rev-parse -q --verify "refs/tags/v$base_version" >/dev/null; then
+            mode="repair"
+            version="$base_version"
+            repair_tag="v$base_version"
           fi
 
           if [ "$mode" = "release" ]; then
@@ -90,10 +91,12 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "latest_tag=${latest_tag:-}" >> "$GITHUB_OUTPUT"
+          echo "published_version=${published_version:-}" >> "$GITHUB_OUTPUT"
+          echo "repair_tag=$repair_tag" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag (repair mode)
-        if: steps.plan.outputs.mode == 'repair'
-        run: git checkout "${{ steps.plan.outputs.latest_tag }}"
+        if: steps.plan.outputs.mode == 'repair' && steps.plan.outputs.repair_tag != ''
+        run: git checkout "${{ steps.plan.outputs.repair_tag }}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
