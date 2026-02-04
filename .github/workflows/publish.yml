@@ -92,11 +92,7 @@ jobs:
           exists_pkg() {
             local pkg="$1"
             local version="$2"
-            if npm_view_retry "$pkg@$version" version >/dev/null; then
-              return 0
-            fi
-            echo "Failed to check npm for ${pkg}@${version}" >&2
-            exit 1
+            npm_view_retry "$pkg@$version" version >/dev/null
           }
 
           mode="release"
