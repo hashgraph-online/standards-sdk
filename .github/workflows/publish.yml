@@ -276,9 +276,16 @@ jobs:
 
       - name: Create Git tag
         if: steps.plan.outputs.mode == 'release' && steps.targets.outputs.publish_any == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true')
+        shell: bash
         run: |
-          git tag "v${{ steps.version.outputs.new }}"
-          git push --tags
+          set -euo pipefail
+          TAG="v${{ steps.version.outputs.new }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Remote tag $TAG already exists; skipping tag creation."
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
 
       - name: Skip publish (already published)
         if: steps.targets.outputs.publish_any != 'true'
