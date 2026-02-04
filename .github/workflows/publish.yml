@@ -51,8 +51,8 @@ jobs:
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-          pnpm -C packages/hol-standards-sdk version "$NEW_VERSION" --no-git-tag-version
-          pnpm -C packages/rb-client version "$NEW_VERSION" --no-git-tag-version
+          NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
+          NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Check if version already published
         id: version_check

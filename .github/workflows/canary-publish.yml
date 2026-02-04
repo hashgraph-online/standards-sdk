@@ -48,11 +48,12 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
 
       - name: Update package versions
+        env:
+          VERSION: ${{ steps.canary.outputs.version }}
         run: |
-          VERSION="${{ steps.canary.outputs.version }}"
           pnpm version "$VERSION" --no-git-tag-version
-          pnpm -C packages/hol-standards-sdk version "$VERSION" --no-git-tag-version
-          pnpm -C packages/rb-client version "$VERSION" --no-git-tag-version
+          node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
+          node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Check if version already published
         id: version_check
