@@ -65,20 +65,20 @@ jobs:
           registry_version_exists() {
             local pkg="$1"
             local version="$2"
-            node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); process.exit(res.status===200?0:1);}catch{process.exit(2);}})();' "$pkg" "$version"
+            node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); if(res.status===200) process.exit(0); if(res.status===404) process.exit(1); process.exit(2);}catch{process.exit(2);}})();' "$pkg" "$version"
           }
 
           registry_exists_pkg() {
             local pkg="$1"
             local version="$2"
             local attempt
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5 6 7 8; do
               if registry_version_exists "$pkg" "$version"; then
                 return 0
               fi
               case "$?" in
                 1) return 1 ;;
-                *) sleep 2 ;;
+                *) sleep $((attempt * 2)) ;;
               esac
             done
             echo "Registry lookup failed for ${pkg}@${version}" >&2
@@ -190,12 +190,12 @@ jobs:
           exists_pkg() {
             local pkg="$1"
             local attempt
-            for attempt in 1 2 3; do
-              node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); process.exit(res.status===200?0:1);}catch{process.exit(2);}})();' "$pkg" "$NEW_VERSION"
+            for attempt in 1 2 3 4 5 6; do
+              node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); if(res.status===200) process.exit(0); if(res.status===404) process.exit(1); process.exit(2);}catch{process.exit(2);}})();' "$pkg" "$NEW_VERSION"
               case "$?" in
                 0) return 0 ;;
                 1) return 1 ;;
-                *) sleep 2 ;;
+                *) sleep $((attempt * 2)) ;;
               esac
             done
             echo "Registry lookup failed for ${pkg}@${NEW_VERSION}" >&2
