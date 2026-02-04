@@ -59,7 +59,23 @@ jobs:
         id: version_check
         run: |
           VERSION="${{ steps.canary.outputs.version }}"
-          if npm view @hashgraphonline/standards-sdk@"$VERSION" version >/dev/null 2>&1; then
+
+          version_exists() {
+            local pkg="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); process.exit(res.status===200?0:1);}catch{process.exit(2);}})();' "$pkg" "$version"
+              case "$?" in
+                0) return 0 ;;
+                1) return 1 ;;
+                *) sleep 2 ;;
+              esac
+            done
+            echo "Registry lookup failed for ${pkg}@${version}" >&2
+            exit 1
+          }
+
+          if version_exists @hashgraphonline/standards-sdk "$VERSION"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Canary version $VERSION already exists"
           else

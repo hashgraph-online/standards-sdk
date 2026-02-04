@@ -50,17 +50,6 @@ jobs:
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
 
-          npm_view_retry() {
-            local attempt
-            for attempt in 1 2 3; do
-              if npm --silent view "$@" 2>/dev/null; then
-                return 0
-              fi
-              sleep 2
-            done
-            return 1
-          }
-
           max_stable_version() {
             printf '%s\n' "$@" \
               | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true \
@@ -68,9 +57,48 @@ jobs:
               | tail -n 1 || true
           }
 
+          registry_max_stable_version_for_pkg() {
+            local pkg="$1"
+            node -e 'const pkg=process.argv[1]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}`; const parse=(v)=>{const m=/^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(v); return m?[+m[1],+m[2],+m[3]]:null}; const cmp=(a,b)=>{for(let i=0;i<3;i+=1){if(a[i]>b[i])return 1;if(a[i]<b[i])return -1}return 0}; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); if(!res.ok) process.exit(1); const data=await res.json(); const versions=Object.keys(data.versions||{}); let best=null; for(const v of versions){const p=parse(v); if(!p) continue; if(!best||cmp(p,best)>0) best=p;} if(best) process.stdout.write(`${best[0]}.${best[1]}.${best[2]}`);}catch{process.exit(2);}})();' "$pkg"
+          }
+
+          registry_version_exists() {
+            local pkg="$1"
+            local version="$2"
+            node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); process.exit(res.status===200?0:1);}catch{process.exit(2);}})();' "$pkg" "$version"
+          }
+
+          registry_exists_pkg() {
+            local pkg="$1"
+            local version="$2"
+            local attempt
+            for attempt in 1 2 3; do
+              if registry_version_exists "$pkg" "$version"; then
+                return 0
+              fi
+              case "$?" in
+                1) return 1 ;;
+                *) sleep 2 ;;
+              esac
+            done
+            echo "Registry lookup failed for ${pkg}@${version}" >&2
+            exit 1
+          }
+
+          registry_max_stable_version_retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if registry_max_stable_version_for_pkg "$@"; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
           package_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
-          published_version="$(npm_view_retry "@hashgraphonline/standards-sdk" version || true)"
-          base_version="$(max_stable_version "$package_version" "$published_version")"
+          registry_version="$(registry_max_stable_version_retry "@hashgraphonline/standards-sdk" || true)"
+          base_version="$(max_stable_version "$package_version" "$registry_version")"
 
           bump_patch() {
             local input="$1"
@@ -89,12 +117,6 @@ jobs:
             base_version="$(max_stable_version "$base_version" "$tag_version")"
           fi
 
-          exists_pkg() {
-            local pkg="$1"
-            local version="$2"
-            npm_view_retry "$pkg@$version" version >/dev/null
-          }
-
           mode="release"
           if [ -z "$base_version" ]; then
             echo "Failed to resolve base_version" >&2
@@ -106,7 +128,7 @@ jobs:
           if [ -n "$latest_tag" ] && [ -n "$tag_version" ]; then
             missing=false
             for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
-              if ! exists_pkg "$pkg" "$tag_version"; then
+              if ! registry_exists_pkg "$pkg" "$tag_version"; then
                 missing=true
               fi
             done
@@ -119,7 +141,7 @@ jobs:
           fi
 
           if [ "$mode" = "release" ]; then
-            while exists_pkg "@hashgraphonline/standards-sdk" "$version" || exists_pkg "@hol-org/standards-sdk" "$version" || exists_pkg "@hol-org/rb-client" "$version"; do
+            while registry_exists_pkg "@hashgraphonline/standards-sdk" "$version" || registry_exists_pkg "@hol-org/standards-sdk" "$version" || registry_exists_pkg "@hol-org/rb-client" "$version"; do
               version="$(bump_patch "$version")"
             done
           fi
@@ -131,7 +153,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "latest_tag=${latest_tag:-}" >> "$GITHUB_OUTPUT"
-          echo "published_version=${published_version:-}" >> "$GITHUB_OUTPUT"
+          echo "published_version=${registry_version:-}" >> "$GITHUB_OUTPUT"
           echo "repair_tag=$repair_tag" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag (repair mode)
@@ -166,7 +188,18 @@ jobs:
           NEW_VERSION="${{ steps.version.outputs.new }}"
 
           exists_pkg() {
-            npm view "$1@$NEW_VERSION" version >/dev/null 2>&1
+            local pkg="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              node -e 'const pkg=process.argv[1]; const version=process.argv[2]; const encoded=pkg.startsWith("@") ? `${pkg.split("/")[0]}%2f${pkg.split("/")[1]}` : pkg; const url=`https://registry.npmjs.org/${encoded}/${version}`; (async()=>{try{const res=await fetch(url,{redirect:"manual"}); process.exit(res.status===200?0:1);}catch{process.exit(2);}})();' "$pkg" "$NEW_VERSION"
+              case "$?" in
+                0) return 0 ;;
+                1) return 1 ;;
+                *) sleep 2 ;;
+              esac
+            done
+            echo "Registry lookup failed for ${pkg}@${NEW_VERSION}" >&2
+            exit 1
           }
 
           publish_hash=true
