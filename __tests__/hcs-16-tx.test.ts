@@ -19,6 +19,9 @@ jest.mock('@hashgraph/sdk', () => ({
       this._message = m;
       return this;
     }
+    setTransactionMemo() {
+      return this;
+    }
   },
   TopicCreateTransaction: class {
     private _topicMemo: any;
@@ -113,12 +116,11 @@ describe('HCS-16 tx builders', () => {
     });
     const parsed = JSON.parse(tx._message);
     expect(parsed).toMatchObject({
-      p: 'hcs-16',
-      op: 'state_update',
-      operator_id: '0.0.op@0.0.flora',
+      p: 'hcs-17',
+      op: 'state_hash',
       epoch: 42,
     });
-    expect(parsed.hash).toBe('0xabc');
+    expect(parsed.state_hash).toBe('0xabc');
     expect(typeof parsed.timestamp).toBe('string');
   });
 

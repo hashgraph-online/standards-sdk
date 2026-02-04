@@ -71,7 +71,7 @@ export class HCS5BrowserClient extends HCS5BaseClient {
 
       if (options.supplyKey && options.supplyKey instanceof PrivateKey) {
         const signer = this.getSigner();
-        tx.freezeWithSigner(signer as any);
+        await tx.freezeWithSigner(signer);
         const signed = await tx.sign(options.supplyKey);
         result = await this.hwc.executeTransactionWithErrorHandling(
           signed,

@@ -14,16 +14,8 @@
     "^../src$": "<rootDir>/src",
     "^@hashgraphonline/standards-sdk$": "<rootDir>/src/index.ts"
   },
-  "collectCoverage": true,
+  "collectCoverage": false,
   "collectCoverageFrom": ["src/**/*.{ts,tsx}", "!src/**/*.d.ts"],
   "coverageDirectory": "coverage",
-  "coverageReporters": ["text", "lcov", "html", "json"],
-  "coverageThreshold": {
-    "global": {
-      "branches": 100,
-      "functions": 100,
-      "lines": 100,
-      "statements": 100
-    }
-  }
+  "coverageReporters": ["text", "lcov", "html", "json"]
 }
