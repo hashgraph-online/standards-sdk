@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "outDir": "./dist/",
     "noImplicitAny": true,
     "module": "ESNext",
@@ -7,6 +8,14 @@
     "jsx": "react",
     "allowJs": true,
     "moduleResolution": "Bundler",
+    "paths": {
+      "@hashgraph/hedera-wallet-connect": [
+        "node_modules/@hashgraph/hedera-wallet-connect/dist/index.d.ts"
+      ],
+      "@hashgraph/hedera-wallet-connect/*": [
+        "node_modules/@hashgraph/hedera-wallet-connect/*"
+      ]
+    },
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "declaration": true,

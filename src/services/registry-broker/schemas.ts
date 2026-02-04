@@ -1176,3 +1176,130 @@ export const moltbookOwnerRegistrationUpdateResponseSchema = z
     warning: z.string().optional(),
   })
   .passthrough();
+
+const skillRegistryFileRoleSchema = z.union([
+  z.literal('skill-md'),
+  z.literal('skill-json'),
+  z.literal('file'),
+]);
+
+export const skillRegistryFileDescriptorSchema = z
+  .object({
+    name: z.string(),
+    mimeType: z.string(),
+    role: skillRegistryFileRoleSchema,
+    topicId: z.string().optional(),
+    hrl: z.string().optional(),
+    packageSequenceNumber: z.number().int().optional(),
+  })
+  .passthrough();
+
+export const skillRegistryPublishSummarySchema = z
+  .object({
+    jobId: z.string(),
+    network: z.union([z.literal('mainnet'), z.literal('testnet')]),
+    name: z.string(),
+    version: z.string(),
+    description: z.string().optional(),
+    createdAt: z.string(),
+    directoryTopicId: z.string(),
+    directorySequenceNumber: z.number().int().optional(),
+    packageTopicId: z.string(),
+    skillJsonHrl: z.string(),
+    files: z.array(skillRegistryFileDescriptorSchema).optional(),
+  })
+  .passthrough();
+
+export const skillRegistryListResponseSchema = z
+  .object({
+    items: z.array(skillRegistryPublishSummarySchema),
+    nextCursor: z.string().nullable(),
+  })
+  .passthrough();
+
+export const skillRegistryQuoteFileBreakdownSchema = z
+  .object({
+    name: z.string(),
+    mimeType: z.string(),
+    estimatedCostHbar: z.number(),
+  })
+  .passthrough();
+
+export const skillRegistryQuoteResponseSchema = z
+  .object({
+    quoteId: z.string(),
+    name: z.string(),
+    version: z.string(),
+    directoryTopicId: z.string(),
+    estimatedCostHbar: z.number(),
+    credits: z.number(),
+    usdCents: z.number(),
+    expiresAt: z.string(),
+    files: z.array(skillRegistryQuoteFileBreakdownSchema),
+  })
+  .passthrough();
+
+const skillRegistryJobStatusSchema = z.union([
+  z.literal('pending'),
+  z.literal('in_progress'),
+  z.literal('completed'),
+  z.literal('failed'),
+]);
+
+export const skillRegistryPublishResponseSchema = z
+  .object({
+    jobId: z.string(),
+    status: skillRegistryJobStatusSchema,
+    credits: z.number().nullable().optional(),
+    usdCents: z.number().nullable().optional(),
+    quoteId: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    network: z.union([z.literal('mainnet'), z.literal('testnet')]),
+  })
+  .passthrough();
+
+export const skillRegistryJobStatusResponseSchema = z
+  .object({
+    jobId: z.string(),
+    status: skillRegistryJobStatusSchema,
+    network: z.union([z.literal('mainnet'), z.literal('testnet')]),
+    name: z.string(),
+    version: z.string(),
+    directoryTopicId: z.string(),
+    directorySequenceNumber: z.number().int().nullable().optional(),
+    packageTopicId: z.string().nullable().optional(),
+    skillJsonHrl: z.string().nullable().optional(),
+    files: z.array(skillRegistryFileDescriptorSchema).nullable().optional(),
+    quoteCredits: z.number().nullable().optional(),
+    quoteUsdCents: z.number().nullable().optional(),
+    reservationId: z.string().nullable().optional(),
+    totalCostHbar: z.number().nullable().optional(),
+    totalCostCredits: z.number().nullable().optional(),
+    failureReason: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .passthrough();
+
+export const skillRegistryConfigResponseSchema = z
+  .object({
+    enabled: z.boolean(),
+    directoryTopicId: z.string().nullable().optional(),
+    maxFiles: z.number().int().nullable().optional(),
+    maxTotalSizeBytes: z.number().int().nullable().optional(),
+    allowedMimeTypes: z.array(z.string()).nullable().optional(),
+    network: z
+      .union([z.literal('mainnet'), z.literal('testnet')])
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
+
+export const skillRegistryOwnershipResponseSchema = z
+  .object({
+    name: z.string(),
+    exists: z.boolean(),
+    isOwner: z.boolean(),
+  })
+  .passthrough();

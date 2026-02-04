@@ -31,6 +31,7 @@ export function detectCryptoEnvironment(): CryptoEnvironment {
 
   try {
     hasWebCrypto =
+      !isSSR &&
       typeof globalCrypto !== 'undefined' &&
       typeof globalCrypto.subtle !== 'undefined';
   } catch {

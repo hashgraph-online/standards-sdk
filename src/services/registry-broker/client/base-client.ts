@@ -109,6 +109,14 @@ import type {
   VerificationVerifyResponse,
   VerificationVerifySenderResponse,
   X402MinimumsResponse,
+  SkillRegistryConfigResponse,
+  SkillRegistryJobStatusResponse,
+  SkillRegistryListResponse,
+  SkillRegistryOwnershipResponse,
+  SkillRegistryPublishRequest,
+  SkillRegistryPublishResponse,
+  SkillRegistryQuoteRequest,
+  SkillRegistryQuoteResponse,
 } from '../types';
 import {
   agentFeedbackEligibilityResponseSchema,
@@ -212,6 +220,14 @@ import {
   vectorSearch as vectorSearchImpl,
   websocketStats as websocketStatsImpl,
 } from './search';
+import {
+  getSkillOwnership as getSkillOwnershipImpl,
+  getSkillPublishJob as getSkillPublishJobImpl,
+  listSkills as listSkillsImpl,
+  publishSkill as publishSkillImpl,
+  quoteSkillPublish as quoteSkillPublishImpl,
+  skillsConfig as skillsConfigImpl,
+} from './skills';
 import {
   createAbortError,
   DEFAULT_BASE_URL,
@@ -663,6 +679,47 @@ export class RegistryBrokerClient {
 
   async adapters(): Promise<AdaptersResponse> {
     return adaptersImpl(this);
+  }
+
+  async skillsConfig(): Promise<SkillRegistryConfigResponse> {
+    return skillsConfigImpl(this);
+  }
+
+  async listSkills(options?: {
+    name?: string;
+    version?: string;
+    limit?: number;
+    cursor?: string;
+    includeFiles?: boolean;
+    accountId?: string;
+  }): Promise<SkillRegistryListResponse> {
+    return listSkillsImpl(this, options);
+  }
+
+  async quoteSkillPublish(
+    payload: SkillRegistryQuoteRequest,
+  ): Promise<SkillRegistryQuoteResponse> {
+    return quoteSkillPublishImpl(this, payload);
+  }
+
+  async publishSkill(
+    payload: SkillRegistryPublishRequest,
+  ): Promise<SkillRegistryPublishResponse> {
+    return publishSkillImpl(this, payload);
+  }
+
+  async getSkillPublishJob(
+    jobId: string,
+    params?: { accountId?: string },
+  ): Promise<SkillRegistryJobStatusResponse> {
+    return getSkillPublishJobImpl(this, jobId, params);
+  }
+
+  async getSkillOwnership(params: {
+    name: string;
+    accountId?: string;
+  }): Promise<SkillRegistryOwnershipResponse> {
+    return getSkillOwnershipImpl(this, params);
   }
 
   async adaptersDetailed(): Promise<AdapterDetailsResponse> {

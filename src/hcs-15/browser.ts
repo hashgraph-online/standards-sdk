@@ -1,10 +1,10 @@
-import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import type {
   PublicKey,
   PrivateKey,
   TransactionResponse,
 } from '@hashgraph/sdk';
 import { PrivateKey as SDKPrivateKey, Hbar } from '@hashgraph/sdk';
+import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import type { BrowserHCS15ClientConfig } from './types';
 
 import { HCS15BaseClient } from './base-client';
@@ -23,9 +23,9 @@ export class HCS15BrowserClient extends HCS15BaseClient {
 
   private requireSigner(): DAppSigner {
     if (!this.signer) {
-      throw new Error('HCS-15 Browser client requires an active DAppSigner');
+      throw new Error('HCS-15 Browser client requires an active signer');
     }
-    return this.signer as DAppSigner;
+    return this.signer;
   }
 
   /**
@@ -55,7 +55,7 @@ export class HCS15BrowserClient extends HCS15BaseClient {
     });
     const frozen = await tx.freezeWithSigner(signer);
     const res: TransactionResponse = await frozen.executeWithSigner(signer);
-    const receipt = await res.getReceiptWithSigner(signer as any);
+    const receipt = await res.getReceiptWithSigner(signer);
     const accountId = receipt?.accountId?.toString?.();
     const evmAddress = `0x${pub.toEvmAddress()}`;
     this.logger.info('Created HCS-15 base account (browser)', {
@@ -95,7 +95,7 @@ export class HCS15BrowserClient extends HCS15BaseClient {
     });
     const frozen = await tx.freezeWithSigner(signer);
     const res: TransactionResponse = await frozen.executeWithSigner(signer);
-    const receipt = await res.getReceiptWithSigner(signer as any);
+    const receipt = await res.getReceiptWithSigner(signer);
     const accountId = receipt?.accountId?.toString?.();
     this.logger.info('Created HCS-15 petal account (browser)', { accountId });
     return { accountId };

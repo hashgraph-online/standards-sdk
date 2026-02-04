@@ -63,6 +63,9 @@ describe('HCS12BrowserClient', () => {
 
     mockSigner = {
       getAccountId: jest.fn().mockReturnValue({ toString: () => '0.0.123456' }),
+      getAccountKey: jest
+        .fn()
+        .mockResolvedValue({ toString: () => 'PUBLIC_KEY' } as any),
       populateTransaction: jest.fn(),
       signTransaction: jest.fn(),
       call: jest.fn(),

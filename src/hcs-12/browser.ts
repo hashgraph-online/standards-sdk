@@ -10,6 +10,7 @@ import {
 } from '@hashgraph/sdk';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
+import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 import { HCS12BaseClient, HCS12Config } from './base-client';
 import {
   ActionRegistry,
@@ -27,7 +28,6 @@ import {
   BlockDefinition,
 } from './types';
 import { ActionBuilder, AssemblyBuilder, BlockBuilder } from './builders';
-import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 import type { RetrievedInscriptionResult } from '../inscribe/types';
 import * as mime from 'mime-types';
 import { inscribeWithSigner } from '../inscribe/inscriber';

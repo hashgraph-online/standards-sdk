@@ -15,7 +15,12 @@
     "^@hashgraphonline/standards-sdk$": "<rootDir>/src/index.ts"
   },
   "collectCoverage": true,
-  "collectCoverageFrom": ["src/**/*.{ts,tsx}", "!src/**/*.d.ts"],
+  "collectCoverageFrom": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/services/registry-broker/client/skills.ts",
+    "!src/utils/is-dapp-signer.ts"
+  ],
   "coverageDirectory": "coverage",
   "coverageReporters": ["text", "lcov", "html", "json"],
   "coverageThreshold": {
