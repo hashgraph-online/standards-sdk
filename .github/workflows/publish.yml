@@ -50,10 +50,6 @@ jobs:
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
 
-          stable_version_lines() {
-            grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true
-          }
-
           npm_view_retry() {
             local attempt
             for attempt in 1 2 3; do
@@ -65,40 +61,16 @@ jobs:
             return 1
           }
 
-          max_stable_version_for_pkg() {
-            local pkg="$1"
-            local versions_json
-            versions_json="$(npm_view_retry "$pkg" versions --json || true)"
-            if [ -n "$versions_json" ]; then
-              printf '%s' "$versions_json" \
-                | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' \
-                | sort -Vu \
-                | tail -n 1 || true
-              return 0
-            fi
-
-            npm_view_retry "$pkg" version || true
-          }
-
           max_stable_version() {
             printf '%s\n' "$@" \
-              | stable_version_lines \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true \
               | sort -V \
               | tail -n 1 || true
           }
 
-          published_hash="$(max_stable_version_for_pkg "@hashgraphonline/standards-sdk")"
-          published_hol="$(max_stable_version_for_pkg "@hol-org/standards-sdk")"
-          published_rb="$(max_stable_version_for_pkg "@hol-org/rb-client")"
-
-          published_version="$(max_stable_version "$published_hash" "$published_hol" "$published_rb")"
-          base_version="$published_version"
-          if [ -z "$base_version" ]; then
-            base_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
-          fi
-
           package_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
-          base_version="$(max_stable_version "$base_version" "$package_version")"
+          published_version="$(npm_view_retry "@hashgraphonline/standards-sdk" version || true)"
+          base_version="$(max_stable_version "$package_version" "$published_version")"
 
           bump_patch() {
             local input="$1"
@@ -120,7 +92,11 @@ jobs:
           exists_pkg() {
             local pkg="$1"
             local version="$2"
-            npm_view_retry "$pkg@$version" version >/dev/null
+            if npm_view_retry "$pkg@$version" version >/dev/null; then
+              return 0
+            fi
+            echo "Failed to check npm for ${pkg}@${version}" >&2
+            exit 1
           }
 
           mode="release"
@@ -144,6 +120,12 @@ jobs:
               version="$tag_version"
               repair_tag="$latest_tag"
             fi
+          fi
+
+          if [ "$mode" = "release" ]; then
+            while exists_pkg "@hashgraphonline/standards-sdk" "$version" || exists_pkg "@hol-org/standards-sdk" "$version" || exists_pkg "@hol-org/rb-client" "$version"; do
+              version="$(bump_patch "$version")"
+            done
           fi
 
           echo "base_version=$base_version"
