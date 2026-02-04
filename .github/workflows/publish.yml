@@ -57,7 +57,7 @@ jobs:
           npm_view_retry() {
             local attempt
             for attempt in 1 2 3; do
-              if npm view "$@" 2>/dev/null; then
+              if npm --silent view "$@" 2>/dev/null; then
                 return 0
               fi
               sleep 2
