@@ -16,6 +16,9 @@ jest.mock('@hashgraph/sdk', () => ({
     setTopicMemo() {
       return this;
     }
+    setTransactionMemo() {
+      return this;
+    }
     setAdminKey() {
       return this;
     }
@@ -36,6 +39,9 @@ jest.mock('@hashgraph/sdk', () => ({
       return this;
     }
     setMessage() {
+      return this;
+    }
+    setTransactionMemo() {
       return this;
     }
     async execute() {

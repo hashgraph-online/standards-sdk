@@ -11,15 +11,16 @@ import {
 
 jest.setTimeout(90000);
 
-describe('RegistryBrokerClient (integration)', () => {
-  const apiKey =
-    process.env.REGISTRY_BROKER_API_KEY ||
-    process.env.RB_API_KEY ||
-    'rbk_8875323d68cd4e7633d31996a5fbdefb6a16ae82225bf178ab12ded55a09d2c0';
-  const baseUrl = process.env.REGISTRY_BROKER_BASE_URL;
-  const client = new RegistryBrokerClient(
-    baseUrl ? { apiKey, baseUrl } : { apiKey },
-  );
+const apiKey = process.env.REGISTRY_BROKER_API_KEY || process.env.RB_API_KEY;
+const baseUrl = process.env.REGISTRY_BROKER_BASE_URL;
+const shouldRunIntegration = Boolean(apiKey && baseUrl);
+const describeIntegration = shouldRunIntegration ? describe : describe.skip;
+
+describeIntegration('RegistryBrokerClient (integration)', () => {
+  const client = new RegistryBrokerClient({
+    apiKey: apiKey!,
+    baseUrl: baseUrl!,
+  });
   const openRouterUaid =
     'uaid:aid:openrouter-adapter;uid=openrouter/auto;registry=openrouter;proto=openrouter-adapter';
 

@@ -71,6 +71,14 @@ import {
   verificationStatusResponseSchema,
   verificationVerifyResponseSchema,
   verificationVerifySenderResponseSchema,
+  skillRegistryConfigResponseSchema,
+  skillRegistryFileDescriptorSchema,
+  skillRegistryJobStatusResponseSchema,
+  skillRegistryListResponseSchema,
+  skillRegistryOwnershipResponseSchema,
+  skillRegistryPublishResponseSchema,
+  skillRegistryPublishSummarySchema,
+  skillRegistryQuoteResponseSchema,
 } from './schemas';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -294,6 +302,52 @@ export type RegisterStatusResponse = z.infer<
 export type MoltbookOwnerRegistrationUpdateResponse = z.infer<
   typeof moltbookOwnerRegistrationUpdateResponseSchema
 >;
+
+export type SkillRegistryFileDescriptor = z.infer<
+  typeof skillRegistryFileDescriptorSchema
+>;
+export type SkillRegistryPublishSummary = z.infer<
+  typeof skillRegistryPublishSummarySchema
+>;
+export type SkillRegistryListResponse = z.infer<
+  typeof skillRegistryListResponseSchema
+>;
+export type SkillRegistryQuoteResponse = z.infer<
+  typeof skillRegistryQuoteResponseSchema
+>;
+export type SkillRegistryPublishResponse = z.infer<
+  typeof skillRegistryPublishResponseSchema
+>;
+export type SkillRegistryJobStatusResponse = z.infer<
+  typeof skillRegistryJobStatusResponseSchema
+>;
+export type SkillRegistryConfigResponse = z.infer<
+  typeof skillRegistryConfigResponseSchema
+>;
+export type SkillRegistryOwnershipResponse = z.infer<
+  typeof skillRegistryOwnershipResponseSchema
+>;
+
+export type SkillRegistryFileRole = 'skill-md' | 'skill-json' | 'file';
+
+export interface SkillRegistryFileInput {
+  name: string;
+  base64: string;
+  mimeType?: string;
+}
+
+export interface SkillRegistryQuoteRequest {
+  files: SkillRegistryFileInput[];
+  directoryTopicId?: string;
+  accountId?: string;
+}
+
+export interface SkillRegistryPublishRequest {
+  files: SkillRegistryFileInput[];
+  directoryTopicId?: string;
+  accountId?: string;
+  quoteId?: string;
+}
 
 export interface MoltbookOwnerRegistrationUpdateRequest {
   registered?: boolean;

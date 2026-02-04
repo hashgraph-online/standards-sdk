@@ -48,7 +48,7 @@ export class WebHashAdapter implements HashAdapter {
 
   async digest(encoding?: string): Promise<string | Buffer> {
     const combined = this.concatenateArrays(this.data);
-    const bufferView = new Uint8Array(combined).buffer;
+    const bufferView = new Uint8Array(combined);
     const webCrypto = globalThis.crypto;
     if (!webCrypto?.subtle) {
       throw new Error('WebCrypto not available');
