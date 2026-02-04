@@ -49,27 +49,61 @@ jobs:
           echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
 
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
-          max_stable_version_for_pkg() {
-            local pkg="$1"
-            npm view "$pkg" versions --json 2>/dev/null | node -e 'const fs=require("fs");const raw=fs.readFileSync(0,"utf8").trim();if(!raw)process.exit(0);const parsed=JSON.parse(raw);const versions=Array.isArray(parsed)?parsed:[parsed];const stable=versions.map(String).filter((v)=>/^\\d+\\.\\d+\\.\\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' 2>/dev/null || true
-          }
 
           max_stable_version() {
-            node -e 'const values=process.argv.slice(1);const stable=values.map(String).filter((v)=>/^\\d+\\.\\d+\\.\\d+$/.test(v));const parse=(v)=>v.split(".").map(Number);stable.sort((a,b)=>{const pa=parse(a),pb=parse(b);for(let i=0;i<3;i+=1){if(pa[i]!==pb[i])return pa[i]-pb[i];}return 0;});if(stable.length)process.stdout.write(stable[stable.length-1]);' "$@" 2>/dev/null || true
+            printf '%s\n' "$@" \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true \
+              | sort -V \
+              | tail -n 1 || true
           }
 
-          published_hash="$(max_stable_version_for_pkg "@hashgraphonline/standards-sdk")"
-          published_hol="$(max_stable_version_for_pkg "@hol-org/standards-sdk")"
-          published_rb="$(max_stable_version_for_pkg "@hol-org/rb-client")"
+          registry_max_stable_version_for_pkg() {
+            local pkg="$1"
+            local raw=""
+            raw="$(npm --silent view "$pkg" versions --json 2>/dev/null || true)"
+            if [ -z "$raw" ]; then
+              return 1
+            fi
+            printf '%s' "$raw" | node -e 'const fs=require("fs"); const input=fs.readFileSync(0,"utf8").trim(); let versions=[]; try{ const parsed=JSON.parse(input); versions=Array.isArray(parsed)?parsed:[parsed]; }catch{ process.exit(1); } const parse=(v)=>{const m=/^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(String(v)); return m?[+m[1],+m[2],+m[3]]:null}; const cmp=(a,b)=>{for(let i=0;i<3;i+=1){if(a[i]>b[i])return 1;if(a[i]<b[i])return -1}return 0}; let best=null; for(const v of versions){const p=parse(v); if(!p) continue; if(!best||cmp(p,best)>0) best=p;} if(best) process.stdout.write(`${best[0]}.${best[1]}.${best[2]}`);'
+          }
 
-          published_version="$(max_stable_version "$published_hash" "$published_hol" "$published_rb")"
-          base_version="${published_version:-}"
-          if [ -z "$base_version" ]; then
-            base_version="$(node -p "require('./package.json').version")"
-          fi
+          registry_version_exists() {
+            local pkg="$1"
+            local version="$2"
+            local out=""
+            if ! out="$(npm --silent view "${pkg}@${version}" version --json 2>/dev/null)"; then
+              return 1
+            fi
+            if [ "$out" = "\"$version\"" ] || [ "$out" = "$version" ]; then
+              return 0
+            fi
+            return 1
+          }
+
+          registry_max_stable_version_retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if registry_max_stable_version_for_pkg "$@"; then
+                return 0
+              fi
+              sleep $((attempt * 2))
+            done
+            return 1
+          }
+
+          package_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
+          registry_version="$(registry_max_stable_version_retry "@hashgraphonline/standards-sdk" || true)"
+          base_version="$(max_stable_version "$package_version" "$registry_version")"
 
           bump_patch() {
-            node -e "const v=process.argv[1].split('.').map(Number); console.log([v[0],v[1],v[2]+1].join('.'))" "$1"
+            local input="$1"
+            local major minor patch
+            IFS='.' read -r major minor patch <<<"$input"
+            if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ && "$patch" =~ ^[0-9]+$ ]]; then
+              echo "Invalid stable version: $input" >&2
+              return 1
+            fi
+            echo "${major}.${minor}.$((patch + 1))"
           }
 
           tag_version=""
@@ -78,18 +112,18 @@ jobs:
             base_version="$(max_stable_version "$base_version" "$tag_version")"
           fi
 
-          exists_pkg() {
-            npm view "$1@$2" version >/dev/null 2>&1
-          }
-
           mode="release"
+          if [ -z "$base_version" ]; then
+            echo "Failed to resolve base_version" >&2
+            exit 1
+          fi
           version="$(bump_patch "$base_version")"
 
           repair_tag=""
           if [ -n "$latest_tag" ] && [ -n "$tag_version" ]; then
             missing=false
             for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
-              if ! exists_pkg "$pkg" "$tag_version"; then
+              if ! registry_version_exists "$pkg" "$tag_version"; then
                 missing=true
               fi
             done
@@ -102,7 +136,7 @@ jobs:
           fi
 
           if [ "$mode" = "release" ]; then
-            while exists_pkg "@hashgraphonline/standards-sdk" "$version" || exists_pkg "@hol-org/standards-sdk" "$version" || exists_pkg "@hol-org/rb-client" "$version"; do
+            while registry_version_exists "@hashgraphonline/standards-sdk" "$version" || registry_version_exists "@hol-org/standards-sdk" "$version" || registry_version_exists "@hol-org/rb-client" "$version"; do
               version="$(bump_patch "$version")"
             done
           fi
@@ -114,7 +148,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "latest_tag=${latest_tag:-}" >> "$GITHUB_OUTPUT"
-          echo "published_version=${published_version:-}" >> "$GITHUB_OUTPUT"
+          echo "published_version=${registry_version:-}" >> "$GITHUB_OUTPUT"
           echo "repair_tag=$repair_tag" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag (repair mode)
@@ -149,7 +183,21 @@ jobs:
           NEW_VERSION="${{ steps.version.outputs.new }}"
 
           exists_pkg() {
-            npm view "$1@$NEW_VERSION" version >/dev/null 2>&1
+            local pkg="$1"
+            local attempt
+            local out=""
+            for attempt in 1 2 3 4 5 6; do
+              out="$(npm --silent view "${pkg}@${NEW_VERSION}" version --json 2>/dev/null || true)"
+              if [ -n "$out" ]; then
+                if [ "$out" = "\"$NEW_VERSION\"" ] || [ "$out" = "$NEW_VERSION" ]; then
+                  return 0
+                fi
+                return 1
+              fi
+              sleep $((attempt * 2))
+            done
+            echo "npm view failed for ${pkg}@${NEW_VERSION}" >&2
+            exit 1
           }
 
           publish_hash=true

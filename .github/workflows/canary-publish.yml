@@ -59,7 +59,26 @@ jobs:
         id: version_check
         run: |
           VERSION="${{ steps.canary.outputs.version }}"
-          if npm view @hashgraphonline/standards-sdk@"$VERSION" version >/dev/null 2>&1; then
+
+          version_exists() {
+            local pkg="$1"
+            local attempt
+            local out=""
+            for attempt in 1 2 3 4 5 6; do
+              out="$(npm --silent view "${pkg}@${version}" version --json 2>/dev/null || true)"
+              if [ -n "$out" ]; then
+                if [ "$out" = "\"$version\"" ] || [ "$out" = "$version" ]; then
+                  return 0
+                fi
+                return 1
+              fi
+              sleep $((attempt * 2))
+            done
+            echo "npm view failed for ${pkg}@${version}" >&2
+            exit 1
+          }
+
+          if version_exists @hashgraphonline/standards-sdk "$VERSION"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Canary version $VERSION already exists"
           else
