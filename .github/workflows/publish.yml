@@ -98,6 +98,9 @@ jobs:
             base_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
           fi
 
+          package_version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
+          base_version="$(max_stable_version "$base_version" "$package_version")"
+
           bump_patch() {
             local input="$1"
             local major minor patch
@@ -118,11 +121,7 @@ jobs:
           exists_pkg() {
             local pkg="$1"
             local version="$2"
-            if npm_view_retry "$pkg@$version" version >/dev/null; then
-              return 0
-            fi
-            echo "Failed to check npm for ${pkg}@${version}" >&2
-            exit 1
+            npm_view_retry "$pkg@$version" version >/dev/null
           }
 
           mode="release"
@@ -146,12 +145,6 @@ jobs:
               version="$tag_version"
               repair_tag="$latest_tag"
             fi
-          fi
-
-          if [ "$mode" = "release" ]; then
-            while exists_pkg "@hashgraphonline/standards-sdk" "$version" || exists_pkg "@hol-org/standards-sdk" "$version" || exists_pkg "@hol-org/rb-client" "$version"; do
-              version="$(bump_patch "$version")"
-            done
           fi
 
           echo "base_version=$base_version"
