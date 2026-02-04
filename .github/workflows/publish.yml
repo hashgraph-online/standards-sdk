@@ -122,7 +122,7 @@ jobs:
               return 0
             fi
             echo "Failed to check npm for ${pkg}@${version}" >&2
-            return 1
+            exit 1
           }
 
           mode="release"
