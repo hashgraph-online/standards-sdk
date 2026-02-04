@@ -74,15 +74,17 @@ jobs:
 
       - name: Publish @hol-org/standards-sdk
         if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/hol-standards-sdk
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm --filter @hol-org/standards-sdk publish --access public --no-git-checks --provenance
+        run: npm publish --access public --provenance
 
       - name: Publish @hol-org/rb-client
         if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/rb-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm --filter @hol-org/rb-client publish --access public --no-git-checks --provenance
+        run: npm publish --access public --provenance
 
       - name: Publish to JSR
         if: steps.version_check.outputs.exists == 'false'
