@@ -86,6 +86,7 @@ jobs:
 
       - name: Publish to JSR (canary)
         if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/jsr-client
         run: |
           # Update jsr.json version to match canary
           VERSION="${{ steps.canary.outputs.version }}"

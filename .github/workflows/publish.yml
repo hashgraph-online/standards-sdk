@@ -86,6 +86,7 @@ jobs:
 
       - name: Publish to JSR
         if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/jsr-client
         run: |
           # Update jsr.json version to match
           NEW_VERSION="${{ steps.version.outputs.new }}"
