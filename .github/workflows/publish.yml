@@ -54,13 +54,31 @@ jobs:
             grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true
           }
 
+          npm_view_retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if npm view "$@" 2>/dev/null; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
           max_stable_version_for_pkg() {
             local pkg="$1"
-            npm view "$pkg" versions --json 2>/dev/null \
-              | jq -r 'if type == "array" then .[] else . end' 2>/dev/null \
-              | stable_version_lines \
-              | sort -V \
-              | tail -n 1 || true
+            local versions_json
+            versions_json="$(npm_view_retry "$pkg" versions --json || true)"
+            if [ -n "$versions_json" ]; then
+              printf '%s' "$versions_json" \
+                | jq -r 'if type == "array" then .[] else . end' 2>/dev/null \
+                | stable_version_lines \
+                | sort -V \
+                | tail -n 1 || true
+              return 0
+            fi
+
+            npm_view_retry "$pkg" version || true
           }
 
           max_stable_version() {
@@ -98,7 +116,13 @@ jobs:
           fi
 
           exists_pkg() {
-            npm view "$1@$2" version >/dev/null 2>&1
+            local pkg="$1"
+            local version="$2"
+            if npm_view_retry "$pkg@$version" version >/dev/null; then
+              return 0
+            fi
+            echo "Failed to check npm for ${pkg}@${version}" >&2
+            return 1
           }
 
           mode="release"
