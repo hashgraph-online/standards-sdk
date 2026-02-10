@@ -323,6 +323,11 @@ export function getCryptoAdapter(): CryptoAdapter {
       try {
         return new NodeCryptoAdapter();
       } catch {
+        const globalCrypto =
+          typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+        if (typeof globalCrypto?.subtle !== 'undefined') {
+          return new WebCryptoAdapter();
+        }
         return new FallbackCryptoAdapter();
       }
     case 'web':

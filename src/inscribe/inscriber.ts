@@ -179,6 +179,16 @@ export async function inscribe(
     ...options.logging,
   });
 
+  const resolvedConnectionMode = (() => {
+    if (options.connectionMode) {
+      return options.connectionMode;
+    }
+    if (typeof options.websocket === 'boolean') {
+      return options.websocket ? 'websocket' : 'http';
+    }
+    return 'websocket';
+  })();
+
   logger.info('Starting inscription process', {
     type: input.type,
     mode: options.mode || 'file',
@@ -210,7 +220,7 @@ export async function inscribe(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
-        connectionMode: 'websocket',
+        connectionMode: resolvedConnectionMode,
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -220,7 +230,7 @@ export async function inscribe(
         accountId: normalized.accountId,
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
-        connectionMode: 'websocket',
+        connectionMode: resolvedConnectionMode,
       });
     }
 
@@ -467,6 +477,16 @@ export async function inscribeWithSigner(
     ...options.logging,
   });
 
+  const resolvedConnectionMode = (() => {
+    if (options.connectionMode) {
+      return options.connectionMode;
+    }
+    if (typeof options.websocket === 'boolean') {
+      return options.websocket ? 'websocket' : 'http';
+    }
+    return 'websocket';
+  })();
+
   logger.info('Starting inscription process with signer', {
     type: input.type,
     mode: options.mode || 'file',
@@ -505,7 +525,7 @@ export async function inscribeWithSigner(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
-        connectionMode: 'websocket',
+        connectionMode: resolvedConnectionMode,
       });
     } else {
       logger.debug('Initializing InscriptionSDK with client auth (websocket)');
@@ -514,7 +534,7 @@ export async function inscribeWithSigner(
         accountId,
         signer: signer,
         network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
-        connectionMode: 'websocket',
+        connectionMode: resolvedConnectionMode,
       });
     }
 

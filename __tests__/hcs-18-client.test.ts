@@ -1,75 +1,66 @@
 import {
+  PrivateKey,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
-  Client,
+  type TransactionResponse,
 } from '@hashgraph/sdk';
 import { HCS18Client } from '../src/hcs-18';
 
-jest.mock('@hashgraph/sdk');
-
 describe('HCS18Client', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-
-    (Client.forName as unknown as jest.Mock) = jest
-      .fn()
-      .mockReturnValue(new Client());
-
-    (TopicCreateTransaction as unknown as jest.Mock).mockImplementation(() => ({
-      setTopicMemo: jest.fn().mockReturnThis(),
-      setAdminKey: jest.fn().mockReturnThis(),
-      setSubmitKey: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({
-        getReceipt: jest.fn().mockResolvedValue({
-          topicId: { toString: () => '0.0.999999' },
-        }),
+    jest.restoreAllMocks();
+    jest.spyOn(TopicCreateTransaction.prototype, 'execute').mockResolvedValue({
+      getReceipt: async () => ({
+        topicId: { toString: () => '0.0.999999' },
       }),
-    }));
-
-    (TopicMessageSubmitTransaction as unknown as jest.Mock).mockImplementation(
-      () => ({
-        setTopicId: jest.fn().mockReturnThis(),
-        setMessage: jest.fn().mockReturnThis(),
-        setTransactionMemo: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({
-          getReceipt: jest.fn().mockResolvedValue({
-            topicSequenceNumber: { toNumber: () => 12345 },
-          }),
+    } as unknown as TransactionResponse);
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'execute')
+      .mockResolvedValue({
+        getReceipt: async () => ({
+          topicSequenceNumber: { toNumber: () => 12345 },
         }),
-      }),
-    );
+      } as unknown as TransactionResponse);
   });
 
   it('creates discovery topic with default memo', async () => {
+    const setTopicMemoSpy = jest.spyOn(
+      TopicCreateTransaction.prototype,
+      'setTopicMemo',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     const res = await c.createDiscoveryTopic();
     expect(res.topicId).toBe('0.0.999999');
-    const inst = (TopicCreateTransaction as unknown as jest.Mock).mock
-      .results[0].value;
-    expect(inst.setTopicMemo).toHaveBeenCalledWith('hcs-18:0');
+    expect(setTopicMemoSpy).toHaveBeenCalledWith('hcs-18:0');
   });
 
   it('creates discovery topic with ttl in memo', async () => {
+    const setTopicMemoSpy = jest.spyOn(
+      TopicCreateTransaction.prototype,
+      'setTopicMemo',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.createDiscoveryTopic({ ttlSeconds: 300 });
-    const inst = (TopicCreateTransaction as unknown as jest.Mock).mock
-      .results[0].value;
-    expect(inst.setTopicMemo).toHaveBeenCalledWith('hcs-18:0:300');
+    expect(setTopicMemoSpy).toHaveBeenCalledWith('hcs-18:0:300');
   });
 
   it('announce convenience submits correct message', async () => {
+    const setMessageSpy = jest.spyOn(
+      TopicMessageSubmitTransaction.prototype,
+      'setMessage',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.announce({
       discoveryTopicId: '0.0.999999',
@@ -80,20 +71,21 @@ describe('HCS18Client', () => {
         valid_for: 1000,
       },
     });
-    const mockInstance = (TopicMessageSubmitTransaction as jest.Mock).mock
-      .results[0].value;
-    const setMessageCall = mockInstance.setMessage.mock.calls[0];
-    const message = JSON.parse(setMessageCall[0]);
+    const message = JSON.parse(setMessageSpy.mock.calls[0][0] as string);
     expect(message.p).toBe('hcs-18');
     expect(message.op).toBe('announce');
     expect(message.data.petal.name).toBe('P');
   });
 
   it('announce supports memo option', async () => {
+    const setMemoSpy = jest.spyOn(
+      TopicMessageSubmitTransaction.prototype,
+      'setTransactionMemo',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.announce({
       discoveryTopicId: '0.0.999999',
@@ -104,17 +96,18 @@ describe('HCS18Client', () => {
         capabilities: { protocols: ['hcs-18'] },
       },
     });
-    const mockInstance = (
-      TopicMessageSubmitTransaction as jest.Mock
-    ).mock.results.pop().value;
-    expect(mockInstance.setTransactionMemo).toHaveBeenCalledWith('test-memo');
+    expect(setMemoSpy).toHaveBeenCalledWith('test-memo');
   });
 
   it('createDiscoveryTopic handles missing operator public key', async () => {
+    const setTopicMemoSpy = jest.spyOn(
+      TopicCreateTransaction.prototype,
+      'setTopicMemo',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     const opCtx = (c as any).operatorCtx;
     Object.defineProperty(opCtx, 'operatorKey', {
@@ -125,28 +118,20 @@ describe('HCS18Client', () => {
       }),
     });
     await c.createDiscoveryTopic();
-    const inst = (
-      TopicCreateTransaction as unknown as jest.Mock
-    ).mock.results.pop().value;
-    expect(inst.setTopicMemo).toHaveBeenCalled();
+    expect(setTopicMemoSpy).toHaveBeenCalled();
   });
 
   it('createDiscoveryTopic throws when no topicId in receipt', async () => {
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
-    (TopicCreateTransaction as unknown as jest.Mock).mockImplementationOnce(
-      () => ({
-        setTopicMemo: jest.fn().mockReturnThis(),
-        setAdminKey: jest.fn().mockReturnThis(),
-        setSubmitKey: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({
-          getReceipt: jest.fn().mockResolvedValue({ topicId: undefined }),
-        }),
-      }),
-    );
+    jest
+      .spyOn(TopicCreateTransaction.prototype, 'execute')
+      .mockResolvedValueOnce({
+        getReceipt: async () => ({ topicId: undefined }),
+      } as unknown as TransactionResponse);
     await expect(c.createDiscoveryTopic()).rejects.toThrow(
       'Failed to create discovery topic',
     );
