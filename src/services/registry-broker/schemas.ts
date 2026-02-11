@@ -1180,8 +1180,16 @@ export const moltbookOwnerRegistrationUpdateResponseSchema = z
 const skillRegistryFileRoleSchema = z.union([
   z.literal('skill-md'),
   z.literal('skill-json'),
+  z.literal('skill-icon'),
   z.literal('file'),
 ]);
+
+const trustScoreBreakdownSchema = z
+  .record(z.number())
+  .refine(
+    record => typeof record.total === 'number' && Number.isFinite(record.total),
+    { message: 'trustScores.total is required' },
+  );
 
 export const skillRegistryFileDescriptorSchema = z
   .object({
@@ -1203,9 +1211,20 @@ export const skillRegistryPublishSummarySchema = z
     description: z.string().optional(),
     createdAt: z.string(),
     directoryTopicId: z.string(),
+    skillUid: z.number().int().optional(),
     directorySequenceNumber: z.number().int().optional(),
+    versionRegistryTopicId: z.string().optional(),
     packageTopicId: z.string(),
+    manifestHrl: z.string().optional(),
     skillJsonHrl: z.string(),
+    iconHcs1: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+    featured: z.boolean().optional(),
+    verified: z.boolean().optional(),
+    upvotes: z.number().int().optional(),
+    trustScore: z.number().optional(),
+    trustScores: trustScoreBreakdownSchema.optional(),
     files: z.array(skillRegistryFileDescriptorSchema).optional(),
   })
   .passthrough();
@@ -1267,9 +1286,15 @@ export const skillRegistryJobStatusResponseSchema = z
     name: z.string(),
     version: z.string(),
     directoryTopicId: z.string(),
+    skillUid: z.number().int().nullable().optional(),
     directorySequenceNumber: z.number().int().nullable().optional(),
+    versionRegistryTopicId: z.string().nullable().optional(),
     packageTopicId: z.string().nullable().optional(),
+    manifestHrl: z.string().nullable().optional(),
     skillJsonHrl: z.string().nullable().optional(),
+    iconHcs1: z.string().nullable().optional(),
+    tags: z.array(z.string()).nullable().optional(),
+    category: z.string().nullable().optional(),
     files: z.array(skillRegistryFileDescriptorSchema).nullable().optional(),
     quoteCredits: z.number().nullable().optional(),
     quoteUsdCents: z.number().nullable().optional(),
@@ -1279,6 +1304,46 @@ export const skillRegistryJobStatusResponseSchema = z
     failureReason: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
+  })
+  .passthrough();
+
+export const skillRegistryVersionItemSchema = z
+  .object({
+    jobId: z.string(),
+    version: z.string(),
+    createdAt: z.string(),
+    verified: z.boolean().optional(),
+  })
+  .passthrough();
+
+export const skillRegistryVersionsResponseSchema = z
+  .object({
+    name: z.string(),
+    items: z.array(skillRegistryVersionItemSchema),
+  })
+  .passthrough();
+
+export const skillRegistryMineItemSchema = z
+  .object({
+    name: z.string(),
+    latestVersion: z.string(),
+    latestCreatedAt: z.string(),
+    verified: z.boolean().optional(),
+    iconHcs1: z.string().optional(),
+    versions: z.array(z.string()),
+  })
+  .passthrough();
+
+export const skillRegistryMineResponseSchema = z
+  .object({
+    items: z.array(skillRegistryMineItemSchema),
+  })
+  .passthrough();
+
+export const skillRegistryMyListResponseSchema = z
+  .object({
+    owned: skillRegistryMineResponseSchema,
+    upvoted: skillRegistryListResponseSchema,
   })
   .passthrough();
 
@@ -1301,5 +1366,65 @@ export const skillRegistryOwnershipResponseSchema = z
     name: z.string(),
     exists: z.boolean(),
     isOwner: z.boolean(),
+  })
+  .passthrough();
+
+export const skillRegistryVoteStatusResponseSchema = z
+  .object({
+    name: z.string(),
+    upvotes: z.number().int(),
+    hasUpvoted: z.boolean(),
+  })
+  .passthrough();
+
+const skillVerificationTierSchema = z.enum(['basic', 'express']);
+const skillVerificationStatusSchema = z.enum([
+  'pending',
+  'approved',
+  'rejected',
+]);
+
+const skillVerificationRequestSchema = z
+  .object({
+    id: z.string(),
+    network: z.union([z.literal('mainnet'), z.literal('testnet')]),
+    name: z.string(),
+    version: z.string().optional(),
+    tier: skillVerificationTierSchema,
+    status: skillVerificationStatusSchema,
+    usdCents: z.number(),
+    creditsCharged: z.number(),
+    creditAccountId: z.string().optional(),
+    requestedBy: z
+      .object({
+        userId: z.string().optional(),
+        accountId: z.string().optional(),
+        email: z.string().optional(),
+      })
+      .optional(),
+    approvedBy: z
+      .object({
+        userId: z.string().optional(),
+        email: z.string().optional(),
+      })
+      .optional(),
+    approvedAt: z.string().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .passthrough();
+
+export const skillVerificationRequestCreateResponseSchema = z
+  .object({
+    request: skillVerificationRequestSchema,
+  })
+  .passthrough();
+
+export const skillVerificationStatusResponseSchema = z
+  .object({
+    name: z.string(),
+    verified: z.boolean(),
+    previouslyVerified: z.boolean(),
+    pendingRequest: skillVerificationRequestSchema.nullable().optional(),
   })
   .passthrough();

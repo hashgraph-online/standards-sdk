@@ -3,19 +3,33 @@ import type {
   SkillRegistryConfigResponse,
   SkillRegistryJobStatusResponse,
   SkillRegistryListResponse,
+  SkillRegistryMineResponse,
+  SkillRegistryMyListResponse,
   SkillRegistryOwnershipResponse,
   SkillRegistryPublishRequest,
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillRegistryVoteRequest,
+  SkillRegistryVoteStatusResponse,
+  SkillRegistryVersionsResponse,
+  SkillVerificationRequestCreateRequest,
+  SkillVerificationRequestCreateResponse,
+  SkillVerificationStatusResponse,
 } from '../types';
 import {
   skillRegistryConfigResponseSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
+  skillRegistryMineResponseSchema,
+  skillRegistryMyListResponseSchema,
   skillRegistryOwnershipResponseSchema,
   skillRegistryPublishResponseSchema,
   skillRegistryQuoteResponseSchema,
+  skillRegistryVoteStatusResponseSchema,
+  skillRegistryVersionsResponseSchema,
+  skillVerificationRequestCreateResponseSchema,
+  skillVerificationStatusResponseSchema,
 } from '../schemas';
 import type { RegistryBrokerClient } from './base-client';
 
@@ -73,6 +87,78 @@ export async function listSkills(
     raw,
     skillRegistryListResponseSchema,
     'skill registry list response',
+  );
+}
+
+export async function listSkillVersions(
+  client: RegistryBrokerClient,
+  params: { name: string },
+): Promise<SkillRegistryVersionsResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/versions?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillRegistryVersionsResponseSchema,
+    'skill registry versions response',
+  );
+}
+
+export async function listMySkills(
+  client: RegistryBrokerClient,
+  params: { limit?: number } = {},
+): Promise<SkillRegistryMineResponse> {
+  const query = new URLSearchParams();
+  if (typeof params.limit === 'number' && Number.isFinite(params.limit)) {
+    query.set('limit', String(Math.trunc(params.limit)));
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : '';
+
+  const raw = await client.requestJson<JsonValue>(`/skills/mine${suffix}`, {
+    method: 'GET',
+  });
+
+  return client.parseWithSchema(
+    raw,
+    skillRegistryMineResponseSchema,
+    'skill registry mine response',
+  );
+}
+
+export async function getMySkillsList(
+  client: RegistryBrokerClient,
+  params: { limit?: number; cursor?: string; accountId?: string } = {},
+): Promise<SkillRegistryMyListResponse> {
+  const query = new URLSearchParams();
+  if (typeof params.limit === 'number' && Number.isFinite(params.limit)) {
+    query.set('limit', String(Math.trunc(params.limit)));
+  }
+  if (params.cursor) {
+    query.set('cursor', params.cursor);
+  }
+  if (params.accountId) {
+    query.set('accountId', params.accountId);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : '';
+
+  const raw = await client.requestJson<JsonValue>(`/skills/my-list${suffix}`, {
+    method: 'GET',
+  });
+
+  return client.parseWithSchema(
+    raw,
+    skillRegistryMyListResponseSchema,
+    'skill registry my list response',
   );
 }
 
@@ -164,5 +250,100 @@ export async function getSkillOwnership(
     raw,
     skillRegistryOwnershipResponseSchema,
     'skill registry ownership response',
+  );
+}
+
+export async function getSkillVoteStatus(
+  client: RegistryBrokerClient,
+  params: { name: string },
+): Promise<SkillRegistryVoteStatusResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/vote?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillRegistryVoteStatusResponseSchema,
+    'skill registry vote status response',
+  );
+}
+
+export async function setSkillVote(
+  client: RegistryBrokerClient,
+  payload: SkillRegistryVoteRequest,
+): Promise<SkillRegistryVoteStatusResponse> {
+  const normalizedName = payload.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>('/skills/vote', {
+    method: 'POST',
+    body: { name: normalizedName, upvoted: payload.upvoted },
+    headers: { 'content-type': 'application/json' },
+  });
+
+  return client.parseWithSchema(
+    raw,
+    skillRegistryVoteStatusResponseSchema,
+    'skill registry vote status response',
+  );
+}
+
+export async function requestSkillVerification(
+  client: RegistryBrokerClient,
+  payload: SkillVerificationRequestCreateRequest,
+): Promise<SkillVerificationRequestCreateResponse> {
+  const normalizedName = payload.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    '/skills/verification/request',
+    {
+      method: 'POST',
+      body: { name: normalizedName, tier: payload.tier },
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillVerificationRequestCreateResponseSchema,
+    'skill verification request create response',
+  );
+}
+
+export async function getSkillVerificationStatus(
+  client: RegistryBrokerClient,
+  params: { name: string },
+): Promise<SkillVerificationStatusResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/verification/status?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillVerificationStatusResponseSchema,
+    'skill verification status response',
   );
 }

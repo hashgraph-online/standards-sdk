@@ -1,20 +1,12 @@
+import { PrivateKey } from '@hashgraph/sdk';
 import { HCS18Client } from '../src/hcs-18';
 
-jest.mock('@hashgraph/sdk');
-
 describe('HCS18BaseClient helpers (via HCS18Client)', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    (require('@hashgraph/sdk').Client.forName as unknown as jest.Mock) = jest
-      .fn()
-      .mockReturnValue(new (require('@hashgraph/sdk').Client)());
-  });
-
   it('getDiscoveryMessages returns [] when mirror returns null', async () => {
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     (c as any).mirrorNode = {
       getTopicMessages: jest.fn().mockResolvedValue(null),
@@ -27,7 +19,7 @@ describe('HCS18BaseClient helpers (via HCS18Client)', () => {
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     const mixed = [
       { p: 'hcs-18', op: 'announce', sequence_number: 1 },
@@ -46,7 +38,7 @@ describe('HCS18BaseClient helpers (via HCS18Client)', () => {
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     const proposal = {
       data: { members: [{}, {}, {}] },

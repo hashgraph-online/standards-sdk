@@ -646,7 +646,8 @@ type HCSProtocol =
   | 'hcs-18'
   | 'hcs-19'
   | 'hcs-20'
-  | 'hcs-21';
+  | 'hcs-21'
+  | 'hcs-26';
 
 export interface HCSMessageWithCommonFields {
   p: HCSProtocol;
@@ -685,4 +686,6 @@ export interface HCSMessageWithCommonFields {
   t_id?: string;
   metadata?: string;
   transaction_id?: string;
+
+  [key: string]: unknown;
 }

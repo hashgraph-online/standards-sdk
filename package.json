@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.156",
+  "version": "0.1.157-canary.14",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hiero Consensus Standards (HCS), giving developers all the tools needed to build wonderful decentralized applications on the Hashgraph network. https://hol.org",
   "type": "module",
   "files": [
@@ -82,8 +82,8 @@
     "cli:build": "([ -d cli/standards-cli/node_modules ] || pnpm --dir cli/standards-cli install) && pnpm --dir cli/standards-cli build",
     "cli:install": "pnpm --dir cli/standards-cli install",
     "prepublishOnly": "pnpm run clean && pnpm run build:es && pnpm run build:cjs",
-    "release": "pnpm publish --access public",
-    "release:canary": "pnpm run prepublishOnly && pnpm publish --tag canary --access public",
+    "release": "pnpm publish --access public --no-git-checks",
+    "release:canary": "pnpm run prepublishOnly && pnpm publish --tag canary --access public --no-git-checks",
     "version:canary": "pnpm version prerelease --preid canary --no-git-tag-version",
     "publish:canary": "pnpm run version:canary && pnpm run release:canary",
     "demo:inscribe": "tsx demo/inscribe-demo.ts",
@@ -125,6 +125,7 @@
     "demo:registry-broker-erc8004-x402": "tsx demo/registry-broker/registry-broker-erc8004-x402-demo.ts",
     "demo:registry-broker-x402-topup": "tsx demo/registry-broker/registry-broker-x402-topup.ts",
     "demo:registry-broker-nanda-a2a": "tsx demo/registry-broker/registry-broker-nanda-a2a-demo.ts",
+    "demo:registry-broker-skills": "tsx demo/registry-broker/skill-registry-publish-demo.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest --config jest.config.json",
     "test:unit-list": "jest --config jest.config.json --listTests --testPathPattern __tests__/utils/ --testPathPattern __tests__/services/ --testPathPattern __tests__/content-store/ --testPathPattern __tests__/fees/ --testPathPattern __tests__/common/tx/",

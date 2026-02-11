@@ -75,10 +75,16 @@ import {
   skillRegistryFileDescriptorSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
+  skillRegistryMineResponseSchema,
+  skillRegistryMyListResponseSchema,
   skillRegistryOwnershipResponseSchema,
   skillRegistryPublishResponseSchema,
   skillRegistryPublishSummarySchema,
   skillRegistryQuoteResponseSchema,
+  skillRegistryVersionsResponseSchema,
+  skillRegistryVoteStatusResponseSchema,
+  skillVerificationRequestCreateResponseSchema,
+  skillVerificationStatusResponseSchema,
 } from './schemas';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -312,6 +318,12 @@ export type SkillRegistryPublishSummary = z.infer<
 export type SkillRegistryListResponse = z.infer<
   typeof skillRegistryListResponseSchema
 >;
+export type SkillRegistryMineResponse = z.infer<
+  typeof skillRegistryMineResponseSchema
+>;
+export type SkillRegistryMyListResponse = z.infer<
+  typeof skillRegistryMyListResponseSchema
+>;
 export type SkillRegistryQuoteResponse = z.infer<
   typeof skillRegistryQuoteResponseSchema
 >;
@@ -327,13 +339,34 @@ export type SkillRegistryConfigResponse = z.infer<
 export type SkillRegistryOwnershipResponse = z.infer<
   typeof skillRegistryOwnershipResponseSchema
 >;
+export type SkillRegistryVersionsResponse = z.infer<
+  typeof skillRegistryVersionsResponseSchema
+>;
+export type SkillRegistryVoteStatusResponse = z.infer<
+  typeof skillRegistryVoteStatusResponseSchema
+>;
 
-export type SkillRegistryFileRole = 'skill-md' | 'skill-json' | 'file';
+export type SkillVerificationRequestCreateResponse = z.infer<
+  typeof skillVerificationRequestCreateResponseSchema
+>;
+export type SkillVerificationStatusResponse = z.infer<
+  typeof skillVerificationStatusResponseSchema
+>;
+export type SkillVerificationRequest =
+  SkillVerificationRequestCreateResponse['request'];
+export type SkillVerificationTier = SkillVerificationRequest['tier'];
+
+export type SkillRegistryFileRole =
+  | 'skill-md'
+  | 'skill-json'
+  | 'skill-icon'
+  | 'file';
 
 export interface SkillRegistryFileInput {
   name: string;
   base64: string;
-  mimeType?: string;
+  mimeType?: string | null;
+  role?: SkillRegistryFileRole | null;
 }
 
 export interface SkillRegistryQuoteRequest {
@@ -347,6 +380,17 @@ export interface SkillRegistryPublishRequest {
   directoryTopicId?: string;
   accountId?: string;
   quoteId?: string;
+  publisher?: string | null;
+}
+
+export interface SkillRegistryVoteRequest {
+  name: string;
+  upvoted: boolean;
+}
+
+export interface SkillVerificationRequestCreateRequest {
+  name: string;
+  tier: SkillVerificationTier;
 }
 
 export interface MoltbookOwnerRegistrationUpdateRequest {

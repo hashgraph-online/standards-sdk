@@ -94,9 +94,50 @@ export const resolveEvmAccount = () =>
   privateKeyToAccount(resolveWalletPrivateKey());
 
 export const resolveHederaLedgerAuthConfig = () => ({
-  accountId: resolveLedgerAccountId(),
-  privateKey: resolveLedgerPrivateKey(),
-  network: resolveLedgerNetwork(),
+  ...(() => {
+    const network = resolveLedgerNetwork();
+    const prefix = network === 'mainnet' ? 'MAINNET' : 'TESTNET';
+
+    const get = (key: string): string | undefined => {
+      const value = process.env[key as keyof NodeJS.ProcessEnv];
+      return typeof value === 'string' && value.trim().length > 0
+        ? value.trim()
+        : undefined;
+    };
+
+    const pairs: Array<{ accountId?: string; privateKey?: string }> = [
+      {
+        accountId: get(`${prefix}_HEDERA_ACCOUNT_ID`),
+        privateKey: get(`${prefix}_HEDERA_PRIVATE_KEY`),
+      },
+      {
+        accountId: get(`HEDERA_${prefix}_OPERATOR_ID`),
+        privateKey: get(`HEDERA_${prefix}_OPERATOR_KEY`),
+      },
+      {
+        accountId: get('HEDERA_ACCOUNT_ID'),
+        privateKey: get('HEDERA_PRIVATE_KEY'),
+      },
+      {
+        accountId: get('HEDERA_OPERATOR_ID'),
+        privateKey: get('HEDERA_OPERATOR_KEY'),
+      },
+    ];
+
+    for (const candidate of pairs) {
+      if (candidate.accountId && candidate.privateKey) {
+        return {
+          accountId: candidate.accountId,
+          privateKey: candidate.privateKey,
+          network,
+        };
+      }
+    }
+
+    throw new Error(
+      `Set ${prefix}_HEDERA_ACCOUNT_ID + ${prefix}_HEDERA_PRIVATE_KEY (preferred) or HEDERA_${prefix}_OPERATOR_ID + HEDERA_${prefix}_OPERATOR_KEY for ledger auth.`,
+    );
+  })(),
 });
 
 const resolveEvmLedgerNetworkAlias = (): string =>
