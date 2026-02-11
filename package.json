@@ -176,7 +176,7 @@
     "@noble/curves": "^2.0.1",
     "@types/localtunnel": "^2.0.4",
     "agent0-sdk": "0.2.1",
-    "axios": "^1.12.2",
+    "axios": "^1.13.5",
     "bignumber.js": "^9.3.1",
     "buffer": "^6.0.3",
     "chalk": "^5.4.1",
