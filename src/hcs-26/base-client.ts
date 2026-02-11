@@ -52,7 +52,10 @@ export type HCS26ResolvedSkill = {
   verification?: HCS26SkillVerificationStatus | null;
 };
 
-export type HCS26ResolvedSkillVersion = Omit<HCS26ResolvedSkill, 'latestVersion'> & {
+export type HCS26ResolvedSkillVersion = Omit<
+  HCS26ResolvedSkill,
+  'latestVersion'
+> & {
   versionEntry:
     | (Hcs26VersionRegister & { sequence_number?: number })
     | (Hcs26VersionRegisterLegacy & { sequence_number?: number });
@@ -230,7 +233,7 @@ export class HCS26BaseClient {
       limit: 250,
     });
 
-    const target = entries.find((entry) => entry.version.trim() === versionRaw);
+    const target = entries.find(entry => entry.version.trim() === versionRaw);
     if (!target) {
       return null;
     }
