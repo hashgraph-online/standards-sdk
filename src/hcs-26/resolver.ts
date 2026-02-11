@@ -117,6 +117,27 @@ function normalizeUidString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function resolveSequenceNumber(
+  primary: unknown,
+  fallback: unknown,
+): number | null {
+  if (typeof primary === 'number') {
+    return primary;
+  }
+  if (typeof fallback === 'number') {
+    return fallback;
+  }
+  return null;
+}
+
+function parseSequenceFromUid(uid: string): number | null {
+  if (!/^\d+$/.test(uid)) {
+    return null;
+  }
+  const parsed = Number(uid);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 function ensureNonEmptyString(value: unknown, field: string): string {
   if (typeof value !== 'string') {
     throw new Error(`Expected ${field} to be a string`);
@@ -187,29 +208,6 @@ function normalizeDiscoveryRegister(
     ...(input.m ? { m: input.m } : {}),
     ...(typeof seq === 'number' ? { sequence_number: seq } : {}),
   };
-}
-
-function validateManifestPath(pathRaw: string): void {
-  const path = pathRaw.trim();
-  if (!path) {
-    throw new Error('Manifest file path must be non-empty');
-  }
-  if (path.startsWith('/')) {
-    throw new Error(`Manifest file path must be relative: ${path}`);
-  }
-  if (path.includes('\\')) {
-    throw new Error(`Manifest file path must use "/" separators: ${path}`);
-  }
-  const segments = path.split('/');
-  if (
-    segments.some(
-      segment => segment === '' || segment === '.' || segment === '..',
-    )
-  ) {
-    throw new Error(
-      `Manifest file path must be normalized (no '.', '..', or empty segments): ${path}`,
-    );
-  }
 }
 
 export class Hcs26SkillRegistryResolver {
@@ -388,11 +386,30 @@ export class Hcs26SkillRegistryResolver {
     );
 
     const uid = String(params.skillUid);
+    const registerSequence = resolveSequenceNumber(
+      register.sequence_number,
+      params.skillUid,
+    );
 
     let current: NormalizedDiscoveryRegister = register;
     for (const message of messages) {
+      const messageSequence = resolveSequenceNumber(
+        undefined,
+        message.sequence_number,
+      );
       const deleteParsed = hcs26DiscoveryDeleteSchema.safeParse(message);
       if (deleteParsed.success && deleteParsed.data.uid === uid) {
+        const deleteSequence = resolveSequenceNumber(
+          deleteParsed.data.sequence_number,
+          messageSequence,
+        );
+        if (
+          registerSequence !== null &&
+          deleteSequence !== null &&
+          deleteSequence <= registerSequence
+        ) {
+          continue;
+        }
         return null;
       }
 
@@ -406,6 +423,17 @@ export class Hcs26SkillRegistryResolver {
           ? updateParsedLegacy
           : null;
       if (!updateParsed || updateParsed.data.uid !== uid) {
+        continue;
+      }
+      const updateSequence = resolveSequenceNumber(
+        updateParsed.data.sequence_number,
+        messageSequence,
+      );
+      if (
+        registerSequence !== null &&
+        updateSequence !== null &&
+        updateSequence <= registerSequence
+      ) {
         continue;
       }
 
@@ -450,10 +478,16 @@ export class Hcs26SkillRegistryResolver {
 
     const registersByUid = new Map<
       string,
-      Hcs26VersionRegister | Hcs26VersionRegisterLegacy
+      {
+        register: Hcs26VersionRegister | Hcs26VersionRegisterLegacy;
+        sequenceNumber: number | null;
+      }
     >();
-    const updatesByUid = new Map<string, Hcs26VersionUpdate[]>();
-    const deletedUids = new Set<string>();
+    const updatesByUid = new Map<
+      string,
+      Array<{ update: Hcs26VersionUpdate; sequenceNumber: number | null }>
+    >();
+    const deletedByUid = new Map<string, number[]>();
 
     for (const message of messages) {
       const parsedNew = hcs26VersionRegisterSchema.safeParse(message);
@@ -477,12 +511,16 @@ export class Hcs26SkillRegistryResolver {
               ? String(message.sequence_number)
               : null;
         if (uid) {
-          registersByUid.set(
-            uid,
-            registerParsed.data as
+          const registerSequence = resolveSequenceNumber(
+            registerParsed.data.sequence_number,
+            message.sequence_number,
+          );
+          registersByUid.set(uid, {
+            register: registerParsed.data as
               | Hcs26VersionRegister
               | Hcs26VersionRegisterLegacy,
-          );
+            sequenceNumber: registerSequence,
+          });
         }
         continue;
       }
@@ -491,45 +529,76 @@ export class Hcs26SkillRegistryResolver {
       if (updateParsed.success) {
         const uid = updateParsed.data.uid.trim();
         const list = updatesByUid.get(uid) ?? [];
-        list.push(updateParsed.data);
+        list.push({
+          update: updateParsed.data,
+          sequenceNumber: resolveSequenceNumber(
+            updateParsed.data.sequence_number,
+            message.sequence_number,
+          ),
+        });
         updatesByUid.set(uid, list);
         continue;
       }
 
       const deleteParsed = hcs26VersionDeleteSchema.safeParse(message);
       if (deleteParsed.success) {
-        deletedUids.add(deleteParsed.data.uid.trim());
+        const uid = deleteParsed.data.uid.trim();
+        const list = deletedByUid.get(uid) ?? [];
+        const sequenceNumber = resolveSequenceNumber(
+          deleteParsed.data.sequence_number,
+          message.sequence_number,
+        );
+        if (sequenceNumber !== null) {
+          list.push(sequenceNumber);
+          deletedByUid.set(uid, list);
+        }
       }
     }
 
     const entries: Array<Hcs26VersionRegister | Hcs26VersionRegisterLegacy> =
       [];
-    for (const [uid, register] of registersByUid.entries()) {
-      if (deletedUids.has(uid)) {
+    for (const [uid, registerState] of registersByUid.entries()) {
+      const registerSequence =
+        registerState.sequenceNumber ?? parseSequenceFromUid(uid);
+      const deleteSequences = deletedByUid.get(uid) ?? [];
+      const hasDeleteAfterRegister = deleteSequences.some(sequence =>
+        registerSequence === null ? true : sequence > registerSequence,
+      );
+      if (hasDeleteAfterRegister) {
         continue;
       }
 
       const updates = updatesByUid.get(uid);
       if (!updates || updates.length === 0) {
-        entries.push(register);
+        entries.push(registerState.register);
         continue;
       }
 
-      const sorted = [...updates].sort((a, b) => {
-        const aSeq =
-          typeof a.sequence_number === 'number' ? a.sequence_number : 0;
-        const bSeq =
-          typeof b.sequence_number === 'number' ? b.sequence_number : 0;
-        return aSeq - bSeq;
-      });
+      const sorted = [...updates]
+        .filter(update =>
+          registerSequence === null
+            ? true
+            : update.sequenceNumber !== null &&
+              update.sequenceNumber > registerSequence,
+        )
+        .sort((a, b) => {
+          const aSeq = a.sequenceNumber ?? 0;
+          const bSeq = b.sequenceNumber ?? 0;
+          return aSeq - bSeq;
+        });
+      if (sorted.length === 0) {
+        entries.push(registerState.register);
+        continue;
+      }
+
       const final = sorted.reduce<
         Hcs26VersionRegister | Hcs26VersionRegisterLegacy
-      >((acc, update) => {
-        if (update.status) {
-          return { ...acc, status: update.status };
+      >((acc, updateState) => {
+        if (updateState.update.status) {
+          return { ...acc, status: updateState.update.status };
         }
         return acc;
-      }, register);
+      }, registerState.register);
       entries.push(final);
     }
 
@@ -638,10 +707,6 @@ export class Hcs26SkillRegistryResolver {
     const parsed = hcs26SkillManifestSchema.safeParse(raw);
     if (!parsed.success) {
       throw new Error(`Invalid HCS-26 manifest: ${parsed.error.message}`);
-    }
-
-    for (const file of parsed.data.files) {
-      validateManifestPath(file.path);
     }
 
     const hasSkillMd = parsed.data.files.some(file => file.path === 'SKILL.md');

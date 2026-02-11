@@ -168,6 +168,16 @@ function normalizeClientConfig(
   };
 }
 
+function resolveConnectionMode(options: InscriptionOptions) {
+  if (options.connectionMode) {
+    return options.connectionMode;
+  }
+  if (typeof options.websocket === 'boolean') {
+    return options.websocket ? 'websocket' : 'http';
+  }
+  return 'websocket';
+}
+
 export async function inscribe(
   input: InscriptionInput,
   clientConfig: NodeHederaClientConfig,
@@ -179,15 +189,7 @@ export async function inscribe(
     ...options.logging,
   });
 
-  const resolvedConnectionMode = (() => {
-    if (options.connectionMode) {
-      return options.connectionMode;
-    }
-    if (typeof options.websocket === 'boolean') {
-      return options.websocket ? 'websocket' : 'http';
-    }
-    return 'websocket';
-  })();
+  const resolvedConnectionMode = resolveConnectionMode(options);
 
   logger.info('Starting inscription process', {
     type: input.type,
@@ -477,15 +479,7 @@ export async function inscribeWithSigner(
     ...options.logging,
   });
 
-  const resolvedConnectionMode = (() => {
-    if (options.connectionMode) {
-      return options.connectionMode;
-    }
-    if (typeof options.websocket === 'boolean') {
-      return options.websocket ? 'websocket' : 'http';
-    }
-    return 'websocket';
-  })();
+  const resolvedConnectionMode = resolveConnectionMode(options);
 
   logger.info('Starting inscription process with signer', {
     type: input.type,
