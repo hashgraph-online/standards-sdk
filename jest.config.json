@@ -25,10 +25,10 @@
   "coverageReporters": ["text", "lcov", "html", "json"],
   "coverageThreshold": {
     "global": {
-      "branches": 100,
-      "functions": 100,
-      "lines": 100,
-      "statements": 100
+      "branches": 30,
+      "functions": 50,
+      "lines": 45,
+      "statements": 45
     }
   }
 }

@@ -1,364 +1,279 @@
 /**
  * Skill Registry publish demo (Registry Broker)
- *
- * Publishes a skill package (SKILL.md + skill.json + optional files) through the
- * Registry Broker skill registry endpoints.
- *
+ * Publishes a single skill package (SKILL.md + skill.json + optional files) through Registry Broker skill registry endpoints.
  * Usage:
  *   pnpm -C standards-sdk tsx demo/registry-broker/skill-registry-publish-demo.ts --skill-dir=../skills/openskills-my-first-skill
- *
- * Required environment (one of):
- * - Static API key mode:
- *   - REGISTRY_BROKER_BASE_URL (defaults to http://localhost:4000)
- *   - REGISTRY_BROKER_API_KEY
- *   - REGISTRY_BROKER_ACCOUNT_ID (linked Hedera account id)
- * - Ledger auth mode (fallback when account id not provided):
- *   - HEDERA_OPERATOR_ID / HEDERA_OPERATOR_KEY (or EVM equivalents per demo utils)
+ *   pnpm -C standards-sdk tsx demo/registry-broker/skill-registry-publish-demo.ts --base-url=http://localhost:4000 --ledger-network=testnet --skill-dir=../skills/openskills-my-first-skill
  */
-import { readFile, readdir, stat } from 'node:fs/promises';
+import 'dotenv/config';
 import * as path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
   type SkillRegistryFileInput,
-  type SkillRegistryJobStatusResponse,
 } from '../../src/services/registry-broker';
+import { Logger } from '../../src/utils/logger';
 import { authenticateWithDemoLedger } from '../utils/registry-auth';
+import {
+  DEFAULT_BASE_URL,
+  isQuoteOnly,
+  loadSkillFiles,
+  pollJob,
+  resolveArgValue,
+  resolveSkillDir,
+  resolveSkillNameOverride,
+  resolveSkillVersionOverride,
+  verifyHcs26Publish,
+} from './skill-registry-utils';
 
-const DEFAULT_BASE_URL = 'http://localhost:4000';
+const logger = Logger.getInstance({ module: 'skill-registry-demo' });
 
-const resolveArgValue = (prefix: string): string | undefined => {
-  const arg = process.argv.find(entry => entry.startsWith(prefix));
-  if (!arg) {
-    return undefined;
+const isAbortedOperationError = (error: RegistryBrokerError): boolean => {
+  if (error.status !== 400) {
+    return false;
   }
-  const value = arg.slice(prefix.length).trim();
-  return value.length > 0 ? value : undefined;
-};
-
-const resolveSkillDir = (): string => {
-  const arg =
-    resolveArgValue('--skill-dir=') ??
-    resolveArgValue('--dir=') ??
-    process.env.SKILL_DIR?.trim();
-  return arg && arg.length > 0 ? arg : '../skills/openskills-my-first-skill';
-};
-
-const resolveSkillNameOverride = (): string | undefined =>
-  resolveArgValue('--name=') ?? (process.env.SKILL_NAME?.trim() || undefined);
-
-const resolveSkillVersionOverride = (): string | undefined =>
-  resolveArgValue('--version=') ??
-  (process.env.SKILL_VERSION?.trim() || undefined);
-
-const isQuoteOnly = (): boolean =>
-  process.argv.includes('--quote-only') || process.env.SKILL_QUOTE_ONLY === '1';
-
-const shouldDevTopUpCredits = (): boolean =>
-  process.argv.includes('--dev-topup') ||
-  process.argv.includes('--auto-topup') ||
-  process.env.SKILL_DEV_TOPUP === '1';
-
-const resolveDevTopUpAmount = (): number | undefined => {
-  const arg = resolveArgValue('--dev-topup-amount=');
-  const raw = arg ?? process.env.SKILL_DEV_TOPUP_AMOUNT?.trim();
-  if (!raw) {
-    return undefined;
-  }
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return undefined;
-  }
-  return Math.floor(parsed);
-};
-
-const guessMimeType = (fileName: string): string => {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
-    return 'text/markdown';
-  }
-  if (lower.endsWith('.json')) {
-    return 'application/json';
-  }
-  if (lower.endsWith('.txt')) {
-    return 'text/plain';
-  }
-  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) {
-    return 'text/yaml';
-  }
-  return 'application/octet-stream';
-};
-
-const rewriteSkillJson = (
-  raw: Buffer,
-  overrides: { name?: string; version?: string },
-): Buffer => {
-  if (!overrides.name && !overrides.version) {
-    return raw;
-  }
-
-  const parsed = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
-  if (overrides.name) {
-    parsed.name = overrides.name;
-  }
-  if (overrides.version) {
-    parsed.version = overrides.version;
-  }
-
-  return Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
-};
-
-const loadSkillFiles = async (
-  skillDir: string,
-  overrides: { name?: string; version?: string },
-): Promise<SkillRegistryFileInput[]> => {
-  const entries = await readdir(skillDir);
-  const files: SkillRegistryFileInput[] = [];
-
-  for (const entry of entries) {
-    if (entry.startsWith('.')) {
-      continue;
+  const body = error.body;
+  const haystack = (() => {
+    if (typeof body === 'string') {
+      return body;
     }
-    const fullPath = path.join(skillDir, entry);
-    const fileStat = await stat(fullPath);
-    if (!fileStat.isFile()) {
-      continue;
+    try {
+      return JSON.stringify(body);
+    } catch {
+      return String(body);
     }
-    let data = await readFile(fullPath);
-    if (entry === 'skill.json') {
-      data = rewriteSkillJson(data, overrides);
-    }
-    files.push({
-      name: entry,
-      base64: data.toString('base64'),
-      mimeType: guessMimeType(entry),
-    });
-  }
-
-  const names = new Set(files.map(file => file.name));
-  if (!names.has('SKILL.md')) {
-    throw new Error(`Missing SKILL.md in ${skillDir}`);
-  }
-  if (!names.has('skill.json')) {
-    throw new Error(`Missing skill.json in ${skillDir}`);
-  }
-
-  return files.sort((a, b) => a.name.localeCompare(b.name));
+  })().toLowerCase();
+  return haystack.includes('aborted');
 };
 
-const pollJob = async (
-  client: RegistryBrokerClient,
-  jobId: string,
-  params: { accountId?: string } = {},
-  timeoutMs = 180_000,
-): Promise<SkillRegistryJobStatusResponse> => {
-  const started = Date.now();
-  let lastStatus: string | null = null;
-
-  while (Date.now() - started < timeoutMs) {
-    const job = await client.getSkillPublishJob(jobId, params);
-    if (job.status !== lastStatus) {
-      // eslint-disable-next-line no-console
-      console.log(`• Job status: ${job.status}`);
-      lastStatus = job.status;
-    }
-    if (job.status === 'completed') {
-      return job;
-    }
-    if (job.status === 'failed') {
-      throw new Error(job.failureReason ?? 'Job failed');
-    }
-    await delay(2_000);
+const isInvalidApiKeyError = (error: unknown): boolean => {
+  if (!(error instanceof RegistryBrokerError)) {
+    return false;
   }
-
-  throw new Error(`Job ${jobId} did not complete within ${timeoutMs}ms`);
+  if (error.status !== 401) {
+    return false;
+  }
+  const body = error.body;
+  if (Array.isArray(body)) {
+    const first = body[0];
+    if (first && typeof first === 'object' && 'error' in first) {
+      return String((first as { error?: unknown }).error ?? '')
+        .toLowerCase()
+        .includes('invalid api key');
+    }
+  }
+  if (body && typeof body === 'object' && 'error' in body) {
+    return String((body as { error?: unknown }).error ?? '')
+      .toLowerCase()
+      .includes('invalid api key');
+  }
+  return false;
 };
 
-const resolveBaseUrlForPath = (clientBaseUrl: string, suffix: string): string =>
-  clientBaseUrl.replace(/\/$/, '') + suffix;
+const isFetchFailedError = (error: unknown): boolean =>
+  error instanceof TypeError &&
+  typeof error.message === 'string' &&
+  error.message.toLowerCase().includes('fetch failed');
 
-const postDevCreditGrant = async (params: {
-  baseUrl: string;
-  apiKey: string;
-  accountId: string;
-  amount: number;
-}): Promise<{ credited: number; balance: number }> => {
-  const res = await fetch(
-    resolveBaseUrlForPath(params.baseUrl, '/credits/dev/grant'),
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': params.apiKey,
-      },
-      body: JSON.stringify({
-        accountId: params.accountId,
-        amount: params.amount,
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    throw new Error(
-      `Dev credit grant failed (${res.status} ${res.statusText}): ${await res.text()}`,
+const isTransientRegistryError = (error: unknown): boolean => {
+  if (isFetchFailedError(error)) {
+    return true;
+  }
+  if (error instanceof RegistryBrokerError) {
+    return (
+      error.status === 500 ||
+      error.status === 502 ||
+      error.status === 503 ||
+      error.status === 504
     );
   }
-
-  const json = (await res.json()) as { credited?: unknown; balance?: unknown };
-  const credited = typeof json.credited === 'number' ? json.credited : 0;
-  const balance = typeof json.balance === 'number' ? json.balance : 0;
-  return { credited, balance };
+  return false;
 };
 
-const fetchCreditBalance = async (params: {
-  baseUrl: string;
-  apiKey: string;
-  accountId: string;
-}): Promise<number> => {
-  const url = new URL(
-    resolveBaseUrlForPath(params.baseUrl, '/credits/balance'),
-  );
-  url.searchParams.set('accountId', params.accountId);
-  const res = await fetch(url.toString(), {
-    headers: {
-      'x-api-key': params.apiKey,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(
-      `Failed to read credit balance (${res.status} ${res.statusText}): ${await res.text()}`,
-    );
-  }
-  const json = (await res.json()) as { balance?: unknown };
-  return typeof json.balance === 'number' ? json.balance : 0;
-};
+const isFastMode = (): boolean =>
+  process.argv.includes('--fast') || process.env.SKILL_PUBLISH_FAST === '1';
 
-const main = async (): Promise<void> => {
-  const baseUrl =
-    process.env.REGISTRY_BROKER_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim() || undefined;
-  const skillDir = resolveSkillDir();
-  const quoteOnly = isQuoteOnly();
-  const devTopUp = shouldDevTopUpCredits();
-  const devTopUpAmount = resolveDevTopUpAmount();
-  const nameOverride = resolveSkillNameOverride();
-  const versionOverride = resolveSkillVersionOverride();
-
-  const client = new RegistryBrokerClient({
-    baseUrl,
-    ...(apiKey ? { apiKey } : {}),
-  });
-
-  let accountId = process.env.REGISTRY_BROKER_ACCOUNT_ID?.trim() || '';
-
-  if (!accountId) {
-    const canLedgerAuth =
-      Boolean(
-        process.env.HEDERA_OPERATOR_ID?.trim() &&
-          process.env.HEDERA_OPERATOR_KEY?.trim(),
-      ) || Boolean(process.env.EVM_PRIVATE_KEY?.trim());
-    if (!canLedgerAuth) {
-      throw new Error(
-        'Provide REGISTRY_BROKER_ACCOUNT_ID (static API key mode) or ledger credentials (HEDERA_OPERATOR_ID/HEDERA_OPERATOR_KEY).',
-      );
+const withAuthRetry = async <T>(
+  fn: () => Promise<T>,
+  reauthenticate?: () => Promise<void>,
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (reauthenticate && isInvalidApiKeyError(error)) {
+      logger.warn('• API key expired; re-authenticating and retrying...');
+      await reauthenticate();
+      return await fn();
     }
-    const auth = await authenticateWithDemoLedger(client, {
-      label: 'skill-registry-publish-demo',
-      expiresInMinutes: 30,
-      setAccountHeader: true,
-    });
-    accountId = auth.accountId;
+    throw error;
   }
+};
 
-  // eslint-disable-next-line no-console
-  console.log(`• Broker:   ${client.baseUrl}`);
-  // eslint-disable-next-line no-console
-  console.log(`• Account:  ${accountId}`);
-  // eslint-disable-next-line no-console
-  console.log(`• Skill dir: ${path.resolve(skillDir)}`);
-  if (nameOverride) {
-    // eslint-disable-next-line no-console
-    console.log(`• Override name: ${nameOverride}`);
-  }
-  if (versionOverride) {
-    // eslint-disable-next-line no-console
-    console.log(`• Override version: ${versionOverride}`);
-  }
+const publishSkillPackage = async (params: {
+  client: RegistryBrokerClient;
+  files: SkillRegistryFileInput[];
+  accountId: string;
+  ledgerPrivateKey?: string;
+  quoteOnly: boolean;
+  fastMode: boolean;
+  reauthenticate?: () => Promise<void>;
+}): Promise<void> => {
+  const {
+    client,
+    files,
+    accountId,
+    ledgerPrivateKey,
+    quoteOnly,
+    fastMode,
+    reauthenticate,
+  } = params;
 
-  const config = await client.skillsConfig();
-  if (!config.enabled) {
-    throw new Error('Skill registry is disabled on this broker');
-  }
-
-  const files = await loadSkillFiles(skillDir, {
-    name: nameOverride,
-    version: versionOverride,
-  });
-
-  // eslint-disable-next-line no-console
-  console.log(
+  logger.info(
     `• Uploading ${files.length} file(s): ${files.map(file => file.name).join(', ')}`,
   );
 
-  const quote = await client.quoteSkillPublish({
-    files,
-    accountId,
-  });
+  const quote = await (async () => {
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      try {
+        return await withAuthRetry(
+          () =>
+            client.quoteSkillPublish({
+              files,
+              ...(accountId ? { accountId } : {}),
+            }),
+          reauthenticate,
+        );
+      } catch (error) {
+        if (isTransientRegistryError(error) && attempt < 6) {
+          const summary =
+            error instanceof RegistryBrokerError
+              ? `${error.status} ${error.statusText}`
+              : error instanceof Error
+                ? error.message
+                : 'unknown error';
+          logger.warn(`• Quote retry ${attempt}/6 (${summary})`);
+          await delay(Math.min(6_000, 750 * attempt));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Unreachable quote retry loop');
+  })();
 
-  // eslint-disable-next-line no-console
-  console.log(
+  logger.info(
     `• Quote: ${quote.credits} credits (${quote.estimatedCostHbar} HBAR est)`,
   );
 
   if (quoteOnly) {
-    // eslint-disable-next-line no-console
-    console.log('ℹ️  Quote-only mode enabled; skipping publish.');
+    logger.info('• Quote-only mode enabled; skipping publish.');
     return;
   }
 
-  if (devTopUp) {
-    if (!apiKey) {
-      throw new Error('--dev-topup requires REGISTRY_BROKER_API_KEY');
+  const publish = await (async () => {
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      try {
+        return await withAuthRetry(
+          () =>
+            client.publishSkill({
+              files,
+              quoteId: quote.quoteId,
+              ...(accountId ? { accountId } : {}),
+            }),
+          reauthenticate,
+        );
+      } catch (error) {
+        if (error instanceof RegistryBrokerError) {
+          const body = error.body;
+          const message = (() => {
+            if (typeof body === 'string') {
+              return body;
+            }
+            if (Array.isArray(body)) {
+              const first = body[0];
+              if (first && typeof first === 'object' && 'error' in first) {
+                return String((first as { error?: unknown }).error ?? '');
+              }
+              return '';
+            }
+            if (body && typeof body === 'object') {
+              const record = body as Record<string, unknown>;
+              if (typeof record.error === 'string') {
+                return record.error;
+              }
+              if (Array.isArray(record.errors)) {
+                return record.errors
+                  .map(entry => (typeof entry === 'string' ? entry : ''))
+                  .filter(Boolean)
+                  .join('; ');
+              }
+            }
+            return '';
+          })();
+          if (
+            error.status === 400 &&
+            message.toLowerCase().includes('insufficient credits')
+          ) {
+            if (!ledgerPrivateKey) {
+              throw new Error(
+                'Insufficient credits for skill publish. Fund this account or run with Hedera ledger credentials available for credit purchase.',
+              );
+            }
+            const topupHbar = 20;
+            logger.warn(
+              `• Insufficient credits; purchasing credits with ${topupHbar} HBAR`,
+            );
+            const purchase = await withAuthRetry(
+              () =>
+                client.purchaseCreditsWithHbar({
+                  accountId,
+                  privateKey: ledgerPrivateKey,
+                  hbarAmount: topupHbar,
+                  memo: 'skills seed purchase',
+                  metadata: {
+                    demo: 'skill-registry-publish-demo',
+                    seed: true,
+                  },
+                }),
+              reauthenticate,
+            );
+            logger.info(
+              `• Credits purchased: ${purchase.credits} (tx ${purchase.transactionId})`,
+            );
+            continue;
+          }
+        }
+
+        if (isTransientRegistryError(error) && attempt < 6) {
+          const summary =
+            error instanceof RegistryBrokerError
+              ? `${error.status} ${error.statusText}`
+              : error instanceof Error
+                ? error.message
+                : 'unknown error';
+          logger.warn(`• Publish retry ${attempt}/6 (${summary})`);
+          await delay(Math.min(10_000, 1_000 * attempt));
+          continue;
+        }
+        throw error;
+      }
     }
-    const currentBalance = await fetchCreditBalance({
-      baseUrl: client.baseUrl,
-      apiKey,
-      accountId,
-    });
-    if (currentBalance < quote.credits) {
-      const requested = devTopUpAmount ?? Math.ceil(quote.credits * 2);
-      const grant = await postDevCreditGrant({
-        baseUrl: client.baseUrl,
-        apiKey,
-        accountId,
-        amount: requested,
-      });
-      // eslint-disable-next-line no-console
-      console.log(
-        `• Dev credits grant: +${grant.credited} (balance now ${grant.balance})`,
-      );
-    } else {
-      // eslint-disable-next-line no-console
-      console.log(`• Credits OK: balance ${currentBalance}`);
-    }
-  }
+    throw new Error('Skill publish failed after retries');
+  })();
 
-  const publish = await client.publishSkill({
-    files,
-    quoteId: quote.quoteId,
-    accountId,
-  });
+  logger.info(`• Publish job: ${publish.jobId}`);
 
-  // eslint-disable-next-line no-console
-  console.log(`• Publish job: ${publish.jobId}`);
+  const completed = await pollJob(
+    client,
+    publish.jobId,
+    accountId ? { accountId } : {},
+    12 * 60_000,
+    { onUnauthorized: reauthenticate },
+  );
 
-  const completed = await pollJob(client, publish.jobId, { accountId });
-
-  // eslint-disable-next-line no-console
-  console.log('✅ Completed');
-  // eslint-disable-next-line no-console
-  console.log({
+  logger.info('• Completed');
+  logger.info({
     name: completed.name,
     version: completed.version,
     directoryTopicId: completed.directoryTopicId,
@@ -368,33 +283,217 @@ const main = async (): Promise<void> => {
     totalCostHbar: completed.totalCostHbar,
   });
 
-  const listed = await client.listSkills({
-    name: completed.name,
-    version: completed.version,
-    limit: 1,
-    includeFiles: true,
-  });
+  if (fastMode) {
+    return;
+  }
+
+  await verifyHcs26Publish({ completed });
+
+  const listed = await (async () => {
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      try {
+        return await withAuthRetry(
+          () =>
+            client.listSkills({
+              name: completed.name,
+              version: completed.version,
+              limit: 1,
+              includeFiles: true,
+            }),
+          reauthenticate,
+        );
+      } catch (error) {
+        if (isFetchFailedError(error)) {
+          logger.warn(`• skills list retry ${attempt}/6 (fetch failed)`);
+          await delay(2_000);
+          continue;
+        }
+        if (
+          error instanceof RegistryBrokerError &&
+          (error.status === 503 || error.status === 502)
+        ) {
+          logger.warn(`• skills list retry ${attempt}/6 (${error.status})`);
+          await delay(2_000);
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Unable to verify /skills listing after publish');
+  })();
 
   const summary = listed.items[0];
   if (!summary) {
     throw new Error('Published skill did not appear in /skills list response');
   }
 
-  // eslint-disable-next-line no-console
-  console.log(
+  logger.info(
     `• Listed: ${summary.name} v${summary.version} (${summary.packageTopicId})`,
   );
 };
 
+const main = async (): Promise<void> => {
+  const quoteOnly = isQuoteOnly();
+  const fastMode = isFastMode();
+
+  const baseUrl =
+    resolveArgValue('--base-url=') ??
+    process.env.REGISTRY_BROKER_BASE_URL?.trim() ??
+    DEFAULT_BASE_URL;
+  const ledgerNetworkArg = resolveArgValue('--ledger-network=');
+  const apiKey = process.env.REGISTRY_BROKER_API_KEY?.trim() || undefined;
+  const authToken = process.env.REGISTRY_BROKER_AUTH_TOKEN?.trim() || undefined;
+
+  if (ledgerNetworkArg) {
+    process.env.LEDGER_NETWORK = ledgerNetworkArg;
+  }
+
+  if (baseUrl.includes('registry-staging.hol.org')) {
+    process.env.LEDGER_NETWORK = 'testnet';
+  }
+  if (
+    baseUrl.includes('registry.hol.org') ||
+    baseUrl.includes('hol.org/registry')
+  ) {
+    process.env.LEDGER_NETWORK = 'mainnet';
+  }
+
+  const client = new RegistryBrokerClient({
+    baseUrl,
+    ...(apiKey ? { apiKey } : {}),
+    ...(authToken
+      ? {
+          defaultHeaders: {
+            authorization: `Bearer ${authToken}`,
+          },
+        }
+      : {}),
+  });
+
+  let accountId = process.env.REGISTRY_BROKER_ACCOUNT_ID?.trim() || '';
+  let ledgerPrivateKey: string | undefined;
+  const reauthenticate = async (): Promise<void> => {
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      try {
+        const auth = await authenticateWithDemoLedger(client, {
+          label: 'skill-registry-publish-demo',
+          mode: 'hedera',
+          expiresInMinutes: 30,
+          setAccountHeader: true,
+        });
+        accountId = auth.accountId;
+        if ('privateKey' in auth) {
+          ledgerPrivateKey = auth.privateKey;
+        }
+        return;
+      } catch (error) {
+        if (
+          error instanceof RegistryBrokerError &&
+          isAbortedOperationError(error)
+        ) {
+          logger.warn(`• Ledger auth aborted; retrying (${attempt}/10)...`);
+          await delay(Math.min(5_000, 750 * attempt));
+          continue;
+        }
+        if (
+          error instanceof RegistryBrokerError &&
+          (error.status === 502 || error.status === 503)
+        ) {
+          logger.warn(
+            `• Ledger auth temporary failure (${error.status}); retrying (${attempt}/10)...`,
+          );
+          await delay(Math.min(6_000, 1_000 * attempt));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Ledger authentication aborted repeatedly');
+  };
+
+  if (!accountId && !authToken) {
+    try {
+      await reauthenticate();
+    } catch (error) {
+      if (error instanceof RegistryBrokerError) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Ledger authentication failed (${message}). Set TESTNET_HEDERA_ACCOUNT_ID + TESTNET_HEDERA_PRIVATE_KEY (or REGISTRY_BROKER_ACCOUNT_ID / REGISTRY_BROKER_AUTH_TOKEN).`,
+      );
+    }
+  }
+
+  logger.info(`• Broker:   ${client.baseUrl}`);
+  logger.info(`• Account:  ${accountId || '(from auth session)'}`);
+  if (fastMode) {
+    logger.info('• Fast mode enabled (--fast): skipping HCS-26 + list verify');
+  }
+
+  const config = await (async () => {
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      try {
+        return await client.skillsConfig();
+      } catch (error) {
+        if (isFetchFailedError(error)) {
+          logger.warn(`• skills/config retry ${attempt}/6 (fetch failed)`);
+          await delay(2_000);
+          continue;
+        }
+        if (
+          error instanceof RegistryBrokerError &&
+          (error.status === 503 || error.status === 502)
+        ) {
+          logger.warn(`• skills/config retry ${attempt}/6 (${error.status})`);
+          await delay(2_000);
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Skill registry config did not become available');
+  })();
+  if (!config.enabled) {
+    throw new Error('Skill registry is disabled on this broker');
+  }
+
+  const skillDir = resolveSkillDir();
+  const nameOverride = resolveSkillNameOverride();
+  const versionOverride = resolveSkillVersionOverride();
+
+  logger.info(`• Skill dir: ${path.resolve(skillDir)}`);
+  if (nameOverride) {
+    logger.info(`• Override name: ${nameOverride}`);
+  }
+  if (versionOverride) {
+    logger.info(`• Override version: ${versionOverride}`);
+  }
+
+  const files = await loadSkillFiles(skillDir, {
+    name: nameOverride,
+    version: versionOverride,
+  });
+
+  await publishSkillPackage({
+    client,
+    files,
+    accountId,
+    ledgerPrivateKey,
+    quoteOnly,
+    fastMode,
+    reauthenticate,
+  });
+};
+
 main().catch(error => {
-  // eslint-disable-next-line no-console
   if (error instanceof RegistryBrokerError) {
-    console.error(
+    logger.error(
       `Registry broker error ${error.status} (${error.statusText}):`,
       error.body,
     );
   } else {
-    console.error(error instanceof Error ? error.message : error);
+    logger.error(error instanceof Error ? error.message : error);
   }
   process.exit(1);
 });

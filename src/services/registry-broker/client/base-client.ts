@@ -112,11 +112,19 @@ import type {
   SkillRegistryConfigResponse,
   SkillRegistryJobStatusResponse,
   SkillRegistryListResponse,
+  SkillRegistryMineResponse,
+  SkillRegistryMyListResponse,
   SkillRegistryOwnershipResponse,
   SkillRegistryPublishRequest,
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillRegistryVoteRequest,
+  SkillRegistryVoteStatusResponse,
+  SkillRegistryVersionsResponse,
+  SkillVerificationRequestCreateRequest,
+  SkillVerificationRequestCreateResponse,
+  SkillVerificationStatusResponse,
 } from '../types';
 import {
   agentFeedbackEligibilityResponseSchema,
@@ -223,9 +231,16 @@ import {
 import {
   getSkillOwnership as getSkillOwnershipImpl,
   getSkillPublishJob as getSkillPublishJobImpl,
+  getSkillVerificationStatus as getSkillVerificationStatusImpl,
+  getSkillVoteStatus as getSkillVoteStatusImpl,
+  getMySkillsList as getMySkillsListImpl,
   listSkills as listSkillsImpl,
+  listMySkills as listMySkillsImpl,
+  listSkillVersions as listSkillVersionsImpl,
   publishSkill as publishSkillImpl,
   quoteSkillPublish as quoteSkillPublishImpl,
+  requestSkillVerification as requestSkillVerificationImpl,
+  setSkillVote as setSkillVoteImpl,
   skillsConfig as skillsConfigImpl,
 } from './skills';
 import {
@@ -696,6 +711,25 @@ export class RegistryBrokerClient {
     return listSkillsImpl(this, options);
   }
 
+  async listSkillVersions(params: {
+    name: string;
+  }): Promise<SkillRegistryVersionsResponse> {
+    return listSkillVersionsImpl(this, params);
+  }
+
+  async listMySkills(params?: {
+    limit?: number;
+  }): Promise<SkillRegistryMineResponse> {
+    return listMySkillsImpl(this, params);
+  }
+
+  async getMySkillsList(params?: {
+    limit?: number;
+    cursor?: string;
+  }): Promise<SkillRegistryMyListResponse> {
+    return getMySkillsListImpl(this, params);
+  }
+
   async quoteSkillPublish(
     payload: SkillRegistryQuoteRequest,
   ): Promise<SkillRegistryQuoteResponse> {
@@ -720,6 +754,30 @@ export class RegistryBrokerClient {
     accountId?: string;
   }): Promise<SkillRegistryOwnershipResponse> {
     return getSkillOwnershipImpl(this, params);
+  }
+
+  async getSkillVoteStatus(params: {
+    name: string;
+  }): Promise<SkillRegistryVoteStatusResponse> {
+    return getSkillVoteStatusImpl(this, params);
+  }
+
+  async setSkillVote(
+    payload: SkillRegistryVoteRequest,
+  ): Promise<SkillRegistryVoteStatusResponse> {
+    return setSkillVoteImpl(this, payload);
+  }
+
+  async requestSkillVerification(
+    payload: SkillVerificationRequestCreateRequest,
+  ): Promise<SkillVerificationRequestCreateResponse> {
+    return requestSkillVerificationImpl(this, payload);
+  }
+
+  async getSkillVerificationStatus(params: {
+    name: string;
+  }): Promise<SkillVerificationStatusResponse> {
+    return getSkillVerificationStatusImpl(this, params);
   }
 
   async adaptersDetailed(): Promise<AdapterDetailsResponse> {

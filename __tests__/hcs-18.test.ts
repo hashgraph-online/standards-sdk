@@ -2,39 +2,35 @@
  * HCS-18 Client Convenience Tests (folded discovery)
  */
 
-import { Client, TopicMessageSubmitTransaction } from '@hashgraph/sdk';
+import {
+  PrivateKey,
+  TopicMessageSubmitTransaction,
+  type TransactionResponse,
+} from '@hashgraph/sdk';
 import { HCS18Client } from '../src/hcs-18';
 import { DiscoveryOperation } from '../src/hcs-18';
 
-jest.mock('@hashgraph/sdk');
-
 describe('HCS-18 Client', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-
-    (Client.forName as unknown as jest.Mock) = jest
-      .fn()
-      .mockReturnValue(new Client());
-
-    (TopicMessageSubmitTransaction as unknown as jest.Mock).mockImplementation(
-      () => ({
-        setTopicId: jest.fn().mockReturnThis(),
-        setMessage: jest.fn().mockReturnThis(),
-        setTransactionMemo: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({
-          getReceipt: jest.fn().mockResolvedValue({
-            topicSequenceNumber: { toNumber: () => 43210 },
-          }),
+    jest.restoreAllMocks();
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'execute')
+      .mockResolvedValue({
+        getReceipt: async () => ({
+          topicSequenceNumber: { toNumber: () => 43210 },
         }),
-      }),
-    );
+      } as unknown as TransactionResponse);
   });
 
   it('propose convenience submits correct message', async () => {
+    const setMessageSpy = jest.spyOn(
+      TopicMessageSubmitTransaction.prototype,
+      'setMessage',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.propose({
       discoveryTopicId: '0.0.999999',
@@ -47,9 +43,7 @@ describe('HCS-18 Client', () => {
         config: { name: 'X', threshold: 2 },
       },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
-      .value;
-    const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
+    const payload = JSON.parse(setMessageSpy.mock.calls[0][0] as string);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.PROPOSE);
     expect(payload.data.proposer).toBe('0.0.1001');
@@ -57,18 +51,20 @@ describe('HCS-18 Client', () => {
   });
 
   it('respond convenience submits correct message', async () => {
+    const setMessageSpy = jest.spyOn(
+      TopicMessageSubmitTransaction.prototype,
+      'setMessage',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.respond({
       discoveryTopicId: '0.0.999999',
       data: { responder: '0.0.1001', proposal_seq: 12345, decision: 'accept' },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
-      .value;
-    const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
+    const payload = JSON.parse(setMessageSpy.mock.calls[0][0] as string);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.RESPOND);
     expect(payload.data.proposal_seq).toBe(12345);
@@ -76,10 +72,14 @@ describe('HCS-18 Client', () => {
   });
 
   it('complete convenience submits correct message', async () => {
+    const setMessageSpy = jest.spyOn(
+      TopicMessageSubmitTransaction.prototype,
+      'setMessage',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.complete({
       discoveryTopicId: '0.0.999999',
@@ -94,9 +94,7 @@ describe('HCS-18 Client', () => {
         },
       },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
-      .value;
-    const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
+    const payload = JSON.parse(setMessageSpy.mock.calls[0][0] as string);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.COMPLETE);
     expect(payload.data.flora_account).toBe('0.0.789012');
@@ -104,18 +102,20 @@ describe('HCS-18 Client', () => {
   });
 
   it('withdraw convenience submits correct message', async () => {
+    const setMessageSpy = jest.spyOn(
+      TopicMessageSubmitTransaction.prototype,
+      'setMessage',
+    );
     const c = new HCS18Client({
       network: 'testnet',
       operatorId: '0.0.1001',
-      operatorKey: '302e...',
+      operatorKey: PrivateKey.generateECDSA(),
     });
     await c.withdraw({
       discoveryTopicId: '0.0.999999',
       data: { account: '0.0.1001', announce_seq: 10000, reason: 'maintenance' },
     });
-    const inst = (TopicMessageSubmitTransaction as jest.Mock).mock.results[0]
-      .value;
-    const payload = JSON.parse(inst.setMessage.mock.calls[0][0]);
+    const payload = JSON.parse(setMessageSpy.mock.calls[0][0] as string);
     expect(payload.p).toBe('hcs-18');
     expect(payload.op).toBe(DiscoveryOperation.WITHDRAW);
     expect(payload.data.announce_seq).toBe(10000);

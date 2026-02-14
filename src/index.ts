@@ -13,6 +13,7 @@ export * from './hcs-15';
 export * from './hcs-16';
 export * from './hcs-17';
 export * from './hcs-18';
+export * from './hcs-26';
 export * from './utils';
 export * from './inscribe';
 export * from './services';
