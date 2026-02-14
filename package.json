@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.157-canary.14",
+  "version": "0.1.157-canary.25",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hiero Consensus Standards (HCS), giving developers all the tools needed to build wonderful decentralized applications on the Hashgraph network. https://hol.org",
   "type": "module",
   "files": [
@@ -172,7 +172,7 @@
     "@hashgraphonline/hashinal-wc": "^2.0.60",
     "@hiero-did-sdk/registrar": "0.1.8",
     "@hiero-did-sdk/resolver": "0.1.8",
-    "@kiloscribe/inscription-sdk": "^2.0.9",
+    "@kiloscribe/inscription-sdk": "2.0.10-canary.9",
     "@noble/curves": "^2.0.1",
     "@types/localtunnel": "^2.0.4",
     "agent0-sdk": "0.2.1",
@@ -199,7 +199,7 @@
     "overrides": {
       "@hashgraphonline/standards-sdk": "workspace:*",
       "@hashgraph/sdk": "^2.78.0",
-      "@kiloscribe/inscription-sdk": "^2.0.9",
+      "@kiloscribe/inscription-sdk": "2.0.10-canary.9",
       "@hashgraph/hedera-wallet-connect": "2.0.4",
       "@hashgraphonline/hashinal-wc": "^2.0.60"
     }

@@ -47,16 +47,20 @@ export interface InscriptionSDKOptions {
   apiKey?: string;
   network?: 'mainnet' | 'testnet';
   connectionMode?: 'http' | 'websocket' | 'auto';
+  /** Override the inscription HTTP API base URL (e.g. for local testing). */
+  baseURL?: string;
 }
 
 export interface InscriptionOptions {
-  mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection';
+  mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection' | 'bulk-files';
   websocket?: boolean;
   connectionMode?: 'http' | 'websocket' | 'auto';
   waitForConfirmation?: boolean;
   waitMaxAttempts?: number;
   waitIntervalMs?: number;
   apiKey?: string;
+  /** Override the inscription HTTP API base URL (e.g. for local testing). */
+  baseURL?: string;
   tags?: string[];
   metadata?: Record<string, any>;
   jsonFileURL?: string;
