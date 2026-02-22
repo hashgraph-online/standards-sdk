@@ -1,0 +1,14 @@
+{
+  "name": "pricing-demo-skill",
+  "version": "0.0.1",
+  "description": "Demo skill to verify skill registry pricing metadata round-trips end-to-end.",
+  "license": "MIT",
+  "author": "hashgraph-online",
+  "pricing": {
+    "mode": "paid_per_install",
+    "paymentRail": "credits",
+    "creditsPerInstall": 42
+  },
+  "tags": ["demo", "pricing"],
+  "category": "developer-tools"
+}

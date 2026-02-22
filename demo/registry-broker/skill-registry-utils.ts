@@ -98,6 +98,108 @@ export const guessMimeType = (fileName: string): string => {
   return 'application/octet-stream';
 };
 
+const skillFrontmatterPattern = /^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/;
+const semverPattern = /\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/;
+const stripWrappingQuotes = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed.length < 2) {
+    return trimmed;
+  }
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+};
+
+const parseSkillFrontmatter = (markdown: string): Record<string, string> => {
+  const match = markdown.match(skillFrontmatterPattern);
+  if (!match) {
+    return {};
+  }
+  const body = match[1];
+  const result: Record<string, string> = {};
+  for (const line of body.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf(':');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = stripWrappingQuotes(trimmed.slice(separatorIndex + 1));
+    if (key && value) {
+      result[key] = value;
+    }
+  }
+  return result;
+};
+
+const inferDescriptionFromMarkdown = (markdown: string): string | undefined => {
+  const withoutFrontmatter = markdown.replace(skillFrontmatterPattern, '');
+  for (const line of withoutFrontmatter.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    return trimmed;
+  }
+  return undefined;
+};
+
+const slugifySkillName = (value: string): string => {
+  const lowered = value.trim().toLowerCase();
+  const slugged = lowered
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+  return slugged || 'skill';
+};
+
+const inferVersionFromDirectory = (skillDir: string): string | undefined => {
+  const base = path.basename(path.resolve(skillDir));
+  const match = base.match(semverPattern);
+  return match?.[1];
+};
+
+const synthesizeSkillJson = (params: {
+  skillDir: string;
+  skillMarkdown: Buffer;
+  overrides: { name?: string; version?: string };
+}): Buffer => {
+  const markdownText = params.skillMarkdown.toString('utf8');
+  const frontmatter = parseSkillFrontmatter(markdownText);
+  const derivedName =
+    params.overrides.name ??
+    frontmatter.name?.trim() ??
+    path.basename(path.resolve(params.skillDir));
+  const derivedVersion =
+    params.overrides.version ??
+    frontmatter.version?.trim() ??
+    inferVersionFromDirectory(params.skillDir) ??
+    '0.1.0';
+  const derivedDescription =
+    frontmatter.description?.trim() ??
+    inferDescriptionFromMarkdown(markdownText) ??
+    `Skill package for ${derivedName}`;
+  const derivedLicense = frontmatter.license?.trim() || 'UNLICENSED';
+  const derivedAuthor = frontmatter.author?.trim() || 'Unknown';
+  const synthesized: Record<string, unknown> = {
+    name: slugifySkillName(derivedName),
+    version: derivedVersion,
+    description: derivedDescription,
+    license: derivedLicense,
+    author: derivedAuthor,
+  };
+  if (frontmatter.category?.trim()) {
+    synthesized.category = frontmatter.category.trim();
+  }
+  return Buffer.from(`${JSON.stringify(synthesized, null, 2)}\n`, 'utf8');
+};
+
 const rewriteSkillJson = (
   raw: Buffer,
   overrides: { name?: string; version?: string },
@@ -105,7 +207,6 @@ const rewriteSkillJson = (
   if (!overrides.name && !overrides.version) {
     return raw;
   }
-
   const parsed = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
   if (overrides.name) {
     parsed.name = overrides.name;
@@ -123,6 +224,7 @@ export const loadSkillFiles = async (
 ): Promise<SkillRegistryFileInput[]> => {
   const entries = await readdir(skillDir);
   const files: SkillRegistryFileInput[] = [];
+  let skillMarkdown: Buffer | null = null;
 
   for (const entry of entries) {
     if (entry.startsWith('.')) {
@@ -134,6 +236,9 @@ export const loadSkillFiles = async (
       continue;
     }
     let data = await readFile(fullPath);
+    if (entry === 'SKILL.md') {
+      skillMarkdown = data;
+    }
     if (entry === 'skill.json') {
       data = rewriteSkillJson(data, overrides);
     }
@@ -149,7 +254,21 @@ export const loadSkillFiles = async (
     throw new Error(`Missing SKILL.md in ${skillDir}`);
   }
   if (!names.has('skill.json')) {
-    throw new Error(`Missing skill.json in ${skillDir}`);
+    const synthesizedSkillMarkdown = skillMarkdown;
+    if (!synthesizedSkillMarkdown) {
+      throw new Error(`Missing skill.json in ${skillDir}`);
+    }
+    const synthesizedSkillJson = synthesizeSkillJson({
+      skillDir,
+      skillMarkdown: synthesizedSkillMarkdown,
+      overrides,
+    });
+    files.push({
+      name: 'skill.json',
+      base64: synthesizedSkillJson.toString('base64'),
+      mimeType: 'application/json',
+    });
+    logger.info('• skill.json missing; synthesized from SKILL.md frontmatter');
   }
 
   return files.sort((a, b) => a.name.localeCompare(b.name));

@@ -1191,6 +1191,30 @@ const trustScoreBreakdownSchema = z
     { message: 'trustScores.total is required' },
   );
 
+const skillSafetyLabelSchema = z.enum(['safe', 'review', 'caution', 'unsafe']);
+
+const skillSafetySummarySchema = z
+  .object({
+    score: z.number(),
+    label: skillSafetyLabelSchema,
+    findingsTotal: z.number().int(),
+    highFindings: z.number().int(),
+    scriptsTotal: z.number().int(),
+    permissionsMissing: z.array(z.string()),
+  })
+  .passthrough();
+
+const skillSafetyFindingSeveritySchema = z.enum(['low', 'medium', 'high']);
+
+const skillSafetyFindingSchema = z
+  .object({
+    ruleId: z.string(),
+    severity: skillSafetyFindingSeveritySchema,
+    file: z.string(),
+    message: z.string(),
+  })
+  .passthrough();
+
 export const skillRegistryFileDescriptorSchema = z
   .object({
     name: z.string(),
@@ -1225,6 +1249,8 @@ export const skillRegistryPublishSummarySchema = z
     upvotes: z.number().int().optional(),
     trustScore: z.number().optional(),
     trustScores: trustScoreBreakdownSchema.optional(),
+    safety: skillSafetySummarySchema.optional(),
+    safetyFindings: z.array(skillSafetyFindingSchema).optional(),
     files: z.array(skillRegistryFileDescriptorSchema).optional(),
   })
   .passthrough();
@@ -1298,6 +1324,7 @@ export const skillRegistryJobStatusResponseSchema = z
     files: z.array(skillRegistryFileDescriptorSchema).nullable().optional(),
     quoteCredits: z.number().nullable().optional(),
     quoteUsdCents: z.number().nullable().optional(),
+    safety: skillSafetySummarySchema.nullable().optional(),
     reservationId: z.string().nullable().optional(),
     totalCostHbar: z.number().nullable().optional(),
     totalCostCredits: z.number().nullable().optional(),

@@ -587,7 +587,8 @@ export async function inscribeWithSigner(
 
     const startTransactionIdRaw =
       (typeof startResult?.tx_id === 'string' && startResult.tx_id.trim()) ||
-      (typeof (startResult as unknown as { jobId?: unknown })?.jobId === 'string' &&
+      (typeof (startResult as unknown as { jobId?: unknown })?.jobId ===
+        'string' &&
         ((startResult as unknown as { jobId: string }).jobId || '').trim()) ||
       (typeof (startResult as unknown as { id?: unknown })?.id === 'string' &&
         ((startResult as unknown as { id: string }).id || '').trim()) ||
