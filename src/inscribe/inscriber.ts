@@ -24,8 +24,8 @@ import {
 } from './quote-cache';
 import { HederaMirrorNode } from '../services/mirror-node';
 import { NetworkType } from '../utils/types';
-import BigNumber from 'bignumber.js';
 import { sleep } from '../utils/sleep';
+import { computeInscriptionCostSummary } from './inscription-cost';
 
 let nodeModules: {
   readFileSync?: (path: string) => Buffer;
@@ -79,7 +79,6 @@ export type InscriptionInput =
 
 const COST_LOOKUP_ATTEMPTS = 3;
 const COST_LOOKUP_DELAY_MS = 1000;
-const TINYBAR_DIVISOR = 100000000;
 const COST_LOGGER_MODULE = 'InscriberCost';
 
 /**
@@ -223,6 +222,7 @@ export async function inscribe(
         apiKey: options.apiKey,
         network: clientConfig.network || 'mainnet',
         connectionMode: resolvedConnectionMode,
+        baseURL: options.baseURL,
       });
     } else {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -233,6 +233,7 @@ export async function inscribe(
         privateKey: normalized.privateKey,
         network: normalized.network || 'mainnet',
         connectionMode: resolvedConnectionMode,
+        baseUrl: options.baseURL,
       });
     }
 
@@ -305,7 +306,12 @@ export async function inscribe(
     });
 
     const normalizedCfg = normalizeClientConfig(clientConfig);
-    const result = await sdk.inscribeAndExecute(request, normalizedCfg);
+
+    const result = await sdk.inscribeAndExecute(
+      request,
+      normalizedCfg,
+      options.progressCallback,
+    );
     const rawJobId =
       (result as { jobId?: string }).jobId ||
       (result as { tx_id?: string }).tx_id ||
@@ -409,49 +415,19 @@ async function resolveInscriptionCost(
         continue;
       }
 
-      const payerTransfer = txn.transfers?.find(
-        transfer =>
-          transfer.account === payerAccountId &&
-          typeof transfer.amount === 'number' &&
-          transfer.amount < 0,
-      );
+      const computed = computeInscriptionCostSummary({
+        txn,
+        payerAccountId,
+      });
 
-      let payerTinybars: number | null = null;
-
-      if (payerTransfer) {
-        payerTinybars = Math.abs(payerTransfer.amount);
-      } else if (txn.transfers && txn.transfers.length > 0) {
-        const negativeSum = txn.transfers
-          .filter(t => typeof t.amount === 'number' && t.amount < 0)
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-        payerTinybars = negativeSum > 0 ? negativeSum : null;
-      } else if (typeof txn.charged_tx_fee === 'number') {
-        payerTinybars = txn.charged_tx_fee;
-      }
-
-      if (!payerTinybars || payerTinybars <= 0) {
+      if (!computed) {
         if (attempt < COST_LOOKUP_ATTEMPTS - 1) {
           await sleep(COST_LOOKUP_DELAY_MS);
         }
         continue;
       }
 
-      const totalCostHbar = new BigNumber(payerTinybars)
-        .dividedBy(TINYBAR_DIVISOR)
-        .toFixed();
-
-      return {
-        totalCostHbar,
-        breakdown: {
-          transfers: [
-            {
-              to: 'Hedera network (payer)',
-              amount: totalCostHbar,
-              description: `Transaction fee debited from ${payerAccountId}`,
-            },
-          ],
-        },
-      };
+      return computed.summary;
     } catch (error) {
       logger.warn('Unable to resolve inscription cost', {
         transactionId: normalizedId,
@@ -520,6 +496,7 @@ export async function inscribeWithSigner(
         apiKey: options.apiKey,
         network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
         connectionMode: resolvedConnectionMode,
+        baseURL: options.baseURL,
       });
     } else {
       logger.debug('Initializing InscriptionSDK with client auth (websocket)');
@@ -529,6 +506,7 @@ export async function inscribeWithSigner(
         signer: signer,
         network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
         connectionMode: resolvedConnectionMode,
+        baseUrl: options.baseURL,
       });
     }
 
@@ -607,10 +585,22 @@ export async function inscribeWithSigner(
       network: (options.network || 'mainnet') as 'mainnet' | 'testnet',
     })) as InscriptionJobResponse;
 
+    const startTransactionIdRaw =
+      (typeof startResult?.tx_id === 'string' && startResult.tx_id.trim()) ||
+      (typeof (startResult as unknown as { jobId?: unknown })?.jobId === 'string' &&
+        ((startResult as unknown as { jobId: string }).jobId || '').trim()) ||
+      (typeof (startResult as unknown as { id?: unknown })?.id === 'string' &&
+        ((startResult as unknown as { id: string }).id || '').trim()) ||
+      '';
+    const waitId = normalizeTransactionId(startTransactionIdRaw);
+    if (!waitId) {
+      throw new Error('startInscription did not return a transaction id');
+    }
+
     logger.info('about to start inscription', {
       type: input.type,
       mode: options.mode || 'file',
-      jobId: startResult.id || startResult.tx_id,
+      jobId: waitId,
       ...startResult,
     });
 
@@ -628,16 +618,9 @@ export async function inscribeWithSigner(
       );
     }
 
-    const trackingId = normalizeTransactionId(
-      startResult.tx_id || startResult.id || '',
-    );
-    const waitId = normalizeTransactionId(
-      trackingId || startResult.id || startResult.tx_id || '',
-    );
-
     if (options.waitForConfirmation) {
       logger.debug('Waiting for inscription confirmation (websocket)', {
-        jobId: startResult.id || startResult.tx_id,
+        jobId: waitId,
         maxAttempts: options.waitMaxAttempts,
         intervalMs: options.waitIntervalMs,
       });
@@ -723,6 +706,7 @@ export async function retrieveInscription(
       sdk = new InscriptionSDK({
         apiKey: options.apiKey,
         network: options.network || 'mainnet',
+        baseURL: options.baseURL,
       });
     } else if (options?.accountId && options?.privateKey) {
       logger.debug('Initializing InscriptionSDK with server auth');
@@ -731,6 +715,7 @@ export async function retrieveInscription(
         accountId: options.accountId,
         privateKey: options.privateKey,
         network: options.network || 'mainnet',
+        baseUrl: options.baseURL,
       });
     } else {
       const error = new Error(
@@ -1080,7 +1065,7 @@ async function parseTransactionForQuote(
 export async function waitForInscriptionConfirmation(
   sdk: InscriptionSDK,
   transactionId: string,
-  maxAttempts: number = 30,
+  maxAttempts: number = 450,
   intervalMs: number = 4000,
   progressCallback?: ProgressCallback,
 ): Promise<RetrievedInscriptionResult> {
@@ -1205,7 +1190,7 @@ export interface InscribeViaRegistryBrokerOptions {
   /** Standard API key */
   apiKey?: string;
   /** Inscription mode */
-  mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection';
+  mode?: 'file' | 'upload' | 'hashinal' | 'hashinal-collection' | 'bulk-files';
   /** Optional metadata */
   metadata?: Record<string, unknown>;
   /** Optional tags */
