@@ -1,6 +1,12 @@
-import { createUaid } from '../../src/hcs-14';
+import {
+  AID_DNS_WEB_PROFILE_ID,
+  HCS14Client,
+  createUaid,
+  isUaidProfileResolverAdapter,
+} from '../../src/hcs-14';
 
 async function main(): Promise<void> {
+  const hcs14 = new HCS14Client();
   const input = {
     registry: 'example',
     name: 'Sample Agent',
@@ -10,8 +16,37 @@ async function main(): Promise<void> {
     skills: [0, 17],
   } as const;
 
-  const did = await createUaid(input);
-  process.stdout.write(JSON.stringify({ input, aid: did }, null, 2) + '\n');
+  const aid = await createUaid(input);
+  const uaidProfileResolvers = hcs14
+    .filterAdapters({
+      capability: 'uaid-profile-resolver',
+    })
+    .map(record => record.adapter)
+    .filter(isUaidProfileResolverAdapter)
+    .map(adapter => adapter.profile);
+
+  const bestEffortProfile = await hcs14.resolveUaidProfile(aid);
+  const aidDnsWebProfile = await hcs14.resolveUaidProfile(aid, {
+    profileId: AID_DNS_WEB_PROFILE_ID,
+  });
+
+  process.stdout.write(
+    JSON.stringify(
+      {
+        input,
+        aid,
+        adapters: {
+          uaidProfileResolvers,
+        },
+        resolved: {
+          bestEffort: bestEffortProfile,
+          aidDnsWeb: aidDnsWebProfile,
+        },
+      },
+      null,
+      2,
+    ) + '\n',
+  );
 }
 
 main()

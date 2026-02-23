@@ -1,6 +1,12 @@
 import 'dotenv/config';
-import { HCS14Client } from '../../src/hcs-14';
-import { HCS11Client, HCS11Profile } from '../../src/hcs-11';
+import {
+  AID_DNS_WEB_PROFILE_ID,
+  HCS14Client,
+  UAID_DID_RESOLUTION_PROFILE_ID,
+  UAID_DNS_WEB_PROFILE_ID,
+  isUaidProfileResolverAdapter,
+} from '../../src/hcs-14';
+import { HCS11Client } from '../../src/hcs-11';
 
 function required(name: string, value: string | undefined): string {
   if (!value || !value.trim())
@@ -34,17 +40,57 @@ async function main(): Promise<void> {
     );
   }
 
-  const profile: HCS11Profile = fetched.profile as HCS11Profile;
+  const profile = fetched.profile;
   if (!profile.uaid) {
     throw new Error('HCS-11 profile does not contain uaid');
   }
 
   const hcs14 = new HCS14Client();
-  const didDoc = await hcs14.getResolverRegistry().resolveUaid(profile.uaid);
+  const didProfileResolverIds = hcs14
+    .filterAdapters({
+      capability: 'did-profile-resolver',
+    })
+    .map(record => record.adapter.meta?.id || 'unknown');
+  const uaidProfileResolverIds = hcs14
+    .filterAdapters({
+      capability: 'uaid-profile-resolver',
+    })
+    .map(record => record.adapter)
+    .filter(isUaidProfileResolverAdapter)
+    .map(adapter => adapter.profile);
+
+  const bestEffortUaidProfile = await hcs14.resolveUaidProfile(profile.uaid);
+  const didResolutionUaidProfile = await hcs14.resolveUaidProfile(
+    profile.uaid,
+    {
+      profileId: UAID_DID_RESOLUTION_PROFILE_ID,
+    },
+  );
+  const uaidDnsWebProfile = await hcs14.resolveUaidProfile(profile.uaid, {
+    profileId: UAID_DNS_WEB_PROFILE_ID,
+  });
+  const aidDnsWebProfile = await hcs14.resolveUaidProfile(profile.uaid, {
+    profileId: AID_DNS_WEB_PROFILE_ID,
+  });
+  const derivedDid =
+    bestEffortUaidProfile?.did ?? `did:hedera:${network}:${accountId}`;
+  const didProfile = await hcs14.resolveDidProfile(derivedDid);
+
   const output = {
     accountId,
     uaid: profile.uaid,
-    resolvedId: didDoc?.id || null,
+    adapters: {
+      didProfileResolverIds,
+      uaidProfileResolverIds,
+    },
+    resolved: {
+      derivedDid,
+      didProfile,
+      bestEffortUaidProfile,
+      didResolutionUaidProfile,
+      uaidDnsWebProfile,
+      aidDnsWebProfile,
+    },
   };
   process.stdout.write(JSON.stringify(output, null, 2) + '\n');
 }
