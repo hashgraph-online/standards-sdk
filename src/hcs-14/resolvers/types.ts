@@ -173,6 +173,9 @@ export interface ResolverAdapterRecord {
 export interface ResolverAdapterFilterOptions {
   capability?: ResolverAdapterCapability;
   didMethod?: string;
+  /**
+   * Only valid when capability is 'uaid-profile-resolver'.
+   */
   profileId?: string;
 }
 
@@ -190,12 +193,17 @@ export function isUaidProfileResolverAdapter(
 export function isDidProfileResolverAdapter(
   adapter: ResolverAdapter,
 ): adapter is DidProfileResolver {
+  const hasStringProfile =
+    typeof adapter === 'object' &&
+    adapter !== null &&
+    'profile' in adapter &&
+    typeof adapter.profile === 'string';
   return (
     typeof adapter === 'object' &&
     adapter !== null &&
     'resolveProfile' in adapter &&
     typeof adapter.resolveProfile === 'function' &&
-    !('profile' in adapter)
+    !hasStringProfile
   );
 }
 

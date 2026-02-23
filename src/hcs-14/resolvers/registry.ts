@@ -81,6 +81,16 @@ export class ResolverRegistry {
   filterAdapters(
     options: ResolverAdapterFilterOptions = {},
   ): ResolverAdapterRecord[] {
+    if (
+      options.profileId !== undefined &&
+      options.capability !== undefined &&
+      options.capability !== 'uaid-profile-resolver'
+    ) {
+      throw new Error(
+        'profileId filter requires capability "uaid-profile-resolver".',
+      );
+    }
+
     return this.adapters.filter(record => {
       if (
         options.capability !== undefined &&
