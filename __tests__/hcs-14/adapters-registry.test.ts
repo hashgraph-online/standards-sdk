@@ -253,12 +253,10 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
       capability: 'uaid-profile-resolver',
     });
     expect(uaidProfileResolvers.length).toBeGreaterThanOrEqual(3);
-    const uaidProfileIds = uaidProfileResolvers.flatMap(record => {
-      if (!isUaidProfileResolverAdapter(record.adapter)) {
-        return [];
-      }
-      return [record.adapter.profile];
-    });
+    const uaidProfileIds = uaidProfileResolvers
+      .map(record => record.adapter)
+      .filter(isUaidProfileResolverAdapter)
+      .map(adapter => adapter.profile);
     expect(uaidProfileIds.includes(AID_DNS_WEB_PROFILE_ID)).toBe(true);
     expect(uaidProfileIds.includes(UAID_DNS_WEB_PROFILE_ID)).toBe(true);
     expect(uaidProfileIds.includes(UAID_DID_RESOLUTION_PROFILE_ID)).toBe(true);
