@@ -86,4 +86,33 @@ description: Original description.
     expect(parsed?.version).toBe('2.3.4');
     expect(parsed?.description).toBe('Original description.');
   });
+
+  it('preserves colon-containing frontmatter values when synthesizing skill.json', async () => {
+    const skillDir = await createTempSkillDir('colon-frontmatter-0.1.0');
+    await writeFile(
+      path.join(skillDir, 'SKILL.md'),
+      `---
+name: colon-frontmatter
+description: A tool for https://example.com integration
+---
+
+# Colon Frontmatter
+`,
+      'utf8',
+    );
+
+    const files = await loadSkillFiles(skillDir, {});
+    const skillJsonFile = files.find(file => file.name === 'skill.json');
+    const parsed = skillJsonFile
+      ? (JSON.parse(
+          Buffer.from(skillJsonFile.base64, 'base64').toString('utf8'),
+        ) as Record<string, unknown>)
+      : null;
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.name).toBe('colon-frontmatter');
+    expect(parsed?.description).toBe(
+      'A tool for https://example.com integration',
+    );
+  });
 });
