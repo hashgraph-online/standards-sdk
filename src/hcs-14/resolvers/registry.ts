@@ -80,7 +80,7 @@ export class ResolverRegistry {
 
     if (capabilityMatchCount > 1) {
       throw new Error(
-        'Adapter matches multiple resolver capabilities. Use an explicit deprecated register method for compatibility.',
+        'Adapter matches multiple resolver capabilities. Use a specific deprecated method (register/registerProfileResolver/registerUaidProfileResolver) to register it under a single capability.',
       );
     }
 
@@ -108,7 +108,6 @@ export class ResolverRegistry {
   ): ResolverAdapterRecord[] {
     if (
       options.profileId !== undefined &&
-      options.capability !== undefined &&
       options.capability !== 'uaid-profile-resolver'
     ) {
       throw new Error(

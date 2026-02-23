@@ -155,6 +155,11 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
         profileId: 'hcs-14.profile.aid-dns-web',
       });
     }).toThrow('profileId filter requires capability "uaid-profile-resolver".');
+    expect(() => {
+      registry.filterAdapters({
+        profileId: 'hcs-14.profile.aid-dns-web',
+      });
+    }).toThrow('profileId filter requires capability "uaid-profile-resolver".');
   });
 
   it('ResolverRegistry deprecated resolver methods remain backwards compatible', async () => {
