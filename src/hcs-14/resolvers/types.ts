@@ -57,6 +57,11 @@ export interface DidResolver {
   meta?: AdapterMeta;
 }
 
+export type ResolverAdapterCapability =
+  | 'did-resolver'
+  | 'did-profile-resolver'
+  | 'uaid-profile-resolver';
+
 export interface Hcs11ResolvedProfile {
   protocol: 'hcs-11';
   network: 'mainnet' | 'testnet';
@@ -153,4 +158,62 @@ export interface UaidProfileResolver {
     context: UaidProfileResolverContext,
   ): Promise<DidResolutionProfile | null>;
   meta?: AdapterMeta;
+}
+
+export type ResolverAdapter =
+  | DidResolver
+  | DidProfileResolver
+  | UaidProfileResolver;
+
+export interface ResolverAdapterRecord {
+  capability: ResolverAdapterCapability;
+  adapter: ResolverAdapter;
+}
+
+export interface ResolverAdapterFilterOptions {
+  capability?: ResolverAdapterCapability;
+  didMethod?: string;
+  /**
+   * Only valid when capability is 'uaid-profile-resolver'.
+   */
+  profileId?: string;
+}
+
+export function isUaidProfileResolverAdapter(
+  adapter: ResolverAdapter,
+): adapter is UaidProfileResolver {
+  return (
+    typeof adapter === 'object' &&
+    adapter !== null &&
+    'profile' in adapter &&
+    typeof adapter.profile === 'string'
+  );
+}
+
+export function isDidProfileResolverAdapter(
+  adapter: ResolverAdapter,
+): adapter is DidProfileResolver {
+  const hasStringProfile =
+    typeof adapter === 'object' &&
+    adapter !== null &&
+    'profile' in adapter &&
+    typeof adapter.profile === 'string';
+  return (
+    typeof adapter === 'object' &&
+    adapter !== null &&
+    'resolveProfile' in adapter &&
+    typeof adapter.resolveProfile === 'function' &&
+    !hasStringProfile
+  );
+}
+
+export function isDidResolverAdapter(
+  adapter: ResolverAdapter,
+): adapter is DidResolver {
+  return (
+    typeof adapter === 'object' &&
+    adapter !== null &&
+    'resolve' in adapter &&
+    typeof adapter.resolve === 'function'
+  );
 }

@@ -18,6 +18,15 @@ import {
   ResolverRegistry,
   type ResolveUaidProfileOptions,
 } from './resolvers/registry';
+import type {
+  DidProfileResolver,
+  DidResolutionProfile,
+  DidResolver,
+  ResolverAdapter,
+  ResolverAdapterFilterOptions,
+  ResolverAdapterRecord,
+  UaidProfileResolver,
+} from './resolvers/types';
 import { HieroDidResolver } from './resolvers/hiero';
 import { HCS11ProfileResolver } from './resolvers/hcs-11-profile';
 import {
@@ -146,20 +155,32 @@ export class HCS14Client {
     return this.issuers.list();
   }
 
-  /** Convenience: list registered resolvers with metadata. */
-  listResolvers(): ReadonlyArray<import('./resolvers/types').DidResolver> {
+  registerAdapter(adapter: ResolverAdapter): void {
+    this.registry.registerAdapter(adapter);
+  }
+
+  listAdapters(): ReadonlyArray<ResolverAdapterRecord> {
+    return this.registry.listAdapters();
+  }
+
+  filterAdapters(
+    options: ResolverAdapterFilterOptions = {},
+  ): ReadonlyArray<ResolverAdapterRecord> {
+    return this.registry.filterAdapters(options);
+  }
+
+  /** @deprecated Use listAdapters()/filterAdapters() instead. */
+  listResolvers(): ReadonlyArray<DidResolver> {
     return this.registry.list();
   }
 
-  listProfileResolvers(): ReadonlyArray<
-    import('./resolvers/types').DidProfileResolver
-  > {
+  /** @deprecated Use listAdapters()/filterAdapters() instead. */
+  listProfileResolvers(): ReadonlyArray<DidProfileResolver> {
     return this.registry.listProfileResolvers();
   }
 
-  listUaidProfileResolvers(): ReadonlyArray<
-    import('./resolvers/types').UaidProfileResolver
-  > {
+  /** @deprecated Use listAdapters()/filterAdapters() instead. */
+  listUaidProfileResolvers(): ReadonlyArray<UaidProfileResolver> {
     return this.registry.listUaidProfileResolvers();
   }
 
@@ -168,19 +189,22 @@ export class HCS14Client {
     return this.issuers.filterByDidMethod(method);
   }
 
-  /** Convenience: filter resolvers by DID method. */
+  /** @deprecated Use filterAdapters({ capability: 'did-resolver', didMethod }) instead. */
   filterResolversByMethod(method: string) {
     return this.registry.filterByDidMethod(method);
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'did-profile-resolver', didMethod }) instead. */
   filterProfileResolversByMethod(method: string) {
     return this.registry.filterProfileResolversByDidMethod(method);
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'uaid-profile-resolver', didMethod }) instead. */
   filterUaidProfileResolversByMethod(method: string) {
     return this.registry.filterUaidProfileResolversByDidMethod(method);
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'uaid-profile-resolver', profileId }) instead. */
   filterUaidProfileResolversByProfileId(profileId: string) {
     return this.registry.filterUaidProfileResolversByProfileId(profileId);
   }
@@ -242,54 +266,44 @@ export class HCS14Client {
     return this.registry;
   }
 
-  registerProfileResolver(
-    resolver: import('./resolvers/types').DidProfileResolver,
-  ): void {
+  /** @deprecated Use registerAdapter() instead. */
+  registerProfileResolver(resolver: DidProfileResolver): void {
     this.registry.registerProfileResolver(resolver);
   }
 
-  registerUaidProfileResolver(
-    resolver: import('./resolvers/types').UaidProfileResolver,
-  ): void {
+  /** @deprecated Use registerAdapter() instead. */
+  registerUaidProfileResolver(resolver: UaidProfileResolver): void {
     this.registry.registerUaidProfileResolver(resolver);
   }
 
   registerHederaResolver(): void {
-    this.registry.register(new HieroDidResolver());
+    this.registry.registerAdapter(new HieroDidResolver());
   }
 
   registerHcs11ProfileResolver(): void {
-    this.registry.registerProfileResolver(new HCS11ProfileResolver());
+    this.registry.registerAdapter(new HCS11ProfileResolver());
   }
 
   registerUaidDidResolutionProfileResolver(): void {
-    this.registry.registerUaidProfileResolver(
-      new UaidDidResolutionProfileResolver(),
-    );
+    this.registry.registerAdapter(new UaidDidResolutionProfileResolver());
   }
 
   registerAidDnsWebProfileResolver(options?: AidDnsWebResolverOptions): void {
-    this.registry.registerUaidProfileResolver(
-      new AidDnsWebProfileResolver(options),
-    );
+    this.registry.registerAdapter(new AidDnsWebProfileResolver(options));
   }
 
   registerUaidDnsWebProfileResolver(options?: UaidDnsWebResolverOptions): void {
-    this.registry.registerUaidProfileResolver(
-      new UaidDnsWebProfileResolver(options),
-    );
+    this.registry.registerAdapter(new UaidDnsWebProfileResolver(options));
   }
 
-  async resolveDidProfile(
-    did: string,
-  ): Promise<import('./resolvers/types').DidResolutionProfile> {
+  async resolveDidProfile(did: string): Promise<DidResolutionProfile> {
     return this.registry.resolveDidProfile(did);
   }
 
   async resolveUaidProfile(
     uaid: string,
     options?: ResolveUaidProfileOptions,
-  ): Promise<import('./resolvers/types').DidResolutionProfile | null> {
+  ): Promise<DidResolutionProfile | null> {
     return this.registry.resolveUaidProfile(uaid, options);
   }
 

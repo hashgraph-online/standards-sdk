@@ -51,9 +51,12 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
     expect(none.length).toBe(0);
   });
 
-  it('ResolverRegistry list and filters work as expected', async () => {
+  it('ResolverRegistry adapter API list and filters work as expected', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
+    );
+    const { isUaidProfileResolverAdapter } = await import(
+      '../../src/hcs-14/resolvers/types'
     );
     const registry = new ResolverRegistry();
 
@@ -79,8 +82,8 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
         },
       };
 
-    registry.register(webResolver);
-    registry.register(hederaResolver);
+    registry.registerAdapter(webResolver);
+    registry.registerAdapter(hederaResolver);
 
     const hederaProfileResolver: import('../../src/hcs-14/resolvers/types').DidProfileResolver =
       {
@@ -95,7 +98,7 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
           return { id: did, did };
         },
       };
-    registry.registerProfileResolver(hederaProfileResolver);
+    registry.registerAdapter(hederaProfileResolver);
 
     const aidUaidProfileResolver: import('../../src/hcs-14/resolvers/types').UaidProfileResolver =
       {
@@ -111,35 +114,164 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
           return { id: uaid };
         },
       };
-    registry.registerUaidProfileResolver(aidUaidProfileResolver);
+    registry.registerAdapter(aidUaidProfileResolver);
 
-    const all = registry.list();
-    expect(all.length).toBe(2);
-    const hederaOnly = registry.filterByDidMethod('hedera');
+    const allAdapters = registry.listAdapters();
+    expect(allAdapters.length).toBe(4);
+    const didResolvers = registry.filterAdapters({
+      capability: 'did-resolver',
+    });
+    expect(didResolvers.length).toBe(2);
+    const hederaOnly = registry.filterAdapters({
+      capability: 'did-resolver',
+      didMethod: 'hedera',
+    });
     expect(hederaOnly.length).toBe(1);
-    expect(hederaOnly[0].meta?.id).toBe('hedera/mock-resolver');
+    expect(hederaOnly[0].adapter.meta?.id).toBe('hedera/mock-resolver');
 
-    const profileResolvers = registry.listProfileResolvers();
+    const profileResolvers = registry.filterAdapters({
+      capability: 'did-profile-resolver',
+    });
     expect(profileResolvers.length).toBe(1);
-    const hederaProfiles = registry.filterProfileResolversByDidMethod('hedera');
+    const hederaProfiles = registry.filterAdapters({
+      capability: 'did-profile-resolver',
+      didMethod: 'hedera',
+    });
     expect(hederaProfiles.length).toBe(1);
-    expect(hederaProfiles[0].meta?.id).toBe('hedera/mock-profile-resolver');
-
-    const uaidProfileResolvers = registry.listUaidProfileResolvers();
-    expect(uaidProfileResolvers.length).toBe(1);
-    expect(uaidProfileResolvers[0].profile).toBe('hcs-14.profile.aid-dns-web');
-    const byProfileId = registry.filterUaidProfileResolversByProfileId(
-      'hcs-14.profile.aid-dns-web',
+    expect(hederaProfiles[0].adapter.meta?.id).toBe(
+      'hedera/mock-profile-resolver',
     );
+
+    const uaidProfileResolvers = registry.filterAdapters({
+      capability: 'uaid-profile-resolver',
+    });
+    expect(uaidProfileResolvers.length).toBe(1);
+    const uaidAdapter = uaidProfileResolvers[0].adapter;
+    if (isUaidProfileResolverAdapter(uaidAdapter)) {
+      expect(uaidAdapter.profile).toBe('hcs-14.profile.aid-dns-web');
+    }
+    const byProfileId = registry.filterAdapters({
+      capability: 'uaid-profile-resolver',
+      profileId: 'hcs-14.profile.aid-dns-web',
+    });
     expect(byProfileId.length).toBe(1);
+
+    expect(() => {
+      registry.filterAdapters({
+        capability: 'did-resolver',
+        profileId: 'hcs-14.profile.aid-dns-web',
+      });
+    }).toThrow('profileId filter requires capability "uaid-profile-resolver".');
+    expect(() => {
+      registry.filterAdapters({
+        profileId: 'hcs-14.profile.aid-dns-web',
+      });
+    }).toThrow('profileId filter requires capability "uaid-profile-resolver".');
   });
 
-  it('HCS14Client convenience methods surface adapters and filtering', async () => {
+  it('ResolverRegistry deprecated resolver methods remain backwards compatible', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const registry = new ResolverRegistry();
+
+    const didResolver: import('../../src/hcs-14/resolvers/types').DidResolver =
+      {
+        meta: { id: 'hedera/mock-resolver', didMethods: ['hedera'] },
+        supports(did: string) {
+          return did.startsWith('did:hedera:');
+        },
+        async resolve(did: string) {
+          return this.supports(did) ? { id: did } : null;
+        },
+      };
+
+    const profileResolver: import('../../src/hcs-14/resolvers/types').DidProfileResolver =
+      {
+        meta: { id: 'hedera/mock-profile-resolver', didMethods: ['hedera'] },
+        supports(did: string) {
+          return did.startsWith('did:hedera:');
+        },
+        async resolveProfile(did: string) {
+          return { id: did, did };
+        },
+      };
+
+    const uaidResolver: import('../../src/hcs-14/resolvers/types').UaidProfileResolver =
+      {
+        profile: 'hcs-14.profile.aid-dns-web',
+        meta: {
+          id: 'hcs-14/aid-dns-web',
+          didMethods: ['*'],
+        },
+        supports(_uaid, parsed) {
+          return parsed.method === 'aid';
+        },
+        async resolveProfile(uaid: string) {
+          return { id: uaid };
+        },
+      };
+
+    registry.register(didResolver);
+    registry.registerProfileResolver(profileResolver);
+    registry.registerUaidProfileResolver(uaidResolver);
+
+    expect(registry.list().length).toBe(1);
+    expect(registry.listProfileResolvers().length).toBe(1);
+    expect(registry.listUaidProfileResolvers().length).toBe(1);
+    expect(registry.filterByDidMethod('hedera').length).toBe(1);
+    expect(registry.filterProfileResolversByDidMethod('hedera').length).toBe(1);
+    expect(
+      registry.filterUaidProfileResolversByDidMethod('hedera').length,
+    ).toBe(1);
+    expect(
+      registry.filterUaidProfileResolversByProfileId(
+        'hcs-14.profile.aid-dns-web',
+      ).length,
+    ).toBe(1);
+  });
+
+  it('deprecated register keeps explicit did-resolver capability for mixed resolvers', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const registry = new ResolverRegistry();
+
+    const mixedResolver: import('../../src/hcs-14/resolvers/types').DidResolver &
+      import('../../src/hcs-14/resolvers/types').DidProfileResolver = {
+      meta: { id: 'mixed/resolver', didMethods: ['hedera'] },
+      supports(did: string) {
+        return did.startsWith('did:hedera:');
+      },
+      async resolve(did: string) {
+        return { id: did };
+      },
+      async resolveProfile(did: string) {
+        return { id: did, did };
+      },
+    };
+
+    registry.register(mixedResolver);
+    expect(registry.list().length).toBe(1);
+    expect(registry.listProfileResolvers().length).toBe(0);
+    expect(registry.listAdapters()[0].capability).toBe('did-resolver');
+    await expect(
+      registry.resolveDid('did:hedera:testnet:0.0.123'),
+    ).resolves.toEqual({ id: 'did:hedera:testnet:0.0.123' });
+
+    const secondRegistry = new ResolverRegistry();
+    expect(() => {
+      secondRegistry.registerAdapter(mixedResolver);
+    }).toThrow('matches multiple resolver capabilities');
+  });
+
+  it('HCS14Client adapter methods surface all supported profile resolvers', async () => {
     const {
       HCS14Client,
       AID_DNS_WEB_PROFILE_ID,
       UAID_DID_RESOLUTION_PROFILE_ID,
       UAID_DNS_WEB_PROFILE_ID,
+      isUaidProfileResolverAdapter,
     } = await import('../../src/hcs-14');
     const client = new HCS14Client();
 
@@ -151,38 +283,42 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
       true,
     );
 
-    const resolvers = client.listResolvers();
-    expect(resolvers.length).toBeGreaterThan(0);
-    const hederaResolvers = client.filterResolversByMethod('hedera');
-    expect(hederaResolvers.length).toBeGreaterThan(0);
+    const adapters = client.listAdapters();
+    expect(adapters.length).toBeGreaterThanOrEqual(5);
+    const didResolvers = client.filterAdapters({
+      capability: 'did-resolver',
+      didMethod: 'hedera',
+    });
+    expect(didResolvers.length).toBeGreaterThan(0);
+    const didProfileResolvers = client.filterAdapters({
+      capability: 'did-profile-resolver',
+      didMethod: 'hedera',
+    });
+    expect(didProfileResolvers.length).toBeGreaterThan(0);
+    const uaidProfileResolvers = client.filterAdapters({
+      capability: 'uaid-profile-resolver',
+    });
+    expect(uaidProfileResolvers.length).toBeGreaterThanOrEqual(3);
+    const uaidProfileIds = uaidProfileResolvers
+      .map(record => record.adapter)
+      .filter(isUaidProfileResolverAdapter)
+      .map(adapter => adapter.profile);
+    expect(uaidProfileIds.includes(AID_DNS_WEB_PROFILE_ID)).toBe(true);
+    expect(uaidProfileIds.includes(UAID_DNS_WEB_PROFILE_ID)).toBe(true);
+    expect(uaidProfileIds.includes(UAID_DID_RESOLUTION_PROFILE_ID)).toBe(true);
+    expect(
+      client.filterAdapters({
+        capability: 'uaid-profile-resolver',
+        profileId: UAID_DNS_WEB_PROFILE_ID,
+      }).length,
+    ).toBe(1);
 
-    const profileResolvers = client.listProfileResolvers();
-    expect(profileResolvers.length).toBeGreaterThan(0);
-    const hederaProfileResolvers =
-      client.filterProfileResolversByMethod('hedera');
-    expect(hederaProfileResolvers.length).toBeGreaterThan(0);
-
-    const uaidProfileResolvers = client.listUaidProfileResolvers();
-    expect(uaidProfileResolvers.length).toBeGreaterThan(0);
+    const deprecatedList = client.listUaidProfileResolvers();
     expect(
-      uaidProfileResolvers.some(
-        resolver => resolver.profile === AID_DNS_WEB_PROFILE_ID,
-      ),
-    ).toBe(true);
-    expect(
-      uaidProfileResolvers.some(
-        resolver => resolver.profile === UAID_DNS_WEB_PROFILE_ID,
-      ),
-    ).toBe(true);
-    expect(
-      uaidProfileResolvers.some(
+      deprecatedList.some(
         resolver => resolver.profile === UAID_DID_RESOLUTION_PROFILE_ID,
       ),
     ).toBe(true);
-    expect(
-      client.filterUaidProfileResolversByProfileId(UAID_DNS_WEB_PROFILE_ID)
-        .length,
-    ).toBe(1);
 
     const aidProfile = await client.resolveUaidProfile('uaid:aid:QmHash');
     expect(aidProfile?.id).toBe('uaid:aid:QmHash');
