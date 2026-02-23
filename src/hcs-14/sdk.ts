@@ -16,9 +16,19 @@ import {
 } from './caip';
 import {
   ResolverRegistry,
-  defaultResolverRegistry,
+  type ResolveUaidProfileOptions,
 } from './resolvers/registry';
 import { HieroDidResolver } from './resolvers/hiero';
+import { HCS11ProfileResolver } from './resolvers/hcs-11-profile';
+import {
+  AidDnsWebProfileResolver,
+  type AidDnsWebResolverOptions,
+} from './resolvers/aid-dns-web-profile';
+import {
+  UaidDnsWebProfileResolver,
+  type UaidDnsWebResolverOptions,
+} from './resolvers/uaid-dns-web-profile';
+import { UaidDidResolutionProfileResolver } from './resolvers/uaid-did-resolution-profile';
 import { IssuerRegistry } from './issuers/registry';
 import { HederaHieroIssuer } from './issuers/hiero';
 import type { DidIssueRequest } from './issuers/types';
@@ -56,10 +66,14 @@ export class HCS14Client {
   private logger: ILogger;
 
   constructor(options?: HCS14ClientOptions) {
-    this.registry = options?.registry ?? defaultResolverRegistry;
+    this.registry = options?.registry ?? new ResolverRegistry();
     this.issuers = new IssuerRegistry();
     this.registerHederaIssuer();
     this.registerHederaResolver();
+    this.registerUaidDnsWebProfileResolver();
+    this.registerAidDnsWebProfileResolver();
+    this.registerUaidDidResolutionProfileResolver();
+    this.registerHcs11ProfileResolver();
     this.logger = Logger.getInstance({ module: 'HCS-14' });
     this.client = options?.client;
     this.network = options?.network;
@@ -137,6 +151,18 @@ export class HCS14Client {
     return this.registry.list();
   }
 
+  listProfileResolvers(): ReadonlyArray<
+    import('./resolvers/types').DidProfileResolver
+  > {
+    return this.registry.listProfileResolvers();
+  }
+
+  listUaidProfileResolvers(): ReadonlyArray<
+    import('./resolvers/types').UaidProfileResolver
+  > {
+    return this.registry.listUaidProfileResolvers();
+  }
+
   /** Convenience: filter issuers by DID method. */
   filterIssuersByMethod(method: string) {
     return this.issuers.filterByDidMethod(method);
@@ -145,6 +171,18 @@ export class HCS14Client {
   /** Convenience: filter resolvers by DID method. */
   filterResolversByMethod(method: string) {
     return this.registry.filterByDidMethod(method);
+  }
+
+  filterProfileResolversByMethod(method: string) {
+    return this.registry.filterProfileResolversByDidMethod(method);
+  }
+
+  filterUaidProfileResolversByMethod(method: string) {
+    return this.registry.filterUaidProfileResolversByDidMethod(method);
+  }
+
+  filterUaidProfileResolversByProfileId(profileId: string) {
+    return this.registry.filterUaidProfileResolversByProfileId(profileId);
   }
 
   registerHederaIssuer(): void {
@@ -204,8 +242,55 @@ export class HCS14Client {
     return this.registry;
   }
 
+  registerProfileResolver(
+    resolver: import('./resolvers/types').DidProfileResolver,
+  ): void {
+    this.registry.registerProfileResolver(resolver);
+  }
+
+  registerUaidProfileResolver(
+    resolver: import('./resolvers/types').UaidProfileResolver,
+  ): void {
+    this.registry.registerUaidProfileResolver(resolver);
+  }
+
   registerHederaResolver(): void {
     this.registry.register(new HieroDidResolver());
+  }
+
+  registerHcs11ProfileResolver(): void {
+    this.registry.registerProfileResolver(new HCS11ProfileResolver());
+  }
+
+  registerUaidDidResolutionProfileResolver(): void {
+    this.registry.registerUaidProfileResolver(
+      new UaidDidResolutionProfileResolver(),
+    );
+  }
+
+  registerAidDnsWebProfileResolver(options?: AidDnsWebResolverOptions): void {
+    this.registry.registerUaidProfileResolver(
+      new AidDnsWebProfileResolver(options),
+    );
+  }
+
+  registerUaidDnsWebProfileResolver(options?: UaidDnsWebResolverOptions): void {
+    this.registry.registerUaidProfileResolver(
+      new UaidDnsWebProfileResolver(options),
+    );
+  }
+
+  async resolveDidProfile(
+    did: string,
+  ): Promise<import('./resolvers/types').DidResolutionProfile> {
+    return this.registry.resolveDidProfile(did);
+  }
+
+  async resolveUaidProfile(
+    uaid: string,
+    options?: ResolveUaidProfileOptions,
+  ): Promise<import('./resolvers/types').DidResolutionProfile | null> {
+    return this.registry.resolveUaidProfile(uaid, options);
   }
 
   /**

@@ -137,6 +137,8 @@
   },
   "devDependencies": {
     "@hashgraphonline/conversational-agent": "0.2.104",
+    "@hiero-did-sdk/registrar": "0.1.8",
+    "@hiero-did-sdk/resolver": "0.1.8",
     "@swc/jest": "^0.2.39",
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.20",
@@ -170,8 +172,6 @@
     "@hashgraph/sdk": "^2.78.0",
     "@hashgraph/hedera-wallet-connect": "^2.0.4",
     "@hashgraphonline/hashinal-wc": "^2.0.60",
-    "@hiero-did-sdk/registrar": "0.1.8",
-    "@hiero-did-sdk/resolver": "0.1.8",
     "@kiloscribe/inscription-sdk": "2.0.10-canary.9",
     "@noble/curves": "^2.0.1",
     "@types/localtunnel": "^2.0.4",
@@ -190,7 +190,17 @@
     "x402-axios": "^0.7.0",
     "zod": "^3.25.76"
   },
+  "peerDependencies": {
+    "@hiero-did-sdk/registrar": "^0.1.8",
+    "@hiero-did-sdk/resolver": "^0.1.8"
+  },
   "peerDependenciesMeta": {
+    "@hiero-did-sdk/registrar": {
+      "optional": true
+    },
+    "@hiero-did-sdk/resolver": {
+      "optional": true
+    },
     "ioredis": {
       "optional": true
     }
