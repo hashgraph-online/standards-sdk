@@ -55,6 +55,9 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
+    const { isUaidProfileResolverAdapter } = await import(
+      '../../src/hcs-14/resolvers/types'
+    );
     const registry = new ResolverRegistry();
 
     const webResolver: import('../../src/hcs-14/resolvers/types').DidResolver =
@@ -143,6 +146,10 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
       capability: 'uaid-profile-resolver',
     });
     expect(uaidProfileResolvers.length).toBe(1);
+    const uaidAdapter = uaidProfileResolvers[0].adapter;
+    if (isUaidProfileResolverAdapter(uaidAdapter)) {
+      expect(uaidAdapter.profile).toBe('hcs-14.profile.aid-dns-web');
+    }
     const byProfileId = registry.filterAdapters({
       capability: 'uaid-profile-resolver',
       profileId: 'hcs-14.profile.aid-dns-web',
