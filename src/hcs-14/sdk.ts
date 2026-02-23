@@ -16,7 +16,6 @@ import {
 } from './caip';
 import {
   ResolverRegistry,
-  defaultResolverRegistry,
   type ResolveUaidProfileOptions,
 } from './resolvers/registry';
 import { HieroDidResolver } from './resolvers/hiero';
@@ -67,7 +66,7 @@ export class HCS14Client {
   private logger: ILogger;
 
   constructor(options?: HCS14ClientOptions) {
-    this.registry = options?.registry ?? defaultResolverRegistry;
+    this.registry = options?.registry ?? new ResolverRegistry();
     this.issuers = new IssuerRegistry();
     this.registerHederaIssuer();
     this.registerHederaResolver();

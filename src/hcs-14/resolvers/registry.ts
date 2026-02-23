@@ -280,9 +280,19 @@ export class ResolverRegistry {
       };
 
       const resolved = await resolver.resolveProfile(uaid, context);
-      if (resolved) {
-        return this.mergeResolvedProfile(fallback, resolved);
+      if (!resolved) {
+        continue;
       }
+
+      const shouldContinueAfterErrorProfile =
+        options.profileId === undefined &&
+        (resolved.error !== undefined || resolved.metadata?.resolved === false);
+
+      if (shouldContinueAfterErrorProfile) {
+        continue;
+      }
+
+      return this.mergeResolvedProfile(fallback, resolved);
     }
 
     return null;

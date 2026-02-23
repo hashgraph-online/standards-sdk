@@ -286,6 +286,37 @@ describe('HCS-14 AID/UAID', () => {
     jest.dontMock(cryptoPath);
   });
 
+  it('uses an isolated resolver registry per HCS14Client instance by default', async () => {
+    const { HCS14Client } = await import('../src/hcs-14/sdk');
+
+    const firstClient = new HCS14Client();
+    const initialResolverCount = firstClient.listResolvers().length;
+    const initialProfileResolverCount =
+      firstClient.listProfileResolvers().length;
+    const initialUaidProfileResolverCount =
+      firstClient.listUaidProfileResolvers().length;
+
+    const secondClient = new HCS14Client();
+
+    expect(firstClient.getResolverRegistry()).not.toBe(
+      secondClient.getResolverRegistry(),
+    );
+    expect(firstClient.listResolvers().length).toBe(initialResolverCount);
+    expect(firstClient.listProfileResolvers().length).toBe(
+      initialProfileResolverCount,
+    );
+    expect(firstClient.listUaidProfileResolvers().length).toBe(
+      initialUaidProfileResolverCount,
+    );
+    expect(secondClient.listResolvers().length).toBe(initialResolverCount);
+    expect(secondClient.listProfileResolvers().length).toBe(
+      initialProfileResolverCount,
+    );
+    expect(secondClient.listUaidProfileResolvers().length).toBe(
+      initialUaidProfileResolverCount,
+    );
+  });
+
   it('validates protocol regex sample', () => {
     expect(HCS14_PROTOCOL_REGEX.test('hcs-10')).toBe(true);
     expect(HCS14_PROTOCOL_REGEX.test('HCS_10')).toBe(false);

@@ -298,4 +298,55 @@ describe('HCS-14 profile resolver behaviors', () => {
     expect(profile?.metadata?.resolved).toBe(false);
     expect(profile?.error?.code).toBe('ERR_UAID_MISMATCH');
   });
+
+  it('continues to later UAID profile resolvers when an earlier resolver returns an error profile', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver({
+      profile: 'mock.error',
+      meta: {
+        id: 'mock/error-resolver',
+        didMethods: ['*'],
+        displayName: 'Mock Error Resolver',
+      },
+      supports: () => true,
+      resolveProfile: async uaid => ({
+        id: uaid,
+        error: {
+          code: 'ERR_NOT_DETERMINATIVE',
+          message: 'Resolver cannot determine final profile.',
+        },
+        metadata: {
+          profile: 'mock.error',
+          resolved: false,
+        },
+      }),
+    });
+    registry.registerUaidProfileResolver({
+      profile: 'mock.success',
+      meta: {
+        id: 'mock/success-resolver',
+        didMethods: ['*'],
+        displayName: 'Mock Success Resolver',
+      },
+      supports: () => true,
+      resolveProfile: async uaid => ({
+        id: uaid,
+        metadata: {
+          profile: 'mock.success',
+          resolved: true,
+        },
+      }),
+    });
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=support;proto=a2a;nativeId=agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid);
+
+    expect(profile?.metadata?.profile).toBe('mock.success');
+    expect(profile?.error).toBeUndefined();
+  });
 });
