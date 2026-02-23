@@ -8,8 +8,14 @@ import {
   DidProfileResolverContext,
   DidResolutionProfile,
   DidResolver,
+  ResolverAdapter,
+  ResolverAdapterFilterOptions,
+  ResolverAdapterRecord,
   UaidProfileResolver,
   UaidProfileResolverContext,
+  isDidProfileResolverAdapter,
+  isDidResolverAdapter,
+  isUaidProfileResolverAdapter,
 } from './types';
 import { HieroDidResolver } from './hiero';
 import { parseHcs14Did } from '../did';
@@ -29,6 +35,7 @@ export class ResolverRegistry {
   private resolvers: DidResolver[] = [];
   private profileResolvers: DidProfileResolver[] = [];
   private uaidProfileResolvers: UaidProfileResolver[] = [];
+  private adapters: ResolverAdapterRecord[] = [];
 
   private supportsDidMethod(
     didMethods: string[] | undefined,
@@ -39,52 +46,127 @@ export class ResolverRegistry {
     );
   }
 
+  registerAdapter(adapter: ResolverAdapter): void {
+    if (isUaidProfileResolverAdapter(adapter)) {
+      this.uaidProfileResolvers.push(adapter);
+      this.adapters.push({
+        capability: 'uaid-profile-resolver',
+        adapter,
+      });
+      return;
+    }
+    if (isDidProfileResolverAdapter(adapter)) {
+      this.profileResolvers.push(adapter);
+      this.adapters.push({
+        capability: 'did-profile-resolver',
+        adapter,
+      });
+      return;
+    }
+    if (isDidResolverAdapter(adapter)) {
+      this.resolvers.push(adapter);
+      this.adapters.push({
+        capability: 'did-resolver',
+        adapter,
+      });
+      return;
+    }
+    throw new Error('Adapter does not match a supported resolver capability.');
+  }
+
+  listAdapters(): ResolverAdapterRecord[] {
+    return [...this.adapters];
+  }
+
+  filterAdapters(
+    options: ResolverAdapterFilterOptions = {},
+  ): ResolverAdapterRecord[] {
+    return this.adapters.filter(record => {
+      if (
+        options.capability !== undefined &&
+        record.capability !== options.capability
+      ) {
+        return false;
+      }
+      if (
+        options.didMethod !== undefined &&
+        !this.supportsDidMethod(
+          record.adapter.meta?.didMethods,
+          options.didMethod,
+        )
+      ) {
+        return false;
+      }
+      if (options.profileId !== undefined) {
+        if (!isUaidProfileResolverAdapter(record.adapter)) {
+          return false;
+        }
+        if (record.adapter.profile !== options.profileId) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  /** @deprecated Use registerAdapter() instead. */
   register(resolver: DidResolver): void {
-    this.resolvers.push(resolver);
+    this.registerAdapter(resolver);
   }
 
+  /** @deprecated Use registerAdapter() instead. */
   registerProfileResolver(resolver: DidProfileResolver): void {
-    this.profileResolvers.push(resolver);
+    this.registerAdapter(resolver);
   }
 
+  /** @deprecated Use registerAdapter() instead. */
   registerUaidProfileResolver(resolver: UaidProfileResolver): void {
-    this.uaidProfileResolvers.push(resolver);
+    this.registerAdapter(resolver);
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'did-resolver' }) instead. */
   list(): DidResolver[] {
     return [...this.resolvers];
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'did-profile-resolver' }) instead. */
   listProfileResolvers(): DidProfileResolver[] {
     return [...this.profileResolvers];
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'uaid-profile-resolver' }) instead. */
   listUaidProfileResolvers(): UaidProfileResolver[] {
     return [...this.uaidProfileResolvers];
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'did-resolver', didMethod }) instead. */
   filterByDidMethod(method: string): DidResolver[] {
-    return this.resolvers.filter(r =>
-      this.supportsDidMethod(r.meta?.didMethods, method),
-    );
+    return this.resolvers.filter(resolver => {
+      return this.supportsDidMethod(resolver.meta?.didMethods, method);
+    });
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'did-profile-resolver', didMethod }) instead. */
   filterProfileResolversByDidMethod(method: string): DidProfileResolver[] {
-    return this.profileResolvers.filter(r =>
-      this.supportsDidMethod(r.meta?.didMethods, method),
-    );
+    return this.profileResolvers.filter(resolver => {
+      return this.supportsDidMethod(resolver.meta?.didMethods, method);
+    });
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'uaid-profile-resolver', didMethod }) instead. */
   filterUaidProfileResolversByDidMethod(method: string): UaidProfileResolver[] {
-    return this.uaidProfileResolvers.filter(r =>
-      this.supportsDidMethod(r.meta?.didMethods, method),
-    );
+    return this.uaidProfileResolvers.filter(resolver => {
+      return this.supportsDidMethod(resolver.meta?.didMethods, method);
+    });
   }
 
+  /** @deprecated Use filterAdapters({ capability: 'uaid-profile-resolver', profileId }) instead. */
   filterUaidProfileResolversByProfileId(
     profileId: string,
   ): UaidProfileResolver[] {
-    return this.uaidProfileResolvers.filter(r => r.profile === profileId);
+    return this.uaidProfileResolvers.filter(resolver => {
+      return resolver.profile === profileId;
+    });
   }
 
   async resolveDid(did: string): Promise<DidDocumentMinimal | null> {
@@ -339,5 +421,5 @@ export class ResolverRegistry {
 export const defaultResolverRegistry = new ResolverRegistry();
 
 export function registerDefaultResolvers(): void {
-  defaultResolverRegistry.register(new HieroDidResolver());
+  defaultResolverRegistry.registerAdapter(new HieroDidResolver());
 }
