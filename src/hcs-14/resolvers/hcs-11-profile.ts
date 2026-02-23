@@ -17,19 +17,31 @@ function toHcs11Network(network: string): Hcs11Network | null {
   return null;
 }
 
+function parseNativeIdNetworkAndAccount(
+  nativeId: string,
+): { network: Hcs11Network; accountId: string } | null {
+  try {
+    const parsed = parseHederaCaip10(nativeId);
+    const network = toHcs11Network(parsed.network);
+    if (!network) {
+      return null;
+    }
+    return { network, accountId: parsed.accountId };
+  } catch (_error) {
+    return null;
+  }
+}
+
 function getDidNetworkAndAccount(
   did: string,
   context?: DidProfileResolverContext,
 ): { network: Hcs11Network; accountId: string } | null {
   const nativeId = context?.parsedUaid?.params['nativeId'];
   if (nativeId) {
-    try {
-      const parsed = parseHederaCaip10(nativeId);
-      const network = toHcs11Network(parsed.network);
-      if (network) {
-        return { network, accountId: parsed.accountId };
-      }
-    } catch {}
+    const resolvedNativeId = parseNativeIdNetworkAndAccount(nativeId);
+    if (resolvedNativeId) {
+      return resolvedNativeId;
+    }
   }
 
   const didMatch = did.match(/^did:hedera:(mainnet|testnet):(.+)$/);

@@ -27,12 +27,6 @@ importers:
       '@hashgraphonline/hashinal-wc':
         specifier: ^2.0.60
         version: 2.0.60(@reown/appkit-controllers@1.8.17(@types/react@19.2.2)(bufferutil@4.0.9)(encoding@0.1.13)(ioredis@5.8.2)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(@reown/walletkit@1.4.1(bufferutil@4.0.9)(ioredis@5.8.2)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(@types/react@19.2.2)(@walletconnect/modal@2.7.0(@types/react@19.2.2)(react@18.3.1))(ansi-regex@6.2.2)(ansi-styles@6.2.3)(bn.js@5.2.2)(bufferutil@4.0.9)(debug@4.4.3)(encoding@0.1.13)(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(ioredis@5.8.2)(protobufjs@7.5.4)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.2.2)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1)(strip-ansi@7.1.2)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
-      '@hiero-did-sdk/registrar':
-        specifier: 0.1.8
-        version: 0.1.8(bn.js@5.2.2)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.2.2)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))
-      '@hiero-did-sdk/resolver':
-        specifier: 0.1.8
-        version: 0.1.8(bn.js@5.2.2)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.2.2)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))
       '@kiloscribe/inscription-sdk':
         specifier: 2.0.10-canary.9
         version: 2.0.10-canary.9(@hashgraph/sdk@2.78.0(bn.js@5.2.2)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.2.2)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)))(@reown/appkit-controllers@1.8.17(@types/react@19.2.2)(bufferutil@4.0.9)(encoding@0.1.13)(ioredis@5.8.2)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(@reown/appkit@1.8.17(@types/react@19.2.2)(bufferutil@4.0.9)(debug@4.4.3)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(ioredis@5.8.2)(react@18.3.1)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76))(@reown/walletkit@1.4.1(bufferutil@4.0.9)(ioredis@5.8.2)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(@walletconnect/modal@2.7.0(@types/react@19.2.2)(react@18.3.1))(bufferutil@4.0.9)(debug@4.4.3)(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(utf-8-validate@5.0.10)
@@ -88,6 +82,12 @@ importers:
       '@hashgraphonline/conversational-agent':
         specifier: 0.2.104
         version: 0.2.104(f72375056fc4d4f7d99d9150fba0b25e)
+      '@hiero-did-sdk/registrar':
+        specifier: 0.1.8
+        version: 0.1.8(bn.js@5.2.2)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.2.2)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))
+      '@hiero-did-sdk/resolver':
+        specifier: 0.1.8
+        version: 0.1.8(bn.js@5.2.2)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.2.2)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))
       '@swc/jest':
         specifier: ^0.2.39
         version: 0.2.39(@swc/core@1.14.0(@swc/helpers@0.5.17))

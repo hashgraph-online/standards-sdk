@@ -113,10 +113,6 @@ export class ResolverRegistry {
       return null;
     }
 
-    if (parsed.method !== 'uaid') {
-      return null;
-    }
-
     const src = parsed.params['src'];
     if (src) {
       try {

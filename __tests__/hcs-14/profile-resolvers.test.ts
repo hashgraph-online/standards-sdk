@@ -140,6 +140,47 @@ describe('HCS-14 profile resolver behaviors', () => {
     expect(profile?.error?.code).toBe('ERR_ENDPOINT_INVALID');
   });
 
+  it('marks aid-dns-web verification as cryptographic when only cryptographic verification is configured', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AidDnsWebProfileResolver, AID_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/aid-dns-web-profile'
+    );
+
+    let cryptographicVerifierCalls = 0;
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(
+      new AidDnsWebProfileResolver({
+        dnsLookup: async hostname => {
+          if (hostname === '_agent.agent.example.com') {
+            return [
+              'v=aid1; p=a2a; u=https://agent.example.com; k=ed25519:abc123; i=key-1',
+            ];
+          }
+          return [];
+        },
+        cryptographicVerifier: async () => {
+          cryptographicVerifierCalls += 1;
+          return true;
+        },
+      }),
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=support;proto=a2a;nativeId=agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: AID_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(cryptographicVerifierCalls).toBe(1);
+    expect(profile?.metadata?.verificationLevel).toBe('cryptographic');
+    expect(profile?.metadata?.verification).toEqual({
+      level: 'cryptographic',
+      method: 'aid-pka',
+    });
+  });
+
   it('implements hcs-14.profile.uaid-dns-web with deterministic UAID reconstruction', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'

@@ -243,9 +243,7 @@ export class AidDnsWebProfileResolver implements UaidProfileResolver {
           { dnsName },
         );
       }
-      if (verificationLevel === 'metadata') {
-        verificationLevel = 'cryptographic';
-      }
+      verificationLevel = 'cryptographic';
     }
 
     const did = context.did ?? undefined;

@@ -224,7 +224,7 @@ export const loadSkillFiles = async (
 ): Promise<SkillRegistryFileInput[]> => {
   const entries = await readdir(skillDir);
   const files: SkillRegistryFileInput[] = [];
-  let skillMarkdown: Buffer | null = null;
+  let skillMarkdown: Buffer | undefined;
 
   for (const entry of entries) {
     if (entry.startsWith('.')) {
@@ -250,17 +250,13 @@ export const loadSkillFiles = async (
   }
 
   const names = new Set(files.map(file => file.name));
-  if (!names.has('SKILL.md')) {
+  if (!skillMarkdown || !names.has('SKILL.md')) {
     throw new Error(`Missing SKILL.md in ${skillDir}`);
   }
   if (!names.has('skill.json')) {
-    const synthesizedSkillMarkdown = skillMarkdown;
-    if (!synthesizedSkillMarkdown) {
-      throw new Error(`Missing skill.json in ${skillDir}`);
-    }
     const synthesizedSkillJson = synthesizeSkillJson({
       skillDir,
-      skillMarkdown: synthesizedSkillMarkdown,
+      skillMarkdown,
       overrides,
     });
     files.push({

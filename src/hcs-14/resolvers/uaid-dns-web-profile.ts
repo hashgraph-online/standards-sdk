@@ -144,10 +144,6 @@ function selectFollowupProfiles(target: 'aid' | 'did'): string[] {
   return [UAID_DID_RESOLUTION_PROFILE_ID];
 }
 
-function dedupe(values: string[]): string[] {
-  return [...new Set(values)];
-}
-
 export class UaidDnsWebProfileResolver implements UaidProfileResolver {
   readonly profile = UAID_DNS_WEB_PROFILE_ID;
 
@@ -298,7 +294,7 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
     }
 
     const did = selected.did ?? context.did ?? undefined;
-    const alsoKnownAs = did ? dedupe([did]) : undefined;
+    const alsoKnownAs = did ? [did] : undefined;
 
     return {
       id: uaid,
