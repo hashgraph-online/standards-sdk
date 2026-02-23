@@ -109,7 +109,7 @@ jobs:
           tag_version=""
           if [ -n "$latest_tag" ]; then
             tag_version="${latest_tag#v}"
-            base_version="$(max_stable "$base_version" "$tag_version")"
+            base_version="$(max_stable_version "$base_version" "$tag_version")"
           fi
 
           exists_pkg() {
