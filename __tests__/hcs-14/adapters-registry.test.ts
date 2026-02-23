@@ -219,6 +219,40 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
     ).toBe(1);
   });
 
+  it('deprecated register keeps explicit did-resolver capability for mixed resolvers', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const registry = new ResolverRegistry();
+
+    const mixedResolver: import('../../src/hcs-14/resolvers/types').DidResolver &
+      import('../../src/hcs-14/resolvers/types').DidProfileResolver = {
+      meta: { id: 'mixed/resolver', didMethods: ['hedera'] },
+      supports(did: string) {
+        return did.startsWith('did:hedera:');
+      },
+      async resolve(did: string) {
+        return { id: did };
+      },
+      async resolveProfile(did: string) {
+        return { id: did, did };
+      },
+    };
+
+    registry.register(mixedResolver);
+    expect(registry.list().length).toBe(1);
+    expect(registry.listProfileResolvers().length).toBe(0);
+    expect(registry.listAdapters()[0].capability).toBe('did-resolver');
+    await expect(
+      registry.resolveDid('did:hedera:testnet:0.0.123'),
+    ).resolves.toEqual({ id: 'did:hedera:testnet:0.0.123' });
+
+    const secondRegistry = new ResolverRegistry();
+    expect(() => {
+      secondRegistry.registerAdapter(mixedResolver);
+    }).toThrow('matches multiple resolver capabilities');
+  });
+
   it('HCS14Client adapter methods surface all supported profile resolvers', async () => {
     const {
       HCS14Client,

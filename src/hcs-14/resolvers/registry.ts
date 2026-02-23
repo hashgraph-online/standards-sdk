@@ -46,29 +46,54 @@ export class ResolverRegistry {
     );
   }
 
+  private addDidResolver(adapter: DidResolver): void {
+    this.resolvers.push(adapter);
+    this.adapters.push({
+      capability: 'did-resolver',
+      adapter,
+    });
+  }
+
+  private addDidProfileResolver(adapter: DidProfileResolver): void {
+    this.profileResolvers.push(adapter);
+    this.adapters.push({
+      capability: 'did-profile-resolver',
+      adapter,
+    });
+  }
+
+  private addUaidProfileResolver(adapter: UaidProfileResolver): void {
+    this.uaidProfileResolvers.push(adapter);
+    this.adapters.push({
+      capability: 'uaid-profile-resolver',
+      adapter,
+    });
+  }
+
   registerAdapter(adapter: ResolverAdapter): void {
-    if (isUaidProfileResolverAdapter(adapter)) {
-      this.uaidProfileResolvers.push(adapter);
-      this.adapters.push({
-        capability: 'uaid-profile-resolver',
-        adapter,
-      });
+    const isUaidProfile = isUaidProfileResolverAdapter(adapter);
+    const isDidProfile = isDidProfileResolverAdapter(adapter);
+    const isDid = isDidResolverAdapter(adapter);
+    const capabilityMatchCount = [isUaidProfile, isDidProfile, isDid].filter(
+      Boolean,
+    ).length;
+
+    if (capabilityMatchCount > 1) {
+      throw new Error(
+        'Adapter matches multiple resolver capabilities. Use an explicit deprecated register method for compatibility.',
+      );
+    }
+
+    if (isUaidProfile) {
+      this.addUaidProfileResolver(adapter);
       return;
     }
-    if (isDidProfileResolverAdapter(adapter)) {
-      this.profileResolvers.push(adapter);
-      this.adapters.push({
-        capability: 'did-profile-resolver',
-        adapter,
-      });
+    if (isDidProfile) {
+      this.addDidProfileResolver(adapter);
       return;
     }
-    if (isDidResolverAdapter(adapter)) {
-      this.resolvers.push(adapter);
-      this.adapters.push({
-        capability: 'did-resolver',
-        adapter,
-      });
+    if (isDid) {
+      this.addDidResolver(adapter);
       return;
     }
     throw new Error('Adapter does not match a supported resolver capability.');
@@ -121,17 +146,17 @@ export class ResolverRegistry {
 
   /** @deprecated Use registerAdapter() instead. */
   register(resolver: DidResolver): void {
-    this.registerAdapter(resolver);
+    this.addDidResolver(resolver);
   }
 
   /** @deprecated Use registerAdapter() instead. */
   registerProfileResolver(resolver: DidProfileResolver): void {
-    this.registerAdapter(resolver);
+    this.addDidProfileResolver(resolver);
   }
 
   /** @deprecated Use registerAdapter() instead. */
   registerUaidProfileResolver(resolver: UaidProfileResolver): void {
-    this.registerAdapter(resolver);
+    this.addUaidProfileResolver(resolver);
   }
 
   /** @deprecated Use filterAdapters({ capability: 'did-resolver' }) instead. */
