@@ -181,6 +181,95 @@ describe('HCS-14 profile resolver behaviors', () => {
     });
   });
 
+  it('implements hcs-14.profile.ans-dns-web with DNS + agent card endpoint selection', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup: async hostname => {
+          if (hostname === '_ans.support-agent.example.com') {
+            return [
+              'v=ans1; url=https://support-agent.example.com/agent-card.json',
+            ];
+          }
+          return [];
+        },
+        fetchJson: async _url => {
+          return {
+            ansName: 'ans://v1.0.0.support-agent.example.com',
+            endpoints: {
+              a2a: { url: 'https://support-agent.example.com/a2a' },
+              mcp: { url: 'https://support-agent.example.com/mcp' },
+            },
+          };
+        },
+      }),
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=ans://v1.0.0.support-agent.example.com;registry=ans;proto=a2a;nativeId=support-agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.profile).toBe(ANS_DNS_WEB_PROFILE_ID);
+    expect(profile?.metadata?.resolved).toBe(true);
+    expect(profile?.metadata?.protocol).toBe('a2a');
+    expect(profile?.metadata?.endpoint).toBe(
+      'https://support-agent.example.com/a2a',
+    );
+    expect(profile?.metadata?.agentCardUrl).toBe(
+      'https://support-agent.example.com/agent-card.json',
+    );
+    expect(profile?.service?.[0].type).toBe('ANSService');
+  });
+
+  it('returns ERR_ENDPOINT_NOT_ANCHORED when ans-dns-web endpoint host does not match nativeId', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup: async hostname => {
+          if (hostname === '_ans.support-agent.example.com') {
+            return [
+              'v=ans1; url=https://support-agent.example.com/agent-card.json',
+            ];
+          }
+          return [];
+        },
+        fetchJson: async _url => {
+          return {
+            ansName: 'ans://v1.0.0.support-agent.example.com',
+            endpoints: {
+              a2a: { url: 'https://other-host.example.net/a2a' },
+            },
+          };
+        },
+      }),
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=ans://v1.0.0.support-agent.example.com;registry=ans;proto=a2a;nativeId=support-agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.resolved).toBe(false);
+    expect(profile?.error?.code).toBe('ERR_ENDPOINT_NOT_ANCHORED');
+  });
+
   it('implements hcs-14.profile.uaid-dns-web with deterministic UAID reconstruction', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
@@ -264,6 +353,68 @@ describe('HCS-14 profile resolver behaviors', () => {
       'https://agent.example.com/endpoint',
     );
     expect(profile?.service?.[0].type).toBe('AIDService');
+  });
+
+  it('uaid-dns-web performs follow-up full resolution through ans-dns-web for registry=ans identifiers', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { UaidDnsWebProfileResolver, UAID_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/uaid-dns-web-profile'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=ans://v1.0.0.support-agent.example.com;registry=ans;proto=a2a;nativeId=support-agent.example.com';
+
+    const dnsLookup = async (hostname: string): Promise<string[]> => {
+      if (hostname === '_uaid.support-agent.example.com') {
+        return [
+          'target=aid; id=QmAid123; uid=ans://v1.0.0.support-agent.example.com; registry=ans; proto=a2a; nativeId=support-agent.example.com',
+        ];
+      }
+      if (hostname === '_ans.support-agent.example.com') {
+        return [
+          'v=ans1; url=https://support-agent.example.com/agent-card.json',
+        ];
+      }
+      return [];
+    };
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(
+      new UaidDnsWebProfileResolver({ dnsLookup }),
+    );
+    registry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup,
+        fetchJson: async _url => {
+          return {
+            ansName: 'ans://v1.0.0.support-agent.example.com',
+            endpoints: {
+              a2a: { url: 'https://support-agent.example.com/a2a' },
+            },
+          };
+        },
+      }),
+    );
+
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: UAID_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.profile).toBe(UAID_DNS_WEB_PROFILE_ID);
+    expect(profile?.metadata?.resolved).toBe(true);
+    expect(profile?.metadata?.resolutionMode).toBe('full-resolution');
+    expect(profile?.metadata?.selectedFollowupProfile).toBe(
+      ANS_DNS_WEB_PROFILE_ID,
+    );
+    expect(profile?.metadata?.endpoint).toBe(
+      'https://support-agent.example.com/a2a',
+    );
+    expect(profile?.service?.[0].type).toBe('ANSService');
   });
 
   it('uaid-dns-web returns ERR_UAID_MISMATCH when TXT fields do not match UAID', async () => {

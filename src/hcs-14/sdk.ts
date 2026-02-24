@@ -34,6 +34,10 @@ import {
   type AidDnsWebResolverOptions,
 } from './resolvers/aid-dns-web-profile';
 import {
+  AnsDnsWebProfileResolver,
+  type AnsDnsWebResolverOptions,
+} from './resolvers/ans-dns-web-profile';
+import {
   UaidDnsWebProfileResolver,
   type UaidDnsWebResolverOptions,
 } from './resolvers/uaid-dns-web-profile';
@@ -80,6 +84,7 @@ export class HCS14Client {
     this.registerHederaIssuer();
     this.registerHederaResolver();
     this.registerUaidDnsWebProfileResolver();
+    this.registerAnsDnsWebProfileResolver();
     this.registerAidDnsWebProfileResolver();
     this.registerUaidDidResolutionProfileResolver();
     this.registerHcs11ProfileResolver();
@@ -163,6 +168,33 @@ export class HCS14Client {
     return this.registry.listAdapters();
   }
 
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & { capability: 'did-resolver' },
+  ): ReadonlyArray<
+    Extract<ResolverAdapterRecord, { capability: 'did-resolver' }>
+  >;
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & {
+      capability: 'did-profile-resolver';
+    },
+  ): ReadonlyArray<
+    Extract<ResolverAdapterRecord, { capability: 'did-profile-resolver' }>
+  >;
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & {
+      capability: 'uaid-profile-resolver';
+    },
+  ): ReadonlyArray<
+    Extract<ResolverAdapterRecord, { capability: 'uaid-profile-resolver' }>
+  >;
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & {
+      profileId: string;
+      capability?: undefined;
+    },
+  ): ReadonlyArray<
+    Extract<ResolverAdapterRecord, { capability: 'uaid-profile-resolver' }>
+  >;
   filterAdapters(
     options: ResolverAdapterFilterOptions = {},
   ): ReadonlyArray<ResolverAdapterRecord> {
@@ -290,6 +322,10 @@ export class HCS14Client {
 
   registerAidDnsWebProfileResolver(options?: AidDnsWebResolverOptions): void {
     this.registry.registerAdapter(new AidDnsWebProfileResolver(options));
+  }
+
+  registerAnsDnsWebProfileResolver(options?: AnsDnsWebResolverOptions): void {
+    this.registry.registerAdapter(new AnsDnsWebProfileResolver(options));
   }
 
   registerUaidDnsWebProfileResolver(options?: UaidDnsWebResolverOptions): void {

@@ -52,6 +52,7 @@ export interface DidDocumentMinimal {
 }
 
 export interface DidResolver {
+  readonly adapterKind?: 'did-resolver';
   supports(did: string): boolean;
   resolve(did: string): Promise<DidDocumentMinimal | null>;
   meta?: AdapterMeta;
@@ -86,6 +87,31 @@ export interface ProfileResolutionServiceSources {
   derivedFromUaidParameters?: boolean;
 }
 
+export interface ProfileResolutionHcs27TransparencyHints {
+  checkpointTopicId: string;
+  registry: string;
+  logId: string;
+  checkpointUri?: string;
+  viewerUri?: string;
+}
+
+export interface ProfileResolutionHcs28TransparencyHints {
+  directoryTopicId: string;
+  tId: string;
+  agentId: string;
+  proofProfile?: string;
+}
+
+export interface ProfileResolutionTransparencyHints {
+  hcs27?: ProfileResolutionHcs27TransparencyHints;
+  hcs28?: ProfileResolutionHcs28TransparencyHints;
+}
+
+export interface ProfileResolutionTransparencyVerification {
+  attempted: boolean;
+  succeeded: boolean;
+}
+
 export interface ProfileResolutionMetadata {
   profile: string;
   resolved: boolean;
@@ -105,6 +131,9 @@ export interface ProfileResolutionMetadata {
   precedenceSource?: 'dns' | 'uaid' | 'did' | 'profile-policy';
   endpoint?: string;
   protocol?: string;
+  agentCardUrl?: string;
+  transparencyHints?: ProfileResolutionTransparencyHints;
+  transparencyVerification?: ProfileResolutionTransparencyVerification;
 }
 
 export interface ProfileResolutionError {
@@ -127,6 +156,7 @@ export interface DidProfileResolverContext {
 }
 
 export interface DidProfileResolver {
+  readonly adapterKind?: 'did-profile-resolver';
   supports(did: string): boolean;
   resolveProfile(
     did: string,
@@ -151,6 +181,7 @@ export interface UaidProfileResolverContext {
 }
 
 export interface UaidProfileResolver {
+  readonly adapterKind?: 'uaid-profile-resolver';
   readonly profile: string;
   supports(uaid: string, parsed: ParsedHcs14Did): boolean;
   resolveProfile(
@@ -165,54 +196,114 @@ export type ResolverAdapter =
   | DidProfileResolver
   | UaidProfileResolver;
 
-export interface ResolverAdapterRecord {
-  capability: ResolverAdapterCapability;
-  adapter: ResolverAdapter;
-}
+export type ResolverAdapterRecord =
+  | {
+      capability: 'did-resolver';
+      adapter: DidResolver;
+    }
+  | {
+      capability: 'did-profile-resolver';
+      adapter: DidProfileResolver;
+    }
+  | {
+      capability: 'uaid-profile-resolver';
+      adapter: UaidProfileResolver;
+    };
 
 export interface ResolverAdapterFilterOptions {
   capability?: ResolverAdapterCapability;
   didMethod?: string;
   /**
-   * Only valid when capability is 'uaid-profile-resolver'.
+   * When provided without capability, capability is treated as 'uaid-profile-resolver'.
+   * Throws when combined with any non-UAID capability.
    */
   profileId?: string;
+}
+
+function isAdapterObject(
+  adapter: ResolverAdapter,
+): adapter is ResolverAdapter & Record<string, unknown> {
+  return typeof adapter === 'object' && adapter !== null;
+}
+
+function declaredAdapterKind(
+  adapter: ResolverAdapter,
+): ResolverAdapterCapability | undefined {
+  if (!isAdapterObject(adapter)) {
+    return undefined;
+  }
+  const adapterKind = adapter.adapterKind;
+  if (
+    adapterKind === 'did-resolver' ||
+    adapterKind === 'did-profile-resolver' ||
+    adapterKind === 'uaid-profile-resolver'
+  ) {
+    return adapterKind;
+  }
+  return undefined;
+}
+
+function hasStringProfile(adapter: ResolverAdapter): boolean {
+  return (
+    isAdapterObject(adapter) &&
+    'profile' in adapter &&
+    typeof adapter.profile === 'string'
+  );
+}
+
+function hasUaidSupportsShape(adapter: ResolverAdapter): boolean {
+  if (!isAdapterObject(adapter)) {
+    return false;
+  }
+  if (!('supports' in adapter) || typeof adapter.supports !== 'function') {
+    return false;
+  }
+  return adapter.supports.length >= 2;
 }
 
 export function isUaidProfileResolverAdapter(
   adapter: ResolverAdapter,
 ): adapter is UaidProfileResolver {
+  const declaredKind = declaredAdapterKind(adapter);
+  if (declaredKind !== undefined) {
+    return declaredKind === 'uaid-profile-resolver';
+  }
+
   return (
-    typeof adapter === 'object' &&
-    adapter !== null &&
-    'profile' in adapter &&
-    typeof adapter.profile === 'string'
+    hasStringProfile(adapter) &&
+    isAdapterObject(adapter) &&
+    'resolveProfile' in adapter &&
+    typeof adapter.resolveProfile === 'function' &&
+    hasUaidSupportsShape(adapter)
   );
 }
 
 export function isDidProfileResolverAdapter(
   adapter: ResolverAdapter,
 ): adapter is DidProfileResolver {
-  const hasStringProfile =
-    typeof adapter === 'object' &&
-    adapter !== null &&
-    'profile' in adapter &&
-    typeof adapter.profile === 'string';
+  const declaredKind = declaredAdapterKind(adapter);
+  if (declaredKind !== undefined) {
+    return declaredKind === 'did-profile-resolver';
+  }
+
   return (
-    typeof adapter === 'object' &&
-    adapter !== null &&
+    isAdapterObject(adapter) &&
     'resolveProfile' in adapter &&
     typeof adapter.resolveProfile === 'function' &&
-    !hasStringProfile
+    !hasStringProfile(adapter)
   );
 }
 
 export function isDidResolverAdapter(
   adapter: ResolverAdapter,
 ): adapter is DidResolver {
+  const declaredKind = declaredAdapterKind(adapter);
+  if (declaredKind !== undefined) {
+    return declaredKind === 'did-resolver';
+  }
+
   return (
-    typeof adapter === 'object' &&
-    adapter !== null &&
+    isAdapterObject(adapter) &&
     'resolve' in adapter &&
     typeof adapter.resolve === 'function'
   );

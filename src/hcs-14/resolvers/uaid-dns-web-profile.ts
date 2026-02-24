@@ -14,6 +14,7 @@ import {
   uaidTargetFromParsed,
 } from './profile-utils';
 import { AID_DNS_WEB_PROFILE_ID } from './aid-dns-web-profile';
+import { ANS_DNS_WEB_PROFILE_ID } from './ans-dns-web-profile';
 import { UAID_DID_RESOLUTION_PROFILE_ID } from './uaid-did-resolution-profile';
 
 export const UAID_DNS_WEB_PROFILE_ID = 'hcs-14.profile.uaid-dns-web';
@@ -137,14 +138,21 @@ function validateRecordFields(
   };
 }
 
-function selectFollowupProfiles(target: 'aid' | 'did'): string[] {
+function selectFollowupProfiles(
+  parsed: UaidProfileResolverContext['parsedUaid'],
+): string[] {
+  const target = uaidTargetFromParsed(parsed);
   if (target === 'aid') {
+    if (parsed.params['registry'] === 'ans') {
+      return [ANS_DNS_WEB_PROFILE_ID, AID_DNS_WEB_PROFILE_ID];
+    }
     return [AID_DNS_WEB_PROFILE_ID];
   }
   return [UAID_DID_RESOLUTION_PROFILE_ID];
 }
 
 export class UaidDnsWebProfileResolver implements UaidProfileResolver {
+  readonly adapterKind: 'uaid-profile-resolver' = 'uaid-profile-resolver';
   readonly profile = UAID_DNS_WEB_PROFILE_ID;
 
   readonly meta: AdapterMeta = {
@@ -249,7 +257,7 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
       : 'dns-binding';
 
     if (this.enableFollowupResolution) {
-      const followupProfiles = selectFollowupProfiles(selected.target);
+      const followupProfiles = selectFollowupProfiles(parsed);
       for (const followupProfileId of followupProfiles) {
         const followup = await context.resolveUaidProfileById(
           followupProfileId,
