@@ -487,6 +487,105 @@ describe('HCS-14 profile resolver behaviors', () => {
     expect(profile?.error?.code).toBe('ERR_VERSION_MISMATCH');
   });
 
+  it('returns ERR_INVALID_ANS_RECORD when ANS TXT version is malformed', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup: async hostname => {
+          if (hostname === '_ans.support-agent.example.com') {
+            return [
+              'v=ans1; version=not-a-semver; url=https://support-agent.example.com/agent-card.json',
+            ];
+          }
+          return [];
+        },
+        fetchJson: async _url => {
+          return {
+            ansName: 'ans://v1.0.0.support-agent.example.com',
+            endpoints: {
+              a2a: { url: 'https://support-agent.example.com/a2a' },
+            },
+          };
+        },
+      }),
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=ans://v1.0.0.support-agent.example.com;registry=ans;proto=a2a;nativeId=support-agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.resolved).toBe(false);
+    expect(profile?.error?.code).toBe('ERR_INVALID_ANS_RECORD');
+  });
+
+  it('does not accept non-TLS ANS endpoint schemes unless explicitly configured', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=ans://v1.0.0.support-agent.example.com;registry=ans;proto=a2a;nativeId=support-agent.example.com';
+
+    const dnsLookup = async (hostname: string): Promise<string[]> => {
+      if (hostname === '_ans.support-agent.example.com') {
+        return [
+          'v=ans1; version=v1.0.0; url=https://support-agent.example.com/agent-card.json',
+        ];
+      }
+      return [];
+    };
+
+    const insecureCard = {
+      ansName: 'ans://v1.0.0.support-agent.example.com',
+      endpoints: {
+        a2a: { url: 'http://support-agent.example.com/a2a' },
+      },
+    };
+
+    const defaultRegistry = new ResolverRegistry();
+    defaultRegistry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup,
+        fetchJson: async _url => insecureCard,
+      }),
+    );
+
+    const defaultProfile = await defaultRegistry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+    expect(defaultProfile?.metadata?.resolved).toBe(false);
+    expect(defaultProfile?.error?.code).toBe('ERR_ENDPOINT_NOT_ANCHORED');
+
+    const optInRegistry = new ResolverRegistry();
+    optInRegistry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup,
+        fetchJson: async _url => insecureCard,
+        supportedUriSchemes: ['https', 'wss', 'http', 'ws'],
+      }),
+    );
+
+    const optInProfile = await optInRegistry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+    expect(optInProfile?.metadata?.resolved).toBe(true);
+    expect(optInProfile?.metadata?.endpoint).toBe(
+      'http://support-agent.example.com/a2a',
+    );
+  });
+
   it('ans-dns-web deterministically selects the lexicographically smallest DNS url when multiple records are valid', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'

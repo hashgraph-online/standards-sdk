@@ -82,10 +82,14 @@ export function parseAnsDnsTxtRecord(
   }
 
   const rawAnsVersion = fields['version'];
-  const normalizedAnsVersion =
-    rawAnsVersion === undefined
-      ? undefined
-      : (normalizeAnsVersion(rawAnsVersion) ?? undefined);
+  let normalizedAnsVersion: string | undefined;
+  if (rawAnsVersion !== undefined) {
+    const parsedVersion = normalizeAnsVersion(rawAnsVersion);
+    if (!parsedVersion) {
+      return null;
+    }
+    normalizedAnsVersion = parsedVersion;
+  }
 
   return {
     version: normalizedAnsVersion,

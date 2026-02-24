@@ -114,8 +114,8 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     this.dnsLookup = options.dnsLookup ?? nodeDnsTxtLookup;
     this.fetchJson = options.fetchJson ?? defaultFetchJson;
     this.supportedSchemes = new Set(
-      (options.supportedUriSchemes ?? ['https', 'http', 'wss', 'ws']).map(
-        scheme => scheme.toLowerCase(),
+      (options.supportedUriSchemes ?? ['https', 'wss']).map(scheme =>
+        scheme.toLowerCase(),
       ),
     );
     this.transparencyVerifier = options.transparencyVerifier;
