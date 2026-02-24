@@ -221,18 +221,24 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
       const recordsWithVersion = validTxtRecords.filter(record => {
         return record.version !== undefined;
       });
-      if (recordsWithVersion.length > 0) {
-        matchingVersionRecords = recordsWithVersion.filter(record => {
-          return record.version === normalizedUaidVersion;
-        });
-        if (matchingVersionRecords.length === 0) {
-          return buildErrorProfile(
-            uaid,
-            'ERR_VERSION_MISMATCH',
-            'UAID version does not match ANS DNS TXT record version.',
-            { dnsName, uaidVersion: normalizedUaidVersion },
-          );
-        }
+      if (recordsWithVersion.length === 0) {
+        return buildErrorProfile(
+          uaid,
+          'ERR_VERSION_MISMATCH',
+          'UAID specifies a version but no ANS DNS TXT record carries a version field.',
+          { dnsName, uaidVersion: normalizedUaidVersion },
+        );
+      }
+      matchingVersionRecords = recordsWithVersion.filter(record => {
+        return record.version === normalizedUaidVersion;
+      });
+      if (matchingVersionRecords.length === 0) {
+        return buildErrorProfile(
+          uaid,
+          'ERR_VERSION_MISMATCH',
+          'UAID version does not match ANS DNS TXT record version.',
+          { dnsName, uaidVersion: normalizedUaidVersion },
+        );
       }
     }
 

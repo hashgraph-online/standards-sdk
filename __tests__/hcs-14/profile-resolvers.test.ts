@@ -635,7 +635,7 @@ describe('HCS-14 profile resolver behaviors', () => {
     );
   });
 
-  it('does not fail version matching when ANS TXT records omit version', async () => {
+  it('returns ERR_VERSION_MISMATCH when UAID requests version and ANS TXT records omit version', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
@@ -669,10 +669,8 @@ describe('HCS-14 profile resolver behaviors', () => {
       profileId: ANS_DNS_WEB_PROFILE_ID,
     });
 
-    expect(profile?.metadata?.resolved).toBe(true);
-    expect(profile?.metadata?.endpoint).toBe(
-      'https://support-agent.example.com/a2a',
-    );
+    expect(profile?.metadata?.resolved).toBe(false);
+    expect(profile?.error?.code).toBe('ERR_VERSION_MISMATCH');
   });
 
   it('implements hcs-14.profile.uaid-dns-web with deterministic UAID reconstruction', async () => {
