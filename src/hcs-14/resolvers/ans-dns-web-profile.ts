@@ -14,6 +14,7 @@ import {
   parseAnsAgentCard,
   extractEndpointCandidates,
   selectPreferredEndpoint,
+  isValidAnsProfileVersion,
   toErrorMessage,
 } from './ans-dns-web-profile-utils';
 
@@ -37,6 +38,8 @@ export interface AnsDnsWebResolverOptions {
   supportedUriSchemes?: string[];
   transparencyVerifier?: AnsTransparencyVerifier;
 }
+
+const UAID_UNSPECIFIED_PARAM_VALUE = '0';
 
 function buildErrorProfile(
   uaid: string,
@@ -77,6 +80,16 @@ async function defaultFetchJson(url: string): Promise<unknown> {
     );
   }
   return response.json();
+}
+
+function isUnspecifiedUaidParamValue(value: string | undefined): boolean {
+  return !value || value === UAID_UNSPECIFIED_PARAM_VALUE;
+}
+
+function selectDeterministicAnsDnsRecord(
+  records: AnsDnsTxtRecord[],
+): AnsDnsTxtRecord {
+  return [...records].sort((a, b) => a.url.localeCompare(b.url))[0];
 }
 
 export class AnsDnsWebProfileResolver implements UaidProfileResolver {
@@ -126,6 +139,21 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     context: UaidProfileResolverContext,
   ): Promise<DidResolutionProfile | null> {
     const parsed = context.parsedUaid;
+    if (parsed.method !== 'aid') {
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'ANS profile only applies to uaid:aid identifiers.',
+      );
+    }
+    if (parsed.params['registry'] !== 'ans') {
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'ANS profile requires registry=ans.',
+      );
+    }
+
     const nativeId = parsed.params['nativeId'];
     if (!nativeId || !isFqdn(nativeId)) {
       return buildErrorProfile(
@@ -136,7 +164,7 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     }
 
     const uid = parsed.params['uid'];
-    if (!uid || uid === '0') {
+    if (isUnspecifiedUaidParamValue(uid)) {
       return buildErrorProfile(
         uaid,
         'ERR_NOT_APPLICABLE',
@@ -145,11 +173,19 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     }
 
     const protocol = parsed.params['proto'];
-    if (!protocol || protocol === '0') {
+    if (isUnspecifiedUaidParamValue(protocol)) {
       return buildErrorProfile(
         uaid,
-        'ERR_PROTOCOL_UNSPECIFIED',
+        'ERR_NOT_APPLICABLE',
         'ANS profile requires a usable proto parameter.',
+      );
+    }
+    const uaidVersion = parsed.params['version'];
+    if (uaidVersion !== undefined && !isValidAnsProfileVersion(uaidVersion)) {
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'ANS profile requires a valid v-prefixed semver version parameter.',
       );
     }
 
@@ -177,9 +213,24 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
       );
     }
 
-    const selectedRecord = [...validTxtRecords].sort((a, b) =>
-      a.url.localeCompare(b.url),
-    )[0];
+    const matchingVersionRecords =
+      uaidVersion === undefined
+        ? validTxtRecords
+        : validTxtRecords.filter(record => {
+            return record.version === uaidVersion;
+          });
+    if (uaidVersion !== undefined && matchingVersionRecords.length === 0) {
+      return buildErrorProfile(
+        uaid,
+        'ERR_VERSION_MISMATCH',
+        'UAID version does not match ANS DNS TXT record version.',
+        { dnsName, uaidVersion },
+      );
+    }
+
+    const selectedRecord = selectDeterministicAnsDnsRecord(
+      matchingVersionRecords,
+    );
 
     let agentCardPayload: unknown;
     try {
@@ -187,8 +238,8 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     } catch (error) {
       return buildErrorProfile(
         uaid,
-        'ERR_AGENT_CARD_INVALID',
-        'Agent Card retrieval failed.',
+        'ERR_METADATA_INVALID',
+        'Metadata document retrieval failed.',
         {
           agentCardUrl: selectedRecord.url,
           reason: toErrorMessage(error),
@@ -200,16 +251,16 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     if (!agentCard) {
       return buildErrorProfile(
         uaid,
-        'ERR_AGENT_CARD_INVALID',
-        'Agent Card is missing required fields.',
+        'ERR_METADATA_INVALID',
+        'Metadata document is missing required fields.',
         { agentCardUrl: selectedRecord.url },
       );
     }
     if (agentCard.ansName !== uid) {
       return buildErrorProfile(
         uaid,
-        'ERR_AGENT_CARD_INVALID',
-        'Agent Card ansName does not match UAID uid.',
+        'ERR_METADATA_INVALID',
+        'Metadata document ansName does not match UAID uid.',
         {
           expectedUid: uid,
           actualAnsName: agentCard.ansName,
@@ -306,6 +357,7 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
         },
         verificationLevel,
         agentCardUrl: selectedRecord.url,
+        dnsRecordSelection: 'lexicographically-smallest-url',
         transparencyHints: agentCard.transparencyHints,
         transparencyVerification: {
           attempted: transparencyAttempted,

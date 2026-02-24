@@ -132,6 +132,7 @@ export interface ProfileResolutionMetadata {
   endpoint?: string;
   protocol?: string;
   agentCardUrl?: string;
+  dnsRecordSelection?: 'lexicographically-smallest-url';
   transparencyHints?: ProfileResolutionTransparencyHints;
   transparencyVerification?: ProfileResolutionTransparencyVerification;
 }
@@ -255,10 +256,7 @@ function hasUaidSupportsShape(adapter: ResolverAdapter): boolean {
   if (!isAdapterObject(adapter)) {
     return false;
   }
-  if (!('supports' in adapter) || typeof adapter.supports !== 'function') {
-    return false;
-  }
-  return adapter.supports.length >= 2;
+  return 'supports' in adapter && typeof adapter.supports === 'function';
 }
 
 export function isUaidProfileResolverAdapter(

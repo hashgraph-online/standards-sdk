@@ -144,9 +144,6 @@ describe('HCS-14 adapters: issuers/resolvers registries and client helpers', () 
     });
     expect(uaidProfileResolvers.length).toBe(1);
     const uaidAdapterRecord = uaidProfileResolvers[0];
-    if (uaidAdapterRecord.capability !== 'uaid-profile-resolver') {
-      throw new Error('Expected uaid-profile-resolver capability.');
-    }
     expect(uaidAdapterRecord.adapter.profile).toBe(
       'hcs-14.profile.aid-dns-web',
     );

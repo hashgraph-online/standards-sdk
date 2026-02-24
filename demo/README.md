@@ -42,6 +42,7 @@ The demo performs the following operations:
 All inscriptions are performed using the unified `inscribe` function with `waitForConfirmation: true`, which automatically waits for the inscription to be confirmed and returns the complete inscription data. This demonstrates how a single API can handle different types of content with different modes and provide immediate access to the inscribed data.
 
 The demo shows that any content type (text, URL, file, buffer) can be inscribed as a regular file inscription or as a Hashinal NFT by simply setting the `mode` option, and the response will include both the transaction result and the retrieved inscription data.
+
 ## HCS-14 Demos (Adapter-First)
 
 Environment variables (`.env` in the package root):
@@ -65,6 +66,7 @@ pnpm run demo:hcs-14:aid-generate
 pnpm run demo:hcs-14:hiero-issue-uaid
 pnpm run demo:hcs-14:issue-resolve
 pnpm run demo:hcs-14:resolve-profile
+pnpm run demo:hcs-14:resolve-ans-profile
 ```
 
 The HCS-14 demos now show the current DX:
@@ -74,5 +76,7 @@ The HCS-14 demos now show the current DX:
 - UAID profile resolution via `resolveUaidProfile`
 - explicit profile targeting for:
   - `hcs-14.profile.aid-dns-web`
+  - `hcs-14.profile.ans-dns-web`
   - `hcs-14.profile.uaid-dns-web`
   - `hcs-14.profile.uaid-did-resolution`
+- end-to-end ANS resolution using a local DNS TXT server + local HTTPS Agent Card server in `demo:hcs-14:resolve-ans-profile`

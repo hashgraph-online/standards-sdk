@@ -98,6 +98,7 @@
     "demo:hcs-14:hiero-issue-uaid": "tsx demo/hcs-14/hiero-issue-and-uaid.ts",
     "demo:hcs-14:issue-resolve": "tsx demo/hcs-14/issue-and-resolve-did.ts",
     "demo:hcs-14:resolve-profile": "tsx demo/hcs-14/resolve-did.ts",
+    "demo:hcs-14:resolve-ans-profile": "tsx demo/hcs-14/resolve-ans-profile.ts",
     "demo:hcs12": "tsx demo/hcs-12/hcs12-demo.ts",
     "demo:mcp-chat": "tsx demo/hcs-10/create-mcp.ts",
     "demo:hcs-2:create": "tsx demo/hcs-2/create-registry.ts",

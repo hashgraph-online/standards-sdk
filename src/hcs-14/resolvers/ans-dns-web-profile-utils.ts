@@ -6,6 +6,7 @@ import type {
 import { parseSemicolonFields } from './profile-utils';
 
 export interface AnsDnsTxtRecord {
+  version: string;
   url: string;
 }
 
@@ -20,6 +21,8 @@ export interface ParsedAnsAgentCard {
   endpoints: Record<string, unknown>;
   transparencyHints?: ProfileResolutionTransparencyHints;
 }
+
+const ANS_HCS27_REGISTRY = 'ans';
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -36,13 +39,26 @@ function asString(value: unknown): string | null {
   return trimmed;
 }
 
+function isPrefixedSemver(value: string): boolean {
+  return /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(
+    value,
+  );
+}
+
 export function parseAnsDnsTxtRecord(
   rawRecord: string,
 ): AnsDnsTxtRecord | null {
   const fields = parseSemicolonFields(rawRecord);
   const version = fields['v'];
+  const ansVersion = fields['version'];
   const urlValue = fields['url'];
-  if (!version || !urlValue || version.toLowerCase() !== 'ans1') {
+  if (
+    !version ||
+    !ansVersion ||
+    !urlValue ||
+    version.toLowerCase() !== 'ans1' ||
+    !isPrefixedSemver(ansVersion)
+  ) {
     return null;
   }
 
@@ -58,8 +74,13 @@ export function parseAnsDnsTxtRecord(
   }
 
   return {
+    version: ansVersion,
     url: parsedUrl.toString(),
   };
+}
+
+export function isValidAnsProfileVersion(value: string | undefined): boolean {
+  return !!value && isPrefixedSemver(value);
 }
 
 function hasProtocolPathSegment(pathname: string, protocol: string): boolean {
@@ -116,7 +137,7 @@ export function extractEndpointCandidates(
   return candidates;
 }
 
-function validateHcs27Hints(
+function validateAnsHcs27Hints(
   input: unknown,
 ): ProfileResolutionHcs27TransparencyHints | undefined {
   if (!isObjectRecord(input)) {
@@ -125,7 +146,12 @@ function validateHcs27Hints(
   const checkpointTopicId = asString(input['checkpoint_topic_id']);
   const registry = asString(input['registry']);
   const logId = asString(input['log_id']);
-  if (!checkpointTopicId || !registry || !logId || registry !== 'ans') {
+  if (
+    !checkpointTopicId ||
+    !registry ||
+    !logId ||
+    registry !== ANS_HCS27_REGISTRY
+  ) {
     return undefined;
   }
   const checkpointUri = asString(input['checkpoint_uri']) ?? undefined;
@@ -166,7 +192,7 @@ function parseTransparencyHints(
   if (!isObjectRecord(input)) {
     return undefined;
   }
-  const hcs27 = validateHcs27Hints(input['hcs27']);
+  const hcs27 = validateAnsHcs27Hints(input['hcs27']);
   const hcs28 = validateHcs28Hints(input['hcs28']);
   if (!hcs27 && !hcs28) {
     return undefined;

@@ -124,6 +124,7 @@ function verificationMethodForLevel(
 }
 
 export class AidDnsWebProfileResolver implements UaidProfileResolver {
+  readonly adapterKind: 'uaid-profile-resolver' = 'uaid-profile-resolver';
   readonly profile = AID_DNS_WEB_PROFILE_ID;
 
   readonly meta: AdapterMeta = {
@@ -167,19 +168,32 @@ export class AidDnsWebProfileResolver implements UaidProfileResolver {
   ): Promise<DidResolutionProfile | null> {
     const parsed = context.parsedUaid;
     if (parsed.method !== 'aid') {
-      return null;
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'AID DNS/Web profile only applies to uaid:aid identifiers.',
+      );
     }
 
     const nativeId = parsed.params['nativeId'];
     if (!nativeId || !isFqdn(nativeId)) {
-      return null;
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'AID DNS/Web profile requires an FQDN nativeId.',
+      );
     }
 
     const normalizedNativeId = normalizeDomain(nativeId);
     const dnsName = `_agent.${normalizedNativeId}`;
     const txtRecords = await this.dnsLookup(dnsName);
     if (txtRecords.length === 0) {
-      return null;
+      return buildErrorProfile(
+        uaid,
+        'ERR_NO_DNS_RECORD',
+        'No AID DNS TXT record was found for the requested nativeId.',
+        { dnsName },
+      );
     }
 
     const parsedRecords = txtRecords.map(record =>

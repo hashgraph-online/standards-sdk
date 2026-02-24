@@ -80,7 +80,7 @@ export class ResolverRegistry {
 
     if (capabilityMatchCount > 1) {
       throw new Error(
-        'Adapter matches multiple resolver capabilities. Use a specific deprecated method (register/registerProfileResolver/registerUaidProfileResolver) to register it under a single capability.',
+        'Adapter matches multiple resolver capabilities. Split it into single-capability adapters, or use register/registerProfileResolver/registerUaidProfileResolver to explicitly select one capability.',
       );
     }
 
@@ -104,10 +104,33 @@ export class ResolverRegistry {
   }
 
   filterAdapters(
+    options: ResolverAdapterFilterOptions & { capability: 'did-resolver' },
+  ): Extract<ResolverAdapterRecord, { capability: 'did-resolver' }>[];
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & {
+      capability: 'did-profile-resolver';
+    },
+  ): Extract<ResolverAdapterRecord, { capability: 'did-profile-resolver' }>[];
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & {
+      capability: 'uaid-profile-resolver';
+    },
+  ): Extract<ResolverAdapterRecord, { capability: 'uaid-profile-resolver' }>[];
+  filterAdapters(
+    options: ResolverAdapterFilterOptions & {
+      profileId: string;
+      capability?: undefined;
+    },
+  ): Extract<ResolverAdapterRecord, { capability: 'uaid-profile-resolver' }>[];
+  filterAdapters(
+    options?: ResolverAdapterFilterOptions,
+  ): ResolverAdapterRecord[];
+  filterAdapters(
     options: ResolverAdapterFilterOptions = {},
   ): ResolverAdapterRecord[] {
     if (
       options.profileId !== undefined &&
+      options.capability !== undefined &&
       options.capability !== 'uaid-profile-resolver'
     ) {
       throw new Error(
@@ -115,10 +138,14 @@ export class ResolverRegistry {
       );
     }
 
+    const effectiveCapability =
+      options.capability ??
+      (options.profileId !== undefined ? 'uaid-profile-resolver' : undefined);
+
     return this.adapters.filter(record => {
       if (
-        options.capability !== undefined &&
-        record.capability !== options.capability
+        effectiveCapability !== undefined &&
+        record.capability !== effectiveCapability
       ) {
         return false;
       }
@@ -132,7 +159,7 @@ export class ResolverRegistry {
         return false;
       }
       if (options.profileId !== undefined) {
-        if (!isUaidProfileResolverAdapter(record.adapter)) {
+        if (record.capability !== 'uaid-profile-resolver') {
           return false;
         }
         if (record.adapter.profile !== options.profileId) {
@@ -358,17 +385,19 @@ export class ResolverRegistry {
   ): Promise<DidResolutionProfile | null> {
     const did = this.deriveDidFromParsedUaid(parsed);
     const didDocument = did ? await this.resolveDid(did) : null;
-    const fallback = did
+    const fallback: DidResolutionProfile = did
       ? this.buildFallbackProfile(did, {
           uaid,
           parsedUaid: parsed,
           didDocument,
         })
-      : ({ id: uaid } as DidResolutionProfile);
+      : { id: uaid };
 
     const resolvers =
       options.profileId !== undefined
-        ? this.filterUaidProfileResolversByProfileId(options.profileId)
+        ? this.uaidProfileResolvers.filter(
+            resolver => resolver.profile === options.profileId,
+          )
         : this.uaidProfileResolvers;
 
     for (const resolver of resolvers) {
@@ -378,7 +407,8 @@ export class ResolverRegistry {
       ) {
         continue;
       }
-      if (!resolver.supports(uaid, parsed)) {
+      const isSupported = resolver.supports(uaid, parsed);
+      if (options.profileId === undefined && !isSupported) {
         continue;
       }
 
