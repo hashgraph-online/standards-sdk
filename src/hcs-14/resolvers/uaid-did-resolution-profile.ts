@@ -75,6 +75,7 @@ function dedupeAlsoKnownAs(baseDid: string, existing: string[] = []): string[] {
 }
 
 export class UaidDidResolutionProfileResolver implements UaidProfileResolver {
+  readonly adapterKind: 'uaid-profile-resolver' = 'uaid-profile-resolver';
   readonly profile = UAID_DID_RESOLUTION_PROFILE_ID;
 
   readonly meta: AdapterMeta = {
