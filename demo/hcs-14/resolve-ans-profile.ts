@@ -6,6 +6,7 @@ import {
   type Server as HttpsServer,
 } from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { connect as tlsConnect } from 'node:tls';
 import {
   ANS_DNS_WEB_PROFILE_ID,
   AnsDnsWebProfileResolver,
@@ -258,7 +259,7 @@ function createAgentCardFetcher(
 ): (url: string) => Promise<unknown> {
   return async (url: string): Promise<unknown> => {
     const parsedUrl = new URL(url);
-    const hostname =
+    const tlsHost =
       parsedUrl.hostname.toLowerCase() === nativeId
         ? LOOPBACK_IPV4
         : parsedUrl.hostname;
@@ -266,10 +267,18 @@ function createAgentCardFetcher(
       const request = httpsRequest(
         {
           method: 'GET',
-          hostname,
+          hostname: parsedUrl.hostname,
           path: `${parsedUrl.pathname}${parsedUrl.search}`,
           port: parsedUrl.port ? Number(parsedUrl.port) : 443,
-          rejectUnauthorized: false,
+          servername: parsedUrl.hostname,
+          ca: TLS_CERTIFICATE_PEM,
+          createConnection: options =>
+            tlsConnect({
+              ...options,
+              host: tlsHost,
+              servername: parsedUrl.hostname,
+              ca: TLS_CERTIFICATE_PEM,
+            }),
           headers: {
             accept: 'application/json',
           },

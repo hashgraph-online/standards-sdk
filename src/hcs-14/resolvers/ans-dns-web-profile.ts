@@ -241,6 +241,7 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
         'ERR_METADATA_INVALID',
         'Metadata document retrieval failed.',
         {
+          stage: 'fetch',
           agentCardUrl: selectedRecord.url,
           reason: toErrorMessage(error),
         },
@@ -253,7 +254,7 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
         uaid,
         'ERR_METADATA_INVALID',
         'Metadata document is missing required fields.',
-        { agentCardUrl: selectedRecord.url },
+        { stage: 'validate', agentCardUrl: selectedRecord.url },
       );
     }
     if (agentCard.ansName !== uid) {
@@ -262,6 +263,7 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
         'ERR_METADATA_INVALID',
         'Metadata document ansName does not match UAID uid.',
         {
+          stage: 'validate',
           expectedUid: uid,
           actualAnsName: agentCard.ansName,
         },
@@ -288,20 +290,9 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
       );
     }
 
-    const selectedEndpoint = selectPreferredEndpoint(
-      anchoredCandidates,
-      protocol,
-    );
-    if (!selectedEndpoint) {
-      return buildErrorProfile(
-        uaid,
-        'ERR_ENDPOINT_NOT_FOUND',
-        'Unable to select an endpoint for the requested protocol.',
-        {
-          protocol,
-        },
-      );
-    }
+    const selectedEndpoint =
+      selectPreferredEndpoint(anchoredCandidates, protocol) ??
+      anchoredCandidates[0]!;
 
     let transparencyAttempted = false;
     let transparencySucceeded = false;
