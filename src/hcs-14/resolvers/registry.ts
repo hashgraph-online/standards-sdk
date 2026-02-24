@@ -430,12 +430,13 @@ export class ResolverRegistry {
         continue;
       }
 
-      const shouldContinueAfterErrorProfile =
-        options.profileId === undefined &&
-        (resolved.error !== undefined || resolved.metadata?.resolved === false);
-
-      if (shouldContinueAfterErrorProfile) {
-        continue;
+      const isErrorProfile =
+        resolved.error !== undefined || resolved.metadata?.resolved === false;
+      if (isErrorProfile) {
+        if (options.profileId === undefined) {
+          continue;
+        }
+        return resolved;
       }
 
       return this.mergeResolvedProfile(fallback, resolved);

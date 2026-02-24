@@ -337,6 +337,60 @@ describe('HCS-14 profile resolver behaviors', () => {
     expect(profile?.error?.code).toBe('ERR_NOT_APPLICABLE');
   });
 
+  it('returns targeted uaid profile errors without merging DID fallback fields', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.register({
+      meta: { id: 'did/mock-hedera', didMethods: ['hedera'] },
+      supports(did: string) {
+        return did.startsWith('did:hedera:');
+      },
+      async resolve(did: string) {
+        return {
+          id: did,
+          verificationMethod: [
+            {
+              id: `${did}#key-1`,
+              type: 'Ed25519VerificationKey2020',
+              controller: did,
+              publicKeyMultibase: 'z6MkFallbackKey',
+            },
+          ],
+          authentication: [`${did}#key-1`],
+          service: [
+            {
+              id: `${did}#svc`,
+              type: 'LinkedDomains',
+              serviceEndpoint: 'https://fallback.example.com',
+            },
+          ],
+          alsoKnownAs: ['did:example:alias'],
+        };
+      },
+    });
+    registry.registerUaidProfileResolver(new AnsDnsWebProfileResolver());
+
+    const uaid =
+      'uaid:did:mainnet:0.0.12345;uid=support;registry=example;proto=a2a;nativeId=support-agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.resolved).toBe(false);
+    expect(profile?.error?.code).toBe('ERR_NOT_APPLICABLE');
+    expect(profile?.did).toBeUndefined();
+    expect(profile?.verificationMethod).toBeUndefined();
+    expect(profile?.authentication).toBeUndefined();
+    expect(profile?.service).toBeUndefined();
+    expect(profile?.alsoKnownAs).toBeUndefined();
+  });
+
   it('returns ERR_METADATA_INVALID when ans metadata cannot be fetched', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
