@@ -6,7 +6,7 @@ import type {
 import { parseSemicolonFields } from './profile-utils';
 
 export interface AnsDnsTxtRecord {
-  version: string;
+  version?: string;
   url: string;
 }
 
@@ -39,10 +39,25 @@ function asString(value: unknown): string | null {
   return trimmed;
 }
 
-function isPrefixedSemver(value: string): boolean {
-  return /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(
+function isSemver(value: string): boolean {
+  return /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(
     value,
   );
+}
+
+export function normalizeAnsVersion(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const withoutPrefix =
+    trimmed.startsWith('v') || trimmed.startsWith('V')
+      ? trimmed.slice(1)
+      : trimmed;
+  if (!isSemver(withoutPrefix)) {
+    return null;
+  }
+  return withoutPrefix;
 }
 
 export function parseAnsDnsTxtRecord(
@@ -50,15 +65,8 @@ export function parseAnsDnsTxtRecord(
 ): AnsDnsTxtRecord | null {
   const fields = parseSemicolonFields(rawRecord);
   const version = fields['v'];
-  const ansVersion = fields['version'];
   const urlValue = fields['url'];
-  if (
-    !version ||
-    !ansVersion ||
-    !urlValue ||
-    version.toLowerCase() !== 'ans1' ||
-    !isPrefixedSemver(ansVersion)
-  ) {
+  if (!version || !urlValue || version.toLowerCase() !== 'ans1') {
     return null;
   }
 
@@ -73,14 +81,20 @@ export function parseAnsDnsTxtRecord(
     return null;
   }
 
+  const rawAnsVersion = fields['version'];
+  const normalizedAnsVersion =
+    rawAnsVersion === undefined
+      ? undefined
+      : (normalizeAnsVersion(rawAnsVersion) ?? undefined);
+
   return {
-    version: ansVersion,
+    version: normalizedAnsVersion,
     url: parsedUrl.toString(),
   };
 }
 
 export function isValidAnsProfileVersion(value: string | undefined): boolean {
-  return !!value && isPrefixedSemver(value);
+  return !!value && normalizeAnsVersion(value) !== null;
 }
 
 function hasProtocolPathSegment(pathname: string, protocol: string): boolean {

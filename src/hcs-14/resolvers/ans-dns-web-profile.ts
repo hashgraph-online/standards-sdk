@@ -15,6 +15,7 @@ import {
   extractEndpointCandidates,
   selectPreferredEndpoint,
   isValidAnsProfileVersion,
+  normalizeAnsVersion,
   toErrorMessage,
 } from './ans-dns-web-profile-utils';
 
@@ -176,16 +177,18 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     if (isUnspecifiedUaidParamValue(protocol)) {
       return buildErrorProfile(
         uaid,
-        'ERR_NOT_APPLICABLE',
+        'ERR_PROTOCOL_UNSPECIFIED',
         'ANS profile requires a usable proto parameter.',
       );
     }
     const uaidVersion = parsed.params['version'];
+    const normalizedUaidVersion =
+      uaidVersion === undefined ? undefined : normalizeAnsVersion(uaidVersion);
     if (uaidVersion !== undefined && !isValidAnsProfileVersion(uaidVersion)) {
       return buildErrorProfile(
         uaid,
         'ERR_NOT_APPLICABLE',
-        'ANS profile requires a valid v-prefixed semver version parameter.',
+        'ANS profile requires a valid semver version parameter when provided.',
       );
     }
 
@@ -213,19 +216,24 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
       );
     }
 
-    const matchingVersionRecords =
-      uaidVersion === undefined
-        ? validTxtRecords
-        : validTxtRecords.filter(record => {
-            return record.version === uaidVersion;
-          });
-    if (uaidVersion !== undefined && matchingVersionRecords.length === 0) {
-      return buildErrorProfile(
-        uaid,
-        'ERR_VERSION_MISMATCH',
-        'UAID version does not match ANS DNS TXT record version.',
-        { dnsName, uaidVersion },
-      );
+    let matchingVersionRecords = validTxtRecords;
+    if (normalizedUaidVersion) {
+      const recordsWithVersion = validTxtRecords.filter(record => {
+        return record.version !== undefined;
+      });
+      if (recordsWithVersion.length > 0) {
+        matchingVersionRecords = recordsWithVersion.filter(record => {
+          return record.version === normalizedUaidVersion;
+        });
+        if (matchingVersionRecords.length === 0) {
+          return buildErrorProfile(
+            uaid,
+            'ERR_VERSION_MISMATCH',
+            'UAID version does not match ANS DNS TXT record version.',
+            { dnsName, uaidVersion: normalizedUaidVersion },
+          );
+        }
+      }
     }
 
     const selectedRecord = selectDeterministicAnsDnsRecord(
@@ -238,8 +246,8 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     } catch (error) {
       return buildErrorProfile(
         uaid,
-        'ERR_METADATA_INVALID',
-        'Metadata document retrieval failed.',
+        'ERR_AGENT_CARD_INVALID',
+        'Agent Card retrieval failed.',
         {
           stage: 'fetch',
           agentCardUrl: selectedRecord.url,
@@ -252,16 +260,16 @@ export class AnsDnsWebProfileResolver implements UaidProfileResolver {
     if (!agentCard) {
       return buildErrorProfile(
         uaid,
-        'ERR_METADATA_INVALID',
-        'Metadata document is missing required fields.',
+        'ERR_AGENT_CARD_INVALID',
+        'Agent Card is missing required fields.',
         { stage: 'validate', agentCardUrl: selectedRecord.url },
       );
     }
     if (agentCard.ansName !== uid) {
       return buildErrorProfile(
         uaid,
-        'ERR_METADATA_INVALID',
-        'Metadata document ansName does not match UAID uid.',
+        'ERR_AGENT_CARD_INVALID',
+        'Agent Card ansName does not match UAID uid.',
         {
           stage: 'validate',
           expectedUid: uid,

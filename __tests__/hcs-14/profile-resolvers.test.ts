@@ -241,7 +241,7 @@ describe('HCS-14 profile resolver behaviors', () => {
         dnsLookup: async hostname => {
           if (hostname === '_ans.support-agent.example.com') {
             return [
-              'v=ans1; version=v1.0.0; url=https://support-agent.example.com/agent-card.json',
+              'v=ans1; version=1.0.0; url=https://support-agent.example.com/agent-card.json',
             ];
           }
           return [];
@@ -290,7 +290,7 @@ describe('HCS-14 profile resolver behaviors', () => {
         dnsLookup: async hostname => {
           if (hostname === '_ans.support-agent.example.com') {
             return [
-              'v=ans1; version=v1.0.0; url=https://support-agent.example.com/agent-card.json',
+              'v=ans1; url=https://support-agent.example.com/agent-card.json',
             ];
           }
           return [];
@@ -335,6 +335,27 @@ describe('HCS-14 profile resolver behaviors', () => {
 
     expect(profile?.metadata?.resolved).toBe(false);
     expect(profile?.error?.code).toBe('ERR_NOT_APPLICABLE');
+  });
+
+  it('returns ERR_PROTOCOL_UNSPECIFIED for ans-dns-web when proto is missing or unusable', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(new AnsDnsWebProfileResolver());
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=support;registry=ans;proto=0;nativeId=support-agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.resolved).toBe(false);
+    expect(profile?.error?.code).toBe('ERR_PROTOCOL_UNSPECIFIED');
   });
 
   it('returns targeted uaid profile errors without merging DID fallback fields', async () => {
@@ -391,7 +412,7 @@ describe('HCS-14 profile resolver behaviors', () => {
     expect(profile?.alsoKnownAs).toBeUndefined();
   });
 
-  it('returns ERR_METADATA_INVALID when ans metadata cannot be fetched', async () => {
+  it('returns ERR_AGENT_CARD_INVALID when ans metadata cannot be fetched', async () => {
     const { ResolverRegistry } = await import(
       '../../src/hcs-14/resolvers/registry'
     );
@@ -423,7 +444,7 @@ describe('HCS-14 profile resolver behaviors', () => {
     });
 
     expect(profile?.metadata?.resolved).toBe(false);
-    expect(profile?.error?.code).toBe('ERR_METADATA_INVALID');
+    expect(profile?.error?.code).toBe('ERR_AGENT_CARD_INVALID');
   });
 
   it('returns ERR_VERSION_MISMATCH when uaid version does not match ans dns version', async () => {
@@ -440,7 +461,7 @@ describe('HCS-14 profile resolver behaviors', () => {
         dnsLookup: async hostname => {
           if (hostname === '_ans.support-agent.example.com') {
             return [
-              'v=ans1; version=v1.0.0; url=https://support-agent.example.com/agent-card.json',
+              'v=ans1; version=1.0.0; url=https://support-agent.example.com/agent-card.json',
             ];
           }
           return [];
@@ -512,6 +533,46 @@ describe('HCS-14 profile resolver behaviors', () => {
     );
     expect(profile?.metadata?.dnsRecordSelection).toBe(
       'lexicographically-smallest-url',
+    );
+  });
+
+  it('does not fail version matching when ANS TXT records omit version', async () => {
+    const { ResolverRegistry } = await import(
+      '../../src/hcs-14/resolvers/registry'
+    );
+    const { AnsDnsWebProfileResolver, ANS_DNS_WEB_PROFILE_ID } = await import(
+      '../../src/hcs-14/resolvers/ans-dns-web-profile'
+    );
+
+    const registry = new ResolverRegistry();
+    registry.registerUaidProfileResolver(
+      new AnsDnsWebProfileResolver({
+        dnsLookup: async hostname => {
+          if (hostname === '_ans.support-agent.example.com') {
+            return ['v=ans1; url=https://support-agent.example.com/card.json'];
+          }
+          return [];
+        },
+        fetchJson: async _url => {
+          return {
+            ansName: 'ans://v1.0.0.support-agent.example.com',
+            endpoints: {
+              a2a: { url: 'https://support-agent.example.com/a2a' },
+            },
+          };
+        },
+      }),
+    );
+
+    const uaid =
+      'uaid:aid:QmAid123;uid=ans://v1.0.0.support-agent.example.com;registry=ans;version=v1.0.0;proto=a2a;nativeId=support-agent.example.com';
+    const profile = await registry.resolveUaidProfile(uaid, {
+      profileId: ANS_DNS_WEB_PROFILE_ID,
+    });
+
+    expect(profile?.metadata?.resolved).toBe(true);
+    expect(profile?.metadata?.endpoint).toBe(
+      'https://support-agent.example.com/a2a',
     );
   });
 
