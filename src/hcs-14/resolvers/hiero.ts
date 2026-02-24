@@ -19,6 +19,7 @@ async function loadResolveDID(): Promise<ResolveDID | null> {
 }
 
 export class HieroDidResolver implements DidResolver {
+  readonly adapterKind: 'did-resolver' = 'did-resolver';
   readonly meta: AdapterMeta = {
     id: 'hedera/hiero-resolver',
     didMethods: ['hedera'],

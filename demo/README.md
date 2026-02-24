@@ -42,6 +42,7 @@ The demo performs the following operations:
 All inscriptions are performed using the unified `inscribe` function with `waitForConfirmation: true`, which automatically waits for the inscription to be confirmed and returns the complete inscription data. This demonstrates how a single API can handle different types of content with different modes and provide immediate access to the inscribed data.
 
 The demo shows that any content type (text, URL, file, buffer) can be inscribed as a regular file inscription or as a Hashinal NFT by simply setting the `mode` option, and the response will include both the transaction result and the retrieved inscription data.
+
 ## HCS-14 Demos (Adapter-First)
 
 Environment variables (`.env` in the package root):
@@ -50,6 +51,15 @@ Environment variables (`.env` in the package root):
 HEDERA_NETWORK=testnet
 HEDERA_ACCOUNT_ID=0.0.xxxxxx
 HEDERA_PRIVATE_KEY=302e020100300506032b657004220420...
+GODADDY_API_KEY=YOUR_GODADDY_KEY
+GODADDY_API_SECRET=YOUR_GODADDY_SECRET
+ANS_DEMO_BASE_URL=https://api.godaddy.com
+ANS_DEMO_PROTOCOL=A2A
+ANS_DEMO_LIMIT=20
+# optional filters:
+# ANS_DEMO_AGENT_HOST=agent.example.com
+# ANS_DEMO_AGENT_DISPLAY_NAME=My Agent
+# ANS_DEMO_VERSION=^1.0.0
 ```
 
 Install Hiero DID packages (used by issuance/resolution flows):
@@ -65,6 +75,10 @@ pnpm run demo:hcs-14:aid-generate
 pnpm run demo:hcs-14:hiero-issue-uaid
 pnpm run demo:hcs-14:issue-resolve
 pnpm run demo:hcs-14:resolve-profile
+pnpm run demo:hcs-14:resolve-aid-profile
+pnpm run demo:hcs-14:resolve-ans-profile
+pnpm run demo:hcs-14:resolve-uaid-dns-profile
+pnpm run demo:hcs-14:resolve-uaid-did-profile
 ```
 
 The HCS-14 demos now show the current DX:
@@ -74,5 +88,10 @@ The HCS-14 demos now show the current DX:
 - UAID profile resolution via `resolveUaidProfile`
 - explicit profile targeting for:
   - `hcs-14.profile.aid-dns-web`
+  - `hcs-14.profile.ans-dns-web`
   - `hcs-14.profile.uaid-dns-web`
   - `hcs-14.profile.uaid-did-resolution`
+- end-to-end ANS resolution by discovering ACTIVE agents from the GoDaddy ANS API and resolving the first functional candidate in `demo:hcs-14:resolve-ans-profile`
+- end-to-end AID DNS/Web resolution using a local DNS TXT server in `demo:hcs-14:resolve-aid-profile`
+- end-to-end UAID DNS/Web resolution plus follow-up AID profile resolution in `demo:hcs-14:resolve-uaid-dns-profile`
+- deterministic UAID DID resolution using a local DID resolver adapter in `demo:hcs-14:resolve-uaid-did-profile`

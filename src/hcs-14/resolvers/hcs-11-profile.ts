@@ -88,6 +88,7 @@ function buildHcs10Service(
 }
 
 export class HCS11ProfileResolver implements DidProfileResolver {
+  readonly adapterKind: 'did-profile-resolver' = 'did-profile-resolver';
   readonly meta: AdapterMeta = {
     id: 'hedera/hcs11-profile-resolver',
     didMethods: ['hedera'],

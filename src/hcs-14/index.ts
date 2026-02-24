@@ -7,6 +7,7 @@ export * from './resolvers/registry';
 export * from './resolvers/hiero';
 export * from './resolvers/hcs-11-profile';
 export * from './resolvers/aid-dns-web-profile';
+export * from './resolvers/ans-dns-web-profile';
 export * from './resolvers/uaid-dns-web-profile';
 export * from './resolvers/uaid-did-resolution-profile';
 export * from './resolvers/dns';

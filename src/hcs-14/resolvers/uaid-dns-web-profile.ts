@@ -14,6 +14,7 @@ import {
   uaidTargetFromParsed,
 } from './profile-utils';
 import { AID_DNS_WEB_PROFILE_ID } from './aid-dns-web-profile';
+import { ANS_DNS_WEB_PROFILE_ID } from './ans-dns-web-profile';
 import { UAID_DID_RESOLUTION_PROFILE_ID } from './uaid-did-resolution-profile';
 
 export const UAID_DNS_WEB_PROFILE_ID = 'hcs-14.profile.uaid-dns-web';
@@ -137,14 +138,21 @@ function validateRecordFields(
   };
 }
 
-function selectFollowupProfiles(target: 'aid' | 'did'): string[] {
+function selectFollowupProfiles(
+  parsed: UaidProfileResolverContext['parsedUaid'],
+): string[] {
+  const target = uaidTargetFromParsed(parsed);
   if (target === 'aid') {
+    if (parsed.params['registry'] === 'ans') {
+      return [ANS_DNS_WEB_PROFILE_ID, AID_DNS_WEB_PROFILE_ID];
+    }
     return [AID_DNS_WEB_PROFILE_ID];
   }
   return [UAID_DID_RESOLUTION_PROFILE_ID];
 }
 
 export class UaidDnsWebProfileResolver implements UaidProfileResolver {
+  readonly adapterKind: 'uaid-profile-resolver' = 'uaid-profile-resolver';
   readonly profile = UAID_DNS_WEB_PROFILE_ID;
 
   readonly meta: AdapterMeta = {
@@ -184,9 +192,22 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
     context: UaidProfileResolverContext,
   ): Promise<DidResolutionProfile | null> {
     const parsed = context.parsedUaid;
+    const target = uaidTargetFromParsed(parsed);
+    if (target !== 'aid' && target !== 'did') {
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'UAID DNS/Web profile only applies to uaid:aid or uaid:did identifiers.',
+      );
+    }
+
     const nativeId = parsed.params['nativeId'];
     if (!nativeId || !isFqdn(nativeId)) {
-      return null;
+      return buildErrorProfile(
+        uaid,
+        'ERR_NOT_APPLICABLE',
+        'UAID DNS/Web profile requires an FQDN nativeId.',
+      );
     }
 
     const normalizedNativeId = normalizeDomain(nativeId);
@@ -199,7 +220,12 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
 
     const txtRecords = await this.dnsLookup(dnsName);
     if (txtRecords.length === 0) {
-      return null;
+      return buildErrorProfile(
+        uaid,
+        'ERR_NO_DNS_RECORD',
+        'No UAID DNS TXT record was found for the requested nativeId.',
+        { dnsName },
+      );
     }
 
     const parsedRecords = txtRecords
@@ -220,7 +246,7 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
 
     const matchingRecords = validRecords.filter(
       record =>
-        record.target === uaidTargetFromParsed(parsed) &&
+        record.target === target &&
         record.id === parsed.id &&
         record.reconstructedUaid === inputCanonical,
     );
@@ -249,7 +275,8 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
       : 'dns-binding';
 
     if (this.enableFollowupResolution) {
-      const followupProfiles = selectFollowupProfiles(selected.target);
+      const followupProfiles = selectFollowupProfiles(parsed);
+      const failedFollowupProfileIds: string[] = [];
       for (const followupProfileId of followupProfiles) {
         const followup = await context.resolveUaidProfileById(
           followupProfileId,
@@ -259,15 +286,8 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
           continue;
         }
         if (followup.error || followup.metadata?.resolved === false) {
-          return buildErrorProfile(
-            uaid,
-            'ERR_FOLLOWUP_RESOLUTION_FAILED',
-            'Follow-up profile resolution failed after successful DNS binding.',
-            {
-              followupProfileId,
-              dnsName,
-            },
-          );
+          failedFollowupProfileIds.push(followupProfileId);
+          continue;
         }
         return {
           ...followup,
@@ -281,6 +301,19 @@ export class UaidDnsWebProfileResolver implements UaidProfileResolver {
             resolutionMode: 'full-resolution',
           },
         };
+      }
+      if (failedFollowupProfileIds.length > 0) {
+        return buildErrorProfile(
+          uaid,
+          'ERR_FOLLOWUP_RESOLUTION_FAILED',
+          'Follow-up profile resolution failed after successful DNS binding.',
+          {
+            followupProfileId:
+              failedFollowupProfileIds[failedFollowupProfileIds.length - 1],
+            attemptedFailedProfiles: failedFollowupProfileIds,
+            dnsName,
+          },
+        );
       }
     }
 
