@@ -8,6 +8,7 @@ import {
   AccountId,
   PublicKey,
 } from '@hashgraph/sdk';
+import { randomUUID } from 'crypto';
 import { HCS2BaseClient } from './base-client';
 import {
   HCS2ClientConfig,
@@ -70,6 +71,7 @@ export class HCS2Client extends HCS2BaseClient {
   private operatorId: AccountId;
   private operatorCtx: NodeOperatorContext;
   private readonly registryTypeCache = new Map<string, HCS2RegistryType>();
+  private inscriptionSDK?: InscriptionSDK;
 
   /**
    * Create a new HCS-2 client
@@ -642,21 +644,33 @@ export class HCS2Client extends HCS2BaseClient {
 
       let messageString = JSON.stringify(payload);
 
-      // Overflow: inscribe via HCS-1 when payload exceeds 1024 bytes
-      if (Buffer.byteLength(messageString, 'utf8') > 1024) {
+      // Overflow: inscribe via HCS-1 when payload exceeds MAX_PAYLOAD_BYTES
+      if (Buffer.byteLength(messageString, 'utf8') > MAX_PAYLOAD_BYTES) {
         this.logger.info(
-          'HCS-2 payload exceeds 1024 bytes, inscribing via HCS-1',
+          `HCS-2 payload exceeds ${MAX_PAYLOAD_BYTES} bytes, inscribing via HCS-1`,
         );
 
         const contentBuffer = Buffer.from(messageString, 'utf8');
-        const fileName = `hcs2-overflow-${Date.now()}.json`;
+        const fileName = `hcs2-overflow-${randomUUID()}.json`;
 
-        const sdk = await InscriptionSDK.createWithAuth({
-          type: 'server',
+        if (this.network !== 'testnet' && this.network !== 'mainnet') {
+          throw new Error(
+            `Overflow inscription is only supported on testnet and mainnet, but network is ${this.network}`,
+          );
+        }
+
+        const authOptions = {
           accountId: this.operatorId.toString(),
           privateKey: this.operatorCtx.operatorKey,
           network: this.network as 'testnet' | 'mainnet',
-        });
+        };
+
+        if (!this.inscriptionSDK) {
+          this.inscriptionSDK = await InscriptionSDK.createWithAuth({
+            type: 'server',
+            ...authOptions,
+          });
+        }
 
         const inscriptionResult = await inscribe(
           {
@@ -665,18 +679,14 @@ export class HCS2Client extends HCS2BaseClient {
             fileName,
             mimeType: 'application/json',
           },
-          {
-            accountId: this.operatorId.toString(),
-            privateKey: this.operatorCtx.operatorKey,
-            network: this.network as 'testnet' | 'mainnet',
-          },
+          authOptions,
           {
             mode: 'file' as const,
             waitForConfirmation: true,
             waitMaxAttempts: 30,
             waitIntervalMs: 4000,
           },
-          sdk,
+          this.inscriptionSDK,
         );
 
         const inscriptionTopicId = getTopicId(inscriptionResult?.inscription);
