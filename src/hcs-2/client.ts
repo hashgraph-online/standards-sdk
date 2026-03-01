@@ -8,6 +8,7 @@ import {
   AccountId,
   PublicKey,
 } from '@hashgraph/sdk';
+import { randomUUID } from 'crypto';
 import { HCS2BaseClient } from './base-client';
 import {
   HCS2ClientConfig,
@@ -33,6 +34,15 @@ import {
 } from '../common/node-operator-resolver';
 import { buildMessageTx } from '../common/tx/tx-utils';
 import { buildHcs2CreateRegistryTx } from './tx';
+import { inscribe } from '../inscribe/inscriber';
+import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
+import { getTopicId } from '../utils/topic-id-utils';
+
+/** Maximum message payload size before overflow inscription is triggered. */
+const MAX_PAYLOAD_BYTES = 1024;
+
+/** Regex that matches an HCS-1 HRL like "hcs://1/0.0.12345". */
+const HCS1_HRL_PATTERN = /^hcs:\/\/1\/(\d+\.\d+\.\d+)$/;
 
 /**
  * SDK client configuration for HCS-2
@@ -61,6 +71,7 @@ export class HCS2Client extends HCS2BaseClient {
   private operatorId: AccountId;
   private operatorCtx: NodeOperatorContext;
   private readonly registryTypeCache = new Map<string, HCS2RegistryType>();
+  private inscriptionSDK?: InscriptionSDK;
 
   /**
    * Create a new HCS-2 client
@@ -483,14 +494,48 @@ export class HCS2Client extends HCS2BaseClient {
 
       for (const msg of rawMessages) {
         try {
-          const message: HCS2Message = {
-            p: 'hcs-2',
+          let message: HCS2Message;
+
+          // Build the message from the raw mirror node data
+          message = {
+            p: msg.p || 'hcs-2',
             op: msg.op,
             t_id: msg.t_id,
             uid: msg.uid,
             metadata: msg.metadata,
             m: msg.m,
           } as HCS2Message;
+
+          // Check if metadata is an HCS-1 HRL (overflow reference)
+          if (
+            options.resolveOverflow &&
+            typeof msg.metadata === 'string' &&
+            HCS1_HRL_PATTERN.test(msg.metadata)
+          ) {
+            const hrlMatch = msg.metadata.match(HCS1_HRL_PATTERN);
+            if (hrlMatch) {
+              const refTopicId = hrlMatch[1];
+              try {
+                const refMessages =
+                  await this.mirrorNode.getTopicMessages(refTopicId);
+                if (refMessages.length > 0) {
+                  const resolvedMsg = refMessages[0] as Record<string, unknown>;
+                  message = {
+                    p: (resolvedMsg.p as string) || 'hcs-2',
+                    op: resolvedMsg.op as HCS2Message['op'],
+                    t_id: resolvedMsg.t_id as string | undefined,
+                    uid: resolvedMsg.uid as string | undefined,
+                    metadata: resolvedMsg.metadata as string | undefined,
+                    m: resolvedMsg.m as string | undefined,
+                  } as HCS2Message;
+                }
+              } catch (resolveErr) {
+                this.logger.warn(
+                  `Failed to resolve overflow ${msg.metadata}: ${resolveErr}`,
+                );
+              }
+            }
+          }
 
           const { valid, errors } = this.validateMessage(message);
           if (!valid) {
@@ -575,9 +620,14 @@ export class HCS2Client extends HCS2BaseClient {
   }
 
   /**
-   * Submit a message to a topic
+   * Submit a message to a topic.
+   * If the serialized payload exceeds 1024 bytes, the full message is
+   * inscribed via HCS-1 (using the Inscriber) and a compact overflow
+   * wrapper containing the HRL reference + SHA-256 digest is submitted
+   * instead.
    * @param topicId The topic ID to submit to
    * @param payload The message payload
+   * @param analyticsMemo Optional analytics memo for the transaction
    * @returns Promise resolving to the transaction receipt
    */
   async submitMessage(
@@ -592,9 +642,77 @@ export class HCS2Client extends HCS2BaseClient {
         throw new Error(`Invalid HCS-2 message: ${errors.join(', ')}`);
       }
 
+      let messageString = JSON.stringify(payload);
+
+      // Overflow: inscribe via HCS-1 when payload exceeds MAX_PAYLOAD_BYTES
+      if (Buffer.byteLength(messageString, 'utf8') > MAX_PAYLOAD_BYTES) {
+        this.logger.info(
+          `HCS-2 payload exceeds ${MAX_PAYLOAD_BYTES} bytes, inscribing via HCS-1`,
+        );
+
+        const contentBuffer = Buffer.from(messageString, 'utf8');
+        const fileName = `hcs2-overflow-${randomUUID()}.json`;
+
+        if (this.network !== 'testnet' && this.network !== 'mainnet') {
+          throw new Error(
+            `Overflow inscription is only supported on testnet and mainnet, but network is ${this.network}`,
+          );
+        }
+
+        const authOptions = {
+          accountId: this.operatorId.toString(),
+          privateKey: this.operatorCtx.operatorKey,
+          network: this.network as 'testnet' | 'mainnet',
+        };
+
+        if (!this.inscriptionSDK) {
+          this.inscriptionSDK = await InscriptionSDK.createWithAuth({
+            type: 'server',
+            ...authOptions,
+          });
+        }
+
+        const inscriptionResult = await inscribe(
+          {
+            type: 'buffer',
+            buffer: contentBuffer,
+            fileName,
+            mimeType: 'application/json',
+          },
+          authOptions,
+          {
+            mode: 'file' as const,
+            waitForConfirmation: true,
+            waitMaxAttempts: 30,
+            waitIntervalMs: 4000,
+          },
+          this.inscriptionSDK,
+        );
+
+        const inscriptionTopicId = getTopicId(inscriptionResult?.inscription);
+        if (!inscriptionTopicId) {
+          throw new Error(
+            'Failed to inscribe overflow HCS-2 payload: no topic ID returned',
+          );
+        }
+
+        const hrl = `hcs://1/${inscriptionTopicId}`;
+
+        // Build a standard HCS-2 message with metadata set to the HRL
+        const overflowMessage: HCS2Message = {
+          ...payload,
+          metadata: hrl,
+        } as HCS2Message;
+
+        this.logger.info(
+          `HCS-2 payload inscribed to ${hrl}, submitting overflow wrapper`,
+        );
+        messageString = JSON.stringify(overflowMessage);
+      }
+
       const transaction = buildMessageTx({
         topicId,
-        message: JSON.stringify(payload),
+        message: messageString,
         transactionMemo: analyticsMemo,
       });
 
