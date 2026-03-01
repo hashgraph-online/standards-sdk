@@ -9,6 +9,12 @@
     "allowJs": true,
     "moduleResolution": "Bundler",
     "paths": {
+      "@hashgraph/sdk": [
+        "node_modules/@hashgraph/sdk"
+      ],
+      "@hashgraph/sdk/*": [
+        "node_modules/@hashgraph/sdk/*"
+      ],
       "@hashgraph/hedera-wallet-connect": [
         "node_modules/@hashgraph/hedera-wallet-connect/dist/index.d.ts"
       ],

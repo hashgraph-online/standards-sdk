@@ -53,7 +53,7 @@
   "peerDependencies": {
     "@hashgraph/hedera-wallet-connect": "^2.0.4",
     "@hashgraph/sdk": "^2.77.0",
-    "axios": "*",
+    "axios": ">=1.13.6",
     "viem": "*",
     "x402": "*",
     "x402-axios": "*"
