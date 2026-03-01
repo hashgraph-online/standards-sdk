@@ -143,6 +143,7 @@
     "format:check": "npm run lint"
   },
   "devDependencies": {
+    "@hashgraphonline/conversational-agent": "0.2.220",
     "@hiero-did-sdk/registrar": "0.1.8",
     "@hiero-did-sdk/resolver": "0.1.8",
     "@swc/jest": "^0.2.39",
@@ -160,6 +161,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "json-to-plain-text": "^1.2.0",
     "jszip": "^3.10.1",
+    "localtunnel": "^2.0.2",
     "nodemon": "^3.1.10",
     "openai": "^4.104.0",
     "prettier": "^3.6.2",
@@ -180,6 +182,7 @@
     "@hashgraphonline/hashinal-wc": "^2.0.64",
     "@kiloscribe/inscription-sdk": "2.0.10-canary.9",
     "@noble/curves": "^2.0.1",
+    "@types/localtunnel": "^2.0.4",
     "axios": "^1.13.6",
     "bignumber.js": "^9.3.1",
     "buffer": "^6.0.3",
@@ -216,6 +219,7 @@
       "@hashgraphonline/hashinal-wc": "^2.0.64",
       "@hashgraphonline/standards-sdk": "workspace:*",
       "@kiloscribe/inscription-sdk": "2.0.10-canary.9",
+      "axios@<0.30.3": "1.13.6",
       "glob@>=11.0.0 <11.1.0": "11.1.0",
       "bn.js@>=5.0.0 <5.2.3": "5.2.3",
       "h3": "1.15.5",
