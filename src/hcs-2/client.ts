@@ -8,7 +8,6 @@ import {
   AccountId,
   PublicKey,
 } from '@hashgraph/sdk';
-import { createHash } from 'crypto';
 import { HCS2BaseClient } from './base-client';
 import {
   HCS2ClientConfig,
@@ -38,17 +37,11 @@ import { inscribe } from '../inscribe/inscriber';
 import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 import { getTopicId } from '../utils/topic-id-utils';
 
-/**
- * Overflow wrapper sent when the original HCS-2 message exceeds 1024 bytes.
- * The full payload is inscribed via HCS-1 and referenced by data_ref (an HRL)
- * with a SHA-256 integrity digest.
- */
-export interface HCS2OverflowMessage {
-  p: string;
-  op: HCS2Operation;
-  data_ref: string;
-  data_ref_digest: string;
-}
+/** Maximum message payload size before overflow inscription is triggered. */
+const MAX_PAYLOAD_BYTES = 1024;
+
+/** Regex that matches an HCS-1 HRL like "hcs://1/0.0.12345". */
+const HCS1_HRL_PATTERN = /^hcs:\/\/1\/(\d+\.\d+\.\d+)$/;
 
 /**
  * SDK client configuration for HCS-2
@@ -499,14 +492,48 @@ export class HCS2Client extends HCS2BaseClient {
 
       for (const msg of rawMessages) {
         try {
-          const message: HCS2Message = {
-            p: 'hcs-2',
+          let message: HCS2Message;
+
+          // Build the message from the raw mirror node data
+          message = {
+            p: msg.p || 'hcs-2',
             op: msg.op,
             t_id: msg.t_id,
             uid: msg.uid,
             metadata: msg.metadata,
             m: msg.m,
           } as HCS2Message;
+
+          // Check if metadata is an HCS-1 HRL (overflow reference)
+          if (
+            options.resolveOverflow &&
+            typeof msg.metadata === 'string' &&
+            HCS1_HRL_PATTERN.test(msg.metadata)
+          ) {
+            const hrlMatch = msg.metadata.match(HCS1_HRL_PATTERN);
+            if (hrlMatch) {
+              const refTopicId = hrlMatch[1];
+              try {
+                const refMessages =
+                  await this.mirrorNode.getTopicMessages(refTopicId);
+                if (refMessages.length > 0) {
+                  const resolvedMsg = refMessages[0] as Record<string, unknown>;
+                  message = {
+                    p: (resolvedMsg.p as string) || 'hcs-2',
+                    op: resolvedMsg.op as HCS2Message['op'],
+                    t_id: resolvedMsg.t_id as string | undefined,
+                    uid: resolvedMsg.uid as string | undefined,
+                    metadata: resolvedMsg.metadata as string | undefined,
+                    m: resolvedMsg.m as string | undefined,
+                  } as HCS2Message;
+                }
+              } catch (resolveErr) {
+                this.logger.warn(
+                  `Failed to resolve overflow ${msg.metadata}: ${resolveErr}`,
+                );
+              }
+            }
+          }
 
           const { valid, errors } = this.validateMessage(message);
           if (!valid) {
@@ -660,16 +687,12 @@ export class HCS2Client extends HCS2BaseClient {
         }
 
         const hrl = `hcs://1/${inscriptionTopicId}`;
-        const digest = createHash('sha256')
-          .update(contentBuffer)
-          .digest('base64url');
 
-        const overflowMessage: HCS2OverflowMessage = {
-          p: payload.p,
-          op: payload.op,
-          data_ref: hrl,
-          data_ref_digest: digest,
-        };
+        // Build a standard HCS-2 message with metadata set to the HRL
+        const overflowMessage: HCS2Message = {
+          ...payload,
+          metadata: hrl,
+        } as HCS2Message;
 
         this.logger.info(
           `HCS-2 payload inscribed to ${hrl}, submitting overflow wrapper`,

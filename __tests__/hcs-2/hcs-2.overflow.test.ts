@@ -1,54 +1,54 @@
 /**
  * HCS-2 Overflow Tests
  *
- * Tests that verify the overflow wrapper message type and the behaviour
- * of the overflow path in submitMessage.
+ * Tests that verify the overflow behaviour — large HCS-2 messages are
+ * inscribed via HCS-1 and the metadata field is set to the HRL reference.
  */
 
-import { HCS2OverflowMessage } from '../../src/hcs-2/client';
 import { HCS2Operation } from '../../src/hcs-2/types';
 
 describe('HCS-2 Overflow', () => {
-  describe('HCS2OverflowMessage type', () => {
-    it('should serialise correctly', () => {
-      const overflow: HCS2OverflowMessage = {
+  describe('Overflow message format', () => {
+    it('should produce a standard HCS-2 message with metadata set to the HRL', () => {
+      // After overflow, the submitted message should be a regular HCS-2 message
+      // with metadata pointing to the HCS-1 topic.
+      const overflowMessage = {
         p: 'hcs-2',
         op: HCS2Operation.REGISTER,
-        data_ref: 'hcs://1/0.0.99999',
-        data_ref_digest: 'abc123digest',
+        t_id: '0.0.12345',
+        metadata: 'hcs://1/0.0.99999',
       };
 
-      const json = JSON.stringify(overflow);
-      expect(json).toContain('"data_ref"');
-      expect(json).toContain('"data_ref_digest"');
-      expect(json).not.toContain('"t_id"');
-      expect(json).not.toContain('"uid"');
+      const json = JSON.stringify(overflowMessage);
+      expect(json).toContain('"metadata"');
+      expect(json).toContain('hcs://1/');
+      expect(json).not.toContain('"data_ref"');
     });
 
     it('should round-trip through JSON correctly', () => {
-      const original: HCS2OverflowMessage = {
+      const original = {
         p: 'hcs-2',
         op: HCS2Operation.REGISTER,
-        data_ref: 'hcs://1/0.0.12345',
-        data_ref_digest: 'sha256digest',
+        t_id: '0.0.12345',
+        metadata: 'hcs://1/0.0.99999',
       };
 
-      const parsed = JSON.parse(JSON.stringify(original)) as HCS2OverflowMessage;
+      const parsed = JSON.parse(JSON.stringify(original));
       expect(parsed.p).toBe(original.p);
       expect(parsed.op).toBe(original.op);
-      expect(parsed.data_ref).toBe(original.data_ref);
-      expect(parsed.data_ref_digest).toBe(original.data_ref_digest);
+      expect(parsed.t_id).toBe(original.t_id);
+      expect(parsed.metadata).toBe(original.metadata);
     });
 
-    it('should be under 1024 bytes when serialised', () => {
-      const overflow: HCS2OverflowMessage = {
+    it('should be under 1024 bytes when serialised with an HRL metadata', () => {
+      const overflowMessage = {
         p: 'hcs-2',
         op: HCS2Operation.REGISTER,
-        data_ref: 'hcs://1/0.0.99999999',
-        data_ref_digest: 'a'.repeat(44), // SHA-256 base64url is ~44 chars
+        t_id: '0.0.12345',
+        metadata: 'hcs://1/0.0.99999999',
       };
 
-      const size = Buffer.byteLength(JSON.stringify(overflow), 'utf8');
+      const size = Buffer.byteLength(JSON.stringify(overflowMessage), 'utf8');
       expect(size).toBeLessThan(1024);
     });
   });
@@ -69,6 +69,22 @@ describe('HCS-2 Overflow', () => {
         metadata: 'x'.repeat(2000),
       });
       expect(Buffer.byteLength(largePayload, 'utf8')).toBeGreaterThan(1024);
+    });
+  });
+
+  describe('HCS-1 HRL pattern detection', () => {
+    const HCS1_HRL_PATTERN = /^hcs:\/\/1\/(\d+\.\d+\.\d+)$/;
+
+    it('should match valid HCS-1 HRLs', () => {
+      expect(HCS1_HRL_PATTERN.test('hcs://1/0.0.12345')).toBe(true);
+      expect(HCS1_HRL_PATTERN.test('hcs://1/0.0.1')).toBe(true);
+    });
+
+    it('should not match invalid strings', () => {
+      expect(HCS1_HRL_PATTERN.test('not-an-hrl')).toBe(false);
+      expect(HCS1_HRL_PATTERN.test('hcs://2/0.0.12345')).toBe(false);
+      expect(HCS1_HRL_PATTERN.test('hcs://1/invalid')).toBe(false);
+      expect(HCS1_HRL_PATTERN.test('')).toBe(false);
     });
   });
 });

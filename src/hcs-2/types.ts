@@ -191,6 +191,8 @@ export interface QueryRegistryOptions {
   limit?: number;
   order?: 'asc' | 'desc';
   skip?: number;
+  /** When true, overflow messages with data_ref are resolved via HCS-1. */
+  resolveOverflow?: boolean;
 }
 
 /**
