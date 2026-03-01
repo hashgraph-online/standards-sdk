@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-sdk",
-  "version": "0.1.157-canary.25",
+  "version": "0.1.158-canary.0",
   "description": "The Hashgraph Online Standards SDK provides a complete implementation of the Hiero Consensus Standards (HCS), giving developers all the tools needed to build wonderful decentralized applications on the Hashgraph network. https://hol.org",
   "type": "module",
   "files": [
