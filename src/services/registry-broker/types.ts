@@ -90,6 +90,7 @@ import {
   skillRegistryFileDescriptorSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
+  skillSecurityBreakdownResponseSchema,
   skillRegistryMineResponseSchema,
   skillRegistryMyListResponseSchema,
   skillRegistryOwnershipResponseSchema,
@@ -338,6 +339,9 @@ export type SkillRegistryPublishSummary = z.infer<
 export type SkillRegistryListResponse = z.infer<
   typeof skillRegistryListResponseSchema
 >;
+export type SkillSecurityBreakdownResponse = z.infer<
+  typeof skillSecurityBreakdownResponseSchema
+>;
 export type SkillRegistryMineResponse = z.infer<
   typeof skillRegistryMineResponseSchema
 >;
@@ -442,6 +446,10 @@ export interface SkillListOptions {
   featured?: boolean;
   verified?: boolean;
   view?: 'latest' | 'all';
+}
+
+export interface SkillSecurityBreakdownRequest {
+  jobId: string;
 }
 
 export interface SkillCatalogQueryOptions {

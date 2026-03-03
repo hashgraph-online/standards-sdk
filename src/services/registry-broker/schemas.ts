@@ -1219,7 +1219,7 @@ const trustScoreBreakdownSchema = z
 
 const skillSafetyLabelSchema = z.enum(['safe', 'review', 'caution', 'unsafe']);
 
-const skillSafetySummarySchema = z
+export const skillSafetySummarySchema = z
   .object({
     score: z.number(),
     label: skillSafetyLabelSchema,
@@ -1232,7 +1232,7 @@ const skillSafetySummarySchema = z
 
 const skillSafetyFindingSeveritySchema = z.enum(['low', 'medium', 'high']);
 
-const skillSafetyFindingSchema = z
+export const skillSafetyFindingSchema = z
   .object({
     ruleId: z.string(),
     severity: skillSafetyFindingSeveritySchema,
@@ -1285,6 +1285,17 @@ export const skillRegistryListResponseSchema = z
   .object({
     items: z.array(skillRegistryPublishSummarySchema),
     nextCursor: z.string().nullable(),
+  })
+  .passthrough();
+
+export const skillSecurityBreakdownResponseSchema = z
+  .object({
+    name: z.string(),
+    version: z.string(),
+    jobId: z.string(),
+    createdAt: z.string(),
+    safety: skillSafetySummarySchema.nullable(),
+    findings: z.array(skillSafetyFindingSchema),
   })
   .passthrough();
 
