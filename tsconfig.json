@@ -14,6 +14,12 @@
       ],
       "@hashgraph/hedera-wallet-connect/*": [
         "node_modules/@hashgraph/hedera-wallet-connect/*"
+      ],
+      "@hashgraph/sdk": [
+        "node_modules/@hashgraph/sdk"
+      ],
+      "@hashgraph/sdk/*": [
+        "node_modules/@hashgraph/sdk/*"
       ]
     },
     "esModuleInterop": true,

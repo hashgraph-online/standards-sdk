@@ -10,7 +10,7 @@ import {
 import { Hcs26SkillRegistryResolver } from '../../src/hcs-26';
 import { Logger } from '../../src/utils/logger';
 
-export const DEFAULT_BASE_URL = 'http://localhost:4000';
+export const DEFAULT_BASE_URL = 'https://hol.org/registry/api/v1';
 const logger = Logger.getInstance({ module: 'skill-registry-demo' });
 
 const isInvalidApiKeyResponse = (error: RegistryBrokerError): boolean => {

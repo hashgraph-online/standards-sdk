@@ -3,7 +3,7 @@
  * Publishes a single skill package (SKILL.md + skill.json + optional files) through Registry Broker skill registry endpoints.
  * Usage:
  *   pnpm -C standards-sdk tsx demo/registry-broker/skill-registry-publish-demo.ts --skill-dir=../skills/openskills-my-first-skill
- *   pnpm -C standards-sdk tsx demo/registry-broker/skill-registry-publish-demo.ts --base-url=http://localhost:4000 --ledger-network=testnet --skill-dir=../skills/openskills-my-first-skill
+ *   pnpm -C standards-sdk tsx demo/registry-broker/skill-registry-publish-demo.ts --base-url=https://hol.org/registry/api/v1 --ledger-network=mainnet --skill-dir=../skills/openskills-my-first-skill
  */
 import 'dotenv/config';
 import * as path from 'node:path';

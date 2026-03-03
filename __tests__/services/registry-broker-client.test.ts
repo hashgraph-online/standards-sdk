@@ -399,6 +399,8 @@ describe('RegistryBrokerClient', () => {
       'createLedgerChallenge',
       'verifyLedgerChallenge',
       'authenticateWithLedger',
+      'verifyUaidDnsTxt',
+      'getVerificationDnsStatus',
       'fetchHistorySnapshot',
       'attachDecryptedHistory',
     ] as const;
@@ -1419,6 +1421,74 @@ describe('RegistryBrokerClient', () => {
 
     await expect(client.stats()).rejects.toBeInstanceOf(
       RegistryBrokerParseError,
+    );
+  });
+
+  it('calls verification dns verify endpoint', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          uaid: 'uaid:aid:test;uid=1;proto=a2a;nativeId=agent.hol.org',
+          verified: true,
+          profileId: 'hcs-14.profile.uaid-dns-web',
+          checkedAt: '2026-03-02T00:00:00.000Z',
+          source: 'live',
+          persisted: true,
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.verifyUaidDnsTxt({
+      uaid: 'uaid:aid:test;uid=1;proto=a2a;nativeId=agent.hol.org',
+      persist: true,
+    });
+
+    expect(result.verified).toBe(true);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/verification/dns/verify',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          uaid: 'uaid:aid:test;uid=1;proto=a2a;nativeId=agent.hol.org',
+          persist: true,
+        }),
+      }),
+    );
+  });
+
+  it('calls verification dns status endpoint with query params', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          uaid: 'uaid:aid:test;uid=1;proto=a2a;nativeId=agent.hol.org',
+          verified: false,
+          profileId: 'hcs-14.profile.uaid-dns-web',
+          checkedAt: '2026-03-02T00:00:00.000Z',
+          source: 'live',
+          persisted: false,
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.getVerificationDnsStatus(
+      'uaid:aid:test;uid=1;proto=a2a;nativeId=agent.hol.org',
+      { refresh: true, persist: true },
+    );
+
+    expect(result.verified).toBe(false);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/verification/dns/status/uaid%3Aaid%3Atest%3Buid%3D1%3Bproto%3Da2a%3BnativeId%3Dagent.hol.org?refresh=true&persist=true',
+      expect.objectContaining({ method: 'GET' }),
     );
   });
 

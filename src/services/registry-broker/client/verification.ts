@@ -3,6 +3,9 @@ import type {
   MoltbookOwnerRegistrationUpdateRequest,
   MoltbookOwnerRegistrationUpdateResponse,
   RegisterStatusResponse,
+  VerificationDnsStatusQuery,
+  VerificationDnsStatusResponse,
+  VerificationDnsVerifyRequest,
   VerificationChallengeDetailsResponse,
   VerificationChallengeResponse,
   VerificationOwnershipResponse,
@@ -15,6 +18,7 @@ import {
   registerStatusResponseSchema,
   verificationChallengeDetailsResponseSchema,
   verificationChallengeResponseSchema,
+  verificationDnsStatusResponseSchema,
   verificationOwnershipResponseSchema,
   verificationStatusResponseSchema,
   verificationVerifyResponseSchema,
@@ -118,6 +122,52 @@ export async function verifySenderOwnership(
     raw,
     verificationVerifySenderResponseSchema,
     'verification sender response',
+  );
+}
+
+export async function verifyUaidDnsTxt(
+  client: RegistryBrokerClient,
+  payload: VerificationDnsVerifyRequest,
+): Promise<VerificationDnsStatusResponse> {
+  const raw = await client.requestJson<JsonValue>('/verification/dns/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: {
+      uaid: payload.uaid,
+      ...(payload.persist !== undefined ? { persist: payload.persist } : {}),
+    },
+  });
+  return client.parseWithSchema(
+    raw,
+    verificationDnsStatusResponseSchema,
+    'verification dns verify response',
+  );
+}
+
+export async function getVerificationDnsStatus(
+  client: RegistryBrokerClient,
+  uaid: string,
+  query?: VerificationDnsStatusQuery,
+): Promise<VerificationDnsStatusResponse> {
+  const params = new URLSearchParams();
+  if (query?.refresh !== undefined) {
+    params.set('refresh', String(query.refresh));
+  }
+  if (query?.persist !== undefined) {
+    params.set('persist', String(query.persist));
+  }
+
+  const queryString = params.toString();
+  const path = `/verification/dns/status/${encodeURIComponent(uaid)}${
+    queryString ? `?${queryString}` : ''
+  }`;
+  const raw = await client.requestJson<JsonValue>(path, {
+    method: 'GET',
+  });
+  return client.parseWithSchema(
+    raw,
+    verificationDnsStatusResponseSchema,
+    'verification dns status response',
   );
 }
 
