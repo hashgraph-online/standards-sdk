@@ -104,14 +104,26 @@ import type {
   WebsocketStatsResponse,
   VerificationChallengeDetailsResponse,
   VerificationChallengeResponse,
+  VerificationDnsStatusQuery,
+  VerificationDnsStatusResponse,
+  VerificationDnsVerifyRequest,
   VerificationOwnershipResponse,
   VerificationStatusResponse,
   VerificationVerifyResponse,
   VerificationVerifySenderResponse,
   X402MinimumsResponse,
   SkillRegistryConfigResponse,
+  SkillBadgeQuery,
+  SkillBadgeResponse,
+  SkillCatalogQueryOptions,
+  SkillCatalogResponse,
+  SkillDeprecationRecord,
+  SkillDeprecationSetRequest,
+  SkillDeprecationsResponse,
   SkillRegistryJobStatusResponse,
+  SkillListOptions,
   SkillRegistryListResponse,
+  SkillRegistryCategoriesResponse,
   SkillRegistryMineResponse,
   SkillRegistryMyListResponse,
   SkillRegistryOwnershipResponse,
@@ -119,9 +131,17 @@ import type {
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillRegistryTagsResponse,
   SkillRegistryVoteRequest,
   SkillRegistryVoteStatusResponse,
+  SkillRecommendedVersionResponse,
+  SkillRecommendedVersionSetRequest,
+  SkillResolverManifestResponse,
   SkillRegistryVersionsResponse,
+  SkillVerificationDomainProofChallengeRequest,
+  SkillVerificationDomainProofChallengeResponse,
+  SkillVerificationDomainProofVerifyRequest,
+  SkillVerificationDomainProofVerifyResponse,
   SkillVerificationRequestCreateRequest,
   SkillVerificationRequestCreateResponse,
   SkillVerificationStatusResponse,
@@ -190,9 +210,11 @@ import {
   createVerificationChallenge as createVerificationChallengeImpl,
   getRegisterStatus as getRegisterStatusImpl,
   getVerificationChallenge as getVerificationChallengeImpl,
+  getVerificationDnsStatus as getVerificationDnsStatusImpl,
   getVerificationOwnership as getVerificationOwnershipImpl,
   getVerificationStatus as getVerificationStatusImpl,
   registerOwnedMoltbookAgent as registerOwnedMoltbookAgentImpl,
+  verifyUaidDnsTxt as verifyUaidDnsTxtImpl,
   verifySenderOwnership as verifySenderOwnershipImpl,
   verifyVerificationChallenge as verifyVerificationChallengeImpl,
 } from './verification';
@@ -229,19 +251,31 @@ import {
   websocketStats as websocketStatsImpl,
 } from './search';
 import {
+  createSkillDomainProofChallenge as createSkillDomainProofChallengeImpl,
+  getRecommendedSkillVersion as getRecommendedSkillVersionImpl,
+  getSkillBadge as getSkillBadgeImpl,
+  getSkillDeprecations as getSkillDeprecationsImpl,
   getSkillOwnership as getSkillOwnershipImpl,
   getSkillPublishJob as getSkillPublishJobImpl,
   getSkillVerificationStatus as getSkillVerificationStatusImpl,
   getSkillVoteStatus as getSkillVoteStatusImpl,
+  getSkillsCatalog as getSkillsCatalogImpl,
   getMySkillsList as getMySkillsListImpl,
+  listSkillCategories as listSkillCategoriesImpl,
+  listSkillTags as listSkillTagsImpl,
   listSkills as listSkillsImpl,
   listMySkills as listMySkillsImpl,
   listSkillVersions as listSkillVersionsImpl,
   publishSkill as publishSkillImpl,
   quoteSkillPublish as quoteSkillPublishImpl,
+  resolveSkillManifest as resolveSkillManifestImpl,
+  resolveSkillMarkdown as resolveSkillMarkdownImpl,
   requestSkillVerification as requestSkillVerificationImpl,
+  setRecommendedSkillVersion as setRecommendedSkillVersionImpl,
+  setSkillDeprecation as setSkillDeprecationImpl,
   setSkillVote as setSkillVoteImpl,
   skillsConfig as skillsConfigImpl,
+  verifySkillDomainProof as verifySkillDomainProofImpl,
 } from './skills';
 import {
   createAbortError,
@@ -700,15 +734,16 @@ export class RegistryBrokerClient {
     return skillsConfigImpl(this);
   }
 
-  async listSkills(options?: {
-    name?: string;
-    version?: string;
-    limit?: number;
-    cursor?: string;
-    includeFiles?: boolean;
-    accountId?: string;
-  }): Promise<SkillRegistryListResponse> {
+  async listSkills(
+    options?: SkillListOptions,
+  ): Promise<SkillRegistryListResponse> {
     return listSkillsImpl(this, options);
+  }
+
+  async getSkillsCatalog(
+    options?: SkillCatalogQueryOptions,
+  ): Promise<SkillCatalogResponse> {
+    return getSkillsCatalogImpl(this, options);
   }
 
   async listSkillVersions(params: {
@@ -726,6 +761,7 @@ export class RegistryBrokerClient {
   async getMySkillsList(params?: {
     limit?: number;
     cursor?: string;
+    accountId?: string;
   }): Promise<SkillRegistryMyListResponse> {
     return getMySkillsListImpl(this, params);
   }
@@ -756,6 +792,52 @@ export class RegistryBrokerClient {
     return getSkillOwnershipImpl(this, params);
   }
 
+  async getRecommendedSkillVersion(params: {
+    name: string;
+  }): Promise<SkillRecommendedVersionResponse> {
+    return getRecommendedSkillVersionImpl(this, params);
+  }
+
+  async setRecommendedSkillVersion(
+    payload: SkillRecommendedVersionSetRequest,
+  ): Promise<SkillRecommendedVersionResponse> {
+    return setRecommendedSkillVersionImpl(this, payload);
+  }
+
+  async getSkillDeprecations(params: {
+    name: string;
+  }): Promise<SkillDeprecationsResponse> {
+    return getSkillDeprecationsImpl(this, params);
+  }
+
+  async setSkillDeprecation(
+    payload: SkillDeprecationSetRequest,
+  ): Promise<SkillDeprecationRecord> {
+    return setSkillDeprecationImpl(this, payload);
+  }
+
+  async getSkillBadge(params: SkillBadgeQuery): Promise<SkillBadgeResponse> {
+    return getSkillBadgeImpl(this, params);
+  }
+
+  async listSkillTags(): Promise<SkillRegistryTagsResponse> {
+    return listSkillTagsImpl(this);
+  }
+
+  async listSkillCategories(): Promise<SkillRegistryCategoriesResponse> {
+    return listSkillCategoriesImpl(this);
+  }
+
+  async resolveSkillMarkdown(skillRef: string): Promise<string> {
+    return resolveSkillMarkdownImpl(this, skillRef);
+  }
+
+  async resolveSkillManifest(
+    skillRef: string,
+  ): Promise<SkillResolverManifestResponse> {
+    return resolveSkillManifestImpl(this, skillRef);
+  }
+
   async getSkillVoteStatus(params: {
     name: string;
   }): Promise<SkillRegistryVoteStatusResponse> {
@@ -776,8 +858,21 @@ export class RegistryBrokerClient {
 
   async getSkillVerificationStatus(params: {
     name: string;
+    version?: string;
   }): Promise<SkillVerificationStatusResponse> {
     return getSkillVerificationStatusImpl(this, params);
+  }
+
+  async createSkillDomainProofChallenge(
+    payload: SkillVerificationDomainProofChallengeRequest,
+  ): Promise<SkillVerificationDomainProofChallengeResponse> {
+    return createSkillDomainProofChallengeImpl(this, payload);
+  }
+
+  async verifySkillDomainProof(
+    payload: SkillVerificationDomainProofVerifyRequest,
+  ): Promise<SkillVerificationDomainProofVerifyResponse> {
+    return verifySkillDomainProofImpl(this, payload);
   }
 
   async adaptersDetailed(): Promise<AdapterDetailsResponse> {
@@ -1095,6 +1190,19 @@ export class RegistryBrokerClient {
     uaid: string,
   ): Promise<VerificationVerifySenderResponse> {
     return verifySenderOwnershipImpl(this, uaid);
+  }
+
+  async verifyUaidDnsTxt(
+    payload: VerificationDnsVerifyRequest,
+  ): Promise<VerificationDnsStatusResponse> {
+    return verifyUaidDnsTxtImpl(this, payload);
+  }
+
+  async getVerificationDnsStatus(
+    uaid: string,
+    query?: VerificationDnsStatusQuery,
+  ): Promise<VerificationDnsStatusResponse> {
+    return getVerificationDnsStatusImpl(this, uaid, query);
   }
 
   async fetchHistorySnapshot(

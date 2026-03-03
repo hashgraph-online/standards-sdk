@@ -1159,6 +1159,32 @@ export const verificationVerifySenderResponseSchema = z
   })
   .passthrough();
 
+const verificationDnsErrorSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+    details: z.record(jsonValueSchema).optional(),
+  })
+  .passthrough();
+
+export const verificationDnsStatusResponseSchema = z
+  .object({
+    uaid: z.string(),
+    verified: z.boolean(),
+    profileId: z.string(),
+    checkedAt: z.string(),
+    nativeId: z.string().optional(),
+    dnsName: z.string().optional(),
+    verificationLevel: z.string().optional(),
+    resolutionMode: z.string().optional(),
+    reconstructedUaid: z.string().optional(),
+    selectedFollowupProfile: z.string().optional(),
+    error: verificationDnsErrorSchema.optional(),
+    source: z.string().optional(),
+    persisted: z.boolean().optional(),
+  })
+  .passthrough();
+
 export const registerStatusResponseSchema = z
   .object({
     registered: z.boolean(),
@@ -1261,6 +1287,126 @@ export const skillRegistryListResponseSchema = z
     nextCursor: z.string().nullable(),
   })
   .passthrough();
+
+export const skillCatalogChannelSchema = z.enum([
+  'stable',
+  'prerelease',
+  'all',
+]);
+
+export const skillCatalogSortBySchema = z.enum([
+  'trending',
+  'upvotes',
+  'updated',
+  'name',
+]);
+
+export const skillCatalogVersionSummarySchema = z
+  .object({
+    version: z.string(),
+    publishedAt: z.string(),
+    verified: z.boolean().optional(),
+  })
+  .passthrough();
+
+export const skillCatalogItemSchema = z
+  .object({
+    name: z.string(),
+    description: z.string().optional(),
+    iconHcs1: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    latest: skillCatalogVersionSummarySchema,
+    latestStable: skillCatalogVersionSummarySchema.optional(),
+    recommended: skillCatalogVersionSummarySchema,
+    upvotes: z.number().int(),
+    verified: z.boolean(),
+    repoStamped: z.boolean(),
+    trustScore: z.number().optional(),
+    safetyScore: z.number().optional(),
+  })
+  .passthrough();
+
+export const skillCatalogResponseSchema = z
+  .object({
+    items: z.array(skillCatalogItemSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .passthrough();
+
+export const skillRecommendedVersionResponseSchema = z
+  .object({
+    name: z.string(),
+    version: z.string(),
+    updatedAt: z.string(),
+    setBy: z.string(),
+  })
+  .passthrough();
+
+export const skillDeprecationRecordSchema = z
+  .object({
+    name: z.string(),
+    version: z.string().optional(),
+    reason: z.string(),
+    replacementRef: z.string().optional(),
+    deprecatedAt: z.string(),
+    deprecatedBy: z.string(),
+  })
+  .passthrough();
+
+export const skillDeprecationsResponseSchema = z
+  .object({
+    name: z.string(),
+    items: z.array(skillDeprecationRecordSchema),
+  })
+  .passthrough();
+
+export const skillBadgeMetricSchema = z.enum([
+  'version',
+  'status',
+  'verification',
+  'repo_commit',
+  'manifest',
+  'domain',
+  'trust',
+  'safety',
+  'upvotes',
+  'updated',
+]);
+
+export const skillBadgeStyleSchema = z.enum([
+  'flat',
+  'flat-square',
+  'for-the-badge',
+  'plastic',
+  'social',
+]);
+
+export const skillBadgeResponseSchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    label: z.string(),
+    message: z.string(),
+    color: z.string(),
+    style: skillBadgeStyleSchema.optional(),
+    isError: z.boolean().optional(),
+    cacheSeconds: z.number().int().optional(),
+  })
+  .passthrough();
+
+export const skillRegistryTagsResponseSchema = z
+  .object({
+    tags: z.array(z.string()),
+  })
+  .passthrough();
+
+export const skillRegistryCategoriesResponseSchema = z
+  .object({
+    categories: z.array(z.string()),
+  })
+  .passthrough();
+
+export const skillResolverManifestResponseSchema = z.record(jsonValueSchema);
 
 export const skillRegistryQuoteFileBreakdownSchema = z
   .object({
@@ -1410,6 +1556,95 @@ const skillVerificationStatusSchema = z.enum([
   'approved',
   'rejected',
 ]);
+const skillVerificationStatusLabelSchema = z.enum([
+  'not_requested',
+  'pending',
+  'approved',
+  'rejected',
+]);
+const skillVerificationSignalFailureReasonSchema = z.enum([
+  'missing_owner',
+  'missing_repo_or_commit',
+  'unsupported_repo',
+  'repo_fetch_failed',
+  'manifest_pointer_missing',
+  'manifest_fetch_failed',
+  'manifest_parse_failed',
+  'missing_file_hashes',
+  'missing_domain',
+  'challenge_invalid',
+  'challenge_expired',
+  'dns_lookup_failed',
+  'dns_record_missing',
+  'mismatch',
+]);
+const skillVerificationPublisherBoundSignalSchema = z
+  .object({
+    ok: z.boolean(),
+    ownerAccountId: z.string().nullable(),
+    ownerUserId: z.string().nullable(),
+    checkedAt: z.string(),
+    reason: skillVerificationSignalFailureReasonSchema.optional(),
+  })
+  .passthrough();
+const skillVerificationRepoCommitIntegrityMismatchSchema = z
+  .object({
+    path: z.string(),
+    expectedSha256: z.string(),
+    actualSha256: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .passthrough();
+const skillVerificationRepoCommitIntegritySignalSchema = z
+  .object({
+    ok: z.boolean(),
+    repo: z.string().nullable(),
+    commit: z.string().nullable(),
+    checkedAt: z.string(),
+    filesChecked: z.number().int().min(0),
+    mismatches: z.array(skillVerificationRepoCommitIntegrityMismatchSchema),
+    partial: z.boolean().optional(),
+    reason: skillVerificationSignalFailureReasonSchema.optional(),
+  })
+  .passthrough();
+const skillVerificationManifestIntegrityShaMismatchSchema = z
+  .object({
+    path: z.string(),
+    expectedSha256: z.string(),
+    actualSha256: z.string().optional(),
+  })
+  .passthrough();
+const skillVerificationManifestIntegritySignalSchema = z
+  .object({
+    ok: z.boolean(),
+    manifestHrl: z.string().nullable(),
+    manifestSha256: z.string().nullable(),
+    checkedAt: z.string(),
+    missingFiles: z.array(z.string()),
+    shaMismatches: z.array(skillVerificationManifestIntegrityShaMismatchSchema),
+    extraFiles: z.array(z.string()).optional(),
+    reason: skillVerificationSignalFailureReasonSchema.optional(),
+  })
+  .passthrough();
+const skillVerificationDomainProofSignalSchema = z
+  .object({
+    ok: z.boolean(),
+    domain: z.string().optional(),
+    method: z.literal('dns_txt').optional(),
+    checkedAt: z.string().optional(),
+    details: z.string().optional(),
+    txtRecordName: z.string().optional(),
+    reason: skillVerificationSignalFailureReasonSchema.optional(),
+  })
+  .passthrough();
+const skillVerificationSignalsSchema = z
+  .object({
+    publisherBound: skillVerificationPublisherBoundSignalSchema,
+    repoCommitIntegrity: skillVerificationRepoCommitIntegritySignalSchema,
+    manifestIntegrity: skillVerificationManifestIntegritySignalSchema,
+    domainProof: skillVerificationDomainProofSignalSchema.optional(),
+  })
+  .passthrough();
 
 const skillVerificationRequestSchema = z
   .object({
@@ -1422,6 +1657,8 @@ const skillVerificationRequestSchema = z
     usdCents: z.number(),
     creditsCharged: z.number(),
     creditAccountId: z.string().optional(),
+    signals: skillVerificationSignalsSchema.optional(),
+    reviewNotes: z.string().optional(),
     requestedBy: z
       .object({
         userId: z.string().optional(),
@@ -1436,6 +1673,13 @@ const skillVerificationRequestSchema = z
       })
       .optional(),
     approvedAt: z.string().optional(),
+    rejectedBy: z
+      .object({
+        userId: z.string().optional(),
+        email: z.string().optional(),
+      })
+      .optional(),
+    rejectedAt: z.string().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -1450,8 +1694,50 @@ export const skillVerificationRequestCreateResponseSchema = z
 export const skillVerificationStatusResponseSchema = z
   .object({
     name: z.string(),
+    version: z.string(),
+    status: skillVerificationStatusLabelSchema,
     verified: z.boolean(),
     previouslyVerified: z.boolean(),
+    signals: skillVerificationSignalsSchema.nullable().optional(),
+    reviewNotes: z.string().nullable().optional(),
     pendingRequest: skillVerificationRequestSchema.nullable().optional(),
+  })
+  .passthrough();
+
+export const skillVerificationDomainProofChallengeRequestSchema = z
+  .object({
+    name: z.string().min(1),
+    version: z.string().min(1).optional(),
+    domain: z.string().min(1).optional(),
+  })
+  .passthrough();
+
+export const skillVerificationDomainProofChallengeResponseSchema = z
+  .object({
+    challengeId: z.string().min(1),
+    name: z.string().min(1),
+    version: z.string().min(1),
+    domain: z.string().min(1),
+    method: z.literal('dns_txt'),
+    txtRecordName: z.string().min(1),
+    txtRecordValue: z.string().min(1),
+    expiresAt: z.string().min(1),
+  })
+  .passthrough();
+
+export const skillVerificationDomainProofVerifyRequestSchema = z
+  .object({
+    name: z.string().min(1),
+    version: z.string().min(1).optional(),
+    domain: z.string().min(1).optional(),
+    challengeToken: z.string().min(1),
+  })
+  .passthrough();
+
+export const skillVerificationDomainProofVerifyResponseSchema = z
+  .object({
+    name: z.string().min(1),
+    version: z.string().min(1),
+    signal: skillVerificationDomainProofSignalSchema,
   })
   .passthrough();

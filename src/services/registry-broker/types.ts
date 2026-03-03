@@ -69,9 +69,24 @@ import {
   verificationChallengeResponseSchema,
   verificationOwnershipResponseSchema,
   verificationStatusResponseSchema,
+  verificationDnsStatusResponseSchema,
   verificationVerifyResponseSchema,
   verificationVerifySenderResponseSchema,
   skillRegistryConfigResponseSchema,
+  skillCatalogChannelSchema,
+  skillCatalogSortBySchema,
+  skillCatalogVersionSummarySchema,
+  skillCatalogItemSchema,
+  skillCatalogResponseSchema,
+  skillRecommendedVersionResponseSchema,
+  skillDeprecationRecordSchema,
+  skillDeprecationsResponseSchema,
+  skillBadgeMetricSchema,
+  skillBadgeStyleSchema,
+  skillBadgeResponseSchema,
+  skillRegistryTagsResponseSchema,
+  skillRegistryCategoriesResponseSchema,
+  skillResolverManifestResponseSchema,
   skillRegistryFileDescriptorSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
@@ -83,6 +98,8 @@ import {
   skillRegistryQuoteResponseSchema,
   skillRegistryVersionsResponseSchema,
   skillRegistryVoteStatusResponseSchema,
+  skillVerificationDomainProofChallengeResponseSchema,
+  skillVerificationDomainProofVerifyResponseSchema,
   skillVerificationRequestCreateResponseSchema,
   skillVerificationStatusResponseSchema,
 } from './schemas';
@@ -300,6 +317,9 @@ export type VerificationOwnershipResponse = z.infer<
 export type VerificationVerifySenderResponse = z.infer<
   typeof verificationVerifySenderResponseSchema
 >;
+export type VerificationDnsStatusResponse = z.infer<
+  typeof verificationDnsStatusResponseSchema
+>;
 
 export type RegisterStatusResponse = z.infer<
   typeof registerStatusResponseSchema
@@ -336,6 +356,34 @@ export type SkillRegistryJobStatusResponse = z.infer<
 export type SkillRegistryConfigResponse = z.infer<
   typeof skillRegistryConfigResponseSchema
 >;
+export type SkillCatalogChannel = z.infer<typeof skillCatalogChannelSchema>;
+export type SkillCatalogSortBy = z.infer<typeof skillCatalogSortBySchema>;
+export type SkillCatalogVersionSummary = z.infer<
+  typeof skillCatalogVersionSummarySchema
+>;
+export type SkillCatalogItem = z.infer<typeof skillCatalogItemSchema>;
+export type SkillCatalogResponse = z.infer<typeof skillCatalogResponseSchema>;
+export type SkillRecommendedVersionResponse = z.infer<
+  typeof skillRecommendedVersionResponseSchema
+>;
+export type SkillDeprecationRecord = z.infer<
+  typeof skillDeprecationRecordSchema
+>;
+export type SkillDeprecationsResponse = z.infer<
+  typeof skillDeprecationsResponseSchema
+>;
+export type SkillBadgeMetric = z.infer<typeof skillBadgeMetricSchema>;
+export type SkillBadgeStyle = z.infer<typeof skillBadgeStyleSchema>;
+export type SkillBadgeResponse = z.infer<typeof skillBadgeResponseSchema>;
+export type SkillRegistryTagsResponse = z.infer<
+  typeof skillRegistryTagsResponseSchema
+>;
+export type SkillRegistryCategoriesResponse = z.infer<
+  typeof skillRegistryCategoriesResponseSchema
+>;
+export type SkillResolverManifestResponse = z.infer<
+  typeof skillResolverManifestResponseSchema
+>;
 export type SkillRegistryOwnershipResponse = z.infer<
   typeof skillRegistryOwnershipResponseSchema
 >;
@@ -351,6 +399,12 @@ export type SkillVerificationRequestCreateResponse = z.infer<
 >;
 export type SkillVerificationStatusResponse = z.infer<
   typeof skillVerificationStatusResponseSchema
+>;
+export type SkillVerificationDomainProofChallengeResponse = z.infer<
+  typeof skillVerificationDomainProofChallengeResponseSchema
+>;
+export type SkillVerificationDomainProofVerifyResponse = z.infer<
+  typeof skillVerificationDomainProofVerifyResponseSchema
 >;
 export type SkillVerificationRequest =
   SkillVerificationRequestCreateResponse['request'];
@@ -375,6 +429,33 @@ export interface SkillRegistryQuoteRequest {
   accountId?: string;
 }
 
+export interface SkillListOptions {
+  name?: string;
+  version?: string;
+  limit?: number;
+  cursor?: string;
+  includeFiles?: boolean;
+  accountId?: string;
+  q?: string;
+  tag?: string;
+  category?: string;
+  featured?: boolean;
+  verified?: boolean;
+  view?: 'latest' | 'all';
+}
+
+export interface SkillCatalogQueryOptions {
+  q?: string;
+  category?: string;
+  tags?: string[];
+  featured?: boolean;
+  verified?: boolean;
+  channel?: SkillCatalogChannel;
+  sortBy?: SkillCatalogSortBy;
+  limit?: number;
+  cursor?: string;
+}
+
 export interface SkillRegistryPublishRequest {
   files: SkillRegistryFileInput[];
   directoryTopicId?: string;
@@ -390,7 +471,40 @@ export interface SkillRegistryVoteRequest {
 
 export interface SkillVerificationRequestCreateRequest {
   name: string;
+  version?: string;
   tier: SkillVerificationTier;
+}
+
+export interface SkillVerificationDomainProofChallengeRequest {
+  name: string;
+  version?: string;
+  domain?: string;
+}
+
+export interface SkillVerificationDomainProofVerifyRequest {
+  name: string;
+  version?: string;
+  domain?: string;
+  challengeToken: string;
+}
+
+export interface SkillRecommendedVersionSetRequest {
+  name: string;
+  version: string;
+}
+
+export interface SkillDeprecationSetRequest {
+  name: string;
+  version?: string;
+  reason: string;
+  replacementRef?: string;
+}
+
+export interface SkillBadgeQuery {
+  name: string;
+  metric?: SkillBadgeMetric;
+  label?: string;
+  style?: SkillBadgeStyle;
 }
 
 export interface MoltbookOwnerRegistrationUpdateRequest {
@@ -400,6 +514,17 @@ export interface MoltbookOwnerRegistrationUpdateRequest {
   endpoint?: string;
   metadata?: JsonObject;
 }
+
+export interface VerificationDnsVerifyRequest {
+  uaid: string;
+  persist?: boolean;
+}
+
+export interface VerificationDnsStatusQuery {
+  refresh?: boolean;
+  persist?: boolean;
+}
+
 export type AgentFeedbackEntriesIndexResponse = z.infer<
   typeof agentFeedbackEntriesIndexResponseSchema
 >;

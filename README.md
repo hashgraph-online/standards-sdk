@@ -38,6 +38,65 @@ For complete documentation, examples, and API references, visit:
 
 - [Standards SDK Documentation](https://hol.org/docs/libraries/standards-sdk/)
 
+### Registry Broker skill verification (DNS TXT domain proof)
+
+The `RegistryBrokerClient` supports version-scoped skill verification plus DNS TXT domain proof:
+
+```typescript
+import { RegistryBrokerClient } from '@hashgraphonline/standards-sdk';
+
+const client = new RegistryBrokerClient({
+  apiKey: process.env.REGISTRY_BROKER_API_KEY,
+});
+
+await client.requestSkillVerification({
+  name: 'demo-skill',
+  version: '1.0.0',
+  tier: 'basic', // or 'express'
+});
+
+const challenge = await client.createSkillDomainProofChallenge({
+  name: 'demo-skill',
+  version: '1.0.0',
+  domain: 'example.com',
+});
+
+const challengeToken = challenge.txtRecordValue.replace(/^hol-skill-verification=/, '');
+
+await client.verifySkillDomainProof({
+  name: 'demo-skill',
+  version: '1.0.0',
+  domain: 'example.com',
+  challengeToken,
+});
+```
+
+Runnable demo: `pnpm -C standards-sdk tsx demo/registry-broker/skill-domain-proof-demo.ts --skill-name=<name> --base-url=<broker-api-url>`.
+
+### Registry Broker UAID DNS verification (HCS-14 DNS TXT profile)
+
+The `RegistryBrokerClient` can verify and persist `_uaid.<nativeId>` TXT proof for an agent UAID:
+
+```typescript
+import { RegistryBrokerClient } from '@hashgraphonline/standards-sdk';
+
+const client = new RegistryBrokerClient({
+  baseUrl: 'https://hol.org/registry/api/v1',
+});
+
+const verify = await client.verifyUaidDnsTxt({
+  uaid: 'uaid:aid:...;uid=...;proto=a2a;nativeId=agent.hol.org',
+  persist: true,
+});
+
+const status = await client.getVerificationDnsStatus(
+  'uaid:aid:...;uid=...;proto=a2a;nativeId=agent.hol.org',
+  { refresh: true, persist: false },
+);
+```
+
+Runnable demo: `pnpm -C standards-sdk run demo:registry-broker-uaid-dns -- --uaid=<uaid> --base-url=<broker-api-url>`.
+
 ## Interactive CLI and Demos
 
 Launch the bundled CLI to explore registry broker demos, inspect required env vars, and run helper scripts:

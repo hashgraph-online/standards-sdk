@@ -29,7 +29,7 @@ const resolveBaseUrl = (): string => {
   }
   return (
     process.env.REGISTRY_BROKER_BASE_URL?.trim() ||
-    'http://localhost:4000/api/v1'
+    'https://hol.org/registry/api/v1'
   );
 };
 

@@ -1,6 +1,17 @@
 import type {
   JsonValue,
+  SkillBadgeQuery,
+  SkillBadgeResponse,
+  SkillCatalogQueryOptions,
+  SkillCatalogResponse,
+  SkillDeprecationRecord,
+  SkillDeprecationSetRequest,
+  SkillDeprecationsResponse,
+  SkillListOptions,
+  SkillRecommendedVersionResponse,
+  SkillRecommendedVersionSetRequest,
   SkillRegistryConfigResponse,
+  SkillRegistryCategoriesResponse,
   SkillRegistryJobStatusResponse,
   SkillRegistryListResponse,
   SkillRegistryMineResponse,
@@ -10,15 +21,27 @@ import type {
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillRegistryTagsResponse,
   SkillRegistryVoteRequest,
   SkillRegistryVoteStatusResponse,
+  SkillResolverManifestResponse,
   SkillRegistryVersionsResponse,
+  SkillVerificationDomainProofChallengeRequest,
+  SkillVerificationDomainProofChallengeResponse,
+  SkillVerificationDomainProofVerifyRequest,
+  SkillVerificationDomainProofVerifyResponse,
   SkillVerificationRequestCreateRequest,
   SkillVerificationRequestCreateResponse,
   SkillVerificationStatusResponse,
 } from '../types';
 import {
+  skillBadgeResponseSchema,
+  skillCatalogResponseSchema,
+  skillDeprecationRecordSchema,
+  skillDeprecationsResponseSchema,
+  skillRecommendedVersionResponseSchema,
   skillRegistryConfigResponseSchema,
+  skillRegistryCategoriesResponseSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
   skillRegistryMineResponseSchema,
@@ -26,7 +49,11 @@ import {
   skillRegistryOwnershipResponseSchema,
   skillRegistryPublishResponseSchema,
   skillRegistryQuoteResponseSchema,
+  skillRegistryTagsResponseSchema,
   skillRegistryVoteStatusResponseSchema,
+  skillResolverManifestResponseSchema,
+  skillVerificationDomainProofChallengeResponseSchema,
+  skillVerificationDomainProofVerifyResponseSchema,
   skillRegistryVersionsResponseSchema,
   skillVerificationRequestCreateResponseSchema,
   skillVerificationStatusResponseSchema,
@@ -48,14 +75,7 @@ export async function skillsConfig(
 
 export async function listSkills(
   client: RegistryBrokerClient,
-  params: {
-    name?: string;
-    version?: string;
-    limit?: number;
-    cursor?: string;
-    includeFiles?: boolean;
-    accountId?: string;
-  } = {},
+  params: SkillListOptions = {},
 ): Promise<SkillRegistryListResponse> {
   const query = new URLSearchParams();
   if (params.name) {
@@ -76,6 +96,24 @@ export async function listSkills(
   if (params.accountId) {
     query.set('accountId', params.accountId);
   }
+  if (params.q) {
+    query.set('q', params.q);
+  }
+  if (params.tag) {
+    query.set('tag', params.tag);
+  }
+  if (params.category) {
+    query.set('category', params.category);
+  }
+  if (typeof params.featured === 'boolean') {
+    query.set('featured', params.featured ? 'true' : 'false');
+  }
+  if (typeof params.verified === 'boolean') {
+    query.set('verified', params.verified ? 'true' : 'false');
+  }
+  if (params.view) {
+    query.set('view', params.view);
+  }
 
   const suffix = query.size > 0 ? `?${query.toString()}` : '';
 
@@ -87,6 +125,53 @@ export async function listSkills(
     raw,
     skillRegistryListResponseSchema,
     'skill registry list response',
+  );
+}
+
+export async function getSkillsCatalog(
+  client: RegistryBrokerClient,
+  params: SkillCatalogQueryOptions = {},
+): Promise<SkillCatalogResponse> {
+  const query = new URLSearchParams();
+  if (params.q) {
+    query.set('q', params.q);
+  }
+  if (params.category) {
+    query.set('category', params.category);
+  }
+  params.tags?.forEach(tag => {
+    if (tag.trim()) {
+      query.append('tag', tag.trim());
+    }
+  });
+  if (typeof params.featured === 'boolean') {
+    query.set('featured', params.featured ? 'true' : 'false');
+  }
+  if (typeof params.verified === 'boolean') {
+    query.set('verified', params.verified ? 'true' : 'false');
+  }
+  if (params.channel) {
+    query.set('channel', params.channel);
+  }
+  if (params.sortBy) {
+    query.set('sortBy', params.sortBy);
+  }
+  if (typeof params.limit === 'number' && Number.isFinite(params.limit)) {
+    query.set('limit', String(Math.trunc(params.limit)));
+  }
+  if (params.cursor) {
+    query.set('cursor', params.cursor);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : '';
+
+  const raw = await client.requestJson<JsonValue>(`/skills/catalog${suffix}`, {
+    method: 'GET',
+  });
+
+  return client.parseWithSchema(
+    raw,
+    skillCatalogResponseSchema,
+    'skill catalog response',
   );
 }
 
@@ -253,6 +338,203 @@ export async function getSkillOwnership(
   );
 }
 
+export async function getRecommendedSkillVersion(
+  client: RegistryBrokerClient,
+  params: { name: string },
+): Promise<SkillRecommendedVersionResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/recommended?${query.toString()}`,
+    { method: 'GET' },
+  );
+  return client.parseWithSchema(
+    raw,
+    skillRecommendedVersionResponseSchema,
+    'skill recommended version response',
+  );
+}
+
+export async function setRecommendedSkillVersion(
+  client: RegistryBrokerClient,
+  payload: SkillRecommendedVersionSetRequest,
+): Promise<SkillRecommendedVersionResponse> {
+  const normalizedName = payload.name.trim();
+  const normalizedVersion = payload.version.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+  if (!normalizedVersion) {
+    throw new Error('version is required');
+  }
+  const raw = await client.requestJson<JsonValue>('/skills/recommended', {
+    method: 'POST',
+    body: {
+      name: normalizedName,
+      version: normalizedVersion,
+    },
+    headers: { 'content-type': 'application/json' },
+  });
+  return client.parseWithSchema(
+    raw,
+    skillRecommendedVersionResponseSchema,
+    'skill recommended version response',
+  );
+}
+
+export async function getSkillDeprecations(
+  client: RegistryBrokerClient,
+  params: { name: string },
+): Promise<SkillDeprecationsResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/deprecations?${query.toString()}`,
+    { method: 'GET' },
+  );
+  return client.parseWithSchema(
+    raw,
+    skillDeprecationsResponseSchema,
+    'skill deprecations response',
+  );
+}
+
+export async function setSkillDeprecation(
+  client: RegistryBrokerClient,
+  payload: SkillDeprecationSetRequest,
+): Promise<SkillDeprecationRecord> {
+  const normalizedName = payload.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+  const version = payload.version?.trim();
+  const reason = payload.reason.trim();
+  if (!reason) {
+    throw new Error('reason is required');
+  }
+  const replacementRef = payload.replacementRef?.trim();
+  const raw = await client.requestJson<JsonValue>('/skills/deprecate', {
+    method: 'POST',
+    body: {
+      name: normalizedName,
+      version,
+      reason,
+      replacementRef,
+    },
+    headers: { 'content-type': 'application/json' },
+  });
+  return client.parseWithSchema(
+    raw,
+    skillDeprecationRecordSchema,
+    'skill deprecation response',
+  );
+}
+
+export async function getSkillBadge(
+  client: RegistryBrokerClient,
+  params: SkillBadgeQuery,
+): Promise<SkillBadgeResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  if (params.metric) {
+    query.set('metric', params.metric);
+  }
+  if (params.label?.trim()) {
+    query.set('label', params.label.trim());
+  }
+  if (params.style) {
+    query.set('style', params.style);
+  }
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/badge?${query.toString()}`,
+    { method: 'GET' },
+  );
+  return client.parseWithSchema(
+    raw,
+    skillBadgeResponseSchema,
+    'skill badge response',
+  );
+}
+
+export async function listSkillTags(
+  client: RegistryBrokerClient,
+): Promise<SkillRegistryTagsResponse> {
+  const raw = await client.requestJson<JsonValue>('/skills/tags', {
+    method: 'GET',
+  });
+  return client.parseWithSchema(
+    raw,
+    skillRegistryTagsResponseSchema,
+    'skill tags response',
+  );
+}
+
+export async function listSkillCategories(
+  client: RegistryBrokerClient,
+): Promise<SkillRegistryCategoriesResponse> {
+  const raw = await client.requestJson<JsonValue>('/skills/categories', {
+    method: 'GET',
+  });
+  return client.parseWithSchema(
+    raw,
+    skillRegistryCategoriesResponseSchema,
+    'skill categories response',
+  );
+}
+
+export async function resolveSkillMarkdown(
+  client: RegistryBrokerClient,
+  skillRef: string,
+): Promise<string> {
+  const normalizedSkillRef = skillRef.trim();
+  if (!normalizedSkillRef) {
+    throw new Error('skillRef is required');
+  }
+  const response = await client.request(
+    `/skills/${encodeURIComponent(normalizedSkillRef)}/SKILL.md`,
+    {
+      method: 'GET',
+      headers: {
+        accept: 'text/markdown, text/plain;q=0.9, */*;q=0.8',
+      },
+    },
+  );
+  return response.text();
+}
+
+export async function resolveSkillManifest(
+  client: RegistryBrokerClient,
+  skillRef: string,
+): Promise<SkillResolverManifestResponse> {
+  const normalizedSkillRef = skillRef.trim();
+  if (!normalizedSkillRef) {
+    throw new Error('skillRef is required');
+  }
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/${encodeURIComponent(normalizedSkillRef)}/manifest`,
+    {
+      method: 'GET',
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    skillResolverManifestResponseSchema,
+    'skill resolver manifest response',
+  );
+}
+
 export async function getSkillVoteStatus(
   client: RegistryBrokerClient,
   params: { name: string },
@@ -312,7 +594,11 @@ export async function requestSkillVerification(
     '/skills/verification/request',
     {
       method: 'POST',
-      body: { name: normalizedName, tier: payload.tier },
+      body: {
+        name: normalizedName,
+        version: payload.version,
+        tier: payload.tier,
+      },
       headers: { 'content-type': 'application/json' },
     },
   );
@@ -326,7 +612,7 @@ export async function requestSkillVerification(
 
 export async function getSkillVerificationStatus(
   client: RegistryBrokerClient,
-  params: { name: string },
+  params: { name: string; version?: string },
 ): Promise<SkillVerificationStatusResponse> {
   const normalizedName = params.name.trim();
   if (!normalizedName) {
@@ -335,6 +621,9 @@ export async function getSkillVerificationStatus(
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
+  if (params.version) {
+    query.set('version', params.version);
+  }
 
   const raw = await client.requestJson<JsonValue>(
     `/skills/verification/status?${query.toString()}`,
@@ -345,5 +634,68 @@ export async function getSkillVerificationStatus(
     raw,
     skillVerificationStatusResponseSchema,
     'skill verification status response',
+  );
+}
+
+export async function createSkillDomainProofChallenge(
+  client: RegistryBrokerClient,
+  payload: SkillVerificationDomainProofChallengeRequest,
+): Promise<SkillVerificationDomainProofChallengeResponse> {
+  const normalizedName = payload.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    '/skills/verification/domain/challenge',
+    {
+      method: 'POST',
+      body: {
+        name: normalizedName,
+        version: payload.version,
+        domain: payload.domain,
+      },
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillVerificationDomainProofChallengeResponseSchema,
+    'skill domain proof challenge response',
+  );
+}
+
+export async function verifySkillDomainProof(
+  client: RegistryBrokerClient,
+  payload: SkillVerificationDomainProofVerifyRequest,
+): Promise<SkillVerificationDomainProofVerifyResponse> {
+  const normalizedName = payload.name.trim();
+  const challengeToken = payload.challengeToken.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+  if (!challengeToken) {
+    throw new Error('challengeToken is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    '/skills/verification/domain/verify',
+    {
+      method: 'POST',
+      body: {
+        name: normalizedName,
+        version: payload.version,
+        domain: payload.domain,
+        challengeToken,
+      },
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillVerificationDomainProofVerifyResponseSchema,
+    'skill domain proof verify response',
   );
 }
