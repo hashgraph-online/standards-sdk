@@ -115,13 +115,15 @@ See [cli/standards-cli/README.md](cli/standards-cli/README.md) for advanced and 
 
 ## Supported Standards
 
-- **HCS-1**: File Storage
-- **HCS-2**: Registry and Indexing Standard
-- **HCS-3**: Recursive File Loading
-- **HCS-7**: Smart Hashinals
-- **HCS-10**: Trustless Peer-to-Peer Communication for Agents and AI
-- **HCS-11**: Decentralized Profile and Identity Standard
-- **HCS-20**: Auditable Points
+| Standard | Description |
+| :--- | :--- |
+| `HCS-1` | File Storage |
+| `HCS-2` | Registry and Indexing Standard |
+| `HCS-3` | Recursive File Loading |
+| `HCS-7` | Smart Hashinals |
+| `HCS-10` | Trustless Peer-to-Peer Communication for Agents and AI |
+| `HCS-11` | Decentralized Profile and Identity Standard |
+| `HCS-20` | Auditable Points |
 
 ## Running Demos
 
@@ -216,6 +218,17 @@ See [MAINTAINERS.md](MAINTAINERS.md) for a list of project maintainers.
 - [HCS Standards Documentation](https://hol.org/docs/standards)
 - [Hedera Documentation](https://docs.hedera.com)
 - [Telegram Community](https://t.me/hashinals)
+
+### 📝 Blog Tutorials
+
+- [Building a Decentralized Registry with Go & HCS-2](https://hol.org/blog/building-decentralized-registry-go-hedara)
+- [Universal Agent Discovery with MCP](https://hol.org/blog/universal-agent-discovery-mcp)
+- [Creating Reactive Service Agents](https://hol.org/blog/creating-reactive-service-agents)
+- [End-to-End Encrypted Agent Communication](https://hol.org/blog/end-to-end-encrypted-agent-communication)
+- [Building Monetized Agents with x402](https://hol.org/blog/building-monetized-agents-x402)
+- [Bridging AgentVerse Communication](https://hol.org/blog/bridging-agentverse-communication)
+- [Discovering NANDA Agents with Registry Broker](https://hol.org/blog/discovering-nanda-agents-registry-broker)
+- [ERC-8004: Trustless Agent Registry](https://hol.org/blog/erc-8004-trustless-agent-registry)
 
 ## License
 
