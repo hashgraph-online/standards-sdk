@@ -123,7 +123,7 @@ export class HCS14Client {
       operatorKey: privateKey,
       mirrorNode: new HederaMirrorNode(network),
       logger: this.logger,
-      client: this.client ?? Client.forName(network),
+      client: Client.forName(network),
     });
     this.operatorCtx = ctx;
     this.client = ctx.client;
