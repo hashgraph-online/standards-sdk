@@ -115,7 +115,7 @@ export default defineConfig(async () => {
                 preserveModulesRoot: format === 'es' ? 'src' : undefined,
                 exports: 'named',
                 inlineDynamicImports: format === 'umd' || isBrowserBundle,
-                manualChunks: isBrowserBundle ? undefined : void 0,
+                manualChunks: undefined,
                 name: format === 'umd' ? 'StandardsSDK' : undefined,
               },
       },

@@ -8,6 +8,7 @@ describe('browser entry', () => {
     expect(browserEntry.PersonBuilder).toBeDefined();
     expect(browserEntry.BlockLoader).toBeDefined();
     expect(browserEntry.inscribeWithSigner).toBeDefined();
+    expect('inscribe' in browserEntry).toBe(false);
     expect(browserEntry.ProfileType).toBeDefined();
   });
 });
