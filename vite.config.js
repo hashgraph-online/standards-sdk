@@ -4,12 +4,16 @@ import { resolve } from 'path';
 
 export default defineConfig(async () => {
   const format = process.env.BUILD_FORMAT || 'es';
+  const isBrowserBundle = format === 'browser';
+  const viteFormat = isBrowserBundle ? 'es' : format;
   let outputDir;
 
   if (format === 'umd') {
     outputDir = 'dist/umd';
   } else if (format === 'cjs') {
     outputDir = 'dist/cjs';
+  } else if (isBrowserBundle) {
+    outputDir = 'dist/browser';
   } else {
     outputDir = 'dist/es';
   }
@@ -52,10 +56,18 @@ export default defineConfig(async () => {
     build: {
       outDir: outputDir,
       lib: {
-        entry: resolve(__dirname, 'src/index.ts'),
+        entry: resolve(
+          __dirname,
+          isBrowserBundle ? 'src/browser.ts' : 'src/index.ts',
+        ),
         name: format === 'umd' ? 'StandardsSDK' : undefined,
-        fileName: fmt => `standards-sdk.${fmt === 'cjs' ? 'cjs' : fmt + '.js'}`,
-        formats: [format],
+        fileName: fmt => {
+          if (isBrowserBundle) {
+            return 'standards-sdk.browser.js';
+          }
+          return `standards-sdk.${fmt === 'cjs' ? 'cjs' : fmt + '.js'}`;
+        },
+        formats: [viteFormat],
       },
       rollupOptions: {
         external: id => {
@@ -74,6 +86,11 @@ export default defineConfig(async () => {
           }
           if (format === 'umd') {
             return false;
+          }
+          if (isBrowserBundle) {
+            return externalDependencies.some(
+              dep => id === dep || id.startsWith(dep + '/'),
+            );
           }
           return (
             externalDependencies.some(
@@ -97,7 +114,8 @@ export default defineConfig(async () => {
                 preserveModules: format === 'es',
                 preserveModulesRoot: format === 'es' ? 'src' : undefined,
                 exports: 'named',
-                inlineDynamicImports: format === 'umd',
+                inlineDynamicImports: format === 'umd' || isBrowserBundle,
+                manualChunks: isBrowserBundle ? undefined : void 0,
                 name: format === 'umd' ? 'StandardsSDK' : undefined,
               },
       },
