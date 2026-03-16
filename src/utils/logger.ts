@@ -1,5 +1,3 @@
-import { inspect } from 'util';
-
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 export interface LoggerOptions {
@@ -24,6 +22,52 @@ export interface ILogger {
 export type LoggerFactory = (options: LoggerOptions) => ILogger;
 
 let loggerFactory: LoggerFactory | null = null;
+
+function normalizeErrorData(error: Error): Record<string, unknown> {
+  const normalizedData: Record<string, unknown> = {
+    name: error.name,
+    message: error.message,
+  };
+
+  if (error.stack) {
+    normalizedData.stack = error.stack;
+  }
+
+  for (const [key, value] of Object.entries(error)) {
+    normalizedData[key] = value;
+  }
+
+  return normalizedData;
+}
+
+function serializeLogData(data: unknown): string {
+  try {
+    return JSON.stringify(
+      data,
+      (_key, value: unknown) => {
+        if (value instanceof Error) {
+          return normalizeErrorData(value);
+        }
+        if (typeof value === 'bigint') {
+          return value.toString();
+        }
+        if (value instanceof Map) {
+          return Object.fromEntries(value);
+        }
+        if (value instanceof Set) {
+          return Array.from(value);
+        }
+        if (value instanceof Uint8Array) {
+          return Array.from(value);
+        }
+        return value;
+      },
+      2,
+    );
+  } catch {
+    return String(data);
+  }
+}
 
 /**
  * Set a custom logger factory to override the default Pino-based implementation
@@ -166,7 +210,7 @@ export class Logger implements ILogger {
       let output = `${timestamp} ${levelFormatted} [${this.moduleContext}] ${msg}`;
 
       if (data) {
-        output += '\n' + inspect(data, { colors: true, depth: 3 });
+        output += '\n' + serializeLogData(data);
       }
 
       consoleMethod(output);

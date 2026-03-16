@@ -12,7 +12,8 @@
   "moduleNameMapper": {
     "^file-type$": "<rootDir>/__mocks__/file-type.js",
     "^../src$": "<rootDir>/src",
-    "^@hashgraphonline/standards-sdk$": "<rootDir>/src/index.ts"
+    "^@hashgraphonline/standards-sdk$": "<rootDir>/src/index.ts",
+    "^@hashgraphonline/standards-sdk/browser$": "<rootDir>/src/browser.ts"
   },
   "collectCoverage": true,
   "collectCoverageFrom": [
