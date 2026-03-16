@@ -1,6 +1,6 @@
 import { Logger, LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
-import { PrivateKey } from '@hashgraph/sdk';
+import { Client, PrivateKey } from '@hashgraph/sdk';
 import type { InscriptionOptions } from '../inscribe/types';
 import type { InscriptionInput } from '../inscribe/inscriber';
 
@@ -14,6 +14,7 @@ export interface HCS5ClientConfig {
   logger?: Logger;
   operatorId: string;
   operatorKey: string | PrivateKey;
+  client?: Client;
 }
 
 /**

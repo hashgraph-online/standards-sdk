@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { AccountId, TopicId, PrivateKey } from '@hashgraph/sdk';
+import { AccountId, Client, TopicId, PrivateKey } from '@hashgraph/sdk';
 import type { ILogger } from '../utils/logger';
 
 /**
@@ -214,6 +214,7 @@ export interface SDKHCS20ClientConfig extends HCS20ClientConfig {
   operatorId: string | AccountId;
   operatorKey: string | PrivateKey;
   keyType?: 'ed25519' | 'ecdsa';
+  client?: Client;
 }
 
 /**

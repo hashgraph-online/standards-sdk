@@ -176,7 +176,8 @@ export class HCS11Client {
 
   constructor(config: HCS11ClientConfig) {
     this.client =
-      config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+      config.client ??
+      (config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet());
     this.auth = config.auth;
     this.network = config.network;
     this.operatorId = config.auth.operatorId;

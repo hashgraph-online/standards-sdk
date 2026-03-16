@@ -113,4 +113,22 @@ describe('HCS2Client (unit)', () => {
     expect(reg.registryType).toBe(0);
     expect(reg.entries.length).toBe(1);
   });
+
+  test('uses injected Hedera client when provided', () => {
+    const { Client } = jest.requireMock('@hashgraph/sdk') as {
+      Client: { forTestnet: jest.Mock; forMainnet: jest.Mock };
+    };
+    Client.forTestnet.mockClear();
+    Client.forMainnet.mockClear();
+    const injected = { setOperator: jest.fn() } as any;
+
+    const c = new HCS2Client({
+      ...base,
+      client: injected,
+    } as any);
+    expect(c).toBeDefined();
+
+    expect(Client.forTestnet).not.toHaveBeenCalled();
+    expect(Client.forMainnet).not.toHaveBeenCalled();
+  });
 });

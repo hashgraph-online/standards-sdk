@@ -44,6 +44,8 @@ export interface HCS12ClientConfig extends HCS12Config {
   operatorId: string;
   /** Operator private key */
   operatorPrivateKey: string | PrivateKey;
+  /** Optional preconfigured Hedera SDK client to reuse. */
+  client?: Client;
 }
 
 /**
@@ -66,9 +68,10 @@ export class HCS12Client extends HCS12BaseClient {
       mirrorNode: this.mirrorNode,
       logger: this.logger,
       client:
-        config.network === 'mainnet'
+        config.client ??
+        (config.network === 'mainnet'
           ? Client.forMainnet()
-          : Client.forTestnet(),
+          : Client.forTestnet()),
     });
     this.client = this.operatorCtx.client;
 

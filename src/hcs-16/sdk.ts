@@ -37,6 +37,7 @@ export interface HCS16ClientConfig {
   operatorKey: string;
   keyType?: 'ecdsa' | 'ed25519';
   logger?: Logger;
+  client?: Client;
 }
 
 export interface FloraProfileOptions {
@@ -73,9 +74,10 @@ export class HCS16Client extends HCS16BaseClient {
       mirrorNode: mirror,
       logger: this.logger,
       client:
-        config.network === 'mainnet'
+        config.client ??
+        (config.network === 'mainnet'
           ? Client.forMainnet()
-          : Client.forTestnet(),
+          : Client.forTestnet()),
     });
     this.client = this.operatorCtx.client;
   }

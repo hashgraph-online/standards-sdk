@@ -1,4 +1,4 @@
-import type { Signer } from '@hashgraph/sdk';
+import type { Client, Signer } from '@hashgraph/sdk';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { RegistrationProgressCallback } from '../hcs-10/types';
 import { LogLevel } from '../utils/logger';
@@ -187,6 +187,7 @@ export interface HCS11ClientConfig {
   logLevel?: LogLevel;
   silent?: boolean;
   keyType?: 'ed25519' | 'ecdsa';
+  client?: Client;
 }
 
 export interface TransactionResult<T = unknown> {

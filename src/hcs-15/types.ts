@@ -2,7 +2,7 @@
  * HCS-15 Petal Account Structure Types
  */
 
-import { PrivateKey, PublicKey, AccountId } from '@hashgraph/sdk';
+import { Client, PrivateKey, PublicKey, AccountId } from '@hashgraph/sdk';
 import type { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { Logger, LogLevel } from '../utils/logger';
@@ -98,6 +98,7 @@ export interface SDKHCS15ClientConfig extends HCS15ClientConfig {
   operatorId: string;
   operatorKey: string | PrivateKey;
   keyType?: 'ed25519' | 'ecdsa';
+  client?: Client;
 }
 
 /**
