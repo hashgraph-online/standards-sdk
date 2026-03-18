@@ -29,6 +29,7 @@ export class HCS7Client extends HCS7BaseClient {
       keyType: config.keyType,
       mirrorNode: this.mirrorNode,
       logger: this.logger,
+      client: config.client,
     });
     this.client = this.operatorCtx.client;
   }

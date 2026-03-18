@@ -36,6 +36,7 @@ export interface HCS21ClientConfig {
   logLevel?: LogLevel;
   logger?: ILogger;
   mirrorNodeUrl?: string;
+  client?: Client;
 }
 
 export interface CreateRegistryTopicParams {
@@ -138,7 +139,8 @@ export class HCS21Client extends HCS21BaseClient {
     });
 
     const baseClient =
-      config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+      config.client ??
+      (config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet());
 
     this.operatorCtx = createNodeOperatorContext({
       network: config.network,

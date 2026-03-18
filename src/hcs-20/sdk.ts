@@ -64,7 +64,8 @@ export class HCS20Client extends HCS20BaseClient {
     this.operatorId = this.operatorAccountId.toString();
 
     const baseClient =
-      this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+      config.client ??
+      (this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet());
 
     this.operatorCtx = createNodeOperatorContext({
       network: this.network,
@@ -151,6 +152,7 @@ export class HCS20Client extends HCS20BaseClient {
       operatorId: this.operatorId,
       operatorKey: this.operatorCtx.operatorKey,
       network: this.network,
+      client: this.client,
     });
 
     const topicCreateResponse = await hcs2Client.createRegistry({
@@ -189,6 +191,7 @@ export class HCS20Client extends HCS20BaseClient {
         operatorId: this.operatorId,
         operatorKey: this.operatorCtx.operatorKey,
         network: this.network,
+        client: this.client,
       });
 
       if (options.usePrivateTopic) {

@@ -124,9 +124,10 @@ export class HCS10Client extends HCS10BaseClient {
       mirrorNode: this.mirrorNode,
       logger: this.logger,
       client:
-        config.network === 'mainnet'
+        config.client ??
+        (config.network === 'mainnet'
           ? Client.forMainnet()
-          : Client.forTestnet(),
+          : Client.forTestnet()),
     });
     this.client = this.operatorCtx.client;
 
@@ -143,6 +144,7 @@ export class HCS10Client extends HCS10BaseClient {
       logLevel: config.logLevel,
       silent: config.silent,
       keyType: config.keyType,
+      client: this.client,
     });
   }
 

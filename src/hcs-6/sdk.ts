@@ -45,6 +45,7 @@ export interface SDKHCS6ClientConfig extends HCS6ClientConfig {
   operatorId: string | AccountId;
   operatorKey: string | PrivateKey;
   keyType?: 'ed25519' | 'ecdsa';
+  client?: Client;
 }
 
 export class HCS6Client extends HCS6BaseClient {
@@ -73,7 +74,7 @@ export class HCS6Client extends HCS6BaseClient {
       keyType: config.keyType,
       mirrorNode: this.mirrorNode,
       logger: this.logger,
-      client: this.createClient(config.network),
+      client: config.client ?? this.createClient(config.network),
     });
     this.client = this.operatorCtx.client;
   }

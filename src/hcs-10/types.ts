@@ -1,4 +1,4 @@
-import { PrivateKey } from '@hashgraph/sdk';
+import { Client, PrivateKey } from '@hashgraph/sdk';
 import { LogLevel } from '../utils/logger';
 import { AIAgentCapability, AIAgentProfile } from '../hcs-11';
 import { NetworkType } from '../utils/types';
@@ -85,6 +85,8 @@ export interface HCSClientConfig {
   silent?: boolean;
   /** The key type to use for the operator */
   keyType?: 'ed25519' | 'ecdsa';
+  /** Optional preconfigured Hedera SDK client to reuse. */
+  client?: Client;
 }
 
 export interface Message {

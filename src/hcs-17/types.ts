@@ -1,4 +1,4 @@
-import { PublicKey, PrivateKey } from '@hashgraph/sdk';
+import { Client, PublicKey, PrivateKey } from '@hashgraph/sdk';
 import type { HashinalsWalletConnectSDK } from '@hashgraphonline/hashinal-wc';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { z } from 'zod';
@@ -109,6 +109,7 @@ export interface SDKHCS17ClientConfig extends HCS17ClientConfig {
   operatorId: string;
   operatorKey: string | PrivateKey;
   keyType?: 'ed25519' | 'ecdsa';
+  client?: Client;
 }
 
 /**

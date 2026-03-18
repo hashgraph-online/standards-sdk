@@ -31,6 +31,7 @@ export class HCS5Client extends HCS5BaseClient {
       operatorKey: config.operatorKey,
       mirrorNode: this.mirrorNode,
       logger: this.logger,
+      client: config.client,
     });
     this.client = this.operatorCtx.client;
   }

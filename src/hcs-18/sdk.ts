@@ -35,6 +35,7 @@ export interface SDKHCS18ClientConfig {
   operatorKey: string | import('@hashgraph/sdk').PrivateKey;
   logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'silent';
   silent?: boolean;
+  client?: Client;
 }
 
 export class HCS18Client extends HCS18BaseClient {
@@ -56,7 +57,7 @@ export class HCS18Client extends HCS18BaseClient {
       operatorKey: config.operatorKey,
       mirrorNode: this.mirrorNode,
       logger: this.logger,
-      client: Client.forName(this.network),
+      client: config.client ?? Client.forName(this.network),
     });
     this.client = this.operatorCtx.client;
   }

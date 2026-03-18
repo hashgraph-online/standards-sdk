@@ -1,4 +1,9 @@
-import { AccountId, PrivateKey, TransactionReceipt } from '@hashgraph/sdk';
+import {
+  AccountId,
+  Client,
+  PrivateKey,
+  TransactionReceipt,
+} from '@hashgraph/sdk';
 import { z } from 'zod';
 import { Logger, LogLevel } from '../utils/logger';
 import { NetworkType } from '../utils/types';
@@ -85,6 +90,7 @@ export interface SDKHCS7ClientConfig extends HCS7ClientConfig {
   operatorId: string | AccountId;
   operatorKey: string | PrivateKey;
   keyType?: 'ed25519' | 'ecdsa';
+  client?: Client;
 }
 
 export interface HCS7TopicRegistrationResponse {

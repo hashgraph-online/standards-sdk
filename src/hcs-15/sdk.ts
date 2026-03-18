@@ -38,7 +38,10 @@ export class HCS15Client extends HCS15BaseClient {
       mirrorNode: this.mirrorNode,
       logger: this.logger,
       client:
-        this.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet(),
+        config.client ??
+        (this.network === 'mainnet'
+          ? Client.forMainnet()
+          : Client.forTestnet()),
     });
     this.client = this.operatorCtx.client;
   }
