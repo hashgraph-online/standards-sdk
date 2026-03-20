@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import {
+  KeyList,
   PrivateKey,
   PublicKey,
   TopicCreateTransaction,
@@ -495,17 +496,73 @@ describe('HCS27Client overflow payload', () => {
     expect(signSpy).toHaveBeenCalledWith(submitKey);
   });
 
+  it('accepts private-key strings when registering external submit signers', async () => {
+    const client = createClient();
+    const submitKey = PrivateKey.generateED25519();
+    client.registerTopicSubmitKey('0.0.700004', submitKey.toString());
+    const signSpy = jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'sign')
+      .mockImplementation(async function sign(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'freezeWith')
+      .mockImplementation(async function freezeWith(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'execute')
+      .mockResolvedValue({
+        transactionId: { toString: () => '0.0.1001@123.456.792' },
+        getReceipt: async () => ({
+          topicSequenceNumber: 3,
+        }),
+      } as never);
+
+    const result = await client.publishCheckpoint(
+      '0.0.700004',
+      overflowMetadata,
+      'external private topic checkpoint from string key',
+    );
+
+    expect(result.sequenceNumber).toBe(3);
+    expect(signSpy.mock.calls[0]?.[0]?.toString()).toBe(submitKey.toString());
+  });
+
   it('rejects public-only topic keys that the client cannot sign', async () => {
     const client = createClient();
+    const publicKey = PublicKey.fromString(
+      PrivateKey.generateED25519().publicKey.toString(),
+    );
+    const publicKeyString = publicKey.toString();
+    const keyList = new KeyList([publicKey]);
 
     await expect(
       client.createCheckpointTopic({
-        adminKey: PublicKey.fromString(
-          PrivateKey.generateED25519().publicKey.toString(),
-        ),
+        adminKey: publicKey,
       }),
     ).rejects.toThrow(
       'adminKey must include a private key or use true to reuse the operator key',
+    );
+
+    await expect(
+      client.createCheckpointTopic({
+        adminKey: publicKeyString,
+      }),
+    ).rejects.toThrow(
+      'adminKey must include a private key or use true to reuse the operator key',
+    );
+
+    await expect(
+      client.createCheckpointTopic({
+        submitKey: keyList,
+      }),
+    ).rejects.toThrow(
+      'submitKey must include a private key or use true to reuse the operator key',
     );
   });
 });
