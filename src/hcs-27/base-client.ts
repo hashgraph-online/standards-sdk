@@ -69,6 +69,7 @@ export class HCS27BaseClient {
     return emptyHCS27Root();
   }
 
+  /** Strings are treated as UTF-8 canonical entry bytes. */
   hashLeaf(canonicalEntry: Buffer | Uint8Array | string): Buffer {
     const entry =
       typeof canonicalEntry === 'string'
@@ -77,6 +78,7 @@ export class HCS27BaseClient {
     return hashHCS27Leaf(entry);
   }
 
+  /** Strings are treated as hex-encoded hash bytes. */
   hashNode(
     left: Buffer | Uint8Array | string,
     right: Buffer | Uint8Array | string,

@@ -140,7 +140,7 @@ export class HCS27Client extends HCS27BaseClient {
 
     return {
       transactionId: response.transactionId.toString(),
-      sequenceNumber: Number(receipt.topicSequenceNumber),
+      sequenceNumber: this.parseSequenceNumber(receipt.topicSequenceNumber),
       receipt,
     };
   }
@@ -163,11 +163,31 @@ export class HCS27Client extends HCS27BaseClient {
     if (typeof input === 'string') {
       try {
         return PublicKey.fromString(input);
-      } catch {
-        return PrivateKey.fromString(input).publicKey;
+      } catch (publicKeyError) {
+        try {
+          return PrivateKey.fromString(input).publicKey;
+        } catch (privateKeyError) {
+          throw new Error(
+            `Failed to parse topic key as PublicKey or PrivateKey: ${String(
+              publicKeyError,
+            )}; ${String(privateKeyError)}`,
+          );
+        }
       }
     }
     return undefined;
+  }
+
+  private parseSequenceNumber(
+    value: { toString(): string } | number | bigint | string,
+  ): number {
+    const parsed = BigInt(value.toString());
+    if (parsed > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(
+        'topicSequenceNumber exceeds Number.MAX_SAFE_INTEGER and cannot be represented safely',
+      );
+    }
+    return Number(parsed);
   }
 
   private async prepareCheckpointPayload(

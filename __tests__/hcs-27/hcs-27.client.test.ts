@@ -158,6 +158,14 @@ describe('HCS27BaseClient', () => {
 });
 
 describe('HCS27Client overflow payload', () => {
+  const createClient = (): HCS27Client =>
+    new HCS27Client({
+      operatorId: '0.0.1001',
+      operatorKey:
+        '302e020100300506032b657004220420fb77695921a5c79474d57c42006f03ff178688514d797fb30f60fd0fc9e82716',
+      network: 'testnet',
+    });
+
   it('switches to an HCS-1 pointer when metadata exceeds 1024 bytes', async () => {
     const { inscribe } = await import('../../src/inscribe/inscriber');
     const mockedInscribe = jest.mocked(inscribe);
@@ -167,12 +175,7 @@ describe('HCS27Client overflow payload', () => {
       inscription: { topicId: '0.0.900000' },
     });
 
-    const client = new HCS27Client({
-      operatorId: '0.0.1001',
-      operatorKey:
-        '302e020100300506032b657004220420fb77695921a5c79474d57c42006f03ff178688514d797fb30f60fd0fc9e82716',
-      network: 'testnet',
-    });
+    const client = createClient();
 
     const prepared = await (
       client as unknown as {
@@ -202,5 +205,30 @@ describe('HCS27Client overflow payload', () => {
 
     expect(prepared.message.metadata).toBe('hcs://1/0.0.900000');
     expect(prepared.message.metadata_digest).toBeDefined();
+  });
+
+  it('throws a descriptive error for invalid topic keys', () => {
+    const client = createClient();
+    const resolveTopicKey = Reflect.get(client, 'resolveTopicKey') as (
+      input: string,
+    ) => unknown;
+
+    expect(() => resolveTopicKey('definitely-not-a-key')).toThrow(
+      'Failed to parse topic key as PublicKey or PrivateKey',
+    );
+  });
+
+  it('rejects unsafe topic sequence numbers', () => {
+    const client = createClient();
+    const parseSequenceNumber = Reflect.get(
+      client,
+      'parseSequenceNumber',
+    ) as (value: { toString(): string }) => number;
+
+    expect(() =>
+      parseSequenceNumber({
+        toString: () => '9007199254740992',
+      }),
+    ).toThrow('topicSequenceNumber exceeds Number.MAX_SAFE_INTEGER');
   });
 });
