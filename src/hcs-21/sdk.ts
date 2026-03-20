@@ -140,7 +140,9 @@ export class HCS21Client extends HCS21BaseClient {
 
     const baseClient =
       config.client ??
-      (config.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet());
+      (config.network === 'mainnet'
+        ? Client.forMainnet()
+        : Client.forTestnet());
 
     this.operatorCtx = createNodeOperatorContext({
       network: config.network,

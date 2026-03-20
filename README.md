@@ -124,6 +124,7 @@ See [cli/standards-cli/README.md](cli/standards-cli/README.md) for advanced and 
 | `HCS-10` | Trustless Peer-to-Peer Communication for Agents and AI |
 | `HCS-11` | Decentralized Profile and Identity Standard |
 | `HCS-20` | Auditable Points |
+| `HCS-27` | Transparency Logs |
 
 ## Running Demos
 
