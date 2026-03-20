@@ -36,6 +36,7 @@ export class HCS27Client extends HCS27BaseClient {
   private readonly operatorId: AccountId;
   private readonly operatorCtx: NodeOperatorContext;
   private inscriptionSDK?: InscriptionSDK;
+  private readonly topicSubmitKeySigners = new Map<string, PrivateKey>();
 
   constructor(config: SDKHCS27ClientConfig) {
     super(config);
@@ -78,24 +79,47 @@ export class HCS27Client extends HCS27BaseClient {
       this.buildTopicMemo(options.ttl),
     );
 
-    const adminKey = this.resolveTopicKey(options.adminKey);
-    if (adminKey) {
-      transaction.setAdminKey(adminKey);
+    const adminKeyMaterial = this.resolveTopicKeyMaterial(options.adminKey);
+    if (adminKeyMaterial.publicKey) {
+      transaction.setAdminKey(adminKeyMaterial.publicKey);
     }
 
-    const submitKey = this.resolveTopicKey(options.submitKey);
-    if (submitKey) {
-      transaction.setSubmitKey(submitKey);
+    const submitKeyMaterial = this.resolveTopicKeyMaterial(options.submitKey);
+    if (submitKeyMaterial.publicKey) {
+      transaction.setSubmitKey(submitKeyMaterial.publicKey);
     }
 
     if (options.transactionMemo?.trim()) {
       transaction.setTransactionMemo(options.transactionMemo.trim());
     }
 
-    const response = await transaction.execute(this.client);
+    let response;
+    if (adminKeyMaterial.signer || submitKeyMaterial.signer) {
+      const frozenTransaction = await transaction.freezeWith(this.client);
+      let signedTransaction = frozenTransaction;
+      if (adminKeyMaterial.signer) {
+        signedTransaction = await signedTransaction.sign(
+          adminKeyMaterial.signer,
+        );
+      }
+      if (submitKeyMaterial.signer) {
+        signedTransaction = await signedTransaction.sign(
+          submitKeyMaterial.signer,
+        );
+      }
+      response = await signedTransaction.execute(this.client);
+    } else {
+      response = await transaction.execute(this.client);
+    }
     const receipt = await response.getReceipt(this.client);
     if (!receipt.topicId) {
       throw new Error('Failed to create checkpoint topic: topicId empty');
+    }
+    if (submitKeyMaterial.signer) {
+      this.topicSubmitKeySigners.set(
+        receipt.topicId.toString(),
+        submitKeyMaterial.signer,
+      );
     }
 
     return {
@@ -128,13 +152,18 @@ export class HCS27Client extends HCS27BaseClient {
       await this.validateCheckpointMessage(message);
     }
 
-    const response = await new TopicMessageSubmitTransaction()
+    const transaction = new TopicMessageSubmitTransaction()
       .setTopicId(TopicId.fromString(topicId))
       .setMessage(JSON.stringify(message))
       .setTransactionMemo(
         transactionMemo?.trim() || this.buildTransactionMemo(),
-      )
-      .execute(this.client);
+      );
+    const submitKeySigner = this.topicSubmitKeySigners.get(topicId);
+    const response = submitKeySigner
+      ? await (await transaction.freezeWith(this.client))
+          .sign(submitKeySigner)
+          .then(signedTransaction => signedTransaction.execute(this.client))
+      : await transaction.execute(this.client);
 
     const receipt = await response.getReceipt(this.client);
 
@@ -145,27 +174,29 @@ export class HCS27Client extends HCS27BaseClient {
     };
   }
 
-  private resolveTopicKey(
-    input?: HCS27TopicKey,
-  ): PublicKey | KeyList | undefined {
+  private resolveTopicKeyMaterial(input?: HCS27TopicKey): {
+    publicKey?: PublicKey | KeyList;
+    signer?: PrivateKey;
+  } {
     if (!input) {
-      return undefined;
+      return {};
     }
     if (input instanceof PublicKey || input instanceof KeyList) {
-      return input;
+      return { publicKey: input };
     }
     if (input instanceof PrivateKey) {
-      return input.publicKey;
+      return { publicKey: input.publicKey, signer: input };
     }
     if (typeof input === 'boolean') {
-      return input ? this.operatorCtx.operatorKey.publicKey : undefined;
+      return input ? { publicKey: this.operatorCtx.operatorKey.publicKey } : {};
     }
     if (typeof input === 'string') {
       try {
-        return PublicKey.fromString(input);
+        return { publicKey: PublicKey.fromString(input) };
       } catch (publicKeyError) {
         try {
-          return PrivateKey.fromString(input).publicKey;
+          const signer = PrivateKey.fromString(input);
+          return { publicKey: signer.publicKey, signer };
         } catch (privateKeyError) {
           throw new Error(
             `Failed to parse topic key as PublicKey or PrivateKey: ${String(
@@ -175,7 +206,7 @@ export class HCS27Client extends HCS27BaseClient {
         }
       }
     }
-    return undefined;
+    return {};
   }
 
   private parseSequenceNumber(

@@ -46,6 +46,21 @@ function formatNumber(value: number): string {
   return value.toString();
 }
 
+function decodeBase64(value: string, fieldName: string): Buffer {
+  try {
+    if (!value) {
+      throw new Error('empty base64');
+    }
+    const decoded = Buffer.from(value, 'base64');
+    if (decoded.toString('base64') !== value) {
+      throw new Error('non-canonical base64');
+    }
+    return decoded;
+  } catch {
+    throw new Error(`${fieldName} must be valid base64`);
+  }
+}
+
 function writeCanonicalJson(value: unknown): string {
   if (value === null) {
     return 'null';
@@ -189,6 +204,9 @@ export function verifyInclusionProof(
   if (leafIndex < 0n || leafIndex >= treeSize) {
     throw new Error('leafIndex must be less than treeSize');
   }
+  if (!/^(?:[0-9a-f]{2})+$/i.test(leafHashHex.trim())) {
+    throw new Error('leafHash must be valid hex');
+  }
 
   let current: Buffer;
   try {
@@ -267,6 +285,8 @@ export function verifyConsistencyProof(
     return true;
   }
   if (oldTreeSize === newTreeSize) {
+    decodeBase64(oldRootB64, 'oldRootHash');
+    decodeBase64(newRootB64, 'newRootHash');
     return oldRootB64 === newRootB64 && consistencyPath.length === 0;
   }
   if (oldTreeSize > newTreeSize || consistencyPath.length === 0) {

@@ -36,6 +36,7 @@ export class HCS27BaseClient {
   protected readonly logger: ILogger;
   protected readonly mirrorNode: HederaMirrorNode;
   private readonly hrlResolver: HRLResolver;
+  private readonly cdnEndpoint?: string;
 
   constructor(config: HCS27ClientConfig) {
     this.network = config.network;
@@ -50,6 +51,7 @@ export class HCS27BaseClient {
       this.logger,
       config.mirrorNode,
     );
+    this.cdnEndpoint = config.cdnEndpoint?.trim() || undefined;
     this.hrlResolver = new HRLResolver();
   }
 
@@ -197,6 +199,14 @@ export class HCS27BaseClient {
         if (currentTreeSize < previous.treeSize) {
           throw new Error(`tree size decreased for stream ${streamId}`);
         }
+        if (
+          currentTreeSize === previous.treeSize &&
+          record.effectiveMetadata.root.rootHashB64u !== previous.rootHashB64u
+        ) {
+          throw new Error(
+            `root changed without growing tree size for stream ${streamId}`,
+          );
+        }
         if (!record.effectiveMetadata.prev) {
           throw new Error(`missing prev linkage for stream ${streamId}`);
         }
@@ -267,6 +277,7 @@ export class HCS27BaseClient {
 
     const resolved = await this.hrlResolver.resolveHRL(trimmed, {
       network: this.network,
+      cdnEndpoint: this.cdnEndpoint,
       returnRaw: true,
     });
     if (typeof resolved.content === 'string') {

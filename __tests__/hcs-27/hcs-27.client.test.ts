@@ -1,4 +1,10 @@
 import { createHash } from 'crypto';
+import {
+  PrivateKey,
+  TopicCreateTransaction,
+  TopicId,
+  TopicMessageSubmitTransaction,
+} from '@hashgraph/sdk';
 import { HCS27BaseClient } from '../../src/hcs-27/base-client';
 import { canonicalizeHCS27Json } from '../../src/hcs-27/merkle';
 import { HCS27Client } from '../../src/hcs-27/sdk';
@@ -7,6 +13,10 @@ import { hcs27CheckpointMetadataSchema } from '../../src/hcs-27/types';
 jest.mock('../../src/inscribe/inscriber', () => ({
   inscribe: jest.fn(),
 }));
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 describe('HCS27BaseClient', () => {
   const client = new HCS27BaseClient({ network: 'testnet' });
@@ -145,6 +155,29 @@ describe('HCS27BaseClient', () => {
     ).resolves.toEqual(validMetadata);
   });
 
+  it('passes the configured CDN endpoint to HCS-1 resolution', async () => {
+    const cdnClient = new HCS27BaseClient({
+      network: 'testnet',
+      cdnEndpoint: 'https://cdn.example.com/inscriptions',
+    });
+    const resolveHRL = jest.fn().mockResolvedValue({
+      content: Buffer.from('{}'),
+      contentType: 'application/json',
+      topicId: '0.0.123',
+      isBinary: true,
+    });
+    Reflect.set(cdnClient, 'hrlResolver', { resolveHRL });
+
+    await expect(
+      cdnClient.resolveHCS1Reference('hcs://1/0.0.123'),
+    ).resolves.toEqual(Buffer.from('{}'));
+    expect(resolveHRL).toHaveBeenCalledWith('hcs://1/0.0.123', {
+      network: 'testnet',
+      cdnEndpoint: 'https://cdn.example.com/inscriptions',
+      returnRaw: true,
+    });
+  });
+
   it('verifies inclusion and consistency proof objects', () => {
     const leafHex =
       'a12882925d08570166fe748ebdc16670fc0c69428e2b60ed388b35b52c91d6e2';
@@ -171,6 +204,32 @@ describe('HCS27BaseClient', () => {
         treeVersion: 1,
       }),
     ).toBe(true);
+  });
+
+  it('rejects odd-length inclusion proof hashes', () => {
+    expect(() =>
+      client.verifyInclusionProof({
+        leafHash: '00a',
+        leafIndex: '0',
+        treeSize: '1',
+        path: [],
+        rootHash: 'AA==',
+        treeVersion: 1,
+      }),
+    ).toThrow();
+  });
+
+  it('rejects malformed equal-size consistency proofs', () => {
+    expect(() =>
+      client.verifyConsistencyProof({
+        oldTreeSize: '1',
+        newTreeSize: '1',
+        oldRootHash: '',
+        newRootHash: '',
+        consistencyPath: [],
+        treeVersion: 1,
+      }),
+    ).toThrow();
   });
 
   it('validates checkpoint chain linkage', () => {
@@ -200,6 +259,34 @@ describe('HCS27BaseClient', () => {
       ]),
     ).not.toThrow();
   });
+
+  it('rejects conflicting roots at an unchanged tree size', () => {
+    expect(() =>
+      client.validateCheckpointChain([
+        {
+          topicId: '0.0.123',
+          sequence: 1,
+          consensusTimestamp: '1.2',
+          message: { p: 'hcs-27', op: 'register', metadata: validMetadata },
+          effectiveMetadata: {
+            ...validMetadata,
+            root: { treeSize: '1', rootHashB64u: rootHash('root-1') },
+          },
+        },
+        {
+          topicId: '0.0.123',
+          sequence: 2,
+          consensusTimestamp: '1.3',
+          message: { p: 'hcs-27', op: 'register', metadata: validMetadata },
+          effectiveMetadata: {
+            ...validMetadata,
+            root: { treeSize: '1', rootHashB64u: rootHash('root-2') },
+            prev: { treeSize: '1', rootHashB64u: rootHash('root-1') },
+          },
+        },
+      ]),
+    ).toThrow('root changed without growing tree size');
+  });
 });
 
 describe('HCS27Client overflow payload', () => {
@@ -210,6 +297,19 @@ describe('HCS27Client overflow payload', () => {
         '302e020100300506032b657004220420fb77695921a5c79474d57c42006f03ff178688514d797fb30f60fd0fc9e82716',
       network: 'testnet',
     });
+  const overflowMetadata = {
+    type: 'ans-checkpoint-v1' as const,
+    stream: { registry: 'ans', log_id: 'default' },
+    log: {
+      alg: 'sha-256' as const,
+      leaf: 'sha256(jcs(event))',
+      merkle: 'rfc9162' as const,
+    },
+    root: {
+      treeSize: '1',
+      rootHashB64u: createHash('sha256').update('root').digest('base64url'),
+    },
+  };
 
   it('switches to an HCS-1 pointer when metadata exceeds 1024 bytes', async () => {
     const { inscribe } = await import('../../src/inscribe/inscriber');
@@ -254,11 +354,12 @@ describe('HCS27Client overflow payload', () => {
 
   it('throws a descriptive error for invalid topic keys', () => {
     const client = createClient();
-    const resolveTopicKey = Reflect.get(client, 'resolveTopicKey') as (
-      input: string,
-    ) => unknown;
+    const resolveTopicKeyMaterial = Reflect.get(
+      client,
+      'resolveTopicKeyMaterial',
+    ) as (input: string) => { publicKey?: unknown };
 
-    expect(() => resolveTopicKey('definitely-not-a-key')).toThrow(
+    expect(() => resolveTopicKeyMaterial('definitely-not-a-key')).toThrow(
       'Failed to parse topic key as PublicKey or PrivateKey',
     );
   });
@@ -275,5 +376,72 @@ describe('HCS27Client overflow payload', () => {
         toString: () => '9007199254740992',
       }),
     ).toThrow('topicSequenceNumber exceeds Number.MAX_SAFE_INTEGER');
+  });
+
+  it('signs topic creation with a configured admin key', async () => {
+    const client = createClient();
+    const adminKey = PrivateKey.generateED25519();
+    const signSpy = jest
+      .spyOn(TopicCreateTransaction.prototype, 'sign')
+      .mockImplementation(async function sign(this: TopicCreateTransaction) {
+        return this;
+      });
+    jest
+      .spyOn(TopicCreateTransaction.prototype, 'freezeWith')
+      .mockImplementation(async function freezeWith(
+        this: TopicCreateTransaction,
+      ) {
+        return this;
+      });
+    jest.spyOn(TopicCreateTransaction.prototype, 'execute').mockResolvedValue({
+      transactionId: { toString: () => '0.0.1001@123.456.789' },
+      getReceipt: async () => ({
+        topicId: TopicId.fromString('0.0.700001'),
+      }),
+    } as never);
+
+    const result = await client.createCheckpointTopic({
+      adminKey,
+    });
+
+    expect(result.topicId).toBe('0.0.700001');
+    expect(signSpy).toHaveBeenCalledWith(adminKey);
+  });
+
+  it('signs private-topic checkpoint submissions with the submit key', async () => {
+    const client = createClient();
+    const submitKey = PrivateKey.generateED25519();
+    Reflect.get(client, 'topicSubmitKeySigners').set('0.0.700002', submitKey);
+    const signSpy = jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'sign')
+      .mockImplementation(async function sign(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'freezeWith')
+      .mockImplementation(async function freezeWith(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'execute')
+      .mockResolvedValue({
+        transactionId: { toString: () => '0.0.1001@123.456.790' },
+        getReceipt: async () => ({
+          topicSequenceNumber: 1,
+        }),
+      } as never);
+
+    const result = await client.publishCheckpoint(
+      '0.0.700002',
+      overflowMetadata,
+      'private topic checkpoint',
+    );
+
+    expect(result.sequenceNumber).toBe(1);
+    expect(signSpy).toHaveBeenCalledWith(submitKey);
   });
 });

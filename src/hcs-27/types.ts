@@ -157,6 +157,7 @@ export interface HCS27ClientConfig {
   network: NetworkType;
   logger?: ILogger;
   mirrorNode?: MirrorNodeConfig;
+  cdnEndpoint?: string;
 }
 
 export interface SDKHCS27ClientConfig extends HCS27ClientConfig {
@@ -245,7 +246,7 @@ export const hcs27CheckpointMessageSchema = z
 
 export const hcs27InclusionProofSchema = z
   .object({
-    leafHash: z.string().regex(/^[0-9a-f]+$/i),
+    leafHash: z.string().regex(/^(?:[0-9a-f]{2})+$/i),
     leafIndex: canonicalUintSchema,
     treeSize: canonicalUintSchema,
     path: z.array(base64Schema),
