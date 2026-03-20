@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { HCS27BaseClient } from '../../src/hcs-27/base-client';
+import { canonicalizeHCS27Json } from '../../src/hcs-27/merkle';
 import { HCS27Client } from '../../src/hcs-27/sdk';
 
 jest.mock('../../src/inscribe/inscriber', () => ({
@@ -52,6 +53,12 @@ describe('HCS27BaseClient', () => {
         registry: 'example',
       }),
     ).toBe('a12882925d08570166fe748ebdc16670fc0c69428e2b60ed388b35b52c91d6e2');
+  });
+
+  it('canonicalizes object keys with code-point ordering', () => {
+    expect(canonicalizeHCS27Json({ a: 1, Z: 2 }).toString('utf8')).toBe(
+      '{"Z":2,"a":1}',
+    );
   });
 
   it('validates a draft-compliant checkpoint message', async () => {
