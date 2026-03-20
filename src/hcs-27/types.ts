@@ -13,30 +13,42 @@ import type { NetworkType } from '../utils/types';
 
 const canonicalUintSchema = z.string().regex(/^(0|[1-9]\d*)$/);
 
+function isStrictBase64Url(value: string): boolean {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    return false;
+  }
+
+  try {
+    const normalized = value + '='.repeat((4 - (value.length % 4)) % 4);
+    const decoded = Buffer.from(normalized, 'base64url');
+    return decoded.length > 0 && decoded.toString('base64url') === value;
+  } catch {
+    return false;
+  }
+}
+
+function isStrictBase64(value: string): boolean {
+  if (
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      value,
+    )
+  ) {
+    return false;
+  }
+
+  try {
+    return Buffer.from(value, 'base64').toString('base64') === value;
+  } catch {
+    return false;
+  }
+}
+
 const base64UrlSchema = z
   .string()
   .min(1)
-  .refine(value => {
-    try {
-      const normalized = value + '='.repeat((4 - (value.length % 4)) % 4);
-      Buffer.from(normalized, 'base64url');
-      return true;
-    } catch {
-      return false;
-    }
-  }, 'must be base64url');
+  .refine(isStrictBase64Url, 'must be base64url');
 
-const base64Schema = z
-  .string()
-  .min(1)
-  .refine(value => {
-    try {
-      Buffer.from(value, 'base64');
-      return true;
-    } catch {
-      return false;
-    }
-  }, 'must be base64');
+const base64Schema = z.string().min(1).refine(isStrictBase64, 'must be base64');
 
 export interface HCS27StreamId {
   registry: string;

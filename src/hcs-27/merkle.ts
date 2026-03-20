@@ -24,6 +24,11 @@ function normalizeJsonValue(value: unknown): unknown {
   }
 
   if (typeof value === 'object') {
+    const toJSON = (value as { toJSON?: () => unknown }).toJSON;
+    if (typeof toJSON === 'function') {
+      return normalizeJsonValue(toJSON.call(value));
+    }
+
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
       result[key] = normalizeJsonValue(item);

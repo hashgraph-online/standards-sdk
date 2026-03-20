@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { HCS27BaseClient } from '../../src/hcs-27/base-client';
 import { canonicalizeHCS27Json } from '../../src/hcs-27/merkle';
 import { HCS27Client } from '../../src/hcs-27/sdk';
+import { hcs27CheckpointMetadataSchema } from '../../src/hcs-27/types';
 
 jest.mock('../../src/inscribe/inscriber', () => ({
   inscribe: jest.fn(),
@@ -61,6 +62,17 @@ describe('HCS27BaseClient', () => {
     );
   });
 
+  it('canonicalizes Date and toJSON values before hashing', () => {
+    expect(
+      canonicalizeHCS27Json({
+        issued_at: new Date('2026-01-01T00:00:00.000Z'),
+        payload: {
+          toJSON: () => ({ answer: 42 }),
+        },
+      }).toString('utf8'),
+    ).toBe('{"issued_at":"2026-01-01T00:00:00.000Z","payload":{"answer":42}}');
+  });
+
   it('validates a draft-compliant checkpoint message', async () => {
     await expect(
       client.validateCheckpointMessage({
@@ -85,6 +97,32 @@ describe('HCS27BaseClient', () => {
         },
       }),
     ).rejects.toThrow();
+  });
+
+  it('rejects malformed base64url root hashes', async () => {
+    await expect(
+      client.validateCheckpointMessage({
+        p: 'hcs-27',
+        op: 'register',
+        metadata: {
+          ...validMetadata,
+          root: {
+            treeSize: '1',
+            rootHashB64u: '*',
+          },
+        },
+      }),
+    ).rejects.toThrow();
+
+    expect(() =>
+      hcs27CheckpointMetadataSchema.parse({
+        ...validMetadata,
+        root: {
+          treeSize: '1',
+          rootHashB64u: '!',
+        },
+      }),
+    ).toThrow();
   });
 
   it('resolves HCS-1 metadata references and checks digests', async () => {
