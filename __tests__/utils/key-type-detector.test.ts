@@ -250,6 +250,24 @@ describe('Key Type Detection', () => {
         ).toBe('hex');
         expect(KeyTypeDetector.detect(ecdsaKey.toString()).format).toBe('der');
       });
+
+      it('should detect PEM keys without regex backtracking', () => {
+        const ed25519Key = PrivateKey.generateED25519();
+        const pemBody = Buffer.from(ed25519Key.toString(), 'hex').toString(
+          'base64',
+        );
+        const pem = [
+          '-----BEGIN PRIVATE KEY-----',
+          pemBody.match(/.{1,64}/g)!.join('\n'),
+          '-----END PRIVATE KEY-----',
+        ].join('\n');
+
+        const result = KeyTypeDetector.detect(pem);
+
+        expect(result.format).toBe('pem');
+        expect(result.type).toBe(KeyType.ED25519);
+        expect(result.isPrivateKey).toBe(true);
+      });
     });
 
     describe('Transaction signing', () => {
