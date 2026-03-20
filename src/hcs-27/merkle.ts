@@ -223,12 +223,7 @@ export function verifyInclusionProof(
       return false;
     }
 
-    let sibling: Buffer;
-    try {
-      sibling = Buffer.from(node, 'base64');
-    } catch {
-      throw new Error(`path[${index}] must be valid base64`);
-    }
+    const sibling = decodeBase64(node, `path[${index}]`);
 
     if (leastSignificantBit(fn) === 1n || fn === sn) {
       current = hashHCS27Node(sibling, current);

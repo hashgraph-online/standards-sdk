@@ -80,11 +80,17 @@ export class HCS27Client extends HCS27BaseClient {
     );
 
     const adminKeyMaterial = this.resolveTopicKeyMaterial(options.adminKey);
+    this.assertSignableTopicKey(options.adminKey, adminKeyMaterial, 'adminKey');
     if (adminKeyMaterial.publicKey) {
       transaction.setAdminKey(adminKeyMaterial.publicKey);
     }
 
     const submitKeyMaterial = this.resolveTopicKeyMaterial(options.submitKey);
+    this.assertSignableTopicKey(
+      options.submitKey,
+      submitKeyMaterial,
+      'submitKey',
+    );
     if (submitKeyMaterial.publicKey) {
       transaction.setSubmitKey(submitKeyMaterial.publicKey);
     }
@@ -174,6 +180,19 @@ export class HCS27Client extends HCS27BaseClient {
     };
   }
 
+  registerTopicSubmitKey(topicId: string, submitKey: HCS27TopicKey): void {
+    const submitKeyMaterial = this.resolveTopicKeyMaterial(submitKey);
+    if (!submitKeyMaterial.signer) {
+      throw new Error(
+        'submitKey must include a private key so the client can sign private-topic submissions',
+      );
+    }
+    this.topicSubmitKeySigners.set(
+      TopicId.fromString(topicId).toString(),
+      submitKeyMaterial.signer,
+    );
+  }
+
   private resolveTopicKeyMaterial(input?: HCS27TopicKey): {
     publicKey?: PublicKey | KeyList;
     signer?: PrivateKey;
@@ -207,6 +226,21 @@ export class HCS27Client extends HCS27BaseClient {
       }
     }
     return {};
+  }
+
+  private assertSignableTopicKey(
+    input: HCS27TopicKey | undefined,
+    material: { publicKey?: PublicKey | KeyList; signer?: PrivateKey },
+    fieldName: 'adminKey' | 'submitKey',
+  ): void {
+    if (!input || typeof input === 'boolean' || material.signer) {
+      return;
+    }
+    if (material.publicKey) {
+      throw new Error(
+        `${fieldName} must include a private key or use true to reuse the operator key`,
+      );
+    }
   }
 
   private parseSequenceNumber(

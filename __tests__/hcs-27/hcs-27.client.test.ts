@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import {
   PrivateKey,
+  PublicKey,
   TopicCreateTransaction,
   TopicId,
   TopicMessageSubmitTransaction,
@@ -232,6 +233,18 @@ describe('HCS27BaseClient', () => {
     ).toThrow();
   });
 
+  it('rejects malformed raw inclusion-proof siblings', () => {
+    expect(() =>
+      client.verifyInclusionProof({
+        leafHashHex: '00',
+        leafIndex: 0,
+        treeSize: 2,
+        path: ['*'],
+        expectedRootB64: 'AA==',
+      }),
+    ).toThrow('path[0] must be valid base64');
+  });
+
   it('validates checkpoint chain linkage', () => {
     expect(() =>
       client.validateCheckpointChain([
@@ -443,5 +456,56 @@ describe('HCS27Client overflow payload', () => {
 
     expect(result.sequenceNumber).toBe(1);
     expect(signSpy).toHaveBeenCalledWith(submitKey);
+  });
+
+  it('registers submit-key signers for topics created elsewhere', async () => {
+    const client = createClient();
+    const submitKey = PrivateKey.generateED25519();
+    client.registerTopicSubmitKey('0.0.700003', submitKey);
+    const signSpy = jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'sign')
+      .mockImplementation(async function sign(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'freezeWith')
+      .mockImplementation(async function freezeWith(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'execute')
+      .mockResolvedValue({
+        transactionId: { toString: () => '0.0.1001@123.456.791' },
+        getReceipt: async () => ({
+          topicSequenceNumber: 2,
+        }),
+      } as never);
+
+    const result = await client.publishCheckpoint(
+      '0.0.700003',
+      overflowMetadata,
+      'external private topic checkpoint',
+    );
+
+    expect(result.sequenceNumber).toBe(2);
+    expect(signSpy).toHaveBeenCalledWith(submitKey);
+  });
+
+  it('rejects public-only topic keys that the client cannot sign', async () => {
+    const client = createClient();
+
+    await expect(
+      client.createCheckpointTopic({
+        adminKey: PublicKey.fromString(
+          PrivateKey.generateED25519().publicKey.toString(),
+        ),
+      }),
+    ).rejects.toThrow(
+      'adminKey must include a private key or use true to reuse the operator key',
+    );
   });
 });
