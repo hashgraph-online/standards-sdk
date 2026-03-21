@@ -168,13 +168,11 @@ export class HCS27BaseClient {
     }
 
     if (parsedMessage.metadata_digest) {
-      if (!metadataBytes) {
-        throw new Error(
-          'metadata_digest requires metadata reference resolution',
-        );
-      }
+      const digestBytes =
+        metadataBytes ??
+        Buffer.from(JSON.stringify(parsedMessage.metadata), 'utf8');
       const digest = createHash('sha256')
-        .update(metadataBytes)
+        .update(digestBytes)
         .digest('base64url');
       if (digest !== parsedMessage.metadata_digest.b64u) {
         throw new Error('metadata digest does not match resolved payload');

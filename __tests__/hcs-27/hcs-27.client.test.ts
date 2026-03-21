@@ -177,6 +177,21 @@ describe('HCS27BaseClient', () => {
     ).resolves.toEqual(validMetadata);
   });
 
+  it('accepts inline metadata digests when they match metadata bytes', async () => {
+    const metadataBytes = Buffer.from(JSON.stringify(validMetadata), 'utf8');
+    await expect(
+      client.validateCheckpointMessage({
+        p: 'hcs-27',
+        op: 'register',
+        metadata: validMetadata,
+        metadata_digest: {
+          alg: 'sha-256',
+          b64u: createHash('sha256').update(metadataBytes).digest('base64url'),
+        },
+      }),
+    ).resolves.toEqual(validMetadata);
+  });
+
   it('rejects HCS-1 metadata references that omit metadata_digest', async () => {
     await expect(
       client.validateCheckpointMessage({
@@ -288,6 +303,28 @@ describe('HCS27BaseClient', () => {
         consistencyPath: ['*'],
       }),
     ).toThrow('consistencyPath[0] must be valid base64');
+  });
+
+  it('rejects negative raw consistency-proof tree sizes', () => {
+    expect(() =>
+      client.verifyConsistencyProof({
+        oldTreeSize: 0,
+        newTreeSize: -1,
+        oldRootB64: 'AA==',
+        newRootB64: 'AA==',
+        consistencyPath: [],
+      }),
+    ).toThrow('tree sizes must be non-negative');
+
+    expect(() =>
+      client.verifyConsistencyProof({
+        oldTreeSize: -1,
+        newTreeSize: 0,
+        oldRootB64: 'AA==',
+        newRootB64: 'AA==',
+        consistencyPath: [],
+      }),
+    ).toThrow('tree sizes must be non-negative');
   });
 
   it('validates checkpoint chain linkage', () => {

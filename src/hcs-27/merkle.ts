@@ -280,6 +280,9 @@ export function verifyConsistencyProof(
     consistencyPath = params.consistencyPath;
   }
 
+  if (oldTreeSize < 0n || newTreeSize < 0n) {
+    throw new Error('tree sizes must be non-negative');
+  }
   if (oldTreeSize === 0n) {
     return true;
   }
