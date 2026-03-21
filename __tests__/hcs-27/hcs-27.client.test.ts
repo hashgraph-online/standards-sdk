@@ -439,6 +439,43 @@ describe('HCS27Client overflow payload', () => {
     expect(prepared.message.metadata_digest).toBeDefined();
   });
 
+  it('rejects oversized message memos before inscribing overflow metadata', async () => {
+    const { inscribe } = await import('../../src/inscribe/inscriber');
+    const mockedInscribe = jest.mocked(inscribe);
+    mockedInscribe.mockClear();
+    mockedInscribe.mockResolvedValue({
+      confirmed: true,
+      result: {} as never,
+      inscription: { topicId: '0.0.900000' },
+    });
+    const client = createClient();
+
+    await expect(
+      client.publishCheckpoint(
+        '0.0.700001',
+        {
+          type: 'ans-checkpoint-v1',
+          stream: { registry: 'ans', log_id: 'overflow-preflight' },
+          log: {
+            alg: 'sha-256',
+            leaf: 'sha256(jcs(event))-'.repeat(90),
+            merkle: 'rfc9162',
+          },
+          root: {
+            treeSize: '1',
+            rootHashB64u: createHash('sha256')
+              .update('root-overflow-preflight')
+              .digest('base64url'),
+          },
+        },
+        'x'.repeat(300),
+      ),
+    ).rejects.toThrow(
+      'messageMemo must be 299 characters or fewer for HCS-27 checkpoints',
+    );
+    expect(mockedInscribe).not.toHaveBeenCalled();
+  });
+
   it('throws a descriptive error for invalid topic keys', () => {
     const client = createClient();
     const resolveTopicKeyMaterial = Reflect.get(
@@ -449,6 +486,22 @@ describe('HCS27Client overflow payload', () => {
     expect(() => resolveTopicKeyMaterial('definitely-not-a-key')).toThrow(
       'Failed to parse topic key as PublicKey or PrivateKey',
     );
+  });
+
+  it('rejects empty-string topic keys', async () => {
+    const client = createClient();
+
+    await expect(
+      client.createCheckpointTopic({
+        adminKey: '',
+      }),
+    ).rejects.toThrow('topic key string cannot be empty');
+
+    await expect(
+      client.createCheckpointTopic({
+        submitKey: '   ',
+      }),
+    ).rejects.toThrow('topic key string cannot be empty');
   });
 
   it('rejects unsafe topic sequence numbers', () => {

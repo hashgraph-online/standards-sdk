@@ -19,6 +19,7 @@ import { getTopicId } from '../utils/topic-id-utils';
 import { HCS27BaseClient } from './base-client';
 import {
   hcs27CheckpointMetadataSchema,
+  hcs27CheckpointMessageSchema,
   type HCS27CheckpointMessage,
   type HCS27CheckpointMetadata,
   type HCS27CreateCheckpointTopicOptions,
@@ -198,7 +199,7 @@ export class HCS27Client extends HCS27BaseClient {
     publicKey?: PublicKey | KeyList;
     signer?: PrivateKey;
   } {
-    if (!input) {
+    if (input === undefined || input === false) {
       return {};
     }
     if (input instanceof PublicKey || input instanceof KeyList) {
@@ -211,6 +212,9 @@ export class HCS27Client extends HCS27BaseClient {
       return input ? { publicKey: this.operatorCtx.operatorKey.publicKey } : {};
     }
     if (typeof input === 'string') {
+      if (input.trim().length === 0) {
+        throw new Error('topic key string cannot be empty');
+      }
       try {
         return { publicKey: PublicKey.fromString(input) };
       } catch (publicKeyError) {
@@ -291,11 +295,18 @@ export class HCS27Client extends HCS27BaseClient {
     message: HCS27CheckpointMessage;
     inlineResolvedMetadata?: Buffer;
   }> {
+    const normalizedMemo = messageMemo?.trim();
+    if (normalizedMemo && normalizedMemo.length > 299) {
+      throw new Error(
+        'messageMemo must be 299 characters or fewer for HCS-27 checkpoints',
+      );
+    }
+
     const inlineMessage: HCS27CheckpointMessage = {
       p: 'hcs-27',
       op: 'register',
       metadata,
-      ...(messageMemo?.trim() ? { m: messageMemo.trim() } : {}),
+      ...(normalizedMemo ? { m: normalizedMemo } : {}),
     };
     const inlinePayload = JSON.stringify(inlineMessage);
     if (Buffer.byteLength(inlinePayload, 'utf8') <= MAX_PAYLOAD_BYTES) {
@@ -303,8 +314,37 @@ export class HCS27Client extends HCS27BaseClient {
     }
 
     const metadataBytes = Buffer.from(JSON.stringify(metadata), 'utf8');
-    const reference = await this.publishMetadataHCS1(metadataBytes);
     const digest = this.sha256Base64Url(metadataBytes);
+    hcs27CheckpointMessageSchema.parse({
+      p: 'hcs-27',
+      op: 'register',
+      metadata:
+        'hcs://1/18446744073709551615.18446744073709551615.18446744073709551615',
+      metadata_digest: {
+        alg: 'sha-256',
+        b64u: digest,
+      },
+      ...(normalizedMemo ? { m: normalizedMemo } : {}),
+    });
+
+    const maxReferencePayload = JSON.stringify({
+      p: 'hcs-27',
+      op: 'register',
+      metadata:
+        'hcs://1/18446744073709551615.18446744073709551615.18446744073709551615',
+      metadata_digest: {
+        alg: 'sha-256',
+        b64u: digest,
+      },
+      ...(normalizedMemo ? { m: normalizedMemo } : {}),
+    });
+    if (Buffer.byteLength(maxReferencePayload, 'utf8') > MAX_PAYLOAD_BYTES) {
+      throw new Error(
+        `checkpoint overflow pointer message exceeds ${MAX_PAYLOAD_BYTES} bytes`,
+      );
+    }
+
+    const reference = await this.publishMetadataHCS1(metadataBytes);
     const overflowMessage: HCS27CheckpointMessage = {
       p: 'hcs-27',
       op: 'register',
@@ -313,7 +353,7 @@ export class HCS27Client extends HCS27BaseClient {
         alg: 'sha-256',
         b64u: digest,
       },
-      ...(messageMemo?.trim() ? { m: messageMemo.trim() } : {}),
+      ...(normalizedMemo ? { m: normalizedMemo } : {}),
     };
     const overflowPayload = JSON.stringify(overflowMessage);
     if (Buffer.byteLength(overflowPayload, 'utf8') > MAX_PAYLOAD_BYTES) {
