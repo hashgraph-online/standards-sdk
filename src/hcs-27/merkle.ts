@@ -288,9 +288,11 @@ export function verifyConsistencyProof(
     return false;
   }
 
-  const path = [...consistencyPath];
+  const path = consistencyPath.map((node, index) =>
+    decodeBase64(node, `consistencyPath[${index}]`),
+  );
   if (isExactPowerOfTwo(oldTreeSize)) {
-    path.unshift(oldRootB64);
+    path.unshift(decodeBase64(oldRootB64, 'oldRootHash'));
   }
 
   let fn = oldTreeSize - 1n;
@@ -301,16 +303,14 @@ export function verifyConsistencyProof(
     sn /= 2n;
   }
 
-  const firstHash = Buffer.from(path[0], 'base64');
+  const firstHash = Buffer.from(path[0]);
   let fr: Uint8Array = Buffer.from(firstHash);
   let sr: Uint8Array = Buffer.from(firstHash);
 
-  for (const node of path.slice(1)) {
+  for (const nodeHash of path.slice(1)) {
     if (sn === 0n) {
       return false;
     }
-
-    const nodeHash = Buffer.from(node, 'base64');
 
     if (leastSignificantBit(fn) === 1n || fn === sn) {
       fr = hashHCS27Node(nodeHash, fr);

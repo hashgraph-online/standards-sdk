@@ -246,6 +246,18 @@ describe('HCS27BaseClient', () => {
     ).toThrow('path[0] must be valid base64');
   });
 
+  it('rejects malformed raw consistency-proof siblings', () => {
+    expect(() =>
+      client.verifyConsistencyProof({
+        oldTreeSize: 1,
+        newTreeSize: 2,
+        oldRootB64: 'AA==',
+        newRootB64: 'R9xUDJTOtwSiOHXBEnPha7C4qHrthN6RHyEzVoEV8lQ=',
+        consistencyPath: ['*'],
+      }),
+    ).toThrow('consistencyPath[0] must be valid base64');
+  });
+
   it('validates checkpoint chain linkage', () => {
     expect(() =>
       client.validateCheckpointChain([
@@ -300,6 +312,35 @@ describe('HCS27BaseClient', () => {
         },
       ]),
     ).toThrow('root changed without growing tree size');
+  });
+
+  it('treats streams with delimiter collisions as distinct chain keys', () => {
+    expect(() =>
+      client.validateCheckpointChain([
+        {
+          topicId: '0.0.123',
+          sequence: 1,
+          consensusTimestamp: '1.2',
+          message: { p: 'hcs-27', op: 'register', metadata: validMetadata },
+          effectiveMetadata: {
+            ...validMetadata,
+            stream: { registry: 'foo::bar', log_id: 'baz' },
+            root: { treeSize: '1', rootHashB64u: rootHash('stream-1-root') },
+          },
+        },
+        {
+          topicId: '0.0.123',
+          sequence: 2,
+          consensusTimestamp: '1.3',
+          message: { p: 'hcs-27', op: 'register', metadata: validMetadata },
+          effectiveMetadata: {
+            ...validMetadata,
+            stream: { registry: 'foo', log_id: 'bar::baz' },
+            root: { treeSize: '2', rootHashB64u: rootHash('stream-2-root') },
+          },
+        },
+      ]),
+    ).not.toThrow();
   });
 });
 
@@ -535,9 +576,7 @@ describe('HCS27Client overflow payload', () => {
 
   it('rejects public-only topic keys that the client cannot sign', async () => {
     const client = createClient();
-    const publicKey = PublicKey.fromString(
-      PrivateKey.generateED25519().publicKey.toString(),
-    );
+    const publicKey = PrivateKey.generateED25519().publicKey;
     const publicKeyString = publicKey.toString();
     const keyList = new KeyList([publicKey]);
 
@@ -564,5 +603,30 @@ describe('HCS27Client overflow payload', () => {
     ).rejects.toThrow(
       'submitKey must include a private key or use true to reuse the operator key',
     );
+  });
+
+  it('accepts operator-backed public topic keys', async () => {
+    const client = createClient();
+    const operatorCtx = Reflect.get(client, 'operatorCtx') as {
+      operatorKey: PrivateKey;
+    };
+    const operatorPublicKey = operatorCtx.operatorKey.publicKey;
+    const keyList = new KeyList(
+      [operatorPublicKey, PrivateKey.generateED25519().publicKey],
+      1,
+    );
+    jest.spyOn(TopicCreateTransaction.prototype, 'execute').mockResolvedValue({
+      transactionId: { toString: () => '0.0.1001@123.456.793' },
+      getReceipt: async () => ({
+        topicId: TopicId.fromString('0.0.700005'),
+      }),
+    } as never);
+
+    const result = await client.createCheckpointTopic({
+      adminKey: operatorPublicKey,
+      submitKey: keyList,
+    });
+
+    expect(result.topicId).toBe('0.0.700005');
   });
 });

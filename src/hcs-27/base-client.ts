@@ -187,41 +187,56 @@ export class HCS27BaseClient {
   validateCheckpointChain(records: ReadonlyArray<HCS27CheckpointRecord>): void {
     const streams = new Map<
       string,
-      { treeSize: bigint; rootHashB64u: string }
+      Map<string, { treeSize: bigint; rootHashB64u: string }>
     >();
 
     for (const record of records) {
-      const streamId = `${record.effectiveMetadata.stream.registry}::${record.effectiveMetadata.stream.log_id}`;
+      const streamRegistry = record.effectiveMetadata.stream.registry;
+      const streamLogId = record.effectiveMetadata.stream.log_id;
+      let registryStreams = streams.get(streamRegistry);
+      if (!registryStreams) {
+        registryStreams = new Map<
+          string,
+          { treeSize: bigint; rootHashB64u: string }
+        >();
+        streams.set(streamRegistry, registryStreams);
+      }
+      const streamLabel = JSON.stringify({
+        registry: streamRegistry,
+        log_id: streamLogId,
+      });
       const currentTreeSize = BigInt(record.effectiveMetadata.root.treeSize);
-      const previous = streams.get(streamId);
+      const previous = registryStreams.get(streamLogId);
 
       if (previous) {
         if (currentTreeSize < previous.treeSize) {
-          throw new Error(`tree size decreased for stream ${streamId}`);
+          throw new Error(`tree size decreased for stream ${streamLabel}`);
         }
         if (
           currentTreeSize === previous.treeSize &&
           record.effectiveMetadata.root.rootHashB64u !== previous.rootHashB64u
         ) {
           throw new Error(
-            `root changed without growing tree size for stream ${streamId}`,
+            `root changed without growing tree size for stream ${streamLabel}`,
           );
         }
         if (!record.effectiveMetadata.prev) {
-          throw new Error(`missing prev linkage for stream ${streamId}`);
+          throw new Error(`missing prev linkage for stream ${streamLabel}`);
         }
         const previousTreeSize = BigInt(record.effectiveMetadata.prev.treeSize);
         if (previousTreeSize !== previous.treeSize) {
-          throw new Error(`prev.treeSize mismatch for stream ${streamId}`);
+          throw new Error(`prev.treeSize mismatch for stream ${streamLabel}`);
         }
         if (
           record.effectiveMetadata.prev.rootHashB64u !== previous.rootHashB64u
         ) {
-          throw new Error(`prev.rootHashB64u mismatch for stream ${streamId}`);
+          throw new Error(
+            `prev.rootHashB64u mismatch for stream ${streamLabel}`,
+          );
         }
       }
 
-      streams.set(streamId, {
+      registryStreams.set(streamLogId, {
         treeSize: currentTreeSize,
         rootHashB64u: record.effectiveMetadata.root.rootHashB64u,
       });

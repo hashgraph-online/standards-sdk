@@ -236,11 +236,39 @@ export class HCS27Client extends HCS27BaseClient {
     if (!input || typeof input === 'boolean' || material.signer) {
       return;
     }
-    if (material.publicKey) {
+    if (
+      material.publicKey &&
+      !this.operatorCanSignTopicKey(material.publicKey)
+    ) {
       throw new Error(
         `${fieldName} must include a private key or use true to reuse the operator key`,
       );
     }
+  }
+
+  private operatorCanSignTopicKey(publicKey: PublicKey | KeyList): boolean {
+    if (publicKey instanceof PublicKey) {
+      return this.operatorCtx.operatorKey.publicKey.equals(publicKey);
+    }
+    return this.operatorCanSignKeyList(publicKey);
+  }
+
+  private operatorCanSignKeyList(keyList: KeyList): boolean {
+    const keys = keyList.toArray();
+    const threshold = keyList.threshold ?? keys.length;
+    if (threshold > 1 || keys.length === 0) {
+      return false;
+    }
+
+    return keys.some(key => {
+      if (key instanceof PublicKey) {
+        return this.operatorCtx.operatorKey.publicKey.equals(key);
+      }
+      if (key instanceof KeyList) {
+        return this.operatorCanSignKeyList(key);
+      }
+      return false;
+    });
   }
 
   private parseSequenceNumber(
