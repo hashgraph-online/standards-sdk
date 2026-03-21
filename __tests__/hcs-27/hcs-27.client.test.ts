@@ -192,6 +192,49 @@ describe('HCS27BaseClient', () => {
     ).resolves.toEqual(validMetadata);
   });
 
+  it('accepts inline metadata digests from raw mirror payload bytes', async () => {
+    const mirrorClient = new HCS27BaseClient({ network: 'testnet' });
+    const rawMetadata = {
+      log: {
+        leaf: 'sha256(jcs(event))',
+        merkle: 'rfc9162',
+        alg: 'sha-256',
+      },
+      root: {
+        rootHashB64u: rootHash('root'),
+        treeSize: '1',
+        extra_root_field: 'kept in digest source',
+      },
+      stream: {
+        log_id: 'default',
+        registry: 'ans',
+      },
+      type: 'ans-checkpoint-v1',
+      extra_metadata_field: 'kept in digest source',
+    };
+    const metadataBytes = Buffer.from(JSON.stringify(rawMetadata), 'utf8');
+    const getTopicMessages = jest.fn().mockResolvedValue([
+      {
+        p: 'hcs-27',
+        op: 'register',
+        metadata: rawMetadata,
+        metadata_digest: {
+          alg: 'sha-256',
+          b64u: createHash('sha256').update(metadataBytes).digest('base64url'),
+        },
+        sequence_number: 1,
+        consensus_timestamp: '1.2',
+      },
+    ]);
+    Reflect.set(mirrorClient, 'mirrorNode', { getTopicMessages });
+
+    const records = await mirrorClient.getCheckpoints('0.0.123');
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.effectiveMetadata.root.treeSize).toBe('1');
+    expect(getTopicMessages).toHaveBeenCalledWith('0.0.123', { order: 'asc' });
+  });
+
   it('rejects HCS-1 metadata references that omit metadata_digest', async () => {
     await expect(
       client.validateCheckpointMessage({

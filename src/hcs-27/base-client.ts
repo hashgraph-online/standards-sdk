@@ -27,6 +27,7 @@ import {
   type HCS27ConsistencyProof,
   type HCS27InclusionProof,
   type HCS27TopicMemo,
+  type HCS27ValidatedCheckpointMessage,
   toHCS27CheckpointMessage,
   toHCS27CheckpointMetadata,
 } from './types';
@@ -142,12 +143,16 @@ export class HCS27BaseClient {
   }
 
   async validateCheckpointMessage(
-    message: HCS27CheckpointMessage,
+    message: HCS27CheckpointMessage | HCS27ValidatedCheckpointMessage,
     resolver?: (reference: string) => Promise<Buffer>,
+    inlineMetadataDigestSource?: Buffer,
   ): Promise<HCS27CheckpointMetadata> {
-    const parsedMessage = toHCS27CheckpointMessage(
-      hcs27CheckpointMessageSchema.parse(message),
-    );
+    const originalInlineMetadataBytes =
+      inlineMetadataDigestSource ??
+      (typeof message.metadata === 'string'
+        ? undefined
+        : Buffer.from(JSON.stringify(message.metadata), 'utf8'));
+    const parsedMessage = hcs27CheckpointMessageSchema.parse(message);
     const effectiveResolver =
       resolver ?? (reference => this.resolveHCS1Reference(reference));
 
@@ -170,6 +175,7 @@ export class HCS27BaseClient {
     if (parsedMessage.metadata_digest) {
       const digestBytes =
         metadataBytes ??
+        originalInlineMetadataBytes ??
         Buffer.from(JSON.stringify(parsedMessage.metadata), 'utf8');
       const digest = createHash('sha256')
         .update(digestBytes)
@@ -249,17 +255,24 @@ export class HCS27BaseClient {
 
     for (const item of messages) {
       try {
-        const message = toHCS27CheckpointMessage(
-          hcs27CheckpointMessageSchema.parse({
-            p: item.p,
-            op: item.op,
-            metadata: item.metadata,
-            metadata_digest: item.metadata_digest,
-            m: item.m,
-          }),
-        );
+        const parsedMessage = hcs27CheckpointMessageSchema.parse({
+          p: item.p,
+          op: item.op,
+          metadata: item.metadata,
+          metadata_digest: item.metadata_digest,
+          m: item.m,
+        });
+        const rawInlineMetadataDigestSource =
+          typeof item.metadata === 'string'
+            ? undefined
+            : Buffer.from(JSON.stringify(item.metadata), 'utf8');
 
-        const effectiveMetadata = await this.validateCheckpointMessage(message);
+        const effectiveMetadata = await this.validateCheckpointMessage(
+          parsedMessage,
+          undefined,
+          rawInlineMetadataDigestSource,
+        );
+        const message = toHCS27CheckpointMessage(parsedMessage);
         records.push({
           topicId,
           sequence: item.sequence_number,
