@@ -141,6 +141,7 @@ export class HCS27Client extends HCS27BaseClient {
     transactionMemo?: string,
   ): Promise<HCS27PublishCheckpointResult> {
     await this.operatorCtx.ensureInitialized();
+    const normalizedTopicId = TopicId.fromString(topicId).toString();
     const parsedMetadata = toHCS27CheckpointMetadata(
       hcs27CheckpointMetadataSchema.parse(metadata),
     );
@@ -159,12 +160,12 @@ export class HCS27Client extends HCS27BaseClient {
     }
 
     const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
+      .setTopicId(TopicId.fromString(normalizedTopicId))
       .setMessage(JSON.stringify(message))
       .setTransactionMemo(
         transactionMemo?.trim() || this.buildTransactionMemo(),
       );
-    const submitKeySigner = this.topicSubmitKeySigners.get(topicId);
+    const submitKeySigner = this.topicSubmitKeySigners.get(normalizedTopicId);
     const response = submitKeySigner
       ? await (await transaction.freezeWith(this.client))
           .sign(submitKeySigner)

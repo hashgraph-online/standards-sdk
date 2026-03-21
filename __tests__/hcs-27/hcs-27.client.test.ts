@@ -85,6 +85,19 @@ describe('HCS27BaseClient', () => {
     ).toBe('{"issued_at":"2026-01-01T00:00:00.000Z","payload":{"answer":42}}');
   });
 
+  it('omits undefined object fields before canonical hashing', () => {
+    expect(
+      canonicalizeHCS27Json({
+        id: 'evt-1',
+        optional: undefined,
+        nested: {
+          keep: 'value',
+          drop: undefined,
+        },
+      }).toString('utf8'),
+    ).toBe('{"id":"evt-1","nested":{"keep":"value"}}');
+  });
+
   it('validates a draft-compliant checkpoint message', async () => {
     await expect(
       client.validateCheckpointMessage({
@@ -155,6 +168,18 @@ describe('HCS27BaseClient', () => {
         async () => metadataBytes,
       ),
     ).resolves.toEqual(validMetadata);
+  });
+
+  it('rejects HCS-1 metadata references that omit metadata_digest', async () => {
+    await expect(
+      client.validateCheckpointMessage({
+        p: 'hcs-27',
+        op: 'register',
+        metadata: 'hcs://1/0.0.123',
+      }),
+    ).rejects.toThrow(
+      'metadata_digest is required when metadata is an HCS-1 reference',
+    );
   });
 
   it('passes the configured CDN endpoint to HCS-1 resolution', async () => {
@@ -628,5 +653,42 @@ describe('HCS27Client overflow payload', () => {
     });
 
     expect(result.topicId).toBe('0.0.700005');
+  });
+
+  it('normalizes topic IDs when loading registered submit signers', async () => {
+    const client = createClient();
+    const submitKey = PrivateKey.generateED25519();
+    client.registerTopicSubmitKey('0.0.700006', submitKey);
+    const signSpy = jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'sign')
+      .mockImplementation(async function sign(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'freezeWith')
+      .mockImplementation(async function freezeWith(
+        this: TopicMessageSubmitTransaction,
+      ) {
+        return this;
+      });
+    jest
+      .spyOn(TopicMessageSubmitTransaction.prototype, 'execute')
+      .mockResolvedValue({
+        transactionId: { toString: () => '0.0.1001@123.456.794' },
+        getReceipt: async () => ({
+          topicSequenceNumber: 4,
+        }),
+      } as never);
+
+    const result = await client.publishCheckpoint(
+      '0.0.000700006',
+      overflowMetadata,
+      'normalized topic id checkpoint',
+    );
+
+    expect(result.sequenceNumber).toBe(4);
+    expect(signSpy).toHaveBeenCalledWith(submitKey);
   });
 });

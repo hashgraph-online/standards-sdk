@@ -242,7 +242,17 @@ export const hcs27CheckpointMessageSchema = z
     metadata_digest: hcs27MetadataDigestSchema.optional(),
     m: z.string().max(299).optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((value, ctx) => {
+    if (typeof value.metadata === 'string' && !value.metadata_digest) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'metadata_digest is required when metadata is an HCS-1 reference',
+        path: ['metadata_digest'],
+      });
+    }
+  });
 
 export const hcs27InclusionProofSchema = z
   .object({

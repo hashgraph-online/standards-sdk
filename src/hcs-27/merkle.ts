@@ -20,7 +20,9 @@ function normalizeJsonValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map(item => normalizeJsonValue(item));
+    return value.map(item =>
+      item === undefined ? null : normalizeJsonValue(item),
+    );
   }
 
   if (typeof value === 'object') {
@@ -31,7 +33,9 @@ function normalizeJsonValue(value: unknown): unknown {
 
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      result[key] = normalizeJsonValue(item);
+      if (item !== undefined) {
+        result[key] = normalizeJsonValue(item);
+      }
     }
     return result;
   }
