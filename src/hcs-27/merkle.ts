@@ -20,7 +20,7 @@ function normalizeJsonValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map(item =>
+    return Array.from(value, item =>
       item === undefined ? null : normalizeJsonValue(item),
     );
   }

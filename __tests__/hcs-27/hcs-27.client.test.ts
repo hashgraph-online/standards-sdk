@@ -98,6 +98,13 @@ describe('HCS27BaseClient', () => {
     ).toBe('{"id":"evt-1","nested":{"keep":"value"}}');
   });
 
+  it('serializes sparse array holes as null during canonicalization', () => {
+    const sparse: unknown[] = new Array(2);
+    sparse[1] = 1;
+
+    expect(canonicalizeHCS27Json(sparse).toString('utf8')).toBe('[null,1]');
+  });
+
   it('validates a draft-compliant checkpoint message', async () => {
     await expect(
       client.validateCheckpointMessage({
