@@ -314,10 +314,8 @@ export class KeyTypeDetector {
       }
     }
 
-    const base64Match = trimmedPem.match(
-      /-----BEGIN[\s\S]+?-----[\r\n]+([\s\S]+?)[\r\n]+-----END/,
-    );
-    if (!base64Match) {
+    const beginMarkerIndex = trimmedPem.indexOf('-----BEGIN ');
+    if (beginMarkerIndex === -1) {
       return {
         type: KeyType.UNKNOWN,
         format: 'pem',
@@ -326,7 +324,38 @@ export class KeyTypeDetector {
       };
     }
 
-    const base64Content = base64Match[1].replace(/\s/g, '');
+    const beginLineEndIndex = trimmedPem.indexOf('\n', beginMarkerIndex);
+    if (beginLineEndIndex === -1) {
+      return {
+        type: KeyType.UNKNOWN,
+        format: 'pem',
+        isPrivateKey,
+        confidence: 'certain',
+      };
+    }
+
+    const endMarkerIndex = trimmedPem.lastIndexOf('-----END ');
+    if (endMarkerIndex === -1 || endMarkerIndex <= beginLineEndIndex) {
+      return {
+        type: KeyType.UNKNOWN,
+        format: 'pem',
+        isPrivateKey,
+        confidence: 'certain',
+      };
+    }
+
+    const base64Content = trimmedPem
+      .slice(beginLineEndIndex + 1, endMarkerIndex)
+      .replace(/\s/g, '');
+    if (!base64Content) {
+      return {
+        type: KeyType.UNKNOWN,
+        format: 'pem',
+        isPrivateKey,
+        confidence: 'certain',
+      };
+    }
+
     try {
       const derBytes = Buffer.from(base64Content, 'base64');
       const result = this.detectFromBytes(new Uint8Array(derBytes), 'der');
