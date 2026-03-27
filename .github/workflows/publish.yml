@@ -15,6 +15,9 @@ concurrency:
   group: standards-sdk-publish-${{ github.ref_name }}
   cancel-in-progress: true
 
+env:
+  HOL_SDK_DOCS_URL: https://hol.org/docs/libraries/standards-sdk/
+
 jobs:
   publish:
     name: Release SDK packages
@@ -290,6 +293,40 @@ jobs:
           fi
           git tag "$TAG"
           git push origin "refs/tags/$TAG"
+
+      - name: Ensure GitHub release includes automated notes and canonical docs URL
+        if: steps.plan.outputs.mode == 'release' && steps.targets.outputs.publish_any == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="v${{ steps.version.outputs.new }}"
+          DOCS_LINE="- Standards SDK docs: ${HOL_SDK_DOCS_URL}"
+          RELEASE_NOTES="$(printf '## Documentation\n%s\n' "$DOCS_LINE")"
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              --notes "$RELEASE_NOTES"
+            exit 0
+          fi
+
+          body="$(gh release view "$TAG" --json body --jq '.body // \"\"')"
+          if printf '%s' "$body" | grep -Fq "$HOL_SDK_DOCS_URL"; then
+            echo "Release ${TAG} already contains canonical docs URL."
+            exit 0
+          fi
+
+          notes_file="$(mktemp)"
+          {
+            printf '%s\n' "$body"
+            printf '\n%s' "$RELEASE_NOTES"
+          } > "$notes_file"
+          gh release edit "$TAG" --notes-file "$notes_file"
+          rm -f "$notes_file"
 
       - name: Skip publish (already published)
         if: steps.targets.outputs.publish_any != 'true'
