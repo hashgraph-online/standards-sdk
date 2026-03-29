@@ -156,46 +156,13 @@ const metadataFacetSchema = z
   )
   .optional();
 
-const optionalStringArrayMetadataField: z.ZodType<
-  string[] | undefined,
-  z.ZodTypeDef,
-  unknown
-> = z.preprocess(value => {
-  if (!Array.isArray(value) || !value.every(item => typeof item === 'string')) {
-    return undefined;
-  }
-  return value;
-}, z.array(z.string()).optional());
-
-const optionalStringMetadataField: z.ZodType<
-  string | undefined,
-  z.ZodTypeDef,
-  unknown
-> = z.preprocess(value => {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  return value;
-}, z.string().optional());
-
-const optionalJsonRecordMetadataField: z.ZodType<
-  Record<string, JsonValue> | undefined,
-  z.ZodTypeDef,
-  unknown
-> = z.preprocess(value => {
-  if (!value || Array.isArray(value) || typeof value !== 'object') {
-    return undefined;
-  }
-  return value;
-}, z.record(jsonValueSchema).optional());
-
 const searchHitMetadataSchema = z
   .object({
-    delegationRoles: optionalStringArrayMetadataField,
-    delegationTaskTags: optionalStringArrayMetadataField,
-    delegationProtocols: optionalStringArrayMetadataField,
-    delegationSummary: optionalStringMetadataField,
-    delegationSignals: optionalJsonRecordMetadataField,
+    delegationRoles: jsonValueSchema.optional(),
+    delegationTaskTags: jsonValueSchema.optional(),
+    delegationProtocols: jsonValueSchema.optional(),
+    delegationSummary: jsonValueSchema.optional(),
+    delegationSignals: jsonValueSchema.optional(),
   })
   .passthrough();
 

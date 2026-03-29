@@ -1540,11 +1540,13 @@ describe('RegistryBrokerClient', () => {
 
     const result = await client.search({ q: 'docs', limit: 1 });
 
-    expect(result.hits[0]?.metadata?.delegationRoles).toBeUndefined();
-    expect(result.hits[0]?.metadata?.delegationTaskTags).toBeUndefined();
-    expect(result.hits[0]?.metadata?.delegationProtocols).toBeUndefined();
-    expect(result.hits[0]?.metadata?.delegationSummary).toBeUndefined();
-    expect(result.hits[0]?.metadata?.delegationSignals).toBeUndefined();
+    expect(result.hits[0]?.metadata?.delegationRoles).toEqual({ legacy: true });
+    expect(result.hits[0]?.metadata?.delegationTaskTags).toBe('docs');
+    expect(result.hits[0]?.metadata?.delegationProtocols).toEqual([1, 2, 3]);
+    expect(result.hits[0]?.metadata?.delegationSummary).toEqual({
+      text: 'not-a-string',
+    });
+    expect(result.hits[0]?.metadata?.delegationSignals).toEqual(['unexpected']);
   });
 
   it('retrieves stats, registries, popular searches, and resolves UAIDs', async () => {
