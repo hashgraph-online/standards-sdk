@@ -29,6 +29,13 @@ const mockSearchResponse = {
       },
       metadata: {
         protocol: 'demo',
+        delegationRoles: ['implementation'],
+        delegationTaskTags: ['plugin', 'integration'],
+        delegationProtocols: ['mcp'],
+        delegationSummary: 'Implementation specialist for plugin integration work.',
+        delegationSignals: {
+          responseRate: 0.98,
+        },
       },
       profile: {
         version: '1.0',
@@ -201,6 +208,68 @@ const mockPopularResponse = {
 
 const mockResolveResponse = {
   agent: mockSearchResponse.hits[0],
+};
+
+const mockDelegationResponse = {
+  task: 'Implement the broker delegation client in the SDK.',
+  summary: 'implementation sdk broker delegation typescript mcp',
+  intents: ['implementation', 'verification'],
+  protocols: ['mcp'],
+  surfaces: ['sdk', 'plugin'],
+  languages: ['typescript'],
+  artifacts: ['implementation', 'bugfix'],
+  shouldDelegate: true,
+  opportunities: [
+    {
+      id: 'implementation-specialist',
+      title: 'Implementation specialist',
+      reason: 'Strongest fit for TypeScript SDK delegation work.',
+      role: 'implementation',
+      type: 'ai-agents',
+      suggestedMode: 'best-match',
+      searchQueries: ['typescript sdk delegation client'],
+      candidates: [
+        {
+          uaid: mockSearchResponse.hits[0].uaid,
+          label: mockSearchResponse.hits[0].name,
+          score: 188.4,
+          trustScore: 92,
+          verified: true,
+          communicationSupported: true,
+          availability: true,
+          explanation: 'Matched role, protocol, and task tags.',
+          matchedQueries: ['typescript sdk delegation client'],
+          matchedRoles: ['implementation'],
+          matchedProtocols: ['mcp'],
+          matchedSurfaces: ['sdk'],
+          matchedLanguages: ['typescript'],
+          matchedArtifacts: ['implementation'],
+          matchedTaskTags: ['plugin', 'integration'],
+          reasons: ['role match: implementation'],
+          suggestedMessage:
+            'Please respond with the strongest approach, the main risks, and the concrete next steps.',
+          agent: {
+            ...mockSearchResponse.hits[0],
+            extraAgentField: 'preserved',
+          },
+          extraCandidateField: 'preserved',
+        },
+      ],
+      extraOpportunityField: 'preserved',
+    },
+  ],
+  recommendation: {
+    action: 'delegate-now',
+    confidence: 0.93,
+    reason: 'Best overall fit.',
+    candidate: {
+      uaid: mockSearchResponse.hits[0].uaid,
+      label: mockSearchResponse.hits[0].name,
+      score: 188.4,
+      agent: mockSearchResponse.hits[0],
+    },
+  },
+  extraRootField: 'preserved',
 };
 
 const mockAdditionalRegistryCatalog = {
@@ -376,6 +445,7 @@ describe('RegistryBrokerClient', () => {
 
     const requiredClientMethods = [
       'search',
+      'delegate',
       'stats',
       'registries',
       'popularSearches',
@@ -1363,6 +1433,82 @@ describe('RegistryBrokerClient', () => {
     expect(targetUrl).toBe(
       'https://api.example.com/api/v1/search?q=demo&page=2&limit=5&registry=demo&minTrust=50&capabilities=text_generation&capabilities=knowledge_retrieval',
     );
+  });
+
+  it('calls the delegate endpoint and parses typed opportunities', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => mockDelegationResponse,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.delegate({
+      task: 'Implement the broker delegation client in the SDK.',
+      context: 'Focus on the TypeScript SDK first.',
+      limit: 2,
+      filter: {
+        protocols: ['mcp'],
+        adapters: ['codex'],
+        type: 'ai-agents',
+      },
+    });
+
+    expect(result.shouldDelegate).toBe(true);
+    expect(result.opportunities[0]?.candidates[0]?.uaid).toBe(
+      mockSearchResponse.hits[0].uaid,
+    );
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/delegate',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          task: 'Implement the broker delegation client in the SDK.',
+          context: 'Focus on the TypeScript SDK first.',
+          limit: 2,
+          filter: {
+            protocols: ['mcp'],
+            adapters: ['codex'],
+            type: 'ai-agents',
+          },
+        }),
+      }),
+    );
+  });
+
+  it('preserves additive delegation fields and typed search metadata', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => mockDelegationResponse,
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.delegate({
+      task: 'Implement the broker delegation client in the SDK.',
+    });
+
+    expect(result['extraRootField']).toBe('preserved');
+    expect(result.opportunities[0]?.['extraOpportunityField']).toBe(
+      'preserved',
+    );
+    expect(result.opportunities[0]?.candidates[0]?.['extraCandidateField']).toBe(
+      'preserved',
+    );
+    expect(
+      result.opportunities[0]?.candidates[0]?.agent.metadata?.delegationRoles,
+    ).toEqual(['implementation']);
+    expect(
+      result.opportunities[0]?.candidates[0]?.agent['extraAgentField'],
+    ).toBe('preserved');
   });
 
   it('retrieves stats, registries, popular searches, and resolves UAIDs', async () => {

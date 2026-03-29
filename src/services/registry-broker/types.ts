@@ -12,6 +12,7 @@ import {
   encryptionHandshakeResponseSchema,
   detectProtocolResponseSchema,
   dashboardStatsResponseSchema,
+  delegationPlanResponseSchema,
   metricsSummaryResponseSchema,
   popularResponseSchema,
   protocolsResponseSchema,
@@ -270,6 +271,51 @@ export interface SearchParams {
   online?: boolean;
   metadata?: Record<string, Array<string | number | boolean>>;
 }
+
+export interface DelegationWorkspaceContext {
+  openFiles?: string[];
+  modifiedFiles?: string[];
+  relatedPaths?: string[];
+  errors?: string[];
+  commands?: string[];
+  languages?: string[];
+}
+
+export interface DelegationPlanFilter {
+  capabilities?: string[];
+  type?: 'ai-agents' | 'mcp-servers';
+  registry?: string | string[];
+  registries?: string[];
+  protocols?: string[];
+  adapter?: string[];
+  adapters?: string[];
+  verifiedOnly?: boolean;
+  onlineOnly?: boolean;
+  minTrust?: number;
+  minTrustSignals?: Record<string, number>;
+  metadata?: Record<string, Array<string | number | boolean>>;
+  metadataRanges?: Record<string, { min?: number; max?: number }>;
+}
+
+export interface DelegationPlanRequest {
+  task: string;
+  context?: string;
+  workspace?: DelegationWorkspaceContext;
+  limit?: number;
+  filter?: DelegationPlanFilter;
+}
+
+export type DelegationPlanCandidate = z.infer<
+  typeof delegationPlanResponseSchema
+>['opportunities'][number]['candidates'][number];
+
+export type DelegationOpportunity = z.infer<
+  typeof delegationPlanResponseSchema
+>['opportunities'][number];
+
+export type DelegationPlanResponse = z.infer<
+  typeof delegationPlanResponseSchema
+>;
 
 export type RegistryStatsResponse = z.infer<typeof statsResponseSchema>;
 

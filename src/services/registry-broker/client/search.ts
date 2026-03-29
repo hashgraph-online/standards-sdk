@@ -1,4 +1,6 @@
 import type {
+  DelegationPlanRequest,
+  DelegationPlanResponse,
   JsonValue,
   PopularSearchesResponse,
   ProtocolDetectionMessage,
@@ -19,6 +21,7 @@ import type {
 } from '../types';
 import {
   additionalRegistryCatalogResponseSchema,
+  delegationPlanResponseSchema,
   detectProtocolResponseSchema,
   metricsSummaryResponseSchema,
   popularResponseSchema,
@@ -110,6 +113,22 @@ export async function search(
     method: 'GET',
   });
   return client.parseWithSchema(raw, searchResponseSchema, 'search response');
+}
+
+export async function delegate(
+  client: RegistryBrokerClient,
+  request: DelegationPlanRequest,
+): Promise<DelegationPlanResponse> {
+  const raw = await client.requestJson<JsonValue>('/delegate', {
+    method: 'POST',
+    body: request,
+    headers: { 'content-type': 'application/json' },
+  });
+  return client.parseWithSchema(
+    raw,
+    delegationPlanResponseSchema,
+    'delegate response',
+  );
 }
 
 export async function stats(
