@@ -56,6 +56,8 @@ import type {
   CreateSessionResponse,
   CreditPurchaseResponse,
   DashboardStatsResponse,
+  DelegationPlanRequest,
+  DelegationPlanResponse,
   DetectProtocolResponse,
   EncryptionHandshakeRecord,
   EncryptionHandshakeSubmissionPayload,
@@ -238,6 +240,7 @@ import {
   verifyLedgerChallenge as verifyLedgerChallengeImpl,
 } from './ledger-auth';
 import {
+  delegate as delegateImpl,
   detectProtocol as detectProtocolImpl,
   facets as facetsImpl,
   getAdditionalRegistries as getAdditionalRegistriesImpl,
@@ -633,6 +636,12 @@ export class RegistryBrokerClient {
 
   async search(params: SearchParams = {}): Promise<SearchResult> {
     return searchImpl(this, params);
+  }
+
+  async delegate(
+    request: DelegationPlanRequest,
+  ): Promise<DelegationPlanResponse> {
+    return delegateImpl(this, request);
   }
 
   async searchErc8004ByAgentId(params: {
@@ -1367,7 +1376,7 @@ export class RegistryBrokerClient {
 
   parseWithSchema<T>(
     value: JsonValue,
-    schema: z.ZodSchema<T>,
+    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
     context: string,
   ): T {
     try {

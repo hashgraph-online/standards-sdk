@@ -156,6 +156,16 @@ const metadataFacetSchema = z
   )
   .optional();
 
+const searchHitMetadataSchema = z
+  .object({
+    delegationRoles: jsonValueSchema.optional(),
+    delegationTaskTags: jsonValueSchema.optional(),
+    delegationProtocols: jsonValueSchema.optional(),
+    delegationSummary: jsonValueSchema.optional(),
+    delegationSignals: jsonValueSchema.optional(),
+  })
+  .passthrough();
+
 const searchHitSchema = z
   .object({
     id: z.string(),
@@ -167,7 +177,7 @@ const searchHitSchema = z
     endpoints: z
       .union([z.record(jsonValueSchema), z.array(z.string())])
       .optional(),
-    metadata: z.record(jsonValueSchema).optional(),
+    metadata: searchHitMetadataSchema.optional(),
     metadataFacet: metadataFacetSchema,
     profile: agentProfileSchema.optional(),
     protocols: z.array(z.string()).optional(),
@@ -217,6 +227,74 @@ export const popularResponseSchema = z.object({
 export const resolveResponseSchema = z.object({
   agent: searchHitSchema,
 });
+
+const delegationPlanCandidateSchema = z
+  .object({
+    uaid: z.string(),
+    label: z.string(),
+    registry: z.string().optional(),
+    agent: searchHitSchema,
+    score: z.number(),
+    matchedQueries: z.array(z.string()).optional(),
+    matchedRoles: z.array(z.string()).optional(),
+    matchedProtocols: z.array(z.string()).optional(),
+    matchedSurfaces: z.array(z.string()).optional(),
+    matchedLanguages: z.array(z.string()).optional(),
+    matchedArtifacts: z.array(z.string()).optional(),
+    matchedTaskTags: z.array(z.string()).optional(),
+    reasons: z.array(z.string()).optional(),
+    suggestedMessage: z.string().optional(),
+    trustScore: z.number().optional(),
+    verified: z.boolean().optional(),
+    communicationSupported: z.boolean().optional(),
+    availability: z.boolean().optional(),
+    explanation: z.string().optional(),
+  })
+  .passthrough();
+
+const delegationOpportunitySchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    reason: z.string(),
+    role: z.string(),
+    type: z.enum(['ai-agents', 'mcp-servers']),
+    suggestedMode: z.enum(['best-match', 'fallback', 'parallel']),
+    searchQueries: z.array(z.string()),
+    protocols: z.array(z.string()).optional(),
+    surfaces: z.array(z.string()).optional(),
+    languages: z.array(z.string()).optional(),
+    artifacts: z.array(z.string()).optional(),
+    candidates: z.array(delegationPlanCandidateSchema),
+  })
+  .passthrough();
+
+const delegationRecommendationSchema = z
+  .object({
+    action: z.enum(['delegate-now', 'review-shortlist', 'handle-locally']),
+    confidence: z.number(),
+    reason: z.string(),
+    opportunityId: z.string().optional(),
+    candidate: delegationPlanCandidateSchema.optional(),
+  })
+  .passthrough();
+
+export const delegationPlanResponseSchema = z
+  .object({
+    task: z.string(),
+    context: z.string().optional(),
+    summary: z.string().optional(),
+    intents: z.array(z.string()),
+    protocols: z.array(z.string()),
+    surfaces: z.array(z.string()),
+    languages: z.array(z.string()).optional(),
+    artifacts: z.array(z.string()).optional(),
+    shouldDelegate: z.boolean(),
+    localFirstReason: z.string().optional(),
+    recommendation: delegationRecommendationSchema.optional(),
+    opportunities: z.array(delegationOpportunitySchema),
+  })
+  .passthrough();
 
 const agentFeedbackSummarySchema = z.object({
   averageScore: z.number(),
