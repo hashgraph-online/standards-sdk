@@ -284,10 +284,9 @@ export interface DelegationWorkspaceContext {
 export interface DelegationPlanFilter {
   capabilities?: string[];
   type?: 'ai-agents' | 'mcp-servers';
-  registry?: string | string[];
+  registry?: string;
   registries?: string[];
   protocols?: string[];
-  adapter?: string[];
   adapters?: string[];
   verifiedOnly?: boolean;
   onlineOnly?: boolean;
