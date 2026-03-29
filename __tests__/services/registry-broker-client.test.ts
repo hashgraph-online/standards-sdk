@@ -1511,6 +1511,42 @@ describe('RegistryBrokerClient', () => {
     ).toBe('preserved');
   });
 
+  it('keeps search metadata parsing permissive for legacy delegation keys', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          ...mockSearchResponse,
+          hits: [
+            {
+              ...mockSearchResponse.hits[0],
+              metadata: {
+                ...mockSearchResponse.hits[0].metadata,
+                delegationRoles: { legacy: true },
+                delegationTaskTags: 'docs',
+                delegationProtocols: [1, 2, 3],
+                delegationSummary: { text: 'not-a-string' },
+                delegationSignals: ['unexpected'],
+              },
+            },
+          ],
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const result = await client.search({ q: 'docs', limit: 1 });
+
+    expect(result.hits[0]?.metadata?.delegationRoles).toBeUndefined();
+    expect(result.hits[0]?.metadata?.delegationTaskTags).toBeUndefined();
+    expect(result.hits[0]?.metadata?.delegationProtocols).toBeUndefined();
+    expect(result.hits[0]?.metadata?.delegationSummary).toBeUndefined();
+    expect(result.hits[0]?.metadata?.delegationSignals).toBeUndefined();
+  });
+
   it('retrieves stats, registries, popular searches, and resolves UAIDs', async () => {
     fetchImplementation
       .mockResolvedValueOnce(

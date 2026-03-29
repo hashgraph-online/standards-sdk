@@ -1376,7 +1376,7 @@ export class RegistryBrokerClient {
 
   parseWithSchema<T>(
     value: JsonValue,
-    schema: z.ZodSchema<T>,
+    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
     context: string,
   ): T {
     try {
