@@ -39,6 +39,20 @@ describe('inscriber file-type handling', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockOptionalImport.mockImplementation(async (specifier: string) => {
+      if (specifier === 'node:fs') {
+        return await import('node:fs');
+      }
+      if (specifier === 'node:path') {
+        return await import('node:path');
+      }
+      return {
+        fileTypeFromBuffer: jest.fn(async () => ({
+          ext: 'webp',
+          mime: 'image/webp',
+        })),
+      };
+    });
     mockInscribeAndExecute.mockResolvedValue({
       jobId: '0.0.123@1712534400.000000001',
       transactionId: '0.0.123@1712534400.000000001',
@@ -47,13 +61,6 @@ describe('inscriber file-type handling', () => {
   });
 
   it('uses detected MIME types for direct file inscriptions', async () => {
-    mockOptionalImport.mockResolvedValue({
-      fileTypeFromBuffer: jest.fn(async () => ({
-        ext: 'webp',
-        mime: 'image/webp',
-      })),
-    });
-
     const result = await inscribe(
       { type: 'file', path: fixturePath },
       {
@@ -78,14 +85,24 @@ describe('inscriber file-type handling', () => {
         mimeType: 'image/webp',
       },
     });
-    expect(mockOptionalImport).toHaveBeenCalledTimes(1);
+    expect(mockOptionalImport).toHaveBeenCalledWith('node:fs');
+    expect(mockOptionalImport).toHaveBeenCalledWith('node:path');
+    expect(mockOptionalImport).toHaveBeenCalledWith('file-type');
   });
 
   it('falls back to extension-based MIME types for broker quotes when sniffing fails', async () => {
-    mockOptionalImport.mockResolvedValue({
-      fileTypeFromBuffer: jest.fn(async () => {
-        throw new Error('unsupported');
-      }),
+    mockOptionalImport.mockImplementation(async (specifier: string) => {
+      if (specifier === 'node:fs') {
+        return await import('node:fs');
+      }
+      if (specifier === 'node:path') {
+        return await import('node:path');
+      }
+      return {
+        fileTypeFromBuffer: jest.fn(async () => {
+          throw new Error('unsupported');
+        }),
+      };
     });
 
     const fetchMock = jest.fn(async () => {
@@ -125,6 +142,6 @@ describe('inscriber file-type handling', () => {
     expect(
       JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).mimeType,
     ).toBe('image/png');
-    expect(mockOptionalImport).toHaveBeenCalledTimes(1);
+    expect(mockOptionalImport).toHaveBeenCalledWith('file-type');
   });
 });

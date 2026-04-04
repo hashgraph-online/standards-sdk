@@ -33,6 +33,15 @@ let nodeModules: {
   extname?: (path: string) => string;
 } = {};
 
+type NodeFsModule = {
+  readFileSync: (path: string) => Buffer;
+};
+
+type NodePathModule = {
+  basename: (path: string) => string;
+  extname: (path: string) => string;
+};
+
 type FileTypeModule = {
   fileTypeFromBuffer?: (
     buffer: Buffer,
@@ -53,14 +62,18 @@ async function loadNodeModules(): Promise<void> {
   }
 
   try {
-    const { createRequire } = await import('node:module');
-    const require = createRequire(import.meta.url);
-    const fs = require('node:fs');
-    const path = require('node:path');
+    const [fsModule, pathModule] = await Promise.all([
+      optionalImport<NodeFsModule>('node:fs'),
+      optionalImport<NodePathModule>('node:path'),
+    ]);
 
-    nodeModules.readFileSync = fs.readFileSync;
-    nodeModules.basename = path.basename;
-    nodeModules.extname = path.extname;
+    if (!fsModule || !pathModule) {
+      throw new Error('Node.js fs or path module not available');
+    }
+
+    nodeModules.readFileSync = fsModule.readFileSync;
+    nodeModules.basename = pathModule.basename;
+    nodeModules.extname = pathModule.extname;
   } catch (error) {
     Logger.getInstance({
       module: 'Inscriber',
