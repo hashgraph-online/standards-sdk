@@ -2,6 +2,51 @@ import { isBrowser } from './is-browser';
 
 let nodeRequire: NodeRequire | null | undefined;
 
+const isNodeRuntime = (): boolean =>
+  typeof process !== 'undefined' && Boolean(process.versions?.node);
+
+type NodeModuleNamespace = {
+  createRequire: (path: string | URL) => NodeRequire;
+};
+
+function getNodeRequireSync(): NodeRequire | null {
+  try {
+    const moduleNamespace = (
+      process as typeof process & {
+        getBuiltinModule?: (name: string) => unknown;
+      }
+    ).getBuiltinModule?.('module') as Partial<NodeModuleNamespace> | undefined;
+    if (typeof moduleNamespace?.createRequire === 'function') {
+      const requireFromCwd = moduleNamespace.createRequire(
+        `${process.cwd()}/package.json`,
+      );
+      if (typeof requireFromCwd.resolve === 'function') {
+        return requireFromCwd;
+      }
+    }
+
+    const globalObject =
+      typeof global !== 'undefined'
+        ? (global as typeof globalThis)
+        : globalThis;
+    const runtimeRequire =
+      globalObject.process?.mainModule?.require ??
+      (globalObject as { require?: NodeRequire }).require ??
+      Function('return typeof require === "function" ? require : undefined;')();
+
+    if (
+      typeof runtimeRequire === 'function' &&
+      typeof (runtimeRequire as NodeRequire).resolve === 'function'
+    ) {
+      return runtimeRequire as NodeRequire;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function isModuleNotFound(specifier: string, error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
@@ -33,25 +78,13 @@ async function resolveNodeRequire(): Promise<NodeRequire | null> {
     return nodeRequire;
   }
 
-  if (isBrowser) {
+  if (isBrowser && !isNodeRuntime()) {
     nodeRequire = null;
     return nodeRequire;
   }
 
   try {
-    const globalObject =
-      typeof global !== 'undefined'
-        ? (global as typeof globalThis)
-        : globalThis;
-    const req =
-      globalObject.process?.mainModule?.require ??
-      (globalObject as { require?: NodeRequire }).require;
-
-    nodeRequire =
-      typeof req === 'function' &&
-      typeof (req as NodeRequire).resolve === 'function'
-        ? (req as NodeRequire)
-        : null;
+    nodeRequire = getNodeRequireSync();
   } catch {
     nodeRequire = null;
   }
@@ -78,7 +111,7 @@ export async function optionalImport<T>(
   specifier: string,
   options: OptionalImportOptions = {},
 ): Promise<T | null> {
-  if (isBrowser) {
+  if (isBrowser && !isNodeRuntime()) {
     return dynamicImport<T>(specifier);
   }
 
@@ -99,24 +132,14 @@ export async function optionalImport<T>(
 }
 
 export function optionalImportSync<T>(specifier: string): T | null {
-  if (isBrowser) {
+  if (isBrowser && !isNodeRuntime()) {
     return null;
   }
 
   try {
-    const globalObject =
-      typeof global !== 'undefined'
-        ? (global as typeof globalThis)
-        : globalThis;
-    const req =
-      globalObject.process?.mainModule?.require ??
-      (globalObject as { require?: NodeRequire }).require;
-
-    if (
-      typeof req === 'function' &&
-      typeof (req as NodeRequire).resolve === 'function'
-    ) {
-      return req(specifier) as T;
+    const requireFn = getNodeRequireSync();
+    if (requireFn) {
+      return requireFn(specifier) as T;
     }
   } catch (error) {
     if (!isModuleNotFound(specifier, error)) {
