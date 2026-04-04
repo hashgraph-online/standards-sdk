@@ -53,23 +53,21 @@ async function loadNodeModules(): Promise<void> {
   }
 
   try {
-    const globalObj = typeof global !== 'undefined' ? global : globalThis;
-    const req = globalObj.process?.mainModule?.require || globalObj.require;
+    const { createRequire } = await import('node:module');
+    const require = createRequire(import.meta.url);
+    const fs = require('node:fs');
+    const path = require('node:path');
 
-    if (typeof req === 'function') {
-      const fs = req('fs');
-      const path = req('path');
-
-      nodeModules.readFileSync = fs.readFileSync;
-      nodeModules.basename = path.basename;
-      nodeModules.extname = path.extname;
-    } else {
-      throw new Error('require function not available');
-    }
+    nodeModules.readFileSync = fs.readFileSync;
+    nodeModules.basename = path.basename;
+    nodeModules.extname = path.extname;
   } catch (error) {
-    console.warn(
-      'Node.js modules not available, file path operations will be disabled',
-    );
+    Logger.getInstance({
+      module: 'Inscriber',
+      level: 'warn',
+    }).warn('Node.js modules not available, file path operations will be disabled', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -129,7 +127,7 @@ async function convertFileToBase64(filePath: string): Promise<{
       if (fileTypeResult) {
         mimeType = fileTypeResult.mime;
       }
-    } catch (error) {
+    } catch (_error) {
       const ext = nodeModules.extname(filePath).toLowerCase();
       const mimeMap: Record<string, string> = {
         '.txt': 'text/plain',
