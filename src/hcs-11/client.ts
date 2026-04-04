@@ -14,7 +14,6 @@ import {
   InscriptionResult,
 } from '../inscribe';
 import { Logger, ILogger, getTopicId } from '../utils';
-import * as mime from 'mime-types';
 import { z, ZodIssue } from 'zod';
 import type { DAppSigner } from '@hashgraph/hedera-wallet-connect';
 import { ProgressReporter } from '../utils/progress-reporter';
@@ -163,6 +162,28 @@ export const HCS11ProfileSchema = z.union([
   MCPServerProfileSchema,
   FloraProfileSchema,
 ]);
+
+const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+  avif: 'image/avif',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  json: 'application/json',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  txt: 'text/plain',
+  webp: 'image/webp',
+};
+
+const lookupMimeType = (fileName: string): string => {
+  const trimmed = fileName.trim();
+  const lastDotIndex = trimmed.lastIndexOf('.');
+  if (lastDotIndex < 1 || lastDotIndex === trimmed.length - 1) {
+    return 'application/octet-stream';
+  }
+  const extension = trimmed.substring(lastDotIndex + 1).toLowerCase();
+  return MIME_TYPES_BY_EXTENSION[extension] ?? 'application/octet-stream';
+};
 
 export class HCS11Client {
   private client: Client;
@@ -516,7 +537,7 @@ export class HCS11Client {
 
       progressReporter.preparing('Preparing to inscribe image', 0);
 
-      const mimeType = mime.lookup(fileName) || 'application/octet-stream';
+      const mimeType = lookupMimeType(fileName);
 
       const waitForConfirmation = options?.waitForConfirmation ?? true;
 

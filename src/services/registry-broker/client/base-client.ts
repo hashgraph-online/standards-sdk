@@ -1,10 +1,4 @@
 import { Buffer } from 'buffer';
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-} from 'crypto';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { ZodError, z } from 'zod';
 import type {
@@ -303,6 +297,7 @@ import {
   RegistryBrokerParseError,
   type ErrorDetails,
 } from './errors';
+import { optionalImportSync } from '../../../utils/dynamic-import';
 export interface InitializedAgentClient {
   client: RegistryBrokerClient;
   encryption?: { publicKey: string; privateKey?: string } | null;
@@ -318,6 +313,33 @@ export interface RequestConfig {
   body?: unknown;
   headers?: Record<string, string>;
 }
+
+type NodeCipher = {
+  setAAD: (buffer: Buffer) => void;
+  update: (buffer: Buffer) => Buffer;
+  final: () => Buffer;
+  getAuthTag: () => Buffer;
+};
+
+type NodeDecipher = {
+  setAAD: (buffer: Buffer) => void;
+  setAuthTag: (buffer: Buffer) => void;
+  update: (buffer: Buffer) => Buffer;
+  final: () => Buffer;
+};
+
+type NodeCryptoModule = {
+  createCipheriv: (algorithm: string, key: Buffer, iv: Buffer) => NodeCipher;
+  createDecipheriv: (
+    algorithm: string,
+    key: Buffer,
+    iv: Buffer,
+  ) => NodeDecipher;
+  createHash: (algorithm: string) => {
+    update: (buffer: Buffer) => { digest: () => Buffer };
+  };
+  randomBytes: (size: number) => Buffer;
+};
 export class RegistryBrokerClient {
   static async initializeAgent(
     options: InitializeAgentClientOptions,
@@ -1440,8 +1462,19 @@ export class RegistryBrokerClient {
     }
   }
 
+  private getNodeCrypto(feature: string): NodeCryptoModule {
+    this.assertNodeRuntime(feature);
+    const nodeCrypto =
+      optionalImportSync<NodeCryptoModule>('node:crypto') ??
+      optionalImportSync<NodeCryptoModule>('crypto');
+    if (!nodeCrypto) {
+      throw new Error(`${feature} requires the Node.js crypto module`);
+    }
+    return nodeCrypto;
+  }
+
   createEphemeralKeyPair(): EphemeralKeyPair {
-    this.assertNodeRuntime('generateEphemeralKeyPair');
+    const { randomBytes } = this.getNodeCrypto('generateEphemeralKeyPair');
     const privateKeyBytes = randomBytes(32);
     const publicKey = secp256k1.getPublicKey(privateKeyBytes, true);
     return {
@@ -1451,7 +1484,7 @@ export class RegistryBrokerClient {
   }
 
   deriveSharedSecret(options: DeriveSharedSecretOptions): Buffer {
-    this.assertNodeRuntime('deriveSharedSecret');
+    const { createHash } = this.getNodeCrypto('deriveSharedSecret');
     const privateKey = this.hexToBuffer(options.privateKey);
     const peerPublicKey = this.hexToBuffer(options.peerPublicKey);
     const shared = secp256k1.getSharedSecret(privateKey, peerPublicKey, true);
@@ -1459,7 +1492,9 @@ export class RegistryBrokerClient {
   }
 
   buildCipherEnvelope(options: EncryptCipherEnvelopeOptions): CipherEnvelope {
-    this.assertNodeRuntime('encryptCipherEnvelope');
+    const { createCipheriv, randomBytes } = this.getNodeCrypto(
+      'encryptCipherEnvelope',
+    );
     const sharedSecret = this.normalizeSharedSecret(options.sharedSecret);
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', sharedSecret, iv);
@@ -1494,7 +1529,7 @@ export class RegistryBrokerClient {
   }
 
   openCipherEnvelope(options: DecryptCipherEnvelopeOptions): string {
-    this.assertNodeRuntime('decryptCipherEnvelope');
+    const { createDecipheriv } = this.getNodeCrypto('decryptCipherEnvelope');
     const sharedSecret = this.normalizeSharedSecret(options.sharedSecret);
     const payload = Buffer.from(options.envelope.ciphertext, 'base64');
     const nonce = Buffer.from(options.envelope.nonce, 'base64');

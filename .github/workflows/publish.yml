@@ -3,23 +3,36 @@ name: Publish Standards SDK
 on:
   push:
     branches:
-      - main
+      - '**'
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "If true, do not publish (use npm/pnpm dry-run)"
+      release_channel:
+        description: 'Release channel to publish'
         required: false
-        default: "false"
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - canary
+      npm_tag:
+        description: 'npm dist-tag to use for canary publishes'
+        required: false
+        default: 'canary'
+      dry_run:
+        description: 'If true, do not publish (use npm/pnpm dry-run)'
+        required: false
+        default: 'false'
 
 concurrency:
-  group: standards-sdk-publish-${{ github.ref_name }}
+  group: standards-sdk-publish-${{ github.ref_name }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'auto' }}
   cancel-in-progress: true
 
 env:
   HOL_SDK_DOCS_URL: https://hol.org/docs/libraries/standards-sdk/
 
 jobs:
-  publish:
+  publish-stable:
+    if: github.repository == 'hashgraph-online/standards-sdk' && ((github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && inputs.release_channel == 'stable'))
     name: Release SDK packages
     runs-on: ubuntu-latest
     permissions:
@@ -38,9 +51,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-          cache: "pnpm"
+          node-version: '22.14.0'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Setup npm for trusted publishing
+        run: npm install --global npm@11.5.1
 
       - name: Determine publish plan
         id: plan
@@ -233,22 +249,18 @@ jobs:
 
       - name: Publish @hashgraphonline/standards-sdk
         if: steps.targets.outputs.publish_hash == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           if [ "${{ steps.plan.outputs.dry_run }}" = "true" ]; then
-            pnpm publish --access public --no-git-checks --provenance --dry-run
+            npm publish --access public --provenance --dry-run
           else
-            pnpm publish --access public --no-git-checks --provenance
+            npm publish --access public --provenance
           fi
 
       - name: Publish @hol-org/standards-sdk
         if: steps.targets.outputs.publish_hol == 'true'
         working-directory: packages/hol-standards-sdk
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -261,8 +273,6 @@ jobs:
       - name: Publish @hol-org/rb-client
         if: steps.targets.outputs.publish_rb == 'true'
         working-directory: packages/rb-client
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -331,3 +341,151 @@ jobs:
       - name: Skip publish (already published)
         if: steps.targets.outputs.publish_any != 'true'
         run: echo "All packages for version ${{ steps.version.outputs.new }} already exist; skipping publish."
+
+  publish-canary:
+    if: github.repository == 'hashgraph-online/standards-sdk' && ((github.event_name == 'push' && github.ref_name != 'main') || (github.event_name == 'workflow_dispatch' && inputs.release_channel == 'canary'))
+    name: Publish canary packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Setup npm for trusted publishing
+        run: npm install --global npm@11.5.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm -r run build
+
+      - name: Calculate canary version
+        id: canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.npm_tag || 'canary' }}"
+          node ci/calc-canary-version.mjs "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Update package versions
+        env:
+          VERSION: ${{ steps.canary.outputs.version }}
+        run: |
+          pnpm version "$VERSION" --no-git-tag-version
+          node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
+          node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
+
+      - name: Compute canary publish targets
+        id: targets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.canary.outputs.version }}"
+
+          version_exists() {
+            local pkg="$1"
+            local attempt
+            local out=""
+            for attempt in 1 2 3 4 5 6; do
+              out="$(npm --silent view "${pkg}@${VERSION}" version --json 2>/dev/null || true)"
+              if [ -n "$out" ]; then
+                if [ "$out" = "\"$VERSION\"" ] || [ "$out" = "$VERSION" ]; then
+                  return 0
+                fi
+                return 1
+              fi
+              sleep $((attempt * 2))
+            done
+            echo "npm view failed for ${pkg}@${VERSION}" >&2
+            exit 1
+          }
+
+          publish_hash=true
+          publish_hol=true
+          publish_rb=true
+
+          if version_exists "@hashgraphonline/standards-sdk"; then
+            publish_hash=false
+          fi
+          if version_exists "@hol-org/standards-sdk"; then
+            publish_hol=false
+          fi
+          if version_exists "@hol-org/rb-client"; then
+            publish_rb=false
+          fi
+
+          publish_any=false
+          if [ "$publish_hash" = "true" ] || [ "$publish_hol" = "true" ] || [ "$publish_rb" = "true" ]; then
+            publish_any=true
+          fi
+
+          echo "publish_hash=$publish_hash" >> "$GITHUB_OUTPUT"
+          echo "publish_hol=$publish_hol" >> "$GITHUB_OUTPUT"
+          echo "publish_rb=$publish_rb" >> "$GITHUB_OUTPUT"
+          echo "publish_any=$publish_any" >> "$GITHUB_OUTPUT"
+
+      - name: Publish @hashgraphonline/standards-sdk canary
+        if: steps.targets.outputs.publish_hash == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}" = "true" ]; then
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --dry-run
+          else
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
+          fi
+
+      - name: Publish @hol-org/standards-sdk canary
+        if: steps.targets.outputs.publish_hol == 'true'
+        working-directory: packages/hol-standards-sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}" = "true" ]; then
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --dry-run
+          else
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
+          fi
+
+      - name: Publish @hol-org/rb-client canary
+        if: steps.targets.outputs.publish_rb == 'true'
+        working-directory: packages/rb-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}" = "true" ]; then
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --dry-run
+          else
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
+          fi
+
+      - name: Publish to JSR (canary)
+        if: steps.targets.outputs.publish_any == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true')
+        working-directory: packages/jsr-client
+        run: |
+          VERSION="${{ steps.canary.outputs.version }}"
+          jq --arg v "$VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
+          npx jsr publish --allow-dirty --allow-slow-types
+
+      - name: Skip canary publish (already published)
+        if: steps.targets.outputs.publish_any != 'true'
+        run: echo "All canary packages for version ${{ steps.canary.outputs.version }} already exist; skipping publish."

@@ -48,7 +48,8 @@
     "sdk"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@hashgraphonline/standards-sdk": "workspace:*"

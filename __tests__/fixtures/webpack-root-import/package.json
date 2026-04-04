@@ -1,0 +1,17 @@
+{
+  "name": "webpack-root-import-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "webpack --config webpack.config.cjs",
+    "typecheck:browser-root": "tsc -p tsconfig.browser-root-supported.json --noEmit && ! tsc -p tsconfig.browser-root-unsupported.json --noEmit"
+  },
+  "dependencies": {
+    "@hashgraphonline/standards-sdk": "link:../../.."
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1"
+  }
+}
