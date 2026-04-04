@@ -74,6 +74,13 @@ import {
   verificationVerifyResponseSchema,
   verificationVerifySenderResponseSchema,
   skillRegistryConfigResponseSchema,
+  skillPublisherQuickstartCommandSchema,
+  skillPublisherTemplatePresetSchema,
+  skillPublisherMetadataSchema,
+  skillTrustTierSchema,
+  skillStatusChecksSchema,
+  skillStatusNextStepSchema,
+  skillStatusResponseSchema,
   skillCatalogChannelSchema,
   skillCatalogSortBySchema,
   skillCatalogVersionSummarySchema,
@@ -405,6 +412,19 @@ export type SkillRegistryJobStatusResponse = z.infer<
 export type SkillRegistryConfigResponse = z.infer<
   typeof skillRegistryConfigResponseSchema
 >;
+export type SkillPublisherQuickstartCommand = z.infer<
+  typeof skillPublisherQuickstartCommandSchema
+>;
+export type SkillPublisherTemplatePreset = z.infer<
+  typeof skillPublisherTemplatePresetSchema
+>;
+export type SkillPublisherMetadata = z.infer<
+  typeof skillPublisherMetadataSchema
+>;
+export type SkillTrustTier = z.infer<typeof skillTrustTierSchema>;
+export type SkillStatusChecks = z.infer<typeof skillStatusChecksSchema>;
+export type SkillStatusNextStep = z.infer<typeof skillStatusNextStepSchema>;
+export type SkillStatusResponse = z.infer<typeof skillStatusResponseSchema>;
 export type SkillCatalogChannel = z.infer<typeof skillCatalogChannelSchema>;
 export type SkillCatalogSortBy = z.infer<typeof skillCatalogSortBySchema>;
 export type SkillCatalogVersionSummary = z.infer<

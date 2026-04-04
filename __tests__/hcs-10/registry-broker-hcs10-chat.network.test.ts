@@ -85,7 +85,7 @@ describe('HCS-10 chat demo network resolution', () => {
       expect(
         resolveNetwork('https://registry-staging.hashgraphonline.com/api/v1'),
       ).toBe('testnet');
-      expect(resolveNetwork('https://hol.org/registry/api/v1')).toBe('testnet');
+      expect(resolveNetwork('http://localhost:4000/api/v1')).toBe('testnet');
     });
   });
 

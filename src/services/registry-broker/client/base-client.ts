@@ -109,6 +109,7 @@ import type {
   VerificationVerifySenderResponse,
   X402MinimumsResponse,
   SkillRegistryConfigResponse,
+  SkillStatusResponse,
   SkillSecurityBreakdownRequest,
   SkillSecurityBreakdownResponse,
   SkillBadgeQuery,
@@ -256,6 +257,7 @@ import {
   getSkillDeprecations as getSkillDeprecationsImpl,
   getSkillOwnership as getSkillOwnershipImpl,
   getSkillPublishJob as getSkillPublishJobImpl,
+  getSkillStatus as getSkillStatusImpl,
   getSkillVerificationStatus as getSkillVerificationStatusImpl,
   getSkillVoteStatus as getSkillVoteStatusImpl,
   getSkillSecurityBreakdown as getSkillSecurityBreakdownImpl,
@@ -766,6 +768,13 @@ export class RegistryBrokerClient {
 
   async skillsConfig(): Promise<SkillRegistryConfigResponse> {
     return skillsConfigImpl(this);
+  }
+
+  async getSkillStatus(params: {
+    name: string;
+    version?: string;
+  }): Promise<SkillStatusResponse> {
+    return getSkillStatusImpl(this, params);
   }
 
   async listSkills(
