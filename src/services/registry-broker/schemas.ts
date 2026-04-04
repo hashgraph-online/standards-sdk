@@ -1510,20 +1510,6 @@ export const skillStatusNextStepSchema = z
   })
   .passthrough();
 
-export const skillStatusResponseSchema = z
-  .object({
-    name: z.string(),
-    version: z.string().nullable(),
-    published: z.boolean(),
-    verifiedDomain: z.boolean(),
-    trustTier: skillTrustTierSchema,
-    badgeMetric: z.literal('tier'),
-    checks: skillStatusChecksSchema,
-    nextSteps: z.array(skillStatusNextStepSchema),
-    publisher: skillPublisherMetadataSchema.nullable().optional(),
-  })
-  .passthrough();
-
 export const skillBadgeMetricSchema = z.enum([
   'version',
   'status',
@@ -1537,6 +1523,20 @@ export const skillBadgeMetricSchema = z.enum([
   'upvotes',
   'updated',
 ]);
+
+export const skillStatusResponseSchema = z
+  .object({
+    name: z.string(),
+    version: z.string().nullable(),
+    published: z.boolean(),
+    verifiedDomain: z.boolean(),
+    trustTier: skillTrustTierSchema,
+    badgeMetric: skillBadgeMetricSchema,
+    checks: skillStatusChecksSchema,
+    nextSteps: z.array(skillStatusNextStepSchema),
+    publisher: skillPublisherMetadataSchema.nullable().optional(),
+  })
+  .passthrough();
 
 export const skillBadgeStyleSchema = z.enum([
   'flat',
