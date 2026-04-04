@@ -65,8 +65,11 @@
   "types": "./dist/es/index.d.ts",
   "exports": {
     ".": {
+      "browser": {
+        "types": "./dist/browser-root/browser-root.d.ts",
+        "default": "./dist/browser-root/standards-sdk.root-browser.js"
+      },
       "types": "./dist/es/index.d.ts",
-      "browser": "./dist/browser-root/standards-sdk.root-browser.js",
       "import": "./dist/es/standards-sdk.es.js",
       "require": "./dist/cjs/standards-sdk.cjs",
       "default": "./dist/es/standards-sdk.es.js"

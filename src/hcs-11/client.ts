@@ -177,12 +177,11 @@ const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
 
 const lookupMimeType = (fileName: string): string => {
   const trimmed = fileName.trim();
-  const extension = trimmed.includes('.')
-    ? trimmed.split('.').pop()?.toLowerCase()
-    : undefined;
-  if (!extension) {
+  const lastDotIndex = trimmed.lastIndexOf('.');
+  if (lastDotIndex < 1 || lastDotIndex === trimmed.length - 1) {
     return 'application/octet-stream';
   }
+  const extension = trimmed.substring(lastDotIndex + 1).toLowerCase();
   return MIME_TYPES_BY_EXTENSION[extension] ?? 'application/octet-stream';
 };
 
