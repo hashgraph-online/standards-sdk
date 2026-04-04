@@ -1,6 +1,4 @@
-import * as path from 'path';
 import { Buffer } from 'buffer';
-import { randomBytes } from 'crypto';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import type {
   AutoRegisterEncryptionKeyOptions,
@@ -29,8 +27,18 @@ type FsModule = {
   appendFileSync: (path: string, data: string) => void;
 };
 
+type NodePathModule = {
+  resolve: (...segments: string[]) => string;
+};
+
+type NodeCryptoModule = {
+  randomBytes: (size: number) => Buffer;
+};
+
 const getFs = async (): Promise<FsModule | null> => {
-  const fsModule = await optionalImport<Partial<FsModule>>('node:fs');
+  const fsModule =
+    (await optionalImport<Partial<FsModule>>('node:fs')) ??
+    (await optionalImport<Partial<FsModule>>('fs'));
 
   if (
     fsModule &&
@@ -42,6 +50,26 @@ const getFs = async (): Promise<FsModule | null> => {
     return fsModule as FsModule;
   }
 
+  return null;
+};
+
+const getNodePath = async (): Promise<NodePathModule | null> => {
+  const pathModule =
+    (await optionalImport<Partial<NodePathModule>>('node:path')) ??
+    (await optionalImport<Partial<NodePathModule>>('path'));
+  if (pathModule && typeof pathModule.resolve === 'function') {
+    return pathModule as NodePathModule;
+  }
+  return null;
+};
+
+const getNodeCrypto = async (): Promise<NodeCryptoModule | null> => {
+  const cryptoModule =
+    (await optionalImport<Partial<NodeCryptoModule>>('node:crypto')) ??
+    (await optionalImport<Partial<NodeCryptoModule>>('crypto'));
+  if (cryptoModule && typeof cryptoModule.randomBytes === 'function') {
+    return cryptoModule as NodeCryptoModule;
+  }
   return null;
 };
 
@@ -220,15 +248,29 @@ export async function generateEncryptionKeyPair(
     throw new Error('Only secp256k1 key generation is supported currently');
   }
 
-  const privateKeyBytes = randomBytes(32);
+  const cryptoModule = await getNodeCrypto();
+  if (!cryptoModule) {
+    throw new Error(
+      'Node.js crypto module is not available; cannot generate encryption key pair',
+    );
+  }
+  const privateKeyBytes = cryptoModule.randomBytes(32);
   const privateKey = Buffer.from(privateKeyBytes).toString('hex');
   const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true);
   const publicKey = Buffer.from(publicKeyBytes).toString('hex');
 
   const envVar = options.envVar ?? 'RB_ENCRYPTION_PRIVATE_KEY';
-  const resolvedPath = options.envPath
-    ? path.resolve(options.envPath)
-    : undefined;
+  const pathModule = options.envPath ? await getNodePath() : null;
+  const resolvedPath =
+    options.envPath && pathModule
+      ? pathModule.resolve(options.envPath)
+      : undefined;
+
+  if (options.envPath && !resolvedPath) {
+    throw new Error(
+      'Node.js path module is not available; cannot resolve encryption key env path',
+    );
+  }
 
   if (resolvedPath) {
     const fsModule = await getFs();
