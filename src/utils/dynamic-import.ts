@@ -17,11 +17,9 @@ function getNodeRequireSync(): NodeRequire | null {
       }
     ).getBuiltinModule?.('module') as Partial<NodeModuleNamespace> | undefined;
     if (typeof moduleNamespace?.createRequire === 'function') {
-      const requireFromCwd = moduleNamespace.createRequire(
-        `${process.cwd()}/package.json`,
-      );
-      if (typeof requireFromCwd.resolve === 'function') {
-        return requireFromCwd;
+      const requireFromModule = moduleNamespace.createRequire(import.meta.url);
+      if (typeof requireFromModule.resolve === 'function') {
+        return requireFromModule;
       }
     }
 
