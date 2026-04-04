@@ -1486,12 +1486,28 @@ export const skillPublisherMetadataSchema = z
   .passthrough();
 
 export const skillTrustTierSchema = z.enum([
+  'unpublished',
   'unclaimed',
   'validated',
   'published',
   'verified',
   'hardened',
 ]);
+
+export const skillStatusDefaultVerificationSignals = {
+  publisherBound: false,
+  domainProof: false,
+  verifiedDomain: false,
+  previewValidated: false,
+} as const;
+
+export const skillStatusDefaultProvenanceSignals = {
+  repoCommitIntegrity: false,
+  manifestIntegrity: false,
+  canonicalRelease: false,
+  previewAvailable: false,
+  previewAuthoritative: false,
+} as const;
 
 export const skillStatusChecksSchema = z
   .object({
@@ -1503,14 +1519,16 @@ export const skillStatusChecksSchema = z
 
 export const skillStatusNextStepSchema = z
   .object({
-    kind: z.enum([
-      'setup_validate',
-      'publish_first_release',
-      'verify_domain',
-      'harden_workflow',
-      'share_status',
-    ]),
-    priority: z.number().int(),
+    kind: z
+      .enum([
+        'setup_validate',
+        'publish_first_release',
+        'verify_domain',
+        'harden_workflow',
+        'share_status',
+      ])
+      .optional(),
+    priority: z.number().int().optional(),
     id: z.string(),
     label: z.string(),
     description: z.string(),
@@ -1637,8 +1655,12 @@ export const skillStatusResponseSchema = z
     badgeMetric: skillBadgeMetricSchema,
     checks: skillStatusChecksSchema,
     nextSteps: z.array(skillStatusNextStepSchema),
-    verificationSignals: skillStatusVerificationSignalsSchema,
-    provenanceSignals: skillStatusProvenanceSignalsSchema,
+    verificationSignals: skillStatusVerificationSignalsSchema.default(
+      skillStatusDefaultVerificationSignals,
+    ),
+    provenanceSignals: skillStatusProvenanceSignalsSchema.default(
+      skillStatusDefaultProvenanceSignals,
+    ),
     publisher: skillPublisherMetadataSchema.nullable().optional(),
     preview: skillStatusPreviewMetadataSchema.nullable().optional(),
     statusUrl: z.string().nullable().optional(),

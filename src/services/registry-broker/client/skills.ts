@@ -120,10 +120,7 @@ export async function getSkillStatus(
   );
 }
 
-export async function getSkillStatusByRepo(
-  client: RegistryBrokerClient,
-  params: SkillPreviewByRepoRequest,
-): Promise<SkillStatusResponse> {
+function buildRepoPreviewQuery(params: SkillPreviewByRepoRequest): string {
   const repo = params.repo.trim();
   const skillDir = params.skillDir.trim();
   if (!repo) {
@@ -139,9 +136,16 @@ export async function getSkillStatusByRepo(
   if (params.ref?.trim()) {
     query.set('ref', params.ref.trim());
   }
+  return query.toString();
+}
 
+export async function getSkillStatusByRepo(
+  client: RegistryBrokerClient,
+  params: SkillPreviewByRepoRequest,
+): Promise<SkillStatusResponse> {
+  const query = buildRepoPreviewQuery(params);
   const raw = await client.requestJson<JsonValue>(
-    `/skills/status/by-repo?${query.toString()}`,
+    `/skills/status/by-repo?${query}`,
     { method: 'GET' },
   );
 
@@ -627,24 +631,9 @@ export async function getSkillPreviewByRepo(
   client: RegistryBrokerClient,
   params: SkillPreviewByRepoRequest,
 ): Promise<SkillPreviewLookupResponse> {
-  const repo = params.repo.trim();
-  const skillDir = params.skillDir.trim();
-  if (!repo) {
-    throw new Error('repo is required');
-  }
-  if (!skillDir) {
-    throw new Error('skillDir is required');
-  }
-
-  const query = new URLSearchParams();
-  query.set('repo', repo);
-  query.set('skillDir', skillDir);
-  if (params.ref?.trim()) {
-    query.set('ref', params.ref.trim());
-  }
-
+  const query = buildRepoPreviewQuery(params);
   const raw = await client.requestJson<JsonValue>(
-    `/skills/preview/by-repo?${query.toString()}`,
+    `/skills/preview/by-repo?${query}`,
     { method: 'GET' },
   );
 
