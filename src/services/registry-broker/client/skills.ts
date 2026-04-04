@@ -11,7 +11,16 @@ import type {
   SkillRecommendedVersionResponse,
   SkillRecommendedVersionSetRequest,
   SkillRegistryConfigResponse,
+  SkillStatusRequest,
   SkillStatusResponse,
+  SkillPreviewLookupRequest,
+  SkillPreviewByRepoRequest,
+  SkillPreviewLookupResponse,
+  SkillPreviewRecord,
+  UploadSkillPreviewFromGithubOidcRequest,
+  SkillInstallResponse,
+  SkillInstallCopyTelemetryRequest,
+  SkillInstallCopyTelemetryResponse,
   SkillRegistryCategoriesResponse,
   SkillSecurityBreakdownRequest,
   SkillSecurityBreakdownResponse,
@@ -45,6 +54,10 @@ import {
   skillRecommendedVersionResponseSchema,
   skillRegistryConfigResponseSchema,
   skillStatusResponseSchema,
+  skillPreviewLookupResponseSchema,
+  skillPreviewRecordSchema,
+  skillInstallResponseSchema,
+  skillInstallCopyTelemetryResponseSchema,
   skillRegistryCategoriesResponseSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
@@ -80,7 +93,7 @@ export async function skillsConfig(
 
 export async function getSkillStatus(
   client: RegistryBrokerClient,
-  params: { name: string; version?: string },
+  params: SkillStatusRequest,
 ): Promise<SkillStatusResponse> {
   const normalizedName = params.name.trim();
   if (!normalizedName) {
@@ -98,6 +111,38 @@ export async function getSkillStatus(
     {
       method: 'GET',
     },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillStatusResponseSchema,
+    'skill status response',
+  );
+}
+
+export async function getSkillStatusByRepo(
+  client: RegistryBrokerClient,
+  params: SkillPreviewByRepoRequest,
+): Promise<SkillStatusResponse> {
+  const repo = params.repo.trim();
+  const skillDir = params.skillDir.trim();
+  if (!repo) {
+    throw new Error('repo is required');
+  }
+  if (!skillDir) {
+    throw new Error('skillDir is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('repo', repo);
+  query.set('skillDir', skillDir);
+  if (params.ref?.trim()) {
+    query.set('ref', params.ref.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/status/by-repo?${query.toString()}`,
+    { method: 'GET' },
   );
 
   return client.parseWithSchema(
@@ -520,6 +565,161 @@ export async function getSkillBadge(
     raw,
     skillBadgeResponseSchema,
     'skill badge response',
+  );
+}
+
+export async function uploadSkillPreviewFromGithubOidc(
+  client: RegistryBrokerClient,
+  payload: UploadSkillPreviewFromGithubOidcRequest,
+): Promise<SkillPreviewRecord> {
+  const token = payload.token.trim();
+  if (!token) {
+    throw new Error('token is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    '/skills/preview/github-oidc',
+    {
+      method: 'POST',
+      body: payload.report,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewRecordSchema,
+    'skill preview record response',
+  );
+}
+
+export async function getSkillPreview(
+  client: RegistryBrokerClient,
+  params: SkillPreviewLookupRequest,
+): Promise<SkillPreviewLookupResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  if (params.version?.trim()) {
+    query.set('version', params.version.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/preview?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewLookupResponseSchema,
+    'skill preview response',
+  );
+}
+
+export async function getSkillPreviewByRepo(
+  client: RegistryBrokerClient,
+  params: SkillPreviewByRepoRequest,
+): Promise<SkillPreviewLookupResponse> {
+  const repo = params.repo.trim();
+  const skillDir = params.skillDir.trim();
+  if (!repo) {
+    throw new Error('repo is required');
+  }
+  if (!skillDir) {
+    throw new Error('skillDir is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('repo', repo);
+  query.set('skillDir', skillDir);
+  if (params.ref?.trim()) {
+    query.set('ref', params.ref.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/preview/by-repo?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewLookupResponseSchema,
+    'skill preview by repo response',
+  );
+}
+
+export async function getSkillPreviewById(
+  client: RegistryBrokerClient,
+  previewId: string,
+): Promise<SkillPreviewLookupResponse> {
+  const normalizedPreviewId = previewId.trim();
+  if (!normalizedPreviewId) {
+    throw new Error('previewId is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/preview/${encodeURIComponent(normalizedPreviewId)}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewLookupResponseSchema,
+    'skill preview by id response',
+  );
+}
+
+export async function getSkillInstall(
+  client: RegistryBrokerClient,
+  skillRef: string,
+): Promise<SkillInstallResponse> {
+  const normalizedSkillRef = skillRef.trim();
+  if (!normalizedSkillRef) {
+    throw new Error('skillRef is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/${encodeURIComponent(normalizedSkillRef)}/install`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillInstallResponseSchema,
+    'skill install response',
+  );
+}
+
+export async function recordSkillInstallCopy(
+  client: RegistryBrokerClient,
+  skillRef: string,
+  payload: SkillInstallCopyTelemetryRequest = {},
+): Promise<SkillInstallCopyTelemetryResponse> {
+  const normalizedSkillRef = skillRef.trim();
+  if (!normalizedSkillRef) {
+    throw new Error('skillRef is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/${encodeURIComponent(normalizedSkillRef)}/telemetry/install-copy`,
+    {
+      method: 'POST',
+      body: payload,
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillInstallCopyTelemetryResponseSchema,
+    'skill install copy telemetry response',
   );
 }
 

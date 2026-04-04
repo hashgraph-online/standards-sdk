@@ -109,7 +109,16 @@ import type {
   VerificationVerifySenderResponse,
   X402MinimumsResponse,
   SkillRegistryConfigResponse,
+  SkillStatusRequest,
   SkillStatusResponse,
+  SkillPreviewByRepoRequest,
+  SkillPreviewLookupRequest,
+  SkillPreviewLookupResponse,
+  SkillPreviewRecord,
+  UploadSkillPreviewFromGithubOidcRequest,
+  SkillInstallResponse,
+  SkillInstallCopyTelemetryRequest,
+  SkillInstallCopyTelemetryResponse,
   SkillSecurityBreakdownRequest,
   SkillSecurityBreakdownResponse,
   SkillBadgeQuery,
@@ -255,8 +264,13 @@ import {
   getRecommendedSkillVersion as getRecommendedSkillVersionImpl,
   getSkillBadge as getSkillBadgeImpl,
   getSkillDeprecations as getSkillDeprecationsImpl,
+  getSkillInstall as getSkillInstallImpl,
   getSkillOwnership as getSkillOwnershipImpl,
   getSkillPublishJob as getSkillPublishJobImpl,
+  getSkillPreviewById as getSkillPreviewByIdImpl,
+  getSkillPreviewByRepo as getSkillPreviewByRepoImpl,
+  getSkillPreview as getSkillPreviewImpl,
+  getSkillStatusByRepo as getSkillStatusByRepoImpl,
   getSkillStatus as getSkillStatusImpl,
   getSkillVerificationStatus as getSkillVerificationStatusImpl,
   getSkillVoteStatus as getSkillVoteStatusImpl,
@@ -273,10 +287,12 @@ import {
   resolveSkillManifest as resolveSkillManifestImpl,
   resolveSkillMarkdown as resolveSkillMarkdownImpl,
   requestSkillVerification as requestSkillVerificationImpl,
+  recordSkillInstallCopy as recordSkillInstallCopyImpl,
   setRecommendedSkillVersion as setRecommendedSkillVersionImpl,
   setSkillDeprecation as setSkillDeprecationImpl,
   setSkillVote as setSkillVoteImpl,
   skillsConfig as skillsConfigImpl,
+  uploadSkillPreviewFromGithubOidc as uploadSkillPreviewFromGithubOidcImpl,
   verifySkillDomainProof as verifySkillDomainProofImpl,
 } from './skills';
 import {
@@ -770,10 +786,9 @@ export class RegistryBrokerClient {
     return skillsConfigImpl(this);
   }
 
-  async getSkillStatus(params: {
-    name: string;
-    version?: string;
-  }): Promise<SkillStatusResponse> {
+  async getSkillStatus(
+    params: SkillStatusRequest,
+  ): Promise<SkillStatusResponse> {
     return getSkillStatusImpl(this, params);
   }
 
@@ -867,6 +882,47 @@ export class RegistryBrokerClient {
 
   async getSkillBadge(params: SkillBadgeQuery): Promise<SkillBadgeResponse> {
     return getSkillBadgeImpl(this, params);
+  }
+
+  async getSkillStatusByRepo(
+    params: SkillPreviewByRepoRequest,
+  ): Promise<SkillStatusResponse> {
+    return getSkillStatusByRepoImpl(this, params);
+  }
+
+  async uploadSkillPreviewFromGithubOidc(
+    payload: UploadSkillPreviewFromGithubOidcRequest,
+  ): Promise<SkillPreviewRecord> {
+    return uploadSkillPreviewFromGithubOidcImpl(this, payload);
+  }
+
+  async getSkillPreview(
+    params: SkillPreviewLookupRequest,
+  ): Promise<SkillPreviewLookupResponse> {
+    return getSkillPreviewImpl(this, params);
+  }
+
+  async getSkillPreviewByRepo(
+    params: SkillPreviewByRepoRequest,
+  ): Promise<SkillPreviewLookupResponse> {
+    return getSkillPreviewByRepoImpl(this, params);
+  }
+
+  async getSkillPreviewById(
+    previewId: string,
+  ): Promise<SkillPreviewLookupResponse> {
+    return getSkillPreviewByIdImpl(this, previewId);
+  }
+
+  async getSkillInstall(skillRef: string): Promise<SkillInstallResponse> {
+    return getSkillInstallImpl(this, skillRef);
+  }
+
+  async recordSkillInstallCopy(
+    skillRef: string,
+    payload?: SkillInstallCopyTelemetryRequest,
+  ): Promise<SkillInstallCopyTelemetryResponse> {
+    return recordSkillInstallCopyImpl(this, skillRef, payload);
   }
 
   async listSkillTags(): Promise<SkillRegistryTagsResponse> {
