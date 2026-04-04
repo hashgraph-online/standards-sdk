@@ -32,7 +32,8 @@ const mockSearchResponse = {
         delegationRoles: ['implementation'],
         delegationTaskTags: ['plugin', 'integration'],
         delegationProtocols: ['mcp'],
-        delegationSummary: 'Implementation specialist for plugin integration work.',
+        delegationSummary:
+          'Implementation specialist for plugin integration work.',
         delegationSignals: {
           responseRate: 0.98,
         },
@@ -1500,9 +1501,9 @@ describe('RegistryBrokerClient', () => {
     expect(result.opportunities[0]?.['extraOpportunityField']).toBe(
       'preserved',
     );
-    expect(result.opportunities[0]?.candidates[0]?.['extraCandidateField']).toBe(
-      'preserved',
-    );
+    expect(
+      result.opportunities[0]?.candidates[0]?.['extraCandidateField'],
+    ).toBe('preserved');
     expect(
       result.opportunities[0]?.candidates[0]?.agent.metadata?.delegationRoles,
     ).toEqual(['implementation']);

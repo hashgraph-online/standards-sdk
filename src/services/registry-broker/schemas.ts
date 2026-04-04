@@ -1450,6 +1450,80 @@ export const skillDeprecationsResponseSchema = z
   })
   .passthrough();
 
+export const skillPublisherQuickstartCommandSchema = z
+  .object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string(),
+    command: z.string(),
+    href: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const skillPublisherTemplatePresetSchema = z
+  .object({
+    presetId: z.string(),
+    label: z.string(),
+    description: z.string(),
+    recommendedFor: z.string(),
+    command: z.string(),
+  })
+  .passthrough();
+
+export const skillPublisherMetadataSchema = z
+  .object({
+    cliPackageUrl: z.string(),
+    cliCommand: z.string(),
+    actionMarketplaceUrl: z.string(),
+    repositoryUrl: z.string(),
+    guideUrl: z.string().nullable().optional(),
+    docsUrl: z.string().nullable().optional(),
+    submitUrl: z.string().nullable().optional(),
+    skillsIndexUrl: z.string().nullable().optional(),
+    quickstartCommands: z.array(skillPublisherQuickstartCommandSchema),
+    templatePresets: z.array(skillPublisherTemplatePresetSchema),
+  })
+  .passthrough();
+
+export const skillTrustTierSchema = z.enum([
+  'unpublished',
+  'published',
+  'verified',
+  'hardened',
+]);
+
+export const skillStatusChecksSchema = z
+  .object({
+    repoCommitIntegrity: z.boolean(),
+    manifestIntegrity: z.boolean(),
+    domainProof: z.boolean(),
+  })
+  .passthrough();
+
+export const skillStatusNextStepSchema = z
+  .object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string(),
+    href: z.string().nullable().optional(),
+    command: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const skillStatusResponseSchema = z
+  .object({
+    name: z.string(),
+    version: z.string().nullable(),
+    published: z.boolean(),
+    verifiedDomain: z.boolean(),
+    trustTier: skillTrustTierSchema,
+    badgeMetric: z.literal('tier'),
+    checks: skillStatusChecksSchema,
+    nextSteps: z.array(skillStatusNextStepSchema),
+    publisher: skillPublisherMetadataSchema.nullable().optional(),
+  })
+  .passthrough();
+
 export const skillBadgeMetricSchema = z.enum([
   'version',
   'status',
@@ -1458,6 +1532,7 @@ export const skillBadgeMetricSchema = z.enum([
   'manifest',
   'domain',
   'trust',
+  'tier',
   'safety',
   'upvotes',
   'updated',
@@ -1620,6 +1695,7 @@ export const skillRegistryConfigResponseSchema = z
       .union([z.literal('mainnet'), z.literal('testnet')])
       .nullable()
       .optional(),
+    publisher: skillPublisherMetadataSchema.nullable().optional(),
   })
   .passthrough();
 

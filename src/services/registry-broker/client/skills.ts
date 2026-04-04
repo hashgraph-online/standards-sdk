@@ -11,6 +11,7 @@ import type {
   SkillRecommendedVersionResponse,
   SkillRecommendedVersionSetRequest,
   SkillRegistryConfigResponse,
+  SkillStatusResponse,
   SkillRegistryCategoriesResponse,
   SkillSecurityBreakdownRequest,
   SkillSecurityBreakdownResponse,
@@ -43,6 +44,7 @@ import {
   skillDeprecationsResponseSchema,
   skillRecommendedVersionResponseSchema,
   skillRegistryConfigResponseSchema,
+  skillStatusResponseSchema,
   skillRegistryCategoriesResponseSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
@@ -73,6 +75,35 @@ export async function skillsConfig(
     raw,
     skillRegistryConfigResponseSchema,
     'skill registry config response',
+  );
+}
+
+export async function getSkillStatus(
+  client: RegistryBrokerClient,
+  params: { name: string; version?: string },
+): Promise<SkillStatusResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  if (params.version?.trim()) {
+    query.set('version', params.version.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/status?${query.toString()}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillStatusResponseSchema,
+    'skill status response',
   );
 }
 
