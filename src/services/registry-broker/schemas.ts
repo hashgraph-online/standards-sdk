@@ -1581,14 +1581,14 @@ export const skillPreviewRecordSchema = z
     generatedAt: z.string(),
     expiresAt: z.string(),
     statusUrl: z.string(),
-    authoritative: z.literal(false),
+    authoritative: z.boolean(),
   })
   .passthrough();
 
 export const skillPreviewLookupResponseSchema = z
   .object({
     found: z.boolean(),
-    authoritative: z.literal(false),
+    authoritative: z.boolean(),
     preview: skillPreviewRecordSchema.nullable(),
     statusUrl: z.string().nullable(),
     expiresAt: z.string().nullable(),

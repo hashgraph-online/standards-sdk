@@ -57,6 +57,19 @@ function createMockPreviewRecord(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createMockPreviewLookupResponse(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    found: true,
+    authoritative: false,
+    statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
+    expiresAt: '2026-04-11T10:00:00.000Z',
+    preview: createMockPreviewRecord(),
+    ...overrides,
+  };
+}
+
 function createMockSkillStatus(overrides: Record<string, unknown> = {}) {
   return {
     name: 'registry-broker',
@@ -295,13 +308,7 @@ describe('RegistryBrokerClient skill contract methods', () => {
   it('retrieves a stored skill preview by name and version', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
-        json: async () => ({
-          found: true,
-          authoritative: false,
-          statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
-          expiresAt: '2026-04-11T10:00:00.000Z',
-          preview: createMockPreviewRecord(),
-        }),
+        json: async () => createMockPreviewLookupResponse(),
       }),
     );
 
@@ -321,6 +328,31 @@ describe('RegistryBrokerClient skill contract methods', () => {
       'https://api.example.com/api/v1/skills/preview?name=preview-skill&version=0.1.0',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+
+  it('accepts authoritative preview lookup responses during rollout', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () =>
+          createMockPreviewLookupResponse({
+            authoritative: true,
+            preview: createMockPreviewRecord({ authoritative: true }),
+          }),
+      }),
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const preview = await client.getSkillPreview({
+      name: 'preview-skill',
+      version: '0.1.0',
+    });
+
+    expect(preview.authoritative).toBe(true);
+    expect(preview.preview?.authoritative).toBe(true);
   });
 
   it('retrieves repo-based skill status and preview metadata', async () => {
