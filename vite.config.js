@@ -5,13 +5,17 @@ import { resolve } from 'path';
 export default defineConfig(async () => {
   const format = process.env.BUILD_FORMAT || 'es';
   const isBrowserBundle = format === 'browser';
-  const viteFormat = isBrowserBundle ? 'es' : format;
+  const isBrowserRootBundle = format === 'browser-root';
+  const isBrowserTarget = isBrowserBundle || isBrowserRootBundle;
+  const viteFormat = isBrowserTarget ? 'es' : format;
   let outputDir;
 
   if (format === 'umd') {
     outputDir = 'dist/umd';
   } else if (format === 'cjs') {
     outputDir = 'dist/cjs';
+  } else if (isBrowserRootBundle) {
+    outputDir = 'dist/browser-root';
   } else if (isBrowserBundle) {
     outputDir = 'dist/browser';
   } else {
@@ -58,10 +62,17 @@ export default defineConfig(async () => {
       lib: {
         entry: resolve(
           __dirname,
-          isBrowserBundle ? 'src/browser.ts' : 'src/index.ts',
+          isBrowserBundle
+            ? 'src/browser.ts'
+            : isBrowserRootBundle
+              ? 'src/browser-root.ts'
+              : 'src/index.ts',
         ),
         name: format === 'umd' ? 'StandardsSDK' : undefined,
         fileName: fmt => {
+          if (isBrowserRootBundle) {
+            return 'standards-sdk.root-browser.js';
+          }
           if (isBrowserBundle) {
             return 'standards-sdk.browser.js';
           }
@@ -87,7 +98,7 @@ export default defineConfig(async () => {
           if (format === 'umd') {
             return false;
           }
-          if (isBrowserBundle) {
+          if (isBrowserTarget) {
             return externalDependencies.some(
               dep => id === dep || id.startsWith(dep + '/'),
             );
@@ -114,7 +125,7 @@ export default defineConfig(async () => {
                 preserveModules: format === 'es',
                 preserveModulesRoot: format === 'es' ? 'src' : undefined,
                 exports: 'named',
-                inlineDynamicImports: format === 'umd' || isBrowserBundle,
+                inlineDynamicImports: format === 'umd' || isBrowserTarget,
                 manualChunks: undefined,
                 name: format === 'umd' ? 'StandardsSDK' : undefined,
               },

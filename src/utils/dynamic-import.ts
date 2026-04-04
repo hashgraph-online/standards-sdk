@@ -61,7 +61,7 @@ async function resolveNodeRequire(): Promise<NodeRequire | null> {
 
 async function dynamicImport<T>(specifier: string): Promise<T | null> {
   try {
-    return (await import(specifier)) as T;
+    return (await import(/* webpackIgnore: true */ specifier)) as T;
   } catch (error) {
     if (isModuleNotFound(specifier, error)) {
       return null;

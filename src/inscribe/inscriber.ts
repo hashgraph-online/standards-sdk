@@ -15,7 +15,7 @@ import { Logger, ILogger, LogLevel } from '../utils/logger';
 import { ProgressCallback, ProgressReporter } from '../utils/progress-reporter';
 import { TransactionParser } from '../utils/transaction-parser';
 import { isBrowser } from '../utils/is-browser';
-import { fileTypeFromBuffer } from 'file-type';
+import { optionalImport } from '../utils/dynamic-import';
 import {
   getOrCreateSDK,
   getCachedQuote,
@@ -32,6 +32,12 @@ let nodeModules: {
   basename?: (path: string) => string;
   extname?: (path: string) => string;
 } = {};
+
+type FileTypeModule = {
+  fileTypeFromBuffer?: (
+    buffer: Buffer,
+  ) => Promise<{ mime: string } | undefined>;
+};
 
 export const normalizeTransactionId = (txId: string): string => {
   if (!txId.includes('@')) {
@@ -115,7 +121,11 @@ async function convertFileToBase64(filePath: string): Promise<{
 
     let mimeType = 'application/octet-stream';
     try {
-      const fileTypeResult = await fileTypeFromBuffer(buffer);
+      const fileTypeModule = await optionalImport<FileTypeModule>('file-type');
+      const fileTypeResult =
+        typeof fileTypeModule?.fileTypeFromBuffer === 'function'
+          ? await fileTypeModule.fileTypeFromBuffer(buffer)
+          : undefined;
       if (fileTypeResult) {
         mimeType = fileTypeResult.mime;
       }
