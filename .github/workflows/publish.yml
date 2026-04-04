@@ -145,7 +145,7 @@ jobs:
           repair_tag=""
           if [ -n "$latest_tag" ] && [ -n "$tag_version" ]; then
             missing=false
-            for pkg in "@hashgraphonline/standards-sdk" "@hol-org/rb-client"; do
+            for pkg in "@hashgraphonline/standards-sdk" "@hol-org/standards-sdk" "@hol-org/rb-client"; do
               if ! registry_version_exists "$pkg" "$tag_version"; then
                 missing=true
               fi
@@ -159,7 +159,7 @@ jobs:
           fi
 
           if [ "$mode" = "release" ]; then
-            while registry_version_exists "@hashgraphonline/standards-sdk" "$version" || registry_version_exists "@hol-org/rb-client" "$version"; do
+            while registry_version_exists "@hashgraphonline/standards-sdk" "$version" || registry_version_exists "@hol-org/standards-sdk" "$version" || registry_version_exists "@hol-org/rb-client" "$version"; do
               version="$(bump_patch "$version")"
             done
           fi
@@ -194,6 +194,7 @@ jobs:
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
           pnpm version "$NEW_VERSION" --no-git-tag-version
+          NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
           NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Compute publish targets
@@ -223,26 +224,43 @@ jobs:
           }
 
           publish_hash=true
+          publish_hol=true
           publish_rb=true
 
           if exists_pkg "@hashgraphonline/standards-sdk"; then
             publish_hash=false
+          fi
+          if exists_pkg "@hol-org/standards-sdk"; then
+            publish_hol=false
           fi
           if exists_pkg "@hol-org/rb-client"; then
             publish_rb=false
           fi
 
           publish_any=false
-          if [ "$publish_hash" = "true" ] || [ "$publish_rb" = "true" ]; then
+          if [ "$publish_hash" = "true" ] || [ "$publish_hol" = "true" ] || [ "$publish_rb" = "true" ]; then
             publish_any=true
           fi
 
           echo "publish_hash=$publish_hash" >> "$GITHUB_OUTPUT"
+          echo "publish_hol=$publish_hol" >> "$GITHUB_OUTPUT"
           echo "publish_rb=$publish_rb" >> "$GITHUB_OUTPUT"
           echo "publish_any=$publish_any" >> "$GITHUB_OUTPUT"
 
       - name: Publish @hashgraphonline/standards-sdk
         if: steps.targets.outputs.publish_hash == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.plan.outputs.dry_run }}" = "true" ]; then
+            npm publish --access public --provenance --dry-run
+          else
+            npm publish --access public --provenance
+          fi
+
+      - name: Publish @hol-org/standards-sdk
+        if: steps.targets.outputs.publish_hol == 'true'
+        working-directory: packages/hol-standards-sdk
         shell: bash
         run: |
           set -euo pipefail
@@ -372,6 +390,7 @@ jobs:
           VERSION: ${{ steps.canary.outputs.version }}
         run: |
           pnpm version "$VERSION" --no-git-tag-version
+          node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
           node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Compute canary publish targets
@@ -401,26 +420,43 @@ jobs:
           }
 
           publish_hash=true
+          publish_hol=true
           publish_rb=true
 
           if version_exists "@hashgraphonline/standards-sdk"; then
             publish_hash=false
+          fi
+          if version_exists "@hol-org/standards-sdk"; then
+            publish_hol=false
           fi
           if version_exists "@hol-org/rb-client"; then
             publish_rb=false
           fi
 
           publish_any=false
-          if [ "$publish_hash" = "true" ] || [ "$publish_rb" = "true" ]; then
+          if [ "$publish_hash" = "true" ] || [ "$publish_hol" = "true" ] || [ "$publish_rb" = "true" ]; then
             publish_any=true
           fi
 
           echo "publish_hash=$publish_hash" >> "$GITHUB_OUTPUT"
+          echo "publish_hol=$publish_hol" >> "$GITHUB_OUTPUT"
           echo "publish_rb=$publish_rb" >> "$GITHUB_OUTPUT"
           echo "publish_any=$publish_any" >> "$GITHUB_OUTPUT"
 
       - name: Publish @hashgraphonline/standards-sdk canary
         if: steps.targets.outputs.publish_hash == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}" = "true" ]; then
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --dry-run
+          else
+            npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
+          fi
+
+      - name: Publish @hol-org/standards-sdk canary
+        if: steps.targets.outputs.publish_hol == 'true'
+        working-directory: packages/hol-standards-sdk
         shell: bash
         run: |
           set -euo pipefail
