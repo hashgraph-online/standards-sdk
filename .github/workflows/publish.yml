@@ -194,7 +194,6 @@ jobs:
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
           pnpm version "$NEW_VERSION" --no-git-tag-version
-          NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
           NEW_VERSION="$NEW_VERSION" node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.NEW_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Compute publish targets
@@ -373,7 +372,6 @@ jobs:
           VERSION: ${{ steps.canary.outputs.version }}
         run: |
           pnpm version "$VERSION" --no-git-tag-version
-          node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
           node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 
       - name: Compute canary publish targets
