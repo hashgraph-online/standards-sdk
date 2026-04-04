@@ -1,120 +1,15 @@
-name: Publish Canary Standards SDK
+name: Deprecated Canary Publish Entry Point
 
 on:
-  push:
-    branches-ignore:
-      - main
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
-
-concurrency:
-  group: standards-sdk-canary-${{ github.ref_name }}
-  cancel-in-progress: true
 
 jobs:
-  publish:
-    if: github.repository == 'hashgraph-online/standards-sdk'
-    name: Publish canary release
+  deprecated:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm -r run build
-
-      - name: Calculate canary version
-        id: canary
-        run: node ci/calc-canary-version.mjs "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT"
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-
-      - name: Update package versions
-        env:
-          VERSION: ${{ steps.canary.outputs.version }}
+      - name: Use publish.yml instead
         run: |
-          pnpm version "$VERSION" --no-git-tag-version
-          node -e "const fs=require('fs');const p='packages/hol-standards-sdk/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
-          node -e "const fs=require('fs');const p='packages/rb-client/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
-
-      - name: Check if version already published
-        id: version_check
-        run: |
-          VERSION="${{ steps.canary.outputs.version }}"
-
-          version_exists() {
-            local pkg="$1"
-            local attempt
-            local out=""
-            for attempt in 1 2 3 4 5 6; do
-              out="$(npm --silent view "${pkg}@${version}" version --json 2>/dev/null || true)"
-              if [ -n "$out" ]; then
-                if [ "$out" = "\"$version\"" ] || [ "$out" = "$version" ]; then
-                  return 0
-                fi
-                return 1
-              fi
-              sleep $((attempt * 2))
-            done
-            echo "npm view failed for ${pkg}@${version}" >&2
-            exit 1
-          }
-
-          if version_exists @hashgraphonline/standards-sdk "$VERSION"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Canary version $VERSION already exists"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Canary version $VERSION is new, will publish"
-          fi
-
-      - name: Publish @hashgraphonline/standards-sdk canary
-        if: steps.version_check.outputs.exists == 'false'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}" --no-git-checks
-
-      - name: Publish @hol-org/standards-sdk canary
-        if: steps.version_check.outputs.exists == 'false'
-        working-directory: packages/hol-standards-sdk
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
-
-      - name: Publish @hol-org/rb-client canary
-        if: steps.version_check.outputs.exists == 'false'
-        working-directory: packages/rb-client
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance --tag "${{ steps.canary.outputs.tag }}"
-
-      - name: Publish to JSR (canary)
-        if: steps.version_check.outputs.exists == 'false'
-        working-directory: packages/jsr-client
-        run: |
-          # Update jsr.json version to match canary
-          VERSION="${{ steps.canary.outputs.version }}"
-          jq --arg v "$VERSION" '.version = $v' jsr.json > jsr.json.tmp && mv jsr.json.tmp jsr.json
-          npx jsr publish --allow-dirty --allow-slow-types
-
-      - name: Skip publish (version already exists)
-        if: steps.version_check.outputs.exists == 'true'
-        run: echo "Version ${{ steps.canary.outputs.version }} already exists on npm; skipping publish."
+          echo "Canary publishing now runs through .github/workflows/publish.yml so npm trusted publishing matches the configured workflow filename."

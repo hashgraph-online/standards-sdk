@@ -36,3 +36,6 @@ changelog:
         - build
         - refactor
         - dependencies
+    - title: Other Changes
+      labels:
+        - '*'

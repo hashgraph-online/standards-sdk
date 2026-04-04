@@ -21,7 +21,8 @@
     "url": "git+https://github.com/hashgraph-online/standards-sdk.git"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "keywords": [
     "hashgraph-online",
