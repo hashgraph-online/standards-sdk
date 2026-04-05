@@ -50,8 +50,6 @@ import type {
   CreateSessionResponse,
   CreditPurchaseResponse,
   DashboardStatsResponse,
-  DelegationPlanRequest,
-  DelegationPlanResponse,
   DetectProtocolResponse,
   EncryptionHandshakeRecord,
   EncryptionHandshakeSubmissionPayload,
@@ -109,8 +107,6 @@ import type {
   VerificationVerifySenderResponse,
   X402MinimumsResponse,
   SkillRegistryConfigResponse,
-  SkillSecurityBreakdownRequest,
-  SkillSecurityBreakdownResponse,
   SkillBadgeQuery,
   SkillBadgeResponse,
   SkillCatalogQueryOptions,
@@ -129,9 +125,22 @@ import type {
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillQuotePreviewRequest,
+  SkillQuotePreviewResponse,
   SkillRegistryTagsResponse,
   SkillRegistryVoteRequest,
   SkillRegistryVoteStatusResponse,
+  SkillStatusRequest,
+  SkillStatusResponse,
+  SkillPreviewByRepoRequest,
+  SkillPreviewLookupRequest,
+  SkillPreviewLookupResponse,
+  SkillPreviewRecord,
+  SkillConversionSignalsResponse,
+  UploadSkillPreviewFromGithubOidcRequest,
+  SkillInstallResponse,
+  SkillInstallCopyTelemetryRequest,
+  SkillInstallCopyTelemetryResponse,
   SkillRecommendedVersionResponse,
   SkillRecommendedVersionSetRequest,
   SkillResolverManifestResponse,
@@ -234,7 +243,6 @@ import {
   verifyLedgerChallenge as verifyLedgerChallengeImpl,
 } from './ledger-auth';
 import {
-  delegate as delegateImpl,
   detectProtocol as detectProtocolImpl,
   facets as facetsImpl,
   getAdditionalRegistries as getAdditionalRegistriesImpl,
@@ -254,11 +262,17 @@ import {
   getRecommendedSkillVersion as getRecommendedSkillVersionImpl,
   getSkillBadge as getSkillBadgeImpl,
   getSkillDeprecations as getSkillDeprecationsImpl,
+  getSkillInstall as getSkillInstallImpl,
   getSkillOwnership as getSkillOwnershipImpl,
   getSkillPublishJob as getSkillPublishJobImpl,
+  getSkillConversionSignalsByRepo as getSkillConversionSignalsByRepoImpl,
+  getSkillPreviewById as getSkillPreviewByIdImpl,
+  getSkillPreviewByRepo as getSkillPreviewByRepoImpl,
+  getSkillPreview as getSkillPreviewImpl,
+  getSkillStatusByRepo as getSkillStatusByRepoImpl,
+  getSkillStatus as getSkillStatusImpl,
   getSkillVerificationStatus as getSkillVerificationStatusImpl,
   getSkillVoteStatus as getSkillVoteStatusImpl,
-  getSkillSecurityBreakdown as getSkillSecurityBreakdownImpl,
   getSkillsCatalog as getSkillsCatalogImpl,
   getMySkillsList as getMySkillsListImpl,
   listSkillCategories as listSkillCategoriesImpl,
@@ -267,14 +281,17 @@ import {
   listMySkills as listMySkillsImpl,
   listSkillVersions as listSkillVersionsImpl,
   publishSkill as publishSkillImpl,
+  quoteSkillPublishPreview as quoteSkillPublishPreviewImpl,
   quoteSkillPublish as quoteSkillPublishImpl,
   resolveSkillManifest as resolveSkillManifestImpl,
   resolveSkillMarkdown as resolveSkillMarkdownImpl,
   requestSkillVerification as requestSkillVerificationImpl,
+  recordSkillInstallCopy as recordSkillInstallCopyImpl,
   setRecommendedSkillVersion as setRecommendedSkillVersionImpl,
   setSkillDeprecation as setSkillDeprecationImpl,
   setSkillVote as setSkillVoteImpl,
   skillsConfig as skillsConfigImpl,
+  uploadSkillPreviewFromGithubOidc as uploadSkillPreviewFromGithubOidcImpl,
   verifySkillDomainProof as verifySkillDomainProofImpl,
 } from './skills';
 import {
@@ -660,12 +677,6 @@ export class RegistryBrokerClient {
     return searchImpl(this, params);
   }
 
-  async delegate(
-    request: DelegationPlanRequest,
-  ): Promise<DelegationPlanResponse> {
-    return delegateImpl(this, request);
-  }
-
   async searchErc8004ByAgentId(params: {
     chainId: number;
     agentId: number | bigint | string;
@@ -774,12 +785,6 @@ export class RegistryBrokerClient {
     return listSkillsImpl(this, options);
   }
 
-  async getSkillSecurityBreakdown(
-    params: SkillSecurityBreakdownRequest,
-  ): Promise<SkillSecurityBreakdownResponse> {
-    return getSkillSecurityBreakdownImpl(this, params);
-  }
-
   async getSkillsCatalog(
     options?: SkillCatalogQueryOptions,
   ): Promise<SkillCatalogResponse> {
@@ -810,6 +815,12 @@ export class RegistryBrokerClient {
     payload: SkillRegistryQuoteRequest,
   ): Promise<SkillRegistryQuoteResponse> {
     return quoteSkillPublishImpl(this, payload);
+  }
+
+  async quoteSkillPublishPreview(
+    payload: SkillQuotePreviewRequest,
+  ): Promise<SkillQuotePreviewResponse> {
+    return quoteSkillPublishPreviewImpl(this, payload);
   }
 
   async publishSkill(
@@ -858,6 +869,59 @@ export class RegistryBrokerClient {
 
   async getSkillBadge(params: SkillBadgeQuery): Promise<SkillBadgeResponse> {
     return getSkillBadgeImpl(this, params);
+  }
+
+  async getSkillStatus(
+    params: SkillStatusRequest,
+  ): Promise<SkillStatusResponse> {
+    return getSkillStatusImpl(this, params);
+  }
+
+  async getSkillStatusByRepo(
+    params: SkillPreviewByRepoRequest,
+  ): Promise<SkillStatusResponse> {
+    return getSkillStatusByRepoImpl(this, params);
+  }
+
+  async getSkillConversionSignalsByRepo(
+    params: SkillPreviewByRepoRequest,
+  ): Promise<SkillConversionSignalsResponse> {
+    return getSkillConversionSignalsByRepoImpl(this, params);
+  }
+
+  async uploadSkillPreviewFromGithubOidc(
+    payload: UploadSkillPreviewFromGithubOidcRequest,
+  ): Promise<SkillPreviewRecord> {
+    return uploadSkillPreviewFromGithubOidcImpl(this, payload);
+  }
+
+  async getSkillPreview(
+    params: SkillPreviewLookupRequest,
+  ): Promise<SkillPreviewLookupResponse> {
+    return getSkillPreviewImpl(this, params);
+  }
+
+  async getSkillPreviewByRepo(
+    params: SkillPreviewByRepoRequest,
+  ): Promise<SkillPreviewLookupResponse> {
+    return getSkillPreviewByRepoImpl(this, params);
+  }
+
+  async getSkillPreviewById(
+    previewId: string,
+  ): Promise<SkillPreviewLookupResponse> {
+    return getSkillPreviewByIdImpl(this, previewId);
+  }
+
+  async getSkillInstall(skillRef: string): Promise<SkillInstallResponse> {
+    return getSkillInstallImpl(this, skillRef);
+  }
+
+  async recordSkillInstallCopy(
+    skillRef: string,
+    payload?: SkillInstallCopyTelemetryRequest,
+  ): Promise<SkillInstallCopyTelemetryResponse> {
+    return recordSkillInstallCopyImpl(this, skillRef, payload);
   }
 
   async listSkillTags(): Promise<SkillRegistryTagsResponse> {
@@ -1398,7 +1462,7 @@ export class RegistryBrokerClient {
 
   parseWithSchema<T>(
     value: JsonValue,
-    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+    schema: z.ZodSchema<T>,
     context: string,
   ): T {
     try {

@@ -156,16 +156,6 @@ const metadataFacetSchema = z
   )
   .optional();
 
-const searchHitMetadataSchema = z
-  .object({
-    delegationRoles: jsonValueSchema.optional(),
-    delegationTaskTags: jsonValueSchema.optional(),
-    delegationProtocols: jsonValueSchema.optional(),
-    delegationSummary: jsonValueSchema.optional(),
-    delegationSignals: jsonValueSchema.optional(),
-  })
-  .passthrough();
-
 const searchHitSchema = z
   .object({
     id: z.string(),
@@ -177,7 +167,7 @@ const searchHitSchema = z
     endpoints: z
       .union([z.record(jsonValueSchema), z.array(z.string())])
       .optional(),
-    metadata: searchHitMetadataSchema.optional(),
+    metadata: z.record(jsonValueSchema).optional(),
     metadataFacet: metadataFacetSchema,
     profile: agentProfileSchema.optional(),
     protocols: z.array(z.string()).optional(),
@@ -227,74 +217,6 @@ export const popularResponseSchema = z.object({
 export const resolveResponseSchema = z.object({
   agent: searchHitSchema,
 });
-
-const delegationPlanCandidateSchema = z
-  .object({
-    uaid: z.string(),
-    label: z.string(),
-    registry: z.string().optional(),
-    agent: searchHitSchema,
-    score: z.number(),
-    matchedQueries: z.array(z.string()).optional(),
-    matchedRoles: z.array(z.string()).optional(),
-    matchedProtocols: z.array(z.string()).optional(),
-    matchedSurfaces: z.array(z.string()).optional(),
-    matchedLanguages: z.array(z.string()).optional(),
-    matchedArtifacts: z.array(z.string()).optional(),
-    matchedTaskTags: z.array(z.string()).optional(),
-    reasons: z.array(z.string()).optional(),
-    suggestedMessage: z.string().optional(),
-    trustScore: z.number().optional(),
-    verified: z.boolean().optional(),
-    communicationSupported: z.boolean().optional(),
-    availability: z.boolean().optional(),
-    explanation: z.string().optional(),
-  })
-  .passthrough();
-
-const delegationOpportunitySchema = z
-  .object({
-    id: z.string(),
-    title: z.string(),
-    reason: z.string(),
-    role: z.string(),
-    type: z.enum(['ai-agents', 'mcp-servers']),
-    suggestedMode: z.enum(['best-match', 'fallback', 'parallel']),
-    searchQueries: z.array(z.string()),
-    protocols: z.array(z.string()).optional(),
-    surfaces: z.array(z.string()).optional(),
-    languages: z.array(z.string()).optional(),
-    artifacts: z.array(z.string()).optional(),
-    candidates: z.array(delegationPlanCandidateSchema),
-  })
-  .passthrough();
-
-const delegationRecommendationSchema = z
-  .object({
-    action: z.enum(['delegate-now', 'review-shortlist', 'handle-locally']),
-    confidence: z.number(),
-    reason: z.string(),
-    opportunityId: z.string().optional(),
-    candidate: delegationPlanCandidateSchema.optional(),
-  })
-  .passthrough();
-
-export const delegationPlanResponseSchema = z
-  .object({
-    task: z.string(),
-    context: z.string().optional(),
-    summary: z.string().optional(),
-    intents: z.array(z.string()),
-    protocols: z.array(z.string()),
-    surfaces: z.array(z.string()),
-    languages: z.array(z.string()).optional(),
-    artifacts: z.array(z.string()).optional(),
-    shouldDelegate: z.boolean(),
-    localFirstReason: z.string().optional(),
-    recommendation: delegationRecommendationSchema.optional(),
-    opportunities: z.array(delegationOpportunitySchema),
-  })
-  .passthrough();
 
 const agentFeedbackSummarySchema = z.object({
   averageScore: z.number(),
@@ -1297,7 +1219,7 @@ const trustScoreBreakdownSchema = z
 
 const skillSafetyLabelSchema = z.enum(['safe', 'review', 'caution', 'unsafe']);
 
-export const skillSafetySummarySchema = z
+const skillSafetySummarySchema = z
   .object({
     score: z.number(),
     label: skillSafetyLabelSchema,
@@ -1310,7 +1232,7 @@ export const skillSafetySummarySchema = z
 
 const skillSafetyFindingSeveritySchema = z.enum(['low', 'medium', 'high']);
 
-export const skillSafetyFindingSchema = z
+const skillSafetyFindingSchema = z
   .object({
     ruleId: z.string(),
     severity: skillSafetyFindingSeveritySchema,
@@ -1363,17 +1285,6 @@ export const skillRegistryListResponseSchema = z
   .object({
     items: z.array(skillRegistryPublishSummarySchema),
     nextCursor: z.string().nullable(),
-  })
-  .passthrough();
-
-export const skillSecurityBreakdownResponseSchema = z
-  .object({
-    name: z.string(),
-    version: z.string(),
-    jobId: z.string(),
-    createdAt: z.string(),
-    safety: skillSafetySummarySchema.nullable(),
-    findings: z.array(skillSafetyFindingSchema),
   })
   .passthrough();
 
@@ -1620,6 +1531,47 @@ export const skillRegistryConfigResponseSchema = z
       .union([z.literal('mainnet'), z.literal('testnet')])
       .nullable()
       .optional(),
+    publisher: z
+      .object({
+        cliPackageUrl: z.string(),
+        cliCommand: z.string(),
+        actionMarketplaceUrl: z.string(),
+        repositoryUrl: z.string(),
+        guideUrl: z.string().nullable().optional(),
+        docsUrl: z.string().nullable().optional(),
+        submitUrl: z.string().nullable().optional(),
+        skillsIndexUrl: z.string().nullable().optional(),
+        quickstartCommands: z
+          .array(
+            z
+              .object({
+                id: z.string(),
+                label: z.string(),
+                description: z.string(),
+                command: z.string(),
+                href: z.string().nullable().optional(),
+              })
+              .passthrough(),
+          )
+          .optional()
+          .default([]),
+        templatePresets: z
+          .array(
+            z
+              .object({
+                presetId: z.string(),
+                label: z.string(),
+                description: z.string(),
+                recommendedFor: z.string(),
+                command: z.string(),
+              })
+              .passthrough(),
+          )
+          .optional()
+          .default([]),
+      })
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
@@ -1636,6 +1588,280 @@ export const skillRegistryVoteStatusResponseSchema = z
     name: z.string(),
     upvotes: z.number().int(),
     hasUpvoted: z.boolean(),
+  })
+  .passthrough();
+
+export const skillTrustTierSchema = z.enum([
+  'unclaimed',
+  'validated',
+  'published',
+  'verified',
+  'hardened',
+]);
+
+export const skillStatusNextStepSchema = z
+  .object({
+    kind: z.enum([
+      'setup_validate',
+      'publish_first_release',
+      'verify_domain',
+      'harden_workflow',
+      'share_status',
+    ]),
+    priority: z.number().int(),
+    id: z.string(),
+    label: z.string(),
+    description: z.string(),
+    url: z.string().nullable().optional(),
+    href: z.string().nullable().optional(),
+    command: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const skillPreviewSuggestedNextStepSchema = z
+  .object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string(),
+    command: z.string().optional(),
+    href: z.string().optional(),
+  })
+  .passthrough();
+
+export const skillPreviewReportSchema = z
+  .object({
+    schema_version: z.literal('skill-preview.v1'),
+    tool_version: z.string(),
+    preview_id: z.string(),
+    repo_url: z.string(),
+    repo_owner: z.string(),
+    repo_name: z.string(),
+    default_branch: z.string(),
+    commit_sha: z.string(),
+    ref: z.string(),
+    event_name: z.string(),
+    workflow_run_url: z.string(),
+    skill_dir: z.string(),
+    name: z.string(),
+    version: z.string(),
+    validation_status: z.literal('passed'),
+    findings: z.array(z.unknown()),
+    package_summary: z.record(z.string(), z.unknown()),
+    suggested_next_steps: z.array(skillPreviewSuggestedNextStepSchema),
+    generated_at: z.string(),
+  })
+  .passthrough();
+
+export const skillPreviewRecordSchema = z
+  .object({
+    id: z.string(),
+    previewId: z.string(),
+    source: z.literal('github-oidc'),
+    report: skillPreviewReportSchema,
+    generatedAt: z.string(),
+    expiresAt: z.string(),
+    statusUrl: z.string(),
+    authoritative: z.literal(false),
+  })
+  .passthrough();
+
+export const skillPreviewLookupResponseSchema = z
+  .object({
+    found: z.boolean(),
+    authoritative: z.literal(false),
+    preview: skillPreviewRecordSchema.nullable(),
+    statusUrl: z.string().nullable(),
+    expiresAt: z.string().nullable(),
+  })
+  .passthrough();
+
+export const skillStatusPreviewMetadataSchema = z
+  .object({
+    previewId: z.string(),
+    repoUrl: z.string(),
+    repoOwner: z.string(),
+    repoName: z.string(),
+    commitSha: z.string(),
+    ref: z.string(),
+    eventName: z.string(),
+    skillDir: z.string(),
+    generatedAt: z.string(),
+    expiresAt: z.string(),
+    statusUrl: z.string(),
+  })
+  .passthrough();
+
+export const skillStatusChecksSchema = z
+  .object({
+    repoCommitIntegrity: z.boolean(),
+    manifestIntegrity: z.boolean(),
+    domainProof: z.boolean(),
+  })
+  .passthrough();
+
+export const skillStatusVerificationSignalsSchema = z
+  .object({
+    publisherBound: z.boolean(),
+    domainProof: z.boolean(),
+    verifiedDomain: z.boolean(),
+    previewValidated: z.boolean(),
+  })
+  .passthrough();
+
+export const skillStatusProvenanceSignalsSchema = z
+  .object({
+    repoCommitIntegrity: z.boolean(),
+    manifestIntegrity: z.boolean(),
+    canonicalRelease: z.boolean(),
+    previewAvailable: z.boolean(),
+    previewAuthoritative: z.boolean(),
+  })
+  .passthrough();
+
+export const skillStatusResponseSchema = z
+  .object({
+    name: z.string(),
+    version: z.string().nullable(),
+    published: z.boolean(),
+    verifiedDomain: z.boolean(),
+    trustTier: skillTrustTierSchema,
+    badgeMetric: z.enum([
+      'version',
+      'version_verification',
+      'status',
+      'verification',
+      'repo_commit',
+      'manifest',
+      'domain',
+      'trust',
+      'tier',
+      'upvotes',
+      'updated',
+      'safety',
+    ]),
+    checks: skillStatusChecksSchema,
+    nextSteps: z.array(skillStatusNextStepSchema),
+    verificationSignals: skillStatusVerificationSignalsSchema,
+    provenanceSignals: skillStatusProvenanceSignalsSchema,
+    publisher: skillRegistryConfigResponseSchema.shape.publisher,
+    preview: skillStatusPreviewMetadataSchema.nullable().optional(),
+    statusUrl: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const skillQuotePreviewRangeSchema = z
+  .object({
+    min: z.number(),
+    max: z.number(),
+  })
+  .passthrough();
+
+export const skillQuotePreviewResponseSchema = z
+  .object({
+    estimatedCredits: skillQuotePreviewRangeSchema,
+    estimatedHbar: skillQuotePreviewRangeSchema,
+    pricingVersion: z.string(),
+    assumptions: z.array(z.string()),
+    purchaseUrl: z.string().nullable(),
+    publishUrl: z.string().nullable(),
+    verificationUrl: z.string().nullable(),
+  })
+  .passthrough();
+
+export const skillConversionSignalsResponseSchema = z
+  .object({
+    repoUrl: z.string(),
+    skillDir: z.string(),
+    trustTier: skillTrustTierSchema,
+    actionInstalled: z.boolean(),
+    previewUploaded: z.boolean(),
+    previewId: z.string().nullable(),
+    lastValidateSuccessAt: z.string().nullable(),
+    stalePreviewAgeDays: z.number().nullable(),
+    published: z.boolean(),
+    verified: z.boolean(),
+    publishReady: z.boolean(),
+    publishBlockedByMissingAuth: z.boolean(),
+    statusUrl: z.string().nullable(),
+    purchaseUrl: z.string().nullable(),
+    publishUrl: z.string().nullable(),
+    verificationUrl: z.string().nullable(),
+    nextSteps: z.array(skillStatusNextStepSchema),
+  })
+  .passthrough();
+
+export const skillInstallArtifactDescriptorSchema = z
+  .object({
+    url: z.string(),
+    pointer: z.string().nullable(),
+    sha256: z.string().nullable(),
+  })
+  .passthrough();
+
+export const skillInstallResolverDescriptorSchema = z
+  .object({
+    skillRef: z.string(),
+    skillMdUrl: z.string(),
+    manifestUrl: z.string(),
+  })
+  .passthrough();
+
+export const skillInstallBadgeDescriptorSchema = z
+  .object({
+    apiUrl: z.string(),
+    imageUrl: z.string(),
+    markdown: z.string(),
+    html: z.string(),
+  })
+  .passthrough();
+
+export const skillInstallShareDescriptorSchema = z
+  .object({
+    canonicalUrl: z.string().nullable(),
+    latestUrl: z.string().nullable(),
+    markdownLink: z.string().nullable(),
+    htmlLink: z.string().nullable(),
+    badge: skillInstallBadgeDescriptorSchema.nullable(),
+  })
+  .passthrough();
+
+export const skillInstallSnippetSetSchema = z
+  .object({
+    cli: z.string(),
+    claude: z.string(),
+    cursor: z.string(),
+    codex: z.string(),
+    openclaw: z.string(),
+  })
+  .passthrough();
+
+export const skillInstallResponseSchema = z
+  .object({
+    name: z.string(),
+    version: z.string(),
+    skillRef: z.string(),
+    network: z.union([z.literal('mainnet'), z.literal('testnet')]),
+    detailUrl: z.string().nullable(),
+    artifacts: z
+      .object({
+        skillMd: skillInstallArtifactDescriptorSchema,
+        manifest: skillInstallArtifactDescriptorSchema,
+      })
+      .passthrough(),
+    resolvers: z
+      .object({
+        pinned: skillInstallResolverDescriptorSchema,
+        latest: skillInstallResolverDescriptorSchema,
+      })
+      .passthrough(),
+    share: skillInstallShareDescriptorSchema,
+    snippets: skillInstallSnippetSetSchema,
+  })
+  .passthrough();
+
+export const skillInstallCopyTelemetryResponseSchema = z
+  .object({
+    accepted: z.boolean(),
   })
   .passthrough();
 

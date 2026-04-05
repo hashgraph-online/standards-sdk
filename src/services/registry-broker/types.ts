@@ -12,7 +12,6 @@ import {
   encryptionHandshakeResponseSchema,
   detectProtocolResponseSchema,
   dashboardStatsResponseSchema,
-  delegationPlanResponseSchema,
   metricsSummaryResponseSchema,
   popularResponseSchema,
   protocolsResponseSchema,
@@ -91,7 +90,6 @@ import {
   skillRegistryFileDescriptorSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
-  skillSecurityBreakdownResponseSchema,
   skillRegistryMineResponseSchema,
   skillRegistryMyListResponseSchema,
   skillRegistryOwnershipResponseSchema,
@@ -104,6 +102,27 @@ import {
   skillVerificationDomainProofVerifyResponseSchema,
   skillVerificationRequestCreateResponseSchema,
   skillVerificationStatusResponseSchema,
+  skillTrustTierSchema,
+  skillStatusNextStepSchema,
+  skillPreviewSuggestedNextStepSchema,
+  skillPreviewReportSchema,
+  skillPreviewRecordSchema,
+  skillPreviewLookupResponseSchema,
+  skillStatusPreviewMetadataSchema,
+  skillStatusChecksSchema,
+  skillStatusVerificationSignalsSchema,
+  skillStatusProvenanceSignalsSchema,
+  skillStatusResponseSchema,
+  skillQuotePreviewRangeSchema,
+  skillQuotePreviewResponseSchema,
+  skillConversionSignalsResponseSchema,
+  skillInstallArtifactDescriptorSchema,
+  skillInstallResolverDescriptorSchema,
+  skillInstallBadgeDescriptorSchema,
+  skillInstallShareDescriptorSchema,
+  skillInstallSnippetSetSchema,
+  skillInstallResponseSchema,
+  skillInstallCopyTelemetryResponseSchema,
 } from './schemas';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -272,50 +291,6 @@ export interface SearchParams {
   metadata?: Record<string, Array<string | number | boolean>>;
 }
 
-export interface DelegationWorkspaceContext {
-  openFiles?: string[];
-  modifiedFiles?: string[];
-  relatedPaths?: string[];
-  errors?: string[];
-  commands?: string[];
-  languages?: string[];
-}
-
-export interface DelegationPlanFilter {
-  capabilities?: string[];
-  type?: 'ai-agents' | 'mcp-servers';
-  registry?: string;
-  registries?: string[];
-  protocols?: string[];
-  adapters?: string[];
-  verifiedOnly?: boolean;
-  onlineOnly?: boolean;
-  minTrust?: number;
-  minTrustSignals?: Record<string, number>;
-  metadata?: Record<string, Array<string | number | boolean>>;
-  metadataRanges?: Record<string, { min?: number; max?: number }>;
-}
-
-export interface DelegationPlanRequest {
-  task: string;
-  context?: string;
-  workspace?: DelegationWorkspaceContext;
-  limit?: number;
-  filter?: DelegationPlanFilter;
-}
-
-export type DelegationPlanCandidate = z.infer<
-  typeof delegationPlanResponseSchema
->['opportunities'][number]['candidates'][number];
-
-export type DelegationOpportunity = z.infer<
-  typeof delegationPlanResponseSchema
->['opportunities'][number];
-
-export type DelegationPlanResponse = z.infer<
-  typeof delegationPlanResponseSchema
->;
-
 export type RegistryStatsResponse = z.infer<typeof statsResponseSchema>;
 
 export type RegistriesResponse = z.infer<typeof registriesResponseSchema>;
@@ -384,9 +359,6 @@ export type SkillRegistryPublishSummary = z.infer<
 export type SkillRegistryListResponse = z.infer<
   typeof skillRegistryListResponseSchema
 >;
-export type SkillSecurityBreakdownResponse = z.infer<
-  typeof skillSecurityBreakdownResponseSchema
->;
 export type SkillRegistryMineResponse = z.infer<
   typeof skillRegistryMineResponseSchema
 >;
@@ -442,6 +414,55 @@ export type SkillRegistryVersionsResponse = z.infer<
 export type SkillRegistryVoteStatusResponse = z.infer<
   typeof skillRegistryVoteStatusResponseSchema
 >;
+export type SkillTrustTier = z.infer<typeof skillTrustTierSchema>;
+export type SkillStatusNextStep = z.infer<typeof skillStatusNextStepSchema>;
+export type SkillPreviewSuggestedNextStep = z.infer<
+  typeof skillPreviewSuggestedNextStepSchema
+>;
+export type SkillPreviewReport = z.infer<typeof skillPreviewReportSchema>;
+export type SkillPreviewRecord = z.infer<typeof skillPreviewRecordSchema>;
+export type SkillPreviewLookupResponse = z.infer<
+  typeof skillPreviewLookupResponseSchema
+>;
+export type SkillStatusPreviewMetadata = z.infer<
+  typeof skillStatusPreviewMetadataSchema
+>;
+export type SkillStatusChecks = z.infer<typeof skillStatusChecksSchema>;
+export type SkillStatusVerificationSignals = z.infer<
+  typeof skillStatusVerificationSignalsSchema
+>;
+export type SkillStatusProvenanceSignals = z.infer<
+  typeof skillStatusProvenanceSignalsSchema
+>;
+export type SkillStatusResponse = z.infer<typeof skillStatusResponseSchema>;
+export type SkillQuotePreviewRange = z.infer<
+  typeof skillQuotePreviewRangeSchema
+>;
+export type SkillQuotePreviewResponse = z.infer<
+  typeof skillQuotePreviewResponseSchema
+>;
+export type SkillConversionSignalsResponse = z.infer<
+  typeof skillConversionSignalsResponseSchema
+>;
+export type SkillInstallArtifactDescriptor = z.infer<
+  typeof skillInstallArtifactDescriptorSchema
+>;
+export type SkillInstallResolverDescriptor = z.infer<
+  typeof skillInstallResolverDescriptorSchema
+>;
+export type SkillInstallBadgeDescriptor = z.infer<
+  typeof skillInstallBadgeDescriptorSchema
+>;
+export type SkillInstallShareDescriptor = z.infer<
+  typeof skillInstallShareDescriptorSchema
+>;
+export type SkillInstallSnippetSet = z.infer<
+  typeof skillInstallSnippetSetSchema
+>;
+export type SkillInstallResponse = z.infer<typeof skillInstallResponseSchema>;
+export type SkillInstallCopyTelemetryResponse = z.infer<
+  typeof skillInstallCopyTelemetryResponseSchema
+>;
 
 export type SkillVerificationRequestCreateResponse = z.infer<
   typeof skillVerificationRequestCreateResponseSchema
@@ -493,10 +514,6 @@ export interface SkillListOptions {
   view?: 'latest' | 'all';
 }
 
-export interface SkillSecurityBreakdownRequest {
-  jobId: string;
-}
-
 export interface SkillCatalogQueryOptions {
   q?: string;
   category?: string;
@@ -520,6 +537,48 @@ export interface SkillRegistryPublishRequest {
 export interface SkillRegistryVoteRequest {
   name: string;
   upvoted: boolean;
+}
+
+export interface SkillStatusRequest {
+  name: string;
+  version?: string;
+}
+
+export interface SkillPreviewLookupRequest {
+  name: string;
+  version?: string;
+}
+
+export interface SkillPreviewByRepoRequest {
+  repo: string;
+  skillDir: string;
+  ref?: string;
+}
+
+export interface SkillQuotePreviewRequest {
+  fileCount: number;
+  totalBytes: number;
+  name?: string;
+  version?: string;
+  repoUrl?: string;
+  skillDir?: string;
+}
+
+export interface UploadSkillPreviewFromGithubOidcRequest {
+  token: string;
+  report: SkillPreviewReport;
+}
+
+export interface SkillInstallCopyTelemetryRequest {
+  source?: string;
+  installType?:
+    | 'cli'
+    | 'skillmd'
+    | 'manifest'
+    | 'claude'
+    | 'cursor'
+    | 'codex'
+    | 'openclaw';
 }
 
 export interface SkillVerificationRequestCreateRequest {

@@ -12,8 +12,6 @@ import type {
   SkillRecommendedVersionSetRequest,
   SkillRegistryConfigResponse,
   SkillRegistryCategoriesResponse,
-  SkillSecurityBreakdownRequest,
-  SkillSecurityBreakdownResponse,
   SkillRegistryJobStatusResponse,
   SkillRegistryListResponse,
   SkillRegistryMineResponse,
@@ -23,9 +21,22 @@ import type {
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillQuotePreviewRequest,
+  SkillQuotePreviewResponse,
   SkillRegistryTagsResponse,
   SkillRegistryVoteRequest,
   SkillRegistryVoteStatusResponse,
+  SkillStatusRequest,
+  SkillStatusResponse,
+  SkillPreviewLookupRequest,
+  SkillPreviewByRepoRequest,
+  SkillPreviewLookupResponse,
+  SkillPreviewRecord,
+  SkillConversionSignalsResponse,
+  UploadSkillPreviewFromGithubOidcRequest,
+  SkillInstallResponse,
+  SkillInstallCopyTelemetryRequest,
+  SkillInstallCopyTelemetryResponse,
   SkillResolverManifestResponse,
   SkillRegistryVersionsResponse,
   SkillVerificationDomainProofChallengeRequest,
@@ -46,14 +57,20 @@ import {
   skillRegistryCategoriesResponseSchema,
   skillRegistryJobStatusResponseSchema,
   skillRegistryListResponseSchema,
-  skillSecurityBreakdownResponseSchema,
   skillRegistryMineResponseSchema,
   skillRegistryMyListResponseSchema,
   skillRegistryOwnershipResponseSchema,
   skillRegistryPublishResponseSchema,
   skillRegistryQuoteResponseSchema,
+  skillQuotePreviewResponseSchema,
+  skillConversionSignalsResponseSchema,
   skillRegistryTagsResponseSchema,
   skillRegistryVoteStatusResponseSchema,
+  skillStatusResponseSchema,
+  skillPreviewLookupResponseSchema,
+  skillPreviewRecordSchema,
+  skillInstallResponseSchema,
+  skillInstallCopyTelemetryResponseSchema,
   skillResolverManifestResponseSchema,
   skillVerificationDomainProofChallengeResponseSchema,
   skillVerificationDomainProofVerifyResponseSchema,
@@ -128,27 +145,6 @@ export async function listSkills(
     raw,
     skillRegistryListResponseSchema,
     'skill registry list response',
-  );
-}
-
-export async function getSkillSecurityBreakdown(
-  client: RegistryBrokerClient,
-  params: SkillSecurityBreakdownRequest,
-): Promise<SkillSecurityBreakdownResponse> {
-  const normalizedJobId = params.jobId.trim();
-  if (!normalizedJobId) {
-    throw new Error('jobId is required');
-  }
-
-  const raw = await client.requestJson<JsonValue>(
-    `/skills/${encodeURIComponent(normalizedJobId)}/security-breakdown`,
-    { method: 'GET' },
-  );
-
-  return client.parseWithSchema(
-    raw,
-    skillSecurityBreakdownResponseSchema,
-    'skill security breakdown response',
   );
 }
 
@@ -285,6 +281,23 @@ export async function quoteSkillPublish(
     raw,
     skillRegistryQuoteResponseSchema,
     'skill registry quote response',
+  );
+}
+
+export async function quoteSkillPublishPreview(
+  client: RegistryBrokerClient,
+  payload: SkillQuotePreviewRequest,
+): Promise<SkillQuotePreviewResponse> {
+  const raw = await client.requestJson<JsonValue>('/skills/quote-preview', {
+    method: 'POST',
+    body: payload,
+    headers: { 'content-type': 'application/json' },
+  });
+
+  return client.parseWithSchema(
+    raw,
+    skillQuotePreviewResponseSchema,
+    'skill quote preview response',
   );
 }
 
@@ -489,6 +502,252 @@ export async function getSkillBadge(
     raw,
     skillBadgeResponseSchema,
     'skill badge response',
+  );
+}
+
+export async function getSkillStatus(
+  client: RegistryBrokerClient,
+  params: SkillStatusRequest,
+): Promise<SkillStatusResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  if (params.version?.trim()) {
+    query.set('version', params.version.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/status?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillStatusResponseSchema,
+    'skill status response',
+  );
+}
+
+export async function getSkillStatusByRepo(
+  client: RegistryBrokerClient,
+  params: SkillPreviewByRepoRequest,
+): Promise<SkillStatusResponse> {
+  const repo = params.repo.trim();
+  const skillDir = params.skillDir.trim();
+  if (!repo) {
+    throw new Error('repo is required');
+  }
+  if (!skillDir) {
+    throw new Error('skillDir is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('repo', repo);
+  query.set('skillDir', skillDir);
+  if (params.ref?.trim()) {
+    query.set('ref', params.ref.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/status/by-repo?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillStatusResponseSchema,
+    'skill status response',
+  );
+}
+
+export async function getSkillConversionSignalsByRepo(
+  client: RegistryBrokerClient,
+  params: SkillPreviewByRepoRequest,
+): Promise<SkillConversionSignalsResponse> {
+  const repo = params.repo.trim();
+  const skillDir = params.skillDir.trim();
+  if (!repo) {
+    throw new Error('repo is required');
+  }
+  if (!skillDir) {
+    throw new Error('skillDir is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('repo', repo);
+  query.set('skillDir', skillDir);
+  if (params.ref?.trim()) {
+    query.set('ref', params.ref.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/conversion-signals/by-repo?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillConversionSignalsResponseSchema,
+    'skill conversion signals response',
+  );
+}
+
+export async function uploadSkillPreviewFromGithubOidc(
+  client: RegistryBrokerClient,
+  payload: UploadSkillPreviewFromGithubOidcRequest,
+): Promise<SkillPreviewRecord> {
+  const token = payload.token.trim();
+  if (!token) {
+    throw new Error('token is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    '/skills/preview/github-oidc',
+    {
+      method: 'POST',
+      body: payload.report,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewRecordSchema,
+    'skill preview record response',
+  );
+}
+
+export async function getSkillPreview(
+  client: RegistryBrokerClient,
+  params: SkillPreviewLookupRequest,
+): Promise<SkillPreviewLookupResponse> {
+  const normalizedName = params.name.trim();
+  if (!normalizedName) {
+    throw new Error('name is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('name', normalizedName);
+  if (params.version?.trim()) {
+    query.set('version', params.version.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/preview?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewLookupResponseSchema,
+    'skill preview response',
+  );
+}
+
+export async function getSkillPreviewByRepo(
+  client: RegistryBrokerClient,
+  params: SkillPreviewByRepoRequest,
+): Promise<SkillPreviewLookupResponse> {
+  const repo = params.repo.trim();
+  const skillDir = params.skillDir.trim();
+  if (!repo) {
+    throw new Error('repo is required');
+  }
+  if (!skillDir) {
+    throw new Error('skillDir is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('repo', repo);
+  query.set('skillDir', skillDir);
+  if (params.ref?.trim()) {
+    query.set('ref', params.ref.trim());
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/preview/by-repo?${query.toString()}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewLookupResponseSchema,
+    'skill preview by repo response',
+  );
+}
+
+export async function getSkillPreviewById(
+  client: RegistryBrokerClient,
+  previewId: string,
+): Promise<SkillPreviewLookupResponse> {
+  const normalizedPreviewId = previewId.trim();
+  if (!normalizedPreviewId) {
+    throw new Error('previewId is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/preview/${encodeURIComponent(normalizedPreviewId)}`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillPreviewLookupResponseSchema,
+    'skill preview by id response',
+  );
+}
+
+export async function getSkillInstall(
+  client: RegistryBrokerClient,
+  skillRef: string,
+): Promise<SkillInstallResponse> {
+  const normalizedSkillRef = skillRef.trim();
+  if (!normalizedSkillRef) {
+    throw new Error('skillRef is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/${encodeURIComponent(normalizedSkillRef)}/install`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillInstallResponseSchema,
+    'skill install response',
+  );
+}
+
+export async function recordSkillInstallCopy(
+  client: RegistryBrokerClient,
+  skillRef: string,
+  payload: SkillInstallCopyTelemetryRequest = {},
+): Promise<SkillInstallCopyTelemetryResponse> {
+  const normalizedSkillRef = skillRef.trim();
+  if (!normalizedSkillRef) {
+    throw new Error('skillRef is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/${encodeURIComponent(normalizedSkillRef)}/telemetry/install-copy`,
+    {
+      method: 'POST',
+      body: payload,
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillInstallCopyTelemetryResponseSchema,
+    'skill install copy telemetry response',
   );
 }
 
