@@ -39,6 +39,8 @@ import type {
   SkillInstallCopyTelemetryResponse,
   SkillResolverManifestResponse,
   SkillRegistryVersionsResponse,
+  SkillSecurityBreakdownRequest,
+  SkillSecurityBreakdownResponse,
   SkillVerificationDomainProofChallengeRequest,
   SkillVerificationDomainProofChallengeResponse,
   SkillVerificationDomainProofVerifyRequest,
@@ -71,6 +73,7 @@ import {
   skillPreviewRecordSchema,
   skillInstallResponseSchema,
   skillInstallCopyTelemetryResponseSchema,
+  skillSecurityBreakdownResponseSchema,
   skillResolverManifestResponseSchema,
   skillVerificationDomainProofChallengeResponseSchema,
   skillVerificationDomainProofVerifyResponseSchema,
@@ -145,6 +148,27 @@ export async function listSkills(
     raw,
     skillRegistryListResponseSchema,
     'skill registry list response',
+  );
+}
+
+export async function getSkillSecurityBreakdown(
+  client: RegistryBrokerClient,
+  params: SkillSecurityBreakdownRequest,
+): Promise<SkillSecurityBreakdownResponse> {
+  const normalizedJobId = params.jobId.trim();
+  if (!normalizedJobId) {
+    throw new Error('jobId is required');
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    `/skills/${encodeURIComponent(normalizedJobId)}/security-breakdown`,
+    { method: 'GET' },
+  );
+
+  return client.parseWithSchema(
+    raw,
+    skillSecurityBreakdownResponseSchema,
+    'skill security breakdown response',
   );
 }
 

@@ -12,6 +12,7 @@ import {
   encryptionHandshakeResponseSchema,
   detectProtocolResponseSchema,
   dashboardStatsResponseSchema,
+  delegationPlanResponseSchema,
   metricsSummaryResponseSchema,
   popularResponseSchema,
   protocolsResponseSchema,
@@ -89,6 +90,7 @@ import {
   skillResolverManifestResponseSchema,
   skillRegistryFileDescriptorSchema,
   skillRegistryJobStatusResponseSchema,
+  skillSecurityBreakdownResponseSchema,
   skillRegistryListResponseSchema,
   skillRegistryMineResponseSchema,
   skillRegistryMyListResponseSchema,
@@ -291,6 +293,50 @@ export interface SearchParams {
   metadata?: Record<string, Array<string | number | boolean>>;
 }
 
+export interface DelegationWorkspaceContext {
+  openFiles?: string[];
+  modifiedFiles?: string[];
+  relatedPaths?: string[];
+  errors?: string[];
+  commands?: string[];
+  languages?: string[];
+}
+
+export interface DelegationPlanFilter {
+  capabilities?: string[];
+  type?: 'ai-agents' | 'mcp-servers';
+  registry?: string;
+  registries?: string[];
+  protocols?: string[];
+  adapters?: string[];
+  verifiedOnly?: boolean;
+  onlineOnly?: boolean;
+  minTrust?: number;
+  minTrustSignals?: Record<string, number>;
+  metadata?: Record<string, Array<string | number | boolean>>;
+  metadataRanges?: Record<string, { min?: number; max?: number }>;
+}
+
+export interface DelegationPlanRequest {
+  task: string;
+  context?: string;
+  workspace?: DelegationWorkspaceContext;
+  limit?: number;
+  filter?: DelegationPlanFilter;
+}
+
+export type DelegationPlanCandidate = z.infer<
+  typeof delegationPlanResponseSchema
+>['opportunities'][number]['candidates'][number];
+
+export type DelegationOpportunity = z.infer<
+  typeof delegationPlanResponseSchema
+>['opportunities'][number];
+
+export type DelegationPlanResponse = z.infer<
+  typeof delegationPlanResponseSchema
+>;
+
 export type RegistryStatsResponse = z.infer<typeof statsResponseSchema>;
 
 export type RegistriesResponse = z.infer<typeof registriesResponseSchema>;
@@ -302,6 +348,9 @@ export type ResolvedAgentResponse = z.infer<typeof resolveResponseSchema>;
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
+export type SkillSecurityBreakdownResponse = z.infer<
+  typeof skillSecurityBreakdownResponseSchema
+>;
 export type ChatHistorySnapshotResponse = z.infer<
   typeof chatHistorySnapshotResponseSchema
 >;
@@ -537,6 +586,10 @@ export interface SkillRegistryPublishRequest {
 export interface SkillRegistryVoteRequest {
   name: string;
   upvoted: boolean;
+}
+
+export interface SkillSecurityBreakdownRequest {
+  jobId: string;
 }
 
 export interface SkillStatusRequest {

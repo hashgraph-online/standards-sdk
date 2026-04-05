@@ -50,6 +50,8 @@ import type {
   CreateSessionResponse,
   CreditPurchaseResponse,
   DashboardStatsResponse,
+  DelegationPlanRequest,
+  DelegationPlanResponse,
   DetectProtocolResponse,
   EncryptionHandshakeRecord,
   EncryptionHandshakeSubmissionPayload,
@@ -141,6 +143,8 @@ import type {
   SkillInstallResponse,
   SkillInstallCopyTelemetryRequest,
   SkillInstallCopyTelemetryResponse,
+  SkillSecurityBreakdownRequest,
+  SkillSecurityBreakdownResponse,
   SkillRecommendedVersionResponse,
   SkillRecommendedVersionSetRequest,
   SkillResolverManifestResponse,
@@ -243,6 +247,7 @@ import {
   verifyLedgerChallenge as verifyLedgerChallengeImpl,
 } from './ledger-auth';
 import {
+  delegate as delegateImpl,
   detectProtocol as detectProtocolImpl,
   facets as facetsImpl,
   getAdditionalRegistries as getAdditionalRegistriesImpl,
@@ -273,6 +278,7 @@ import {
   getSkillStatus as getSkillStatusImpl,
   getSkillVerificationStatus as getSkillVerificationStatusImpl,
   getSkillVoteStatus as getSkillVoteStatusImpl,
+  getSkillSecurityBreakdown as getSkillSecurityBreakdownImpl,
   getSkillsCatalog as getSkillsCatalogImpl,
   getMySkillsList as getMySkillsListImpl,
   listSkillCategories as listSkillCategoriesImpl,
@@ -677,6 +683,12 @@ export class RegistryBrokerClient {
     return searchImpl(this, params);
   }
 
+  async delegate(
+    request: DelegationPlanRequest,
+  ): Promise<DelegationPlanResponse> {
+    return delegateImpl(this, request);
+  }
+
   async searchErc8004ByAgentId(params: {
     chainId: number;
     agentId: number | bigint | string;
@@ -875,6 +887,12 @@ export class RegistryBrokerClient {
     params: SkillStatusRequest,
   ): Promise<SkillStatusResponse> {
     return getSkillStatusImpl(this, params);
+  }
+
+  async getSkillSecurityBreakdown(
+    params: SkillSecurityBreakdownRequest,
+  ): Promise<SkillSecurityBreakdownResponse> {
+    return getSkillSecurityBreakdownImpl(this, params);
   }
 
   async getSkillStatusByRepo(
