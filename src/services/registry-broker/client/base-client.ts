@@ -1546,9 +1546,21 @@ export class RegistryBrokerClient {
     return nodeCrypto;
   }
 
+  private getSecureRandomBytes(size: number, feature: string): Uint8Array {
+    const webCrypto = globalThis.crypto;
+    if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(size);
+      webCrypto.getRandomValues(bytes);
+      return bytes;
+    }
+    return this.getNodeCrypto(feature).randomBytes(size);
+  }
+
   createEphemeralKeyPair(): EphemeralKeyPair {
-    const { randomBytes } = this.getNodeCrypto('generateEphemeralKeyPair');
-    const privateKeyBytes = randomBytes(32);
+    const privateKeyBytes = this.getSecureRandomBytes(
+      32,
+      'generateEphemeralKeyPair',
+    );
     const publicKey = secp256k1.getPublicKey(privateKeyBytes, true);
     return {
       privateKey: Buffer.from(privateKeyBytes).toString('hex'),
