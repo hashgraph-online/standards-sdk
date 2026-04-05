@@ -74,20 +74,6 @@ import {
   verificationVerifyResponseSchema,
   verificationVerifySenderResponseSchema,
   skillRegistryConfigResponseSchema,
-  skillPublisherQuickstartCommandSchema,
-  skillPublisherTemplatePresetSchema,
-  skillPublisherMetadataSchema,
-  skillTrustTierSchema,
-  skillStatusChecksSchema,
-  skillStatusNextStepSchema,
-  skillPreviewSuggestedNextStepSchema,
-  skillPreviewReportSchema,
-  skillPreviewRecordSchema,
-  skillPreviewLookupResponseSchema,
-  skillStatusPreviewMetadataSchema,
-  skillStatusVerificationSignalsSchema,
-  skillStatusProvenanceSignalsSchema,
-  skillStatusResponseSchema,
   skillCatalogChannelSchema,
   skillCatalogSortBySchema,
   skillCatalogVersionSummarySchema,
@@ -104,15 +90,8 @@ import {
   skillResolverManifestResponseSchema,
   skillRegistryFileDescriptorSchema,
   skillRegistryJobStatusResponseSchema,
-  skillRegistryListResponseSchema,
   skillSecurityBreakdownResponseSchema,
-  skillInstallArtifactDescriptorSchema,
-  skillInstallResolverDescriptorSchema,
-  skillInstallBadgeDescriptorSchema,
-  skillInstallShareDescriptorSchema,
-  skillInstallSnippetSetSchema,
-  skillInstallResponseSchema,
-  skillInstallCopyTelemetryResponseSchema,
+  skillRegistryListResponseSchema,
   skillRegistryMineResponseSchema,
   skillRegistryMyListResponseSchema,
   skillRegistryOwnershipResponseSchema,
@@ -125,6 +104,27 @@ import {
   skillVerificationDomainProofVerifyResponseSchema,
   skillVerificationRequestCreateResponseSchema,
   skillVerificationStatusResponseSchema,
+  skillTrustTierSchema,
+  skillStatusNextStepSchema,
+  skillPreviewSuggestedNextStepSchema,
+  skillPreviewReportSchema,
+  skillPreviewRecordSchema,
+  skillPreviewLookupResponseSchema,
+  skillStatusPreviewMetadataSchema,
+  skillStatusChecksSchema,
+  skillStatusVerificationSignalsSchema,
+  skillStatusProvenanceSignalsSchema,
+  skillStatusResponseSchema,
+  skillQuotePreviewRangeSchema,
+  skillQuotePreviewResponseSchema,
+  skillConversionSignalsResponseSchema,
+  skillInstallArtifactDescriptorSchema,
+  skillInstallResolverDescriptorSchema,
+  skillInstallBadgeDescriptorSchema,
+  skillInstallShareDescriptorSchema,
+  skillInstallSnippetSetSchema,
+  skillInstallResponseSchema,
+  skillInstallCopyTelemetryResponseSchema,
 } from './schemas';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -348,6 +348,9 @@ export type ResolvedAgentResponse = z.infer<typeof resolveResponseSchema>;
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
+export type SkillSecurityBreakdownResponse = z.infer<
+  typeof skillSecurityBreakdownResponseSchema
+>;
 export type ChatHistorySnapshotResponse = z.infer<
   typeof chatHistorySnapshotResponseSchema
 >;
@@ -405,9 +408,6 @@ export type SkillRegistryPublishSummary = z.infer<
 export type SkillRegistryListResponse = z.infer<
   typeof skillRegistryListResponseSchema
 >;
-export type SkillSecurityBreakdownResponse = z.infer<
-  typeof skillSecurityBreakdownResponseSchema
->;
 export type SkillRegistryMineResponse = z.infer<
   typeof skillRegistryMineResponseSchema
 >;
@@ -425,55 +425,6 @@ export type SkillRegistryJobStatusResponse = z.infer<
 >;
 export type SkillRegistryConfigResponse = z.infer<
   typeof skillRegistryConfigResponseSchema
->;
-export type SkillPublisherQuickstartCommand = z.infer<
-  typeof skillPublisherQuickstartCommandSchema
->;
-export type SkillPublisherTemplatePreset = z.infer<
-  typeof skillPublisherTemplatePresetSchema
->;
-export type SkillPublisherMetadata = z.infer<
-  typeof skillPublisherMetadataSchema
->;
-export type SkillTrustTier = z.infer<typeof skillTrustTierSchema>;
-export type SkillStatusChecks = z.infer<typeof skillStatusChecksSchema>;
-export type SkillStatusNextStep = z.infer<typeof skillStatusNextStepSchema>;
-export type SkillPreviewSuggestedNextStep = z.infer<
-  typeof skillPreviewSuggestedNextStepSchema
->;
-export type SkillPreviewReport = z.infer<typeof skillPreviewReportSchema>;
-export type SkillPreviewRecord = z.infer<typeof skillPreviewRecordSchema>;
-export type SkillPreviewLookupResponse = z.infer<
-  typeof skillPreviewLookupResponseSchema
->;
-export type SkillStatusPreviewMetadata = z.infer<
-  typeof skillStatusPreviewMetadataSchema
->;
-export type SkillStatusVerificationSignals = z.infer<
-  typeof skillStatusVerificationSignalsSchema
->;
-export type SkillStatusProvenanceSignals = z.infer<
-  typeof skillStatusProvenanceSignalsSchema
->;
-export type SkillStatusResponse = z.infer<typeof skillStatusResponseSchema>;
-export type SkillInstallArtifactDescriptor = z.infer<
-  typeof skillInstallArtifactDescriptorSchema
->;
-export type SkillInstallResolverDescriptor = z.infer<
-  typeof skillInstallResolverDescriptorSchema
->;
-export type SkillInstallBadgeDescriptor = z.infer<
-  typeof skillInstallBadgeDescriptorSchema
->;
-export type SkillInstallShareDescriptor = z.infer<
-  typeof skillInstallShareDescriptorSchema
->;
-export type SkillInstallSnippetSet = z.infer<
-  typeof skillInstallSnippetSetSchema
->;
-export type SkillInstallResponse = z.infer<typeof skillInstallResponseSchema>;
-export type SkillInstallCopyTelemetryResponse = z.infer<
-  typeof skillInstallCopyTelemetryResponseSchema
 >;
 export type SkillCatalogChannel = z.infer<typeof skillCatalogChannelSchema>;
 export type SkillCatalogSortBy = z.infer<typeof skillCatalogSortBySchema>;
@@ -511,6 +462,55 @@ export type SkillRegistryVersionsResponse = z.infer<
 >;
 export type SkillRegistryVoteStatusResponse = z.infer<
   typeof skillRegistryVoteStatusResponseSchema
+>;
+export type SkillTrustTier = z.infer<typeof skillTrustTierSchema>;
+export type SkillStatusNextStep = z.infer<typeof skillStatusNextStepSchema>;
+export type SkillPreviewSuggestedNextStep = z.infer<
+  typeof skillPreviewSuggestedNextStepSchema
+>;
+export type SkillPreviewReport = z.infer<typeof skillPreviewReportSchema>;
+export type SkillPreviewRecord = z.infer<typeof skillPreviewRecordSchema>;
+export type SkillPreviewLookupResponse = z.infer<
+  typeof skillPreviewLookupResponseSchema
+>;
+export type SkillStatusPreviewMetadata = z.infer<
+  typeof skillStatusPreviewMetadataSchema
+>;
+export type SkillStatusChecks = z.infer<typeof skillStatusChecksSchema>;
+export type SkillStatusVerificationSignals = z.infer<
+  typeof skillStatusVerificationSignalsSchema
+>;
+export type SkillStatusProvenanceSignals = z.infer<
+  typeof skillStatusProvenanceSignalsSchema
+>;
+export type SkillStatusResponse = z.infer<typeof skillStatusResponseSchema>;
+export type SkillQuotePreviewRange = z.infer<
+  typeof skillQuotePreviewRangeSchema
+>;
+export type SkillQuotePreviewResponse = z.infer<
+  typeof skillQuotePreviewResponseSchema
+>;
+export type SkillConversionSignalsResponse = z.infer<
+  typeof skillConversionSignalsResponseSchema
+>;
+export type SkillInstallArtifactDescriptor = z.infer<
+  typeof skillInstallArtifactDescriptorSchema
+>;
+export type SkillInstallResolverDescriptor = z.infer<
+  typeof skillInstallResolverDescriptorSchema
+>;
+export type SkillInstallBadgeDescriptor = z.infer<
+  typeof skillInstallBadgeDescriptorSchema
+>;
+export type SkillInstallShareDescriptor = z.infer<
+  typeof skillInstallShareDescriptorSchema
+>;
+export type SkillInstallSnippetSet = z.infer<
+  typeof skillInstallSnippetSetSchema
+>;
+export type SkillInstallResponse = z.infer<typeof skillInstallResponseSchema>;
+export type SkillInstallCopyTelemetryResponse = z.infer<
+  typeof skillInstallCopyTelemetryResponseSchema
 >;
 
 export type SkillVerificationRequestCreateResponse = z.infer<
@@ -563,10 +563,6 @@ export interface SkillListOptions {
   view?: 'latest' | 'all';
 }
 
-export interface SkillSecurityBreakdownRequest {
-  jobId: string;
-}
-
 export interface SkillCatalogQueryOptions {
   q?: string;
   category?: string;
@@ -592,6 +588,10 @@ export interface SkillRegistryVoteRequest {
   upvoted: boolean;
 }
 
+export interface SkillSecurityBreakdownRequest {
+  jobId: string;
+}
+
 export interface SkillStatusRequest {
   name: string;
   version?: string;
@@ -606,6 +606,15 @@ export interface SkillPreviewByRepoRequest {
   repo: string;
   skillDir: string;
   ref?: string;
+}
+
+export interface SkillQuotePreviewRequest {
+  fileCount: number;
+  totalBytes: number;
+  name?: string;
+  version?: string;
+  repoUrl?: string;
+  skillDir?: string;
 }
 
 export interface UploadSkillPreviewFromGithubOidcRequest {

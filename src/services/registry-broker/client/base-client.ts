@@ -109,18 +109,6 @@ import type {
   VerificationVerifySenderResponse,
   X402MinimumsResponse,
   SkillRegistryConfigResponse,
-  SkillStatusRequest,
-  SkillStatusResponse,
-  SkillPreviewByRepoRequest,
-  SkillPreviewLookupRequest,
-  SkillPreviewLookupResponse,
-  SkillPreviewRecord,
-  UploadSkillPreviewFromGithubOidcRequest,
-  SkillInstallResponse,
-  SkillInstallCopyTelemetryRequest,
-  SkillInstallCopyTelemetryResponse,
-  SkillSecurityBreakdownRequest,
-  SkillSecurityBreakdownResponse,
   SkillBadgeQuery,
   SkillBadgeResponse,
   SkillCatalogQueryOptions,
@@ -139,9 +127,24 @@ import type {
   SkillRegistryPublishResponse,
   SkillRegistryQuoteRequest,
   SkillRegistryQuoteResponse,
+  SkillQuotePreviewRequest,
+  SkillQuotePreviewResponse,
   SkillRegistryTagsResponse,
   SkillRegistryVoteRequest,
   SkillRegistryVoteStatusResponse,
+  SkillStatusRequest,
+  SkillStatusResponse,
+  SkillPreviewByRepoRequest,
+  SkillPreviewLookupRequest,
+  SkillPreviewLookupResponse,
+  SkillPreviewRecord,
+  SkillConversionSignalsResponse,
+  UploadSkillPreviewFromGithubOidcRequest,
+  SkillInstallResponse,
+  SkillInstallCopyTelemetryRequest,
+  SkillInstallCopyTelemetryResponse,
+  SkillSecurityBreakdownRequest,
+  SkillSecurityBreakdownResponse,
   SkillRecommendedVersionResponse,
   SkillRecommendedVersionSetRequest,
   SkillResolverManifestResponse,
@@ -267,6 +270,7 @@ import {
   getSkillInstall as getSkillInstallImpl,
   getSkillOwnership as getSkillOwnershipImpl,
   getSkillPublishJob as getSkillPublishJobImpl,
+  getSkillConversionSignalsByRepo as getSkillConversionSignalsByRepoImpl,
   getSkillPreviewById as getSkillPreviewByIdImpl,
   getSkillPreviewByRepo as getSkillPreviewByRepoImpl,
   getSkillPreview as getSkillPreviewImpl,
@@ -283,6 +287,7 @@ import {
   listMySkills as listMySkillsImpl,
   listSkillVersions as listSkillVersionsImpl,
   publishSkill as publishSkillImpl,
+  quoteSkillPublishPreview as quoteSkillPublishPreviewImpl,
   quoteSkillPublish as quoteSkillPublishImpl,
   resolveSkillManifest as resolveSkillManifestImpl,
   resolveSkillMarkdown as resolveSkillMarkdownImpl,
@@ -786,22 +791,10 @@ export class RegistryBrokerClient {
     return skillsConfigImpl(this);
   }
 
-  async getSkillStatus(
-    params: SkillStatusRequest,
-  ): Promise<SkillStatusResponse> {
-    return getSkillStatusImpl(this, params);
-  }
-
   async listSkills(
     options?: SkillListOptions,
   ): Promise<SkillRegistryListResponse> {
     return listSkillsImpl(this, options);
-  }
-
-  async getSkillSecurityBreakdown(
-    params: SkillSecurityBreakdownRequest,
-  ): Promise<SkillSecurityBreakdownResponse> {
-    return getSkillSecurityBreakdownImpl(this, params);
   }
 
   async getSkillsCatalog(
@@ -834,6 +827,12 @@ export class RegistryBrokerClient {
     payload: SkillRegistryQuoteRequest,
   ): Promise<SkillRegistryQuoteResponse> {
     return quoteSkillPublishImpl(this, payload);
+  }
+
+  async quoteSkillPublishPreview(
+    payload: SkillQuotePreviewRequest,
+  ): Promise<SkillQuotePreviewResponse> {
+    return quoteSkillPublishPreviewImpl(this, payload);
   }
 
   async publishSkill(
@@ -884,10 +883,28 @@ export class RegistryBrokerClient {
     return getSkillBadgeImpl(this, params);
   }
 
+  async getSkillStatus(
+    params: SkillStatusRequest,
+  ): Promise<SkillStatusResponse> {
+    return getSkillStatusImpl(this, params);
+  }
+
+  async getSkillSecurityBreakdown(
+    params: SkillSecurityBreakdownRequest,
+  ): Promise<SkillSecurityBreakdownResponse> {
+    return getSkillSecurityBreakdownImpl(this, params);
+  }
+
   async getSkillStatusByRepo(
     params: SkillPreviewByRepoRequest,
   ): Promise<SkillStatusResponse> {
     return getSkillStatusByRepoImpl(this, params);
+  }
+
+  async getSkillConversionSignalsByRepo(
+    params: SkillPreviewByRepoRequest,
+  ): Promise<SkillConversionSignalsResponse> {
+    return getSkillConversionSignalsByRepoImpl(this, params);
   }
 
   async uploadSkillPreviewFromGithubOidc(
@@ -1463,7 +1480,7 @@ export class RegistryBrokerClient {
 
   parseWithSchema<T>(
     value: JsonValue,
-    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+    schema: z.ZodSchema<T>,
     context: string,
   ): T {
     try {
@@ -1529,9 +1546,21 @@ export class RegistryBrokerClient {
     return nodeCrypto;
   }
 
+  private getSecureRandomBytes(size: number, feature: string): Uint8Array {
+    const webCrypto = globalThis.crypto;
+    if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(size);
+      webCrypto.getRandomValues(bytes);
+      return bytes;
+    }
+    return this.getNodeCrypto(feature).randomBytes(size);
+  }
+
   createEphemeralKeyPair(): EphemeralKeyPair {
-    const { randomBytes } = this.getNodeCrypto('generateEphemeralKeyPair');
-    const privateKeyBytes = randomBytes(32);
+    const privateKeyBytes = this.getSecureRandomBytes(
+      32,
+      'generateEphemeralKeyPair',
+    );
     const publicKey = secp256k1.getPublicKey(privateKeyBytes, true);
     return {
       privateKey: Buffer.from(privateKeyBytes).toString('hex'),
