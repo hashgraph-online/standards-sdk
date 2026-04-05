@@ -146,6 +146,7 @@
     "demo:registry-broker-x402-topup": "tsx demo/registry-broker/registry-broker-x402-topup.ts",
     "demo:registry-broker-nanda-a2a": "tsx demo/registry-broker/registry-broker-nanda-a2a-demo.ts",
     "demo:registry-broker-skills": "tsx demo/registry-broker/skill-registry-publish-demo.ts",
+    "demo:registry-broker-skill-status": "tsx demo/registry-broker/skill-status-demo.ts",
     "demo:registry-broker-uaid-dns": "tsx demo/registry-broker/uaid-dns-verification-demo.ts",
     "watch": "nodemon --watch src --ext ts,tsx --exec \"npm run build && yalc push\"",
     "test": "jest --config jest.config.json",
