@@ -15,117 +15,6 @@ function createResponse(payload: {
   } as unknown as Response;
 }
 
-function createMockPreviewReport(overrides: Record<string, unknown> = {}) {
-  return {
-    schema_version: 'skill-preview.v1',
-    tool_version: '1.0.0',
-    preview_id: 'preview_demo',
-    repo_url: 'https://github.com/hashgraph-online/registry-broker-skill',
-    repo_owner: 'hashgraph-online',
-    repo_name: 'registry-broker-skill',
-    default_branch: 'main',
-    commit_sha: 'abc123',
-    ref: 'refs/pull/5/merge',
-    event_name: 'pull_request',
-    workflow_run_url:
-      'https://github.com/hashgraph-online/registry-broker-skill/actions/runs/123456789',
-    skill_dir: '.',
-    name: 'preview-skill',
-    version: '0.1.0',
-    validation_status: 'passed',
-    findings: [],
-    package_summary: {
-      fileCount: 2,
-    },
-    suggested_next_steps: [],
-    generated_at: '2026-04-04T10:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function createMockPreviewRecord(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'preview-1',
-    previewId: 'preview_demo',
-    source: 'github-oidc',
-    generatedAt: '2026-04-04T10:00:00.000Z',
-    expiresAt: '2026-04-11T10:00:00.000Z',
-    statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
-    authoritative: false,
-    report: createMockPreviewReport(),
-    ...overrides,
-  };
-}
-
-function createMockPreviewLookupResponse(
-  overrides: Record<string, unknown> = {},
-) {
-  return {
-    found: true,
-    authoritative: false,
-    statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
-    expiresAt: '2026-04-11T10:00:00.000Z',
-    preview: createMockPreviewRecord(),
-    ...overrides,
-  };
-}
-
-function createMockSkillStatus(overrides: Record<string, unknown> = {}) {
-  return {
-    name: 'registry-broker',
-    version: '1.2.3',
-    published: true,
-    verifiedDomain: true,
-    trustTier: 'hardened',
-    badgeMetric: 'tier',
-    checks: {
-      repoCommitIntegrity: true,
-      manifestIntegrity: true,
-      domainProof: true,
-    },
-    verificationSignals: {
-      publisherBound: true,
-      domainProof: true,
-      verifiedDomain: true,
-      previewValidated: false,
-    },
-    provenanceSignals: {
-      repoCommitIntegrity: true,
-      manifestIntegrity: true,
-      canonicalRelease: true,
-      previewAvailable: false,
-      previewAuthoritative: false,
-    },
-    nextSteps: [
-      {
-        kind: 'share_status',
-        priority: 10,
-        id: 'share',
-        label: 'Share the canonical install links',
-        description:
-          'Copy pinned SKILL.md, manifest, and badge URLs from the registry detail page after each release.',
-        url: 'https://hol.org/registry/skills',
-        href: 'https://hol.org/registry/skills',
-        command: null,
-      },
-    ],
-    publisher: {
-      cliPackageUrl: 'https://www.npmjs.com/package/skill-publish',
-      cliCommand: 'npx skill-publish',
-      actionMarketplaceUrl:
-        'https://github.com/marketplace/actions/skill-publish',
-      repositoryUrl: 'https://github.com/hashgraph-online/skill-publish',
-      guideUrl: 'https://hol.org/registry/skills/about',
-      docsUrl: 'https://hol.org/registry/docs',
-      submitUrl: 'https://hol.org/registry/skills/submit',
-      skillsIndexUrl: 'https://hol.org/registry/skills',
-      quickstartCommands: [],
-      templatePresets: [],
-    },
-    ...overrides,
-  };
-}
-
 describe('RegistryBrokerClient skill contract methods', () => {
   const fetchImplementation = jest.fn<typeof fetch>();
 
@@ -201,7 +90,72 @@ describe('RegistryBrokerClient skill contract methods', () => {
   it('retrieves skill trust-tier status', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
-        json: async () => createMockSkillStatus(),
+        json: async () => ({
+          name: 'preview-skill',
+          version: '0.1.0',
+          published: false,
+          verifiedDomain: false,
+          trustTier: 'validated',
+          badgeMetric: 'tier',
+          checks: {
+            repoCommitIntegrity: false,
+            manifestIntegrity: false,
+            domainProof: false,
+          },
+          verificationSignals: {
+            publisherBound: false,
+            domainProof: false,
+            verifiedDomain: false,
+            previewValidated: true,
+          },
+          provenanceSignals: {
+            repoCommitIntegrity: false,
+            manifestIntegrity: false,
+            canonicalRelease: false,
+            previewAvailable: true,
+            previewAuthoritative: false,
+          },
+          nextSteps: [
+            {
+              kind: 'publish_first_release',
+              priority: 100,
+              id: 'publish',
+              label: 'Publish the first immutable release',
+              description:
+                'This repo already passes validate-first checks. Publish an immutable release to mint canonical install URLs and a durable registry page.',
+              url: 'https://hol.org/registry/skills/submit',
+              href: 'https://hol.org/registry/skills/submit',
+              command: 'npx skill-publish publish',
+            },
+          ],
+          publisher: {
+            cliPackageUrl: 'https://www.npmjs.com/package/skill-publish',
+            cliCommand: 'npx skill-publish',
+            actionMarketplaceUrl:
+              'https://github.com/marketplace/actions/skill-publish',
+            repositoryUrl: 'https://github.com/hashgraph-online/skill-publish',
+            guideUrl: 'https://hol.org/registry/skills/about',
+            docsUrl: 'https://hol.org/registry/docs',
+            submitUrl: 'https://hol.org/registry/skills/submit',
+            skillsIndexUrl: 'https://hol.org/registry/skills',
+            quickstartCommands: [],
+            templatePresets: [],
+          },
+          preview: {
+            previewId: 'preview_demo',
+            repoUrl:
+              'https://github.com/hashgraph-online/registry-broker-skill',
+            repoOwner: 'hashgraph-online',
+            repoName: 'registry-broker-skill',
+            commitSha: 'abc123',
+            ref: 'refs/pull/5/merge',
+            eventName: 'pull_request',
+            skillDir: '.',
+            generatedAt: '2026-04-04T10:00:00.000Z',
+            expiresAt: '2026-04-11T10:00:00.000Z',
+            statusUrl: 'https://hol.org/registry/skills/preview-skill',
+          },
+        }),
       }),
     );
 
@@ -211,72 +165,66 @@ describe('RegistryBrokerClient skill contract methods', () => {
     });
 
     const status = await client.getSkillStatus({
-      name: 'registry-broker',
-      version: '1.2.3',
+      name: 'preview-skill',
+      version: '0.1.0',
     });
 
-    expect(status.trustTier).toBe('hardened');
-    expect(status.checks.domainProof).toBe(true);
+    expect(status.trustTier).toBe('validated');
+    expect(status.preview?.repoName).toBe('registry-broker-skill');
+    expect(status.preview?.previewId).toBe('preview_demo');
+    expect(status.checks.domainProof).toBe(false);
     expect(status.badgeMetric).toBe('tier');
     expect(fetchImplementation).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/skills/status?name=registry-broker&version=1.2.3',
+      'https://api.example.com/api/v1/skills/status?name=preview-skill&version=0.1.0',
       expect.objectContaining({ method: 'GET' }),
     );
-  });
-
-  it('keeps legacy skill status payloads parseable during rollout', async () => {
-    fetchImplementation.mockResolvedValueOnce(
-      createResponse({
-        json: async () =>
-          createMockSkillStatus({
-            trustTier: 'unpublished',
-            nextSteps: [
-              {
-                id: 'share',
-                label: 'Share later',
-                description: 'Legacy brokers omit lifecycle metadata here.',
-                href: 'https://hol.org/registry/skills',
-                command: null,
-              },
-            ],
-            verificationSignals: undefined,
-            provenanceSignals: undefined,
-          }),
-      }),
-    );
-
-    const client = new RegistryBrokerClient({
-      baseUrl: 'https://api.example.com',
-      fetchImplementation,
-    });
-
-    const status = await client.getSkillStatus({
-      name: 'registry-broker',
-    });
-
-    expect(status.trustTier).toBe('unpublished');
-    expect(status.nextSteps[0]?.kind).toBeUndefined();
-    expect(status.verificationSignals.previewValidated).toBe(false);
-    expect(status.provenanceSignals.canonicalRelease).toBe(false);
   });
 
   it('uploads a GitHub OIDC skill preview report', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
-        json: async () =>
-          createMockPreviewRecord({
-            report: createMockPreviewReport({
-              suggested_next_steps: [
-                {
-                  id: 'publish',
-                  label: 'Publish',
-                  description: 'Publish the validated skill.',
-                  href: 'https://hol.org/registry/skills/submit',
-                  command: 'npx skill-publish publish',
-                },
-              ],
-            }),
-          }),
+        json: async () => ({
+          id: 'preview-1',
+          previewId: 'preview_demo',
+          source: 'github-oidc',
+          generatedAt: '2026-04-04T10:00:00.000Z',
+          expiresAt: '2026-04-11T10:00:00.000Z',
+          statusUrl: 'https://hol.org/registry/skills/preview-skill',
+          authoritative: false,
+          report: {
+            schema_version: 'skill-preview.v1',
+            tool_version: '1.0.0',
+            preview_id: 'preview_demo',
+            repo_url:
+              'https://github.com/hashgraph-online/registry-broker-skill',
+            repo_owner: 'hashgraph-online',
+            repo_name: 'registry-broker-skill',
+            default_branch: 'main',
+            commit_sha: 'abc123',
+            ref: 'refs/pull/5/merge',
+            event_name: 'pull_request',
+            workflow_run_url:
+              'https://github.com/hashgraph-online/registry-broker-skill/actions/runs/123456789',
+            skill_dir: '.',
+            name: 'preview-skill',
+            version: '0.1.0',
+            validation_status: 'passed',
+            findings: [],
+            package_summary: {
+              fileCount: 2,
+            },
+            suggested_next_steps: [
+              {
+                id: 'publish',
+                label: 'Publish',
+                description: 'Publish the validated skill.',
+                href: 'https://hol.org/registry/skills/submit',
+                command: 'npx skill-publish publish',
+              },
+            ],
+            generated_at: '2026-04-04T10:00:00.000Z',
+          },
+        }),
       }),
     );
 
@@ -287,7 +235,30 @@ describe('RegistryBrokerClient skill contract methods', () => {
 
     const preview = await client.uploadSkillPreviewFromGithubOidc({
       token: 'preview-token',
-      report: createMockPreviewReport(),
+      report: {
+        schema_version: 'skill-preview.v1',
+        tool_version: '1.0.0',
+        preview_id: 'preview_demo',
+        repo_url: 'https://github.com/hashgraph-online/registry-broker-skill',
+        repo_owner: 'hashgraph-online',
+        repo_name: 'registry-broker-skill',
+        default_branch: 'main',
+        commit_sha: 'abc123',
+        ref: 'refs/pull/5/merge',
+        event_name: 'pull_request',
+        workflow_run_url:
+          'https://github.com/hashgraph-online/registry-broker-skill/actions/runs/123456789',
+        skill_dir: '.',
+        name: 'preview-skill',
+        version: '0.1.0',
+        validation_status: 'passed',
+        findings: [],
+        package_summary: {
+          fileCount: 2,
+        },
+        suggested_next_steps: [],
+        generated_at: '2026-04-04T10:00:00.000Z',
+      },
     });
 
     expect(preview.id).toBe('preview-1');
@@ -308,7 +279,46 @@ describe('RegistryBrokerClient skill contract methods', () => {
   it('retrieves a stored skill preview by name and version', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
-        json: async () => createMockPreviewLookupResponse(),
+        json: async () => ({
+          found: true,
+          authoritative: true,
+          statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
+          expiresAt: '2026-04-11T10:00:00.000Z',
+          preview: {
+            id: 'preview-1',
+            previewId: 'preview_demo',
+            source: 'github-oidc',
+            generatedAt: '2026-04-04T10:00:00.000Z',
+            expiresAt: '2026-04-11T10:00:00.000Z',
+            statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
+            authoritative: true,
+            report: {
+              schema_version: 'skill-preview.v1',
+              tool_version: '1.0.0',
+              preview_id: 'preview_demo',
+              repo_url:
+                'https://github.com/hashgraph-online/registry-broker-skill',
+              repo_owner: 'hashgraph-online',
+              repo_name: 'registry-broker-skill',
+              default_branch: 'main',
+              commit_sha: 'abc123',
+              ref: 'refs/pull/5/merge',
+              event_name: 'pull_request',
+              workflow_run_url:
+                'https://github.com/hashgraph-online/registry-broker-skill/actions/runs/123456789',
+              skill_dir: '.',
+              name: 'preview-skill',
+              version: '0.1.0',
+              validation_status: 'passed',
+              findings: [],
+              package_summary: {
+                fileCount: 2,
+              },
+              suggested_next_steps: [],
+              generated_at: '2026-04-04T10:00:00.000Z',
+            },
+          },
+        }),
       }),
     );
 
@@ -323,6 +333,7 @@ describe('RegistryBrokerClient skill contract methods', () => {
     });
 
     expect(preview.found).toBe(true);
+    expect(preview.authoritative).toBe(true);
     expect(preview.preview?.report.repo_owner).toBe('hashgraph-online');
     expect(fetchImplementation).toHaveBeenCalledWith(
       'https://api.example.com/api/v1/skills/preview?name=preview-skill&version=0.1.0',
@@ -330,14 +341,15 @@ describe('RegistryBrokerClient skill contract methods', () => {
     );
   });
 
-  it('accepts authoritative preview lookup responses during rollout', async () => {
+  it('supports tier badge lookups for skill lifecycle flows', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
-        json: async () =>
-          createMockPreviewLookupResponse({
-            authoritative: true,
-            preview: createMockPreviewRecord({ authoritative: true }),
-          }),
+        json: async () => ({
+          schemaVersion: 1,
+          label: 'registry-broker',
+          message: 'verified',
+          color: 'brightgreen',
+        }),
       }),
     );
 
@@ -346,13 +358,16 @@ describe('RegistryBrokerClient skill contract methods', () => {
       fetchImplementation,
     });
 
-    const preview = await client.getSkillPreview({
-      name: 'preview-skill',
-      version: '0.1.0',
+    const badge = await client.getSkillBadge({
+      name: 'registry-broker',
+      metric: 'tier',
     });
 
-    expect(preview.authoritative).toBe(true);
-    expect(preview.preview?.authoritative).toBe(true);
+    expect(badge.message).toBe('verified');
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/skills/badge?name=registry-broker&metric=tier',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 
   it('retrieves repo-based skill status and preview metadata', async () => {
@@ -456,6 +471,110 @@ describe('RegistryBrokerClient skill contract methods', () => {
     );
   });
 
+  it('retrieves anonymous quote preview estimates', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          estimatedCredits: { min: 64, max: 76 },
+          estimatedHbar: { min: 0.64, max: 0.76 },
+          pricingVersion: 'heuristic-v1',
+          assumptions: [
+            'Estimate derived from package file count and total bytes.',
+          ],
+          purchaseUrl: 'https://hol.org/registry/skills/submit',
+          publishUrl: 'https://hol.org/registry/skills/submit',
+          verificationUrl: 'https://hol.org/registry/skills/submit',
+        }),
+      }),
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const quote = await client.quoteSkillPublishPreview({
+      fileCount: 4,
+      totalBytes: 18_500,
+      name: 'preview-skill',
+      version: '0.1.0',
+      repoUrl: 'https://github.com/hashgraph-online/registry-broker-skill',
+      skillDir: '.',
+    });
+
+    expect(quote.estimatedCredits.min).toBe(64);
+    expect(quote.pricingVersion).toBe('heuristic-v1');
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/skills/quote-preview',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          fileCount: 4,
+          totalBytes: 18_500,
+          name: 'preview-skill',
+          version: '0.1.0',
+          repoUrl: 'https://github.com/hashgraph-online/registry-broker-skill',
+          skillDir: '.',
+        }),
+      }),
+    );
+  });
+
+  it('retrieves repo conversion signals for growth-loop routing', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          repoUrl: 'https://github.com/hashgraph-online/registry-broker-skill',
+          skillDir: '.',
+          trustTier: 'validated',
+          actionInstalled: true,
+          previewUploaded: true,
+          previewId: 'preview_demo',
+          lastValidateSuccessAt: '2026-04-04T10:00:00.000Z',
+          stalePreviewAgeDays: 1,
+          published: false,
+          verified: false,
+          publishReady: true,
+          publishBlockedByMissingAuth: true,
+          statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
+          purchaseUrl: 'https://hol.org/registry/skills/submit',
+          publishUrl: 'https://github.com/marketplace/actions/skill-publish',
+          verificationUrl: 'https://hol.org/registry/skills/submit',
+          nextSteps: [
+            {
+              kind: 'publish_first_release',
+              priority: 100,
+              id: 'publish',
+              label: 'Publish the first immutable release',
+              description: 'Publish it.',
+              url: 'https://hol.org/registry/skills/submit',
+              href: 'https://hol.org/registry/skills/submit',
+              command: 'npx skill-publish publish',
+            },
+          ],
+        }),
+      }),
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const signals = await client.getSkillConversionSignalsByRepo({
+      repo: 'https://github.com/hashgraph-online/registry-broker-skill',
+      skillDir: '.',
+      ref: 'refs/heads/main',
+    });
+
+    expect(signals.publishReady).toBe(true);
+    expect(signals.previewId).toBe('preview_demo');
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/skills/conversion-signals/by-repo?repo=https%3A%2F%2Fgithub.com%2Fhashgraph-online%2Fregistry-broker-skill&skillDir=.&ref=refs%2Fheads%2Fmain',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('retrieves skill install metadata for a pinned release', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
@@ -501,7 +620,7 @@ describe('RegistryBrokerClient skill contract methods', () => {
             markdownLink:
               '[registry-broker on HOL Registry](https://hol.org/registry/skills/registry-broker?version=1.2.3)',
             htmlLink:
-              '<a href=\"https://hol.org/registry/skills/registry-broker?version=1.2.3\">registry-broker on HOL Registry</a>',
+              '<a href="https://hol.org/registry/skills/registry-broker?version=1.2.3">registry-broker on HOL Registry</a>',
             badge: {
               apiUrl:
                 'https://api.example.com/api/v1/skills/badge?name=registry-broker&metric=version&style=for-the-badge&label=registry-broker',
@@ -509,19 +628,19 @@ describe('RegistryBrokerClient skill contract methods', () => {
                 'https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.example.com%2Fapi%2Fv1%2Fskills%2Fbadge%3Fname%3Dregistry-broker%26metric%3Dversion%26style%3Dfor-the-badge%26label%3Dregistry-broker',
               markdown:
                 '[![registry-broker on HOL Registry (Version + Verification)](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.example.com%2Fapi%2Fv1%2Fskills%2Fbadge%3Fname%3Dregistry-broker%26metric%3Dversion%26style%3Dfor-the-badge%26label%3Dregistry-broker)](https://hol.org/registry/skills/registry-broker?version=1.2.3)',
-              html: '<a href=\"https://hol.org/registry/skills/registry-broker?version=1.2.3\"><img src=\"https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.example.com%2Fapi%2Fv1%2Fskills%2Fbadge%3Fname%3Dregistry-broker%26metric%3Dversion%26style%3Dfor-the-badge%26label%3Dregistry-broker\" alt=\"registry-broker on HOL Registry (Version + Verification)\" /></a>',
+              html: '<a href="https://hol.org/registry/skills/registry-broker?version=1.2.3"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.example.com%2Fapi%2Fv1%2Fskills%2Fbadge%3Fname%3Dregistry-broker%26metric%3Dversion%26style%3Dfor-the-badge%26label%3Dregistry-broker" alt="registry-broker on HOL Registry (Version + Verification)" /></a>',
             },
           },
           snippets: {
-            cli: 'npx @hol-org/registry skills get --name \"registry-broker\" --version \"1.2.3\"',
+            cli: 'npx @hol-org/registry skills get --name "registry-broker" --version "1.2.3"',
             claude:
-              'Skill URL (Claude):\\nhttps://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md',
+              'Skill URL (Claude):\nhttps://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md',
             cursor:
-              'Skill URL (Cursor):\\nhttps://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md',
+              'Skill URL (Cursor):\nhttps://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md',
             codex:
-              'Skill URL (Codex):\\nhttps://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md',
+              'Skill URL (Codex):\nhttps://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md',
             openclaw:
-              'skill_url: https://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md\\nmanifest_url: https://api.example.com/api/v1/skills/registry-broker%401.2.3/manifest',
+              'skill_url: https://api.example.com/api/v1/skills/registry-broker%401.2.3/SKILL.md\nmanifest_url: https://api.example.com/api/v1/skills/registry-broker%401.2.3/manifest',
           },
         }),
       }),
