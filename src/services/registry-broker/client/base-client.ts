@@ -18,6 +18,8 @@ import type {
   EncryptCipherEnvelopeOptions,
   EphemeralKeyPair,
   HistoryAutoTopUpOptions,
+  HbarPurchaseIntentRequest,
+  HbarPurchaseIntentResponse,
   InitializeAgentClientOptions,
   JsonObject,
   JsonValue,
@@ -48,6 +50,16 @@ import type {
   CompactHistoryRequestPayload,
   CreateAdapterRegistryCategoryRequest,
   CreateSessionResponse,
+  CreditBalanceResponse,
+  CreditProvidersResponse,
+  GuardBalanceResponse,
+  GuardReceiptSyncPayload,
+  GuardReceiptSyncResponse,
+  GuardRevocationResponse,
+  GuardSessionResponse,
+  GuardTrustByHashResponse,
+  GuardTrustResolveQuery,
+  GuardTrustResolveResponse,
   CreditPurchaseResponse,
   DashboardStatsResponse,
   DelegationPlanRequest,
@@ -235,11 +247,23 @@ import type {
   X402PurchaseResult,
 } from './credits';
 import {
+  createHbarPurchaseIntent as createHbarPurchaseIntentImpl,
+  getCreditProviders as getCreditProvidersImpl,
+  getCreditsBalance as getCreditsBalanceImpl,
   buyCreditsWithX402 as buyCreditsWithX402Impl,
   getX402Minimums as getX402MinimumsImpl,
   purchaseCreditsWithHbar as purchaseCreditsWithHbarImpl,
   purchaseCreditsWithX402 as purchaseCreditsWithX402Impl,
 } from './credits';
+import {
+  getGuardBillingBalance as getGuardBillingBalanceImpl,
+  getGuardEntitlements as getGuardEntitlementsImpl,
+  getGuardRevocations as getGuardRevocationsImpl,
+  getGuardSession as getGuardSessionImpl,
+  getGuardTrustByHash as getGuardTrustByHashImpl,
+  resolveGuardTrust as resolveGuardTrustImpl,
+  syncGuardReceipts as syncGuardReceiptsImpl,
+} from './guard';
 import {
   authenticateWithLedger as authenticateWithLedgerImpl,
   authenticateWithLedgerCredentials as authenticateWithLedgerCredentialsImpl,
@@ -1214,6 +1238,54 @@ export class RegistryBrokerClient {
 
   async dashboardStats(): Promise<DashboardStatsResponse> {
     return dashboardStatsImpl(this);
+  }
+
+  async getCreditsBalance(
+    params: { accountId?: string } = {},
+  ): Promise<CreditBalanceResponse> {
+    return getCreditsBalanceImpl(this, params);
+  }
+
+  async getCreditProviders(): Promise<CreditProvidersResponse> {
+    return getCreditProvidersImpl(this);
+  }
+
+  async getGuardSession(): Promise<GuardSessionResponse> {
+    return getGuardSessionImpl(this);
+  }
+
+  async getGuardEntitlements(): Promise<GuardSessionResponse> {
+    return getGuardEntitlementsImpl(this);
+  }
+
+  async getGuardBillingBalance(): Promise<GuardBalanceResponse> {
+    return getGuardBillingBalanceImpl(this);
+  }
+
+  async getGuardTrustByHash(sha256: string): Promise<GuardTrustByHashResponse> {
+    return getGuardTrustByHashImpl(this, sha256);
+  }
+
+  async resolveGuardTrust(
+    query: GuardTrustResolveQuery,
+  ): Promise<GuardTrustResolveResponse> {
+    return resolveGuardTrustImpl(this, query);
+  }
+
+  async getGuardRevocations(): Promise<GuardRevocationResponse> {
+    return getGuardRevocationsImpl(this);
+  }
+
+  async syncGuardReceipts(
+    payload: GuardReceiptSyncPayload,
+  ): Promise<GuardReceiptSyncResponse> {
+    return syncGuardReceiptsImpl(this, payload);
+  }
+
+  async createHbarPurchaseIntent(
+    payload: HbarPurchaseIntentRequest,
+  ): Promise<HbarPurchaseIntentResponse> {
+    return createHbarPurchaseIntentImpl(this, payload);
   }
 
   async purchaseCreditsWithHbar(params: {

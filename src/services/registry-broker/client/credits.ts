@@ -1,12 +1,19 @@
 import type {
+  CreditBalanceResponse,
+  CreditProvidersResponse,
   CreditPurchaseResponse,
+  HbarPurchaseIntentRequest,
+  HbarPurchaseIntentResponse,
   JsonObject,
   JsonValue,
   X402CreditPurchaseResponse,
   X402MinimumsResponse,
 } from '../types';
 import {
+  creditBalanceResponseSchema,
+  creditProvidersResponseSchema,
   creditPurchaseResponseSchema,
+  hbarPurchaseIntentResponseSchema,
   x402CreditPurchaseResponseSchema,
   x402MinimumsResponseSchema,
 } from '../schemas';
@@ -46,6 +53,73 @@ export type X402PurchaseResult = X402CreditPurchaseResponse & {
   paymentResponseHeader?: string;
   paymentResponse?: unknown;
 };
+
+export async function getCreditsBalance(
+  client: RegistryBrokerClient,
+  params: { accountId?: string } = {},
+): Promise<CreditBalanceResponse> {
+  const query = new URLSearchParams();
+  const normalizedAccountId = params.accountId?.trim();
+  if (normalizedAccountId) {
+    query.set('accountId', normalizedAccountId);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : '';
+  const raw = await client.requestJson<JsonValue>(`/credits/balance${suffix}`, {
+    method: 'GET',
+  });
+  return client.parseWithSchema(
+    raw,
+    creditBalanceResponseSchema,
+    'credit balance response',
+  );
+}
+
+export async function getCreditProviders(
+  client: RegistryBrokerClient,
+): Promise<CreditProvidersResponse> {
+  const raw = await client.requestJson<JsonValue>('/credits/providers', {
+    method: 'GET',
+  });
+  return client.parseWithSchema(
+    raw,
+    creditProvidersResponseSchema,
+    'credit providers response',
+  );
+}
+
+export async function createHbarPurchaseIntent(
+  client: RegistryBrokerClient,
+  payload: HbarPurchaseIntentRequest,
+): Promise<HbarPurchaseIntentResponse> {
+  const body: JsonObject = {};
+  const normalizedAccountId = payload.accountId?.trim();
+  if (normalizedAccountId) {
+    body.accountId = normalizedAccountId;
+  }
+  if (payload.credits !== undefined) {
+    body.credits = payload.credits;
+  }
+  if (payload.hbarAmount !== undefined) {
+    body.hbarAmount = payload.hbarAmount;
+  }
+  if (payload.memo?.trim()) {
+    body.memo = payload.memo.trim();
+  }
+
+  const raw = await client.requestJson<JsonValue>(
+    '/credits/payments/hbar/intent',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    hbarPurchaseIntentResponseSchema,
+    'hbar purchase intent response',
+  );
+}
 
 type LoadX402DependenciesResult = {
   createPaymentClient: (walletClient: object) => PaymentClient;

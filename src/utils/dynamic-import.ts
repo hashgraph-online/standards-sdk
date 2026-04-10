@@ -9,13 +9,26 @@ type NodeModuleNamespace = {
   createRequire: (path: string | URL) => NodeRequire;
 };
 
+type BuiltinModuleLoader = <TModule>(name: string) => TModule | undefined;
+
+function resolveBuiltinModuleLoader(): BuiltinModuleLoader | undefined {
+  if (typeof process === 'undefined') {
+    return undefined;
+  }
+
+  return (
+    process as typeof process & {
+      getBuiltinModule?: BuiltinModuleLoader;
+    }
+  ).getBuiltinModule;
+}
+
 function getNodeRequireSync(): NodeRequire | null {
   try {
-    const moduleNamespace = (
-      process as typeof process & {
-        getBuiltinModule?: (name: string) => unknown;
-      }
-    ).getBuiltinModule?.('module') as Partial<NodeModuleNamespace> | undefined;
+    const builtinModuleLoader = resolveBuiltinModuleLoader();
+    const moduleNamespace = builtinModuleLoader?.('module') as
+      | Partial<NodeModuleNamespace>
+      | undefined;
     if (typeof moduleNamespace?.createRequire === 'function') {
       const requireFromModule = moduleNamespace.createRequire(import.meta.url);
       if (typeof requireFromModule.resolve === 'function') {

@@ -18,7 +18,23 @@ import {
   protocolsResponseSchema,
   registerAgentResponseSchema,
   registrationQuoteResponseSchema,
+  creditProviderSummarySchema,
+  creditProvidersResponseSchema,
+  creditBalanceResponseSchema,
+  guardBalanceResponseSchema,
+  guardBucketBalanceSchema,
+  guardEntitlementsSchema,
+  guardPlanIdSchema,
+  guardPrincipalSchema,
+  guardReceiptSchema,
+  guardReceiptSyncResponseSchema,
+  guardRevocationResponseSchema,
+  guardSessionResponseSchema,
+  guardTrustByHashResponseSchema,
+  guardTrustMatchSchema,
+  guardTrustResolveResponseSchema,
   creditPurchaseResponseSchema,
+  hbarPurchaseIntentResponseSchema,
   x402CreditPurchaseResponseSchema,
   x402MinimumsResponseSchema,
   registriesResponseSchema,
@@ -254,6 +270,48 @@ export interface AutoTopUpOptions {
 export interface HistoryAutoTopUpOptions extends AutoTopUpOptions {
   hbarAmount?: number;
 }
+
+export type GuardPlanId = z.infer<typeof guardPlanIdSchema>;
+
+export type GuardPrincipal = z.infer<typeof guardPrincipalSchema>;
+
+export type GuardEntitlements = z.infer<typeof guardEntitlementsSchema>;
+
+export type GuardBucketBalance = z.infer<typeof guardBucketBalanceSchema>;
+
+export type GuardSessionResponse = z.infer<typeof guardSessionResponseSchema>;
+
+export type GuardBalanceResponse = z.infer<typeof guardBalanceResponseSchema>;
+
+export type GuardTrustMatch = z.infer<typeof guardTrustMatchSchema>;
+
+export type GuardTrustByHashResponse = z.infer<
+  typeof guardTrustByHashResponseSchema
+>;
+
+export interface GuardTrustResolveQuery {
+  ecosystem?: string;
+  name?: string;
+  version?: string;
+}
+
+export type GuardTrustResolveResponse = z.infer<
+  typeof guardTrustResolveResponseSchema
+>;
+
+export type GuardRevocationResponse = z.infer<
+  typeof guardRevocationResponseSchema
+>;
+
+export type GuardReceipt = z.infer<typeof guardReceiptSchema>;
+
+export interface GuardReceiptSyncPayload {
+  receipts: GuardReceipt[];
+}
+
+export type GuardReceiptSyncResponse = z.infer<
+  typeof guardReceiptSyncResponseSchema
+>;
 
 export interface RegisterAgentOptions {
   autoTopUp?: AutoTopUpOptions;
@@ -733,6 +791,20 @@ export type RegistrationProgressResponse = z.infer<
 >;
 export type RegisterAgentQuoteResponse = z.infer<
   typeof registrationQuoteResponseSchema
+>;
+export type CreditProviderSummary = z.infer<typeof creditProviderSummarySchema>;
+export type CreditProvidersResponse = z.infer<
+  typeof creditProvidersResponseSchema
+>;
+export type CreditBalanceResponse = z.infer<typeof creditBalanceResponseSchema>;
+export interface HbarPurchaseIntentRequest {
+  accountId?: string;
+  credits?: number;
+  hbarAmount?: number;
+  memo?: string;
+}
+export type HbarPurchaseIntentResponse = z.infer<
+  typeof hbarPurchaseIntentResponseSchema
 >;
 export type CreditPurchaseResponse = z.infer<
   typeof creditPurchaseResponseSchema

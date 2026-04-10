@@ -78,9 +78,12 @@ async function loadNodeModules(): Promise<void> {
     Logger.getInstance({
       module: 'Inscriber',
       level: 'warn',
-    }).warn('Node.js modules not available, file path operations will be disabled', {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    }).warn(
+      'Node.js modules not available, file path operations will be disabled',
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
 }
 

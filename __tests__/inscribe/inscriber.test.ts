@@ -1,9 +1,6 @@
 import path from 'node:path';
 import { optionalImport } from '../../src/utils/dynamic-import';
-import {
-  getRegistryBrokerQuote,
-  inscribe,
-} from '../../src/inscribe/inscriber';
+import { getRegistryBrokerQuote, inscribe } from '../../src/inscribe/inscriber';
 
 const mockInscribeAndExecute = jest.fn();
 const mockGetTransaction = jest.fn();
@@ -139,9 +136,9 @@ describe('inscriber file-type handling', () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(
-      JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).mimeType,
-    ).toBe('image/png');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).mimeType).toBe(
+      'image/png',
+    );
     expect(mockOptionalImport).toHaveBeenCalledWith('file-type');
   });
 });
