@@ -218,6 +218,65 @@ export const resolveResponseSchema = z.object({
   agent: searchHitSchema,
 });
 
+const delegationPlanCandidateSchema = z
+  .object({
+    uaid: z.string(),
+    score: z.number(),
+    displayName: z.string().optional(),
+    summary: z.string().optional(),
+    protocols: z.array(z.string()).optional(),
+    surfaces: z.array(z.string()).optional(),
+    languages: z.array(z.string()).optional(),
+    artifacts: z.array(z.string()).optional(),
+    availability: z.boolean().optional(),
+    explanation: z.string().optional(),
+  })
+  .passthrough();
+
+const delegationOpportunitySchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    reason: z.string(),
+    role: z.string(),
+    type: z.enum(['ai-agents', 'mcp-servers']),
+    suggestedMode: z.enum(['best-match', 'fallback', 'parallel']),
+    searchQueries: z.array(z.string()),
+    protocols: z.array(z.string()).optional(),
+    surfaces: z.array(z.string()).optional(),
+    languages: z.array(z.string()).optional(),
+    artifacts: z.array(z.string()).optional(),
+    candidates: z.array(delegationPlanCandidateSchema),
+  })
+  .passthrough();
+
+const delegationRecommendationSchema = z
+  .object({
+    action: z.enum(['delegate-now', 'review-shortlist', 'handle-locally']),
+    confidence: z.number(),
+    reason: z.string(),
+    opportunityId: z.string().optional(),
+    candidate: delegationPlanCandidateSchema.optional(),
+  })
+  .passthrough();
+
+export const delegationPlanResponseSchema = z
+  .object({
+    task: z.string(),
+    context: z.string().optional(),
+    summary: z.string().optional(),
+    intents: z.array(z.string()),
+    protocols: z.array(z.string()),
+    surfaces: z.array(z.string()),
+    languages: z.array(z.string()).optional(),
+    artifacts: z.array(z.string()).optional(),
+    shouldDelegate: z.boolean(),
+    localFirstReason: z.string().optional(),
+    recommendation: delegationRecommendationSchema.optional(),
+    opportunities: z.array(delegationOpportunitySchema),
+  })
+  .passthrough();
+
 const agentFeedbackSummarySchema = z.object({
   averageScore: z.number(),
   totalFeedbacks: z.number(),
@@ -870,6 +929,170 @@ export const creditPurchaseResponseSchema = z.object({
   consensusTimestamp: z.string().nullable().optional(),
 });
 
+export const creditProviderSummarySchema = z.object({
+  name: z.string(),
+  publishableKey: z.string().optional(),
+  currency: z.string().optional(),
+  centsPerHbar: z.number().nullable().optional(),
+});
+
+export const creditProvidersResponseSchema = z.object({
+  providers: z.array(creditProviderSummarySchema),
+});
+
+export const creditBalanceResponseSchema = z.object({
+  accountId: z.string(),
+  balance: z.number(),
+  balanceRecord: jsonValueSchema.optional(),
+  timestamp: z.string().optional(),
+});
+
+export const guardPlanIdSchema = z.enum(['free', 'pro', 'team', 'enterprise']);
+
+export const guardBucketBalanceSchema = z.object({
+  bucketId: z.enum([
+    'registry_credits',
+    'chat_credits',
+    'guard_credits',
+    'org_policy_credits',
+  ]),
+  label: z.string(),
+  availableCredits: z.number(),
+  includedMonthlyCredits: z.number().nullable().optional(),
+});
+
+export const guardPrincipalSchema = z.object({
+  signedIn: z.boolean(),
+  userId: z.string().optional(),
+  email: z.string().optional(),
+  accountId: z.string().optional(),
+  stripeCustomerId: z.string().optional(),
+  roles: z.array(z.string()),
+});
+
+export const guardEntitlementsSchema = z.object({
+  planId: guardPlanIdSchema,
+  includedMonthlyCredits: z.number(),
+  deviceLimit: z.number(),
+  retentionDays: z.number(),
+  syncEnabled: z.boolean(),
+  premiumFeedsEnabled: z.boolean(),
+  teamPolicyEnabled: z.boolean(),
+});
+
+export const guardSessionResponseSchema = z.object({
+  principal: guardPrincipalSchema,
+  entitlements: guardEntitlementsSchema,
+  balance: z
+    .object({
+      accountId: z.string(),
+      availableCredits: z.number(),
+    })
+    .nullable(),
+  bucketingMode: z.enum(['shared-ledger', 'product-bucketed']),
+  buckets: z.array(guardBucketBalanceSchema),
+});
+
+export const guardBalanceResponseSchema = z.object({
+  generatedAt: z.string(),
+  bucketingMode: z.enum(['shared-ledger', 'product-bucketed']),
+  buckets: z.array(guardBucketBalanceSchema),
+});
+
+export const guardTrustMatchSchema = z.object({
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactSlug: z.string(),
+  recommendation: z.enum(['monitor', 'review', 'block']),
+  verified: z.boolean(),
+  safetyScore: z.number().nullable().optional(),
+  trustScore: z.number().nullable().optional(),
+  href: z.string().optional(),
+  ecosystem: z.string().optional(),
+});
+
+export const guardTrustByHashResponseSchema = z.object({
+  generatedAt: z.string(),
+  query: z.object({
+    sha256: z.string(),
+  }),
+  match: guardTrustMatchSchema.nullable(),
+  evidence: z.array(z.string()),
+});
+
+export const guardTrustResolveResponseSchema = z.object({
+  generatedAt: z.string(),
+  query: z.object({
+    ecosystem: z.string().optional(),
+    name: z.string().optional(),
+    version: z.string().optional(),
+  }),
+  items: z.array(guardTrustMatchSchema),
+});
+
+export const guardRevocationSchema = z.object({
+  id: z.string(),
+  artifactId: z.string(),
+  artifactName: z.string(),
+  reason: z.string(),
+  severity: z.enum(['low', 'medium', 'high']),
+  publishedAt: z.string(),
+});
+
+export const guardRevocationResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardRevocationSchema),
+});
+
+export const guardReceiptSchema = z.object({
+  receiptId: z.string(),
+  capturedAt: z.string(),
+  harness: z.string(),
+  deviceId: z.string(),
+  deviceName: z.string(),
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactSlug: z.string(),
+  artifactHash: z.string(),
+  policyDecision: z.enum([
+    'allow',
+    'warn',
+    'block',
+    'review',
+    'require-reapproval',
+    'sandbox-required',
+  ]),
+  recommendation: z.enum(['monitor', 'review', 'block']),
+  changedSinceLastApproval: z.boolean(),
+  publisher: z.string().optional(),
+  capabilities: z.array(z.string()),
+  summary: z.string(),
+});
+
+export const guardReceiptSyncResponseSchema = z.object({
+  syncedAt: z.string(),
+  receiptsStored: z.number(),
+});
+
+export const hbarPurchaseIntentResponseSchema = z.object({
+  transaction: z.string(),
+  transactionId: z.string(),
+  network: z.enum(['mainnet', 'testnet']),
+  accountId: z.string(),
+  treasuryAccountId: z.string(),
+  hbarAmount: z.number(),
+  credits: z.number(),
+  tinybarAmount: z.number(),
+  memo: z.string(),
+  centsPerHbar: z.number(),
+  validStart: z.string(),
+  validDurationSeconds: z.number(),
+  requiresManualSubmit: z.literal(true),
+  purchaseId: z.string(),
+});
+
 const x402SettlementSchema = z
   .object({
     success: z.boolean().optional(),
@@ -1361,14 +1584,27 @@ export const skillDeprecationsResponseSchema = z
   })
   .passthrough();
 
+export const skillSecurityBreakdownResponseSchema = z
+  .object({
+    jobId: z.string(),
+    score: z.number().nullable().optional(),
+    findings: z.array(z.unknown()).optional(),
+    summary: z.unknown().optional(),
+    generatedAt: z.string().nullable().optional(),
+    scannerVersion: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 export const skillBadgeMetricSchema = z.enum([
   'version',
+  'version_verification',
   'status',
   'verification',
   'repo_commit',
   'manifest',
   'domain',
   'trust',
+  'tier',
   'safety',
   'upvotes',
   'updated',
@@ -1661,14 +1897,14 @@ export const skillPreviewRecordSchema = z
     generatedAt: z.string(),
     expiresAt: z.string(),
     statusUrl: z.string(),
-    authoritative: z.literal(false),
+    authoritative: z.boolean(),
   })
   .passthrough();
 
 export const skillPreviewLookupResponseSchema = z
   .object({
     found: z.boolean(),
-    authoritative: z.literal(false),
+    authoritative: z.boolean(),
     preview: skillPreviewRecordSchema.nullable(),
     statusUrl: z.string().nullable(),
     expiresAt: z.string().nullable(),
@@ -1725,20 +1961,7 @@ export const skillStatusResponseSchema = z
     published: z.boolean(),
     verifiedDomain: z.boolean(),
     trustTier: skillTrustTierSchema,
-    badgeMetric: z.enum([
-      'version',
-      'version_verification',
-      'status',
-      'verification',
-      'repo_commit',
-      'manifest',
-      'domain',
-      'trust',
-      'tier',
-      'upvotes',
-      'updated',
-      'safety',
-    ]),
+    badgeMetric: skillBadgeMetricSchema,
     checks: skillStatusChecksSchema,
     nextSteps: z.array(skillStatusNextStepSchema),
     verificationSignals: skillStatusVerificationSignalsSchema,
