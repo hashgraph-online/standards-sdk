@@ -281,7 +281,7 @@ describe('RegistryBrokerClient skill contract methods', () => {
       createResponse({
         json: async () => ({
           found: true,
-          authoritative: false,
+          authoritative: true,
           statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
           expiresAt: '2026-04-11T10:00:00.000Z',
           preview: {
@@ -291,7 +291,7 @@ describe('RegistryBrokerClient skill contract methods', () => {
             generatedAt: '2026-04-04T10:00:00.000Z',
             expiresAt: '2026-04-11T10:00:00.000Z',
             statusUrl: 'https://hol.org/registry/skills/preview/preview_demo',
-            authoritative: false,
+            authoritative: true,
             report: {
               schema_version: 'skill-preview.v1',
               tool_version: '1.0.0',
@@ -333,9 +333,39 @@ describe('RegistryBrokerClient skill contract methods', () => {
     });
 
     expect(preview.found).toBe(true);
+    expect(preview.authoritative).toBe(true);
     expect(preview.preview?.report.repo_owner).toBe('hashgraph-online');
     expect(fetchImplementation).toHaveBeenCalledWith(
       'https://api.example.com/api/v1/skills/preview?name=preview-skill&version=0.1.0',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('supports tier badge lookups for skill lifecycle flows', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          schemaVersion: 1,
+          label: 'registry-broker',
+          message: 'verified',
+          color: 'brightgreen',
+        }),
+      }),
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const badge = await client.getSkillBadge({
+      name: 'registry-broker',
+      metric: 'tier',
+    });
+
+    expect(badge.message).toBe('verified');
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/skills/badge?name=registry-broker&metric=tier',
       expect.objectContaining({ method: 'GET' }),
     );
   });

@@ -73,6 +73,29 @@ await client.verifySkillDomainProof({
 
 Runnable demo: `pnpm -C standards-sdk tsx demo/registry-broker/skill-domain-proof-demo.ts --skill-name=<name> --base-url=<broker-api-url>`.
 
+### Registry Broker skill lifecycle status
+
+The `RegistryBrokerClient` can resolve lifecycle status for a skill name/version and surface preview evidence when a repo has only completed validate-first checks:
+
+```typescript
+import { RegistryBrokerClient } from '@hashgraphonline/standards-sdk';
+
+const client = new RegistryBrokerClient({
+  baseUrl: 'https://hol.org/registry/api/v1',
+});
+
+const status = await client.getSkillStatus({
+  name: 'registry-broker',
+  version: '1.0.0',
+});
+
+console.log(status.trustTier);
+console.log(status.nextSteps);
+console.log(status.preview?.statusUrl ?? null);
+```
+
+Runnable demo: `pnpm -C standards-sdk run demo:registry-broker-skill-status -- --skill-name=<name> --skill-version=<version> --base-url=<broker-api-url>`.
+
 ### Registry Broker UAID DNS verification (HCS-14 DNS TXT profile)
 
 The `RegistryBrokerClient` can verify and persist `_uaid.<nativeId>` TXT proof for an agent UAID:

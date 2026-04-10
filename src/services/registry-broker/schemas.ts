@@ -1584,12 +1584,15 @@ export const skillDeprecationsResponseSchema = z
   })
   .passthrough();
 
+const skillSecurityBreakdownFindingSchema = z.record(jsonValueSchema);
+const skillSecurityBreakdownSummarySchema = z.record(jsonValueSchema);
+
 export const skillSecurityBreakdownResponseSchema = z
   .object({
     jobId: z.string(),
     score: z.number().nullable().optional(),
-    findings: z.array(z.unknown()).optional(),
-    summary: z.unknown().optional(),
+    findings: z.array(skillSecurityBreakdownFindingSchema).optional(),
+    summary: skillSecurityBreakdownSummarySchema.optional(),
     generatedAt: z.string().nullable().optional(),
     scannerVersion: z.string().nullable().optional(),
   })

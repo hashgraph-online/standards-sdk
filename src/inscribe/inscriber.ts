@@ -33,6 +33,15 @@ let nodeModules: {
   extname?: (path: string) => string;
 } = {};
 
+type NodeFsModule = {
+  readFileSync: (path: string) => Buffer;
+};
+
+type NodePathModule = {
+  basename: (path: string) => string;
+  extname: (path: string) => string;
+};
+
 type FileTypeModule = {
   fileTypeFromBuffer?: (
     buffer: Buffer,
@@ -53,22 +62,27 @@ async function loadNodeModules(): Promise<void> {
   }
 
   try {
-    const globalObj = typeof global !== 'undefined' ? global : globalThis;
-    const req = globalObj.process?.mainModule?.require || globalObj.require;
+    const [fsModule, pathModule] = await Promise.all([
+      optionalImport<NodeFsModule>('node:fs'),
+      optionalImport<NodePathModule>('node:path'),
+    ]);
 
-    if (typeof req === 'function') {
-      const fs = req('fs');
-      const path = req('path');
-
-      nodeModules.readFileSync = fs.readFileSync;
-      nodeModules.basename = path.basename;
-      nodeModules.extname = path.extname;
-    } else {
-      throw new Error('require function not available');
+    if (!fsModule || !pathModule) {
+      throw new Error('Node.js fs or path module not available');
     }
+
+    nodeModules.readFileSync = fsModule.readFileSync;
+    nodeModules.basename = pathModule.basename;
+    nodeModules.extname = pathModule.extname;
   } catch (error) {
-    console.warn(
+    Logger.getInstance({
+      module: 'Inscriber',
+      level: 'warn',
+    }).warn(
       'Node.js modules not available, file path operations will be disabled',
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
     );
   }
 }
@@ -129,7 +143,7 @@ async function convertFileToBase64(filePath: string): Promise<{
       if (fileTypeResult) {
         mimeType = fileTypeResult.mime;
       }
-    } catch (error) {
+    } catch (_error) {
       const ext = nodeModules.extname(filePath).toLowerCase();
       const mimeMap: Record<string, string> = {
         '.txt': 'text/plain',

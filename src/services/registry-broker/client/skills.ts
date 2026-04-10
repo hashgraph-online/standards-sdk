@@ -83,6 +83,14 @@ import {
 } from '../schemas';
 import type { RegistryBrokerClient } from './base-client';
 
+function requireTrimmedString(value: string, fieldName: string): string {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) {
+    throw new Error(`${fieldName} is required`);
+  }
+  return normalizedValue;
+}
+
 export async function skillsConfig(
   client: RegistryBrokerClient,
 ): Promise<SkillRegistryConfigResponse> {
@@ -155,10 +163,7 @@ export async function getSkillSecurityBreakdown(
   client: RegistryBrokerClient,
   params: SkillSecurityBreakdownRequest,
 ): Promise<SkillSecurityBreakdownResponse> {
-  const normalizedJobId = params.jobId.trim();
-  if (!normalizedJobId) {
-    throw new Error('jobId is required');
-  }
+  const normalizedJobId = requireTrimmedString(params.jobId, 'jobId');
 
   const raw = await client.requestJson<JsonValue>(
     `/skills/${encodeURIComponent(normalizedJobId)}/security-breakdown`,
@@ -223,10 +228,7 @@ export async function listSkillVersions(
   client: RegistryBrokerClient,
   params: { name: string },
 ): Promise<SkillRegistryVersionsResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
@@ -347,10 +349,7 @@ export async function getSkillPublishJob(
   jobId: string,
   params: { accountId?: string } = {},
 ): Promise<SkillRegistryJobStatusResponse> {
-  const normalized = jobId.trim();
-  if (!normalized) {
-    throw new Error('jobId is required');
-  }
+  const normalized = requireTrimmedString(jobId, 'jobId');
 
   const query = new URLSearchParams();
   if (params.accountId) {
@@ -374,10 +373,7 @@ export async function getSkillOwnership(
   client: RegistryBrokerClient,
   params: { name: string; accountId?: string },
 ): Promise<SkillRegistryOwnershipResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
@@ -403,10 +399,7 @@ export async function getRecommendedSkillVersion(
   client: RegistryBrokerClient,
   params: { name: string },
 ): Promise<SkillRecommendedVersionResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
   const query = new URLSearchParams();
   query.set('name', normalizedName);
   const raw = await client.requestJson<JsonValue>(
@@ -424,14 +417,8 @@ export async function setRecommendedSkillVersion(
   client: RegistryBrokerClient,
   payload: SkillRecommendedVersionSetRequest,
 ): Promise<SkillRecommendedVersionResponse> {
-  const normalizedName = payload.name.trim();
-  const normalizedVersion = payload.version.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
-  if (!normalizedVersion) {
-    throw new Error('version is required');
-  }
+  const normalizedName = requireTrimmedString(payload.name, 'name');
+  const normalizedVersion = requireTrimmedString(payload.version, 'version');
   const raw = await client.requestJson<JsonValue>('/skills/recommended', {
     method: 'POST',
     body: {
@@ -451,10 +438,7 @@ export async function getSkillDeprecations(
   client: RegistryBrokerClient,
   params: { name: string },
 ): Promise<SkillDeprecationsResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
   const query = new URLSearchParams();
   query.set('name', normalizedName);
   const raw = await client.requestJson<JsonValue>(
@@ -472,15 +456,9 @@ export async function setSkillDeprecation(
   client: RegistryBrokerClient,
   payload: SkillDeprecationSetRequest,
 ): Promise<SkillDeprecationRecord> {
-  const normalizedName = payload.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(payload.name, 'name');
   const version = payload.version?.trim();
-  const reason = payload.reason.trim();
-  if (!reason) {
-    throw new Error('reason is required');
-  }
+  const reason = requireTrimmedString(payload.reason, 'reason');
   const replacementRef = payload.replacementRef?.trim();
   const raw = await client.requestJson<JsonValue>('/skills/deprecate', {
     method: 'POST',
@@ -503,10 +481,7 @@ export async function getSkillBadge(
   client: RegistryBrokerClient,
   params: SkillBadgeQuery,
 ): Promise<SkillBadgeResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
   const query = new URLSearchParams();
   query.set('name', normalizedName);
   if (params.metric) {
@@ -533,10 +508,7 @@ export async function getSkillStatus(
   client: RegistryBrokerClient,
   params: SkillStatusRequest,
 ): Promise<SkillStatusResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
@@ -560,14 +532,8 @@ export async function getSkillStatusByRepo(
   client: RegistryBrokerClient,
   params: SkillPreviewByRepoRequest,
 ): Promise<SkillStatusResponse> {
-  const repo = params.repo.trim();
-  const skillDir = params.skillDir.trim();
-  if (!repo) {
-    throw new Error('repo is required');
-  }
-  if (!skillDir) {
-    throw new Error('skillDir is required');
-  }
+  const repo = requireTrimmedString(params.repo, 'repo');
+  const skillDir = requireTrimmedString(params.skillDir, 'skillDir');
 
   const query = new URLSearchParams();
   query.set('repo', repo);
@@ -592,14 +558,8 @@ export async function getSkillConversionSignalsByRepo(
   client: RegistryBrokerClient,
   params: SkillPreviewByRepoRequest,
 ): Promise<SkillConversionSignalsResponse> {
-  const repo = params.repo.trim();
-  const skillDir = params.skillDir.trim();
-  if (!repo) {
-    throw new Error('repo is required');
-  }
-  if (!skillDir) {
-    throw new Error('skillDir is required');
-  }
+  const repo = requireTrimmedString(params.repo, 'repo');
+  const skillDir = requireTrimmedString(params.skillDir, 'skillDir');
 
   const query = new URLSearchParams();
   query.set('repo', repo);
@@ -624,10 +584,7 @@ export async function uploadSkillPreviewFromGithubOidc(
   client: RegistryBrokerClient,
   payload: UploadSkillPreviewFromGithubOidcRequest,
 ): Promise<SkillPreviewRecord> {
-  const token = payload.token.trim();
-  if (!token) {
-    throw new Error('token is required');
-  }
+  const token = requireTrimmedString(payload.token, 'token');
 
   const raw = await client.requestJson<JsonValue>(
     '/skills/preview/github-oidc',
@@ -652,10 +609,7 @@ export async function getSkillPreview(
   client: RegistryBrokerClient,
   params: SkillPreviewLookupRequest,
 ): Promise<SkillPreviewLookupResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
@@ -679,14 +633,8 @@ export async function getSkillPreviewByRepo(
   client: RegistryBrokerClient,
   params: SkillPreviewByRepoRequest,
 ): Promise<SkillPreviewLookupResponse> {
-  const repo = params.repo.trim();
-  const skillDir = params.skillDir.trim();
-  if (!repo) {
-    throw new Error('repo is required');
-  }
-  if (!skillDir) {
-    throw new Error('skillDir is required');
-  }
+  const repo = requireTrimmedString(params.repo, 'repo');
+  const skillDir = requireTrimmedString(params.skillDir, 'skillDir');
 
   const query = new URLSearchParams();
   query.set('repo', repo);
@@ -711,10 +659,7 @@ export async function getSkillPreviewById(
   client: RegistryBrokerClient,
   previewId: string,
 ): Promise<SkillPreviewLookupResponse> {
-  const normalizedPreviewId = previewId.trim();
-  if (!normalizedPreviewId) {
-    throw new Error('previewId is required');
-  }
+  const normalizedPreviewId = requireTrimmedString(previewId, 'previewId');
 
   const raw = await client.requestJson<JsonValue>(
     `/skills/preview/${encodeURIComponent(normalizedPreviewId)}`,
@@ -732,10 +677,7 @@ export async function getSkillInstall(
   client: RegistryBrokerClient,
   skillRef: string,
 ): Promise<SkillInstallResponse> {
-  const normalizedSkillRef = skillRef.trim();
-  if (!normalizedSkillRef) {
-    throw new Error('skillRef is required');
-  }
+  const normalizedSkillRef = requireTrimmedString(skillRef, 'skillRef');
 
   const raw = await client.requestJson<JsonValue>(
     `/skills/${encodeURIComponent(normalizedSkillRef)}/install`,
@@ -754,10 +696,7 @@ export async function recordSkillInstallCopy(
   skillRef: string,
   payload: SkillInstallCopyTelemetryRequest = {},
 ): Promise<SkillInstallCopyTelemetryResponse> {
-  const normalizedSkillRef = skillRef.trim();
-  if (!normalizedSkillRef) {
-    throw new Error('skillRef is required');
-  }
+  const normalizedSkillRef = requireTrimmedString(skillRef, 'skillRef');
 
   const raw = await client.requestJson<JsonValue>(
     `/skills/${encodeURIComponent(normalizedSkillRef)}/telemetry/install-copy`,
@@ -805,10 +744,7 @@ export async function resolveSkillMarkdown(
   client: RegistryBrokerClient,
   skillRef: string,
 ): Promise<string> {
-  const normalizedSkillRef = skillRef.trim();
-  if (!normalizedSkillRef) {
-    throw new Error('skillRef is required');
-  }
+  const normalizedSkillRef = requireTrimmedString(skillRef, 'skillRef');
   const response = await client.request(
     `/skills/${encodeURIComponent(normalizedSkillRef)}/SKILL.md`,
     {
@@ -825,10 +761,7 @@ export async function resolveSkillManifest(
   client: RegistryBrokerClient,
   skillRef: string,
 ): Promise<SkillResolverManifestResponse> {
-  const normalizedSkillRef = skillRef.trim();
-  if (!normalizedSkillRef) {
-    throw new Error('skillRef is required');
-  }
+  const normalizedSkillRef = requireTrimmedString(skillRef, 'skillRef');
   const raw = await client.requestJson<JsonValue>(
     `/skills/${encodeURIComponent(normalizedSkillRef)}/manifest`,
     {
@@ -846,10 +779,7 @@ export async function getSkillVoteStatus(
   client: RegistryBrokerClient,
   params: { name: string },
 ): Promise<SkillRegistryVoteStatusResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
@@ -870,10 +800,7 @@ export async function setSkillVote(
   client: RegistryBrokerClient,
   payload: SkillRegistryVoteRequest,
 ): Promise<SkillRegistryVoteStatusResponse> {
-  const normalizedName = payload.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(payload.name, 'name');
 
   const raw = await client.requestJson<JsonValue>('/skills/vote', {
     method: 'POST',
@@ -892,10 +819,7 @@ export async function requestSkillVerification(
   client: RegistryBrokerClient,
   payload: SkillVerificationRequestCreateRequest,
 ): Promise<SkillVerificationRequestCreateResponse> {
-  const normalizedName = payload.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(payload.name, 'name');
 
   const raw = await client.requestJson<JsonValue>(
     '/skills/verification/request',
@@ -921,10 +845,7 @@ export async function getSkillVerificationStatus(
   client: RegistryBrokerClient,
   params: { name: string; version?: string },
 ): Promise<SkillVerificationStatusResponse> {
-  const normalizedName = params.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(params.name, 'name');
 
   const query = new URLSearchParams();
   query.set('name', normalizedName);
@@ -948,10 +869,7 @@ export async function createSkillDomainProofChallenge(
   client: RegistryBrokerClient,
   payload: SkillVerificationDomainProofChallengeRequest,
 ): Promise<SkillVerificationDomainProofChallengeResponse> {
-  const normalizedName = payload.name.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
+  const normalizedName = requireTrimmedString(payload.name, 'name');
 
   const raw = await client.requestJson<JsonValue>(
     '/skills/verification/domain/challenge',
@@ -977,14 +895,11 @@ export async function verifySkillDomainProof(
   client: RegistryBrokerClient,
   payload: SkillVerificationDomainProofVerifyRequest,
 ): Promise<SkillVerificationDomainProofVerifyResponse> {
-  const normalizedName = payload.name.trim();
-  const challengeToken = payload.challengeToken.trim();
-  if (!normalizedName) {
-    throw new Error('name is required');
-  }
-  if (!challengeToken) {
-    throw new Error('challengeToken is required');
-  }
+  const normalizedName = requireTrimmedString(payload.name, 'name');
+  const challengeToken = requireTrimmedString(
+    payload.challengeToken,
+    'challengeToken',
+  );
 
   const raw = await client.requestJson<JsonValue>(
     '/skills/verification/domain/verify',

@@ -9,14 +9,23 @@ type NodeModuleNamespace = {
   createRequire: (path: string | URL) => NodeRequire;
 };
 
-function getNodeRequireSync(): NodeRequire | null {
-  const builtinModuleLoader = (
+type BuiltinModuleLoader = <TModule>(name: string) => TModule | undefined;
+
+function resolveBuiltinModuleLoader(): BuiltinModuleLoader | undefined {
+  if (typeof process === 'undefined') {
+    return undefined;
+  }
+
+  return (
     process as typeof process & {
-      getBuiltinModule?: <TModule>(name: string) => TModule | undefined;
+      getBuiltinModule?: BuiltinModuleLoader;
     }
   ).getBuiltinModule;
+}
 
+function getNodeRequireSync(): NodeRequire | null {
   try {
+    const builtinModuleLoader = resolveBuiltinModuleLoader();
     const moduleNamespace = builtinModuleLoader?.('module') as
       | Partial<NodeModuleNamespace>
       | undefined;
