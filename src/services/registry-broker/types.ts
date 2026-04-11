@@ -26,8 +26,30 @@ import {
   guardEntitlementsSchema,
   guardPlanIdSchema,
   guardPrincipalSchema,
+  guardHistoryArtifactSchema,
   guardReceiptSchema,
+  guardReceiptHistoryResponseSchema,
   guardReceiptSyncResponseSchema,
+  guardInventoryArtifactSchema,
+  guardInventoryResponseSchema,
+  guardAbomSummarySchema,
+  guardAbomResponseSchema,
+  guardTimelineEventSchema,
+  guardArtifactTimelineResponseSchema,
+  guardReceiptExportSummarySchema,
+  guardExportSignatureSchema,
+  guardReceiptExportResponseSchema,
+  guardAlertPreferencesSchema,
+  guardWatchlistItemSchema,
+  guardWatchlistResponseSchema,
+  guardInventoryDiffEntrySchema,
+  guardInventoryDiffResponseSchema,
+  guardExceptionItemSchema,
+  guardExceptionListResponseSchema,
+  guardTeamPolicyAuditItemSchema,
+  guardTeamPolicyPackSchema,
+  guardDeviceSchema,
+  guardDeviceListResponseSchema,
   guardRevocationResponseSchema,
   guardSessionResponseSchema,
   guardTrustByHashResponseSchema,
@@ -307,11 +329,123 @@ export type GuardReceipt = z.infer<typeof guardReceiptSchema>;
 
 export interface GuardReceiptSyncPayload {
   receipts: GuardReceipt[];
+  inventory?: GuardInventoryArtifact[];
 }
 
 export type GuardReceiptSyncResponse = z.infer<
   typeof guardReceiptSyncResponseSchema
 >;
+
+export type GuardHistoryArtifact = z.infer<typeof guardHistoryArtifactSchema>;
+
+export type GuardReceiptHistoryResponse = z.infer<
+  typeof guardReceiptHistoryResponseSchema
+>;
+
+export type GuardInventoryArtifact = z.infer<
+  typeof guardInventoryArtifactSchema
+>;
+
+export type GuardInventoryResponse = z.infer<
+  typeof guardInventoryResponseSchema
+>;
+
+export type GuardInventoryDiffEntry = z.infer<
+  typeof guardInventoryDiffEntrySchema
+>;
+
+export type GuardInventoryDiffResponse = z.infer<
+  typeof guardInventoryDiffResponseSchema
+>;
+
+export type GuardAbomSummary = z.infer<typeof guardAbomSummarySchema>;
+
+export type GuardAbomResponse = z.infer<typeof guardAbomResponseSchema>;
+
+export type GuardTimelineEvent = z.infer<typeof guardTimelineEventSchema>;
+
+export type GuardArtifactTimelineResponse = z.infer<
+  typeof guardArtifactTimelineResponseSchema
+>;
+
+export type GuardReceiptExportSummary = z.infer<
+  typeof guardReceiptExportSummarySchema
+>;
+
+export type GuardExportSignature = z.infer<typeof guardExportSignatureSchema>;
+
+export type GuardReceiptExportResponse = z.infer<
+  typeof guardReceiptExportResponseSchema
+>;
+
+export type GuardAlertPreferences = z.infer<typeof guardAlertPreferencesSchema>;
+
+export interface GuardAlertPreferencesUpdate {
+  emailEnabled?: boolean;
+  digestMode?: GuardAlertPreferences['digestMode'];
+  watchlistEnabled?: boolean;
+  advisoriesEnabled?: boolean;
+  repeatedWarningsEnabled?: boolean;
+  teamAlertsEnabled?: boolean;
+}
+
+export type GuardWatchlistItem = z.infer<typeof guardWatchlistItemSchema>;
+
+export type GuardWatchlistResponse = z.infer<typeof guardWatchlistResponseSchema>;
+
+export interface GuardWatchlistUpsert {
+  artifactId: string;
+  artifactName: string;
+  artifactType: GuardInventoryArtifact['artifactType'];
+  artifactSlug: string;
+  reason: string;
+  source: GuardWatchlistItem['source'];
+}
+
+export type GuardExceptionScope = z.infer<
+  typeof guardExceptionItemSchema
+>['scope'];
+
+export type GuardExceptionSource = z.infer<
+  typeof guardExceptionItemSchema
+>['source'];
+
+export type GuardExceptionItem = z.infer<typeof guardExceptionItemSchema>;
+
+export type GuardExceptionListResponse = z.infer<
+  typeof guardExceptionListResponseSchema
+>;
+
+export type GuardTeamPolicyAuditItem = z.infer<
+  typeof guardTeamPolicyAuditItemSchema
+>;
+
+export type GuardTeamPolicyPack = z.infer<typeof guardTeamPolicyPackSchema>;
+
+export interface GuardTeamPolicyPackUpdate {
+  name?: string;
+  sharedHarnessDefaults?: GuardTeamPolicyPack['sharedHarnessDefaults'];
+  allowedPublishers?: string[];
+  blockedArtifacts?: string[];
+  alertChannel?: GuardTeamPolicyPack['alertChannel'];
+}
+
+export type GuardDevice = z.infer<typeof guardDeviceSchema>;
+
+export type GuardDeviceListResponse = z.infer<
+  typeof guardDeviceListResponseSchema
+>;
+
+export interface GuardExceptionUpsert {
+  scope: GuardExceptionScope;
+  harness?: string | null;
+  artifactId?: string | null;
+  publisher?: string | null;
+  reason: string;
+  owner: string;
+  source: GuardExceptionSource;
+  expiresAt: string;
+}
 
 export interface RegisterAgentOptions {
   autoTopUp?: AutoTopUpOptions;

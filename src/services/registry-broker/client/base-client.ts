@@ -53,13 +53,28 @@ import type {
   CreditBalanceResponse,
   CreditProvidersResponse,
   GuardBalanceResponse,
+  GuardAlertPreferences,
+  GuardAlertPreferencesUpdate,
+  GuardAbomResponse,
+  GuardArtifactTimelineResponse,
+  GuardDeviceListResponse,
+  GuardExceptionListResponse,
+  GuardExceptionUpsert,
+  GuardInventoryDiffResponse,
+  GuardInventoryResponse,
+  GuardReceiptExportResponse,
+  GuardReceiptHistoryResponse,
   GuardReceiptSyncPayload,
   GuardReceiptSyncResponse,
   GuardRevocationResponse,
   GuardSessionResponse,
+  GuardTeamPolicyPack,
+  GuardTeamPolicyPackUpdate,
   GuardTrustByHashResponse,
   GuardTrustResolveQuery,
   GuardTrustResolveResponse,
+  GuardWatchlistResponse,
+  GuardWatchlistUpsert,
   CreditPurchaseResponse,
   DashboardStatsResponse,
   DelegationPlanRequest,
@@ -256,13 +271,30 @@ import {
   purchaseCreditsWithX402 as purchaseCreditsWithX402Impl,
 } from './credits';
 import {
+  exportGuardReceipts as exportGuardReceiptsImpl,
+  exportGuardAbom as exportGuardAbomImpl,
+  addGuardWatchlistItem as addGuardWatchlistItemImpl,
+  addGuardException as addGuardExceptionImpl,
   getGuardBillingBalance as getGuardBillingBalanceImpl,
+  getGuardReceiptHistory as getGuardReceiptHistoryImpl,
+  getGuardArtifactTimeline as getGuardArtifactTimelineImpl,
+  getGuardAlertPreferences as getGuardAlertPreferencesImpl,
+  getGuardDevices as getGuardDevicesImpl,
   getGuardEntitlements as getGuardEntitlementsImpl,
+  getGuardExceptions as getGuardExceptionsImpl,
+  getGuardInventoryDiff as getGuardInventoryDiffImpl,
+  getGuardInventory as getGuardInventoryImpl,
   getGuardRevocations as getGuardRevocationsImpl,
   getGuardSession as getGuardSessionImpl,
+  getGuardTeamPolicyPack as getGuardTeamPolicyPackImpl,
   getGuardTrustByHash as getGuardTrustByHashImpl,
+  getGuardWatchlist as getGuardWatchlistImpl,
+  removeGuardException as removeGuardExceptionImpl,
+  removeGuardWatchlistItem as removeGuardWatchlistItemImpl,
   resolveGuardTrust as resolveGuardTrustImpl,
   syncGuardReceipts as syncGuardReceiptsImpl,
+  updateGuardAlertPreferences as updateGuardAlertPreferencesImpl,
+  updateGuardTeamPolicyPack as updateGuardTeamPolicyPackImpl,
 } from './guard';
 import {
   authenticateWithLedger as authenticateWithLedgerImpl,
@@ -1276,10 +1308,92 @@ export class RegistryBrokerClient {
     return getGuardRevocationsImpl(this);
   }
 
+  async getGuardInventory(): Promise<GuardInventoryResponse> {
+    return getGuardInventoryImpl(this);
+  }
+
+  async getGuardReceiptHistory(): Promise<GuardReceiptHistoryResponse> {
+    return getGuardReceiptHistoryImpl(this);
+  }
+
+  async getGuardArtifactTimeline(
+    artifactId: string,
+  ): Promise<GuardArtifactTimelineResponse> {
+    return getGuardArtifactTimelineImpl(this, artifactId);
+  }
+
+  async getGuardInventoryDiff(): Promise<GuardInventoryDiffResponse> {
+    return getGuardInventoryDiffImpl(this);
+  }
+
+  async exportGuardAbom(): Promise<GuardAbomResponse> {
+    return exportGuardAbomImpl(this);
+  }
+
+  async exportGuardReceipts(): Promise<GuardReceiptExportResponse> {
+    return exportGuardReceiptsImpl(this);
+  }
+
+  async getGuardDevices(): Promise<GuardDeviceListResponse> {
+    return getGuardDevicesImpl(this);
+  }
+
+  async getGuardAlertPreferences(): Promise<GuardAlertPreferences> {
+    return getGuardAlertPreferencesImpl(this);
+  }
+
+  async updateGuardAlertPreferences(
+    payload: GuardAlertPreferencesUpdate,
+  ): Promise<GuardAlertPreferences> {
+    return updateGuardAlertPreferencesImpl(this, payload);
+  }
+
+  async getGuardExceptions(): Promise<GuardExceptionListResponse> {
+    return getGuardExceptionsImpl(this);
+  }
+
+  async getGuardWatchlist(): Promise<GuardWatchlistResponse> {
+    return getGuardWatchlistImpl(this);
+  }
+
+  async addGuardWatchlistItem(
+    payload: GuardWatchlistUpsert,
+  ): Promise<GuardWatchlistResponse> {
+    return addGuardWatchlistItemImpl(this, payload);
+  }
+
+  async removeGuardWatchlistItem(
+    artifactId: string,
+  ): Promise<GuardWatchlistResponse> {
+    return removeGuardWatchlistItemImpl(this, artifactId);
+  }
+
+  async addGuardException(
+    payload: GuardExceptionUpsert,
+  ): Promise<GuardExceptionListResponse> {
+    return addGuardExceptionImpl(this, payload);
+  }
+
+  async removeGuardException(
+    exceptionId: string,
+  ): Promise<GuardExceptionListResponse> {
+    return removeGuardExceptionImpl(this, exceptionId);
+  }
+
   async syncGuardReceipts(
     payload: GuardReceiptSyncPayload,
   ): Promise<GuardReceiptSyncResponse> {
     return syncGuardReceiptsImpl(this, payload);
+  }
+
+  async getGuardTeamPolicyPack(): Promise<GuardTeamPolicyPack> {
+    return getGuardTeamPolicyPackImpl(this);
+  }
+
+  async updateGuardTeamPolicyPack(
+    payload: GuardTeamPolicyPackUpdate,
+  ): Promise<GuardTeamPolicyPack> {
+    return updateGuardTeamPolicyPackImpl(this, payload);
   }
 
   async createHbarPurchaseIntent(
