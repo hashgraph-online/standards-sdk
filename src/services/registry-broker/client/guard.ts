@@ -258,7 +258,6 @@ export async function updateGuardAlertPreferences(
 ): Promise<GuardAlertPreferences> {
   const raw = await client.requestJson<JsonValue>('/guard/alerts/preferences', {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
     body: payload,
   });
   return client.parseWithSchema(
@@ -300,7 +299,6 @@ export async function addGuardWatchlistItem(
 ): Promise<GuardWatchlistResponse> {
   const raw = await client.requestJson<JsonValue>('/guard/watchlist', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
     body: payload,
   });
   return client.parseWithSchema(
@@ -335,7 +333,6 @@ export async function addGuardException(
 ): Promise<GuardExceptionListResponse> {
   const raw = await client.requestJson<JsonValue>('/guard/exceptions', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
     body: payload,
   });
   return client.parseWithSchema(
@@ -383,7 +380,6 @@ export async function updateGuardTeamPolicyPack(
 ): Promise<GuardTeamPolicyPack> {
   const raw = await client.requestJson<JsonValue>('/guard/team/policy-pack', {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
     body: payload,
   });
   return client.parseWithSchema(
@@ -399,7 +395,6 @@ export async function syncGuardReceipts(
 ): Promise<GuardReceiptSyncResponse> {
   const raw = await client.requestJson<JsonValue>('/guard/receipts/sync', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
     body: payload,
   });
   return client.parseWithSchema(
