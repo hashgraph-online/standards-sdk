@@ -371,8 +371,6 @@ describe('RegistryBrokerClient guard helpers', () => {
             },
             allowedPublishers: ['hashgraph-online'],
             blockedArtifacts: ['skill_123'],
-            blockedPublishers: ['hashgraph-online'],
-            blockedDomains: ['evil.example'],
             alertChannel: 'email',
             updatedAt: '2026-04-11T18:06:00.000Z',
             auditTrail: [
@@ -451,7 +449,7 @@ describe('RegistryBrokerClient guard helpers', () => {
     expect(aggregatedSignals.items[0]?.publishers).toContain(
       'hashgraph-online',
     );
-    expect(teamPolicyPack.blockedPublishers).toContain('hashgraph-online');
+    expect(teamPolicyPack.blockedPublishers ?? []).toEqual([]);
     expect(updatedTeamPolicyPack.blockedDomains).toContain(
       'mirror.evil.example',
     );
@@ -490,6 +488,37 @@ describe('RegistryBrokerClient guard helpers', () => {
       blockedPublishers: ['hashgraph-online', 'unknown-publisher'],
       blockedDomains: ['evil.example', 'mirror.evil.example'],
     });
+  });
+
+  it('omits the guard feed limit query when the truncated value is not positive', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          generatedAt: '2026-04-12T16:00:00.000Z',
+          items: [],
+          summary: {
+            total: 0,
+            monitorCount: 0,
+            reviewCount: 0,
+            blockCount: 0,
+          },
+        }),
+      }),
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      apiKey: 'rb_test_key',
+      fetchImplementation,
+    });
+
+    const feed = await client.getGuardFeed(0.5);
+
+    expect(feed.items).toHaveLength(0);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/guard/feed',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 
   it('submits guard receipts and retrieves preflight verdicts', async () => {

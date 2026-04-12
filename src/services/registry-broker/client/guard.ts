@@ -105,10 +105,15 @@ export async function getGuardFeed(
   limit?: number,
 ): Promise<GuardFeedResponse> {
   const params = new URLSearchParams();
-  if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+  if (
+    typeof limit === 'number' &&
+    Number.isFinite(limit) &&
+    Math.trunc(limit) > 0
+  ) {
     params.set('limit', String(Math.trunc(limit)));
   }
-  const suffix = params.size > 0 ? `?${params.toString()}` : '';
+  const query = params.toString();
+  const suffix = query ? `?${query}` : '';
   const raw = await client.requestJson<JsonValue>(`/guard/feed${suffix}`, {
     method: 'GET',
   });

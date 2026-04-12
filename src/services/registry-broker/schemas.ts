@@ -1448,8 +1448,8 @@ export const guardTeamPolicyPackSchema = z.object({
     z.enum(['observe', 'prompt', 'enforce']),
   ),
   allowedPublishers: z.array(z.string()),
-  blockedPublishers: z.array(z.string()),
-  blockedDomains: z.array(z.string()),
+  blockedPublishers: z.array(z.string()).optional(),
+  blockedDomains: z.array(z.string()).optional(),
   blockedArtifacts: z.array(z.string()),
   alertChannel: z.enum(['email', 'slack', 'teams', 'webhook']),
   updatedAt: z.string(),
@@ -1981,8 +1981,8 @@ export const skillSecurityBreakdownResponseSchema = z
   .object({
     jobId: z.string(),
     score: z.number().nullable().optional(),
-    findings: z.array(z.unknown()).optional(),
-    summary: z.unknown().optional(),
+    findings: z.array(jsonValueSchema).optional(),
+    summary: jsonValueSchema.optional(),
     generatedAt: z.string().nullable().optional(),
     scannerVersion: z.string().nullable().optional(),
   })
