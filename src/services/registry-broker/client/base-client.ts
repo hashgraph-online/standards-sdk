@@ -53,6 +53,9 @@ import type {
   CreditBalanceResponse,
   CreditProvidersResponse,
   GuardBalanceResponse,
+  GuardFeedResponse,
+  GuardOverviewResponse,
+  GuardPolicy,
   GuardAlertPreferences,
   GuardAlertPreferencesUpdate,
   GuardAbomResponse,
@@ -62,6 +65,11 @@ import type {
   GuardExceptionUpsert,
   GuardInventoryDiffResponse,
   GuardInventoryResponse,
+  GuardPainSignalAggregateResponse,
+  GuardPainSignalIngestItem,
+  GuardPainSignalListResponse,
+  GuardPreflightRequest,
+  GuardPreflightVerdictResponse,
   GuardReceiptExportResponse,
   GuardReceiptHistoryResponse,
   GuardReceiptSyncPayload,
@@ -73,6 +81,7 @@ import type {
   GuardTrustByHashResponse,
   GuardTrustResolveQuery,
   GuardTrustResolveResponse,
+  GuardWatchlistLookupResponse,
   GuardWatchlistResponse,
   GuardWatchlistUpsert,
   CreditPurchaseResponse,
@@ -273,9 +282,14 @@ import {
 import {
   exportGuardReceipts as exportGuardReceiptsImpl,
   exportGuardAbom as exportGuardAbomImpl,
+  exportGuardArtifactAbom as exportGuardArtifactAbomImpl,
   addGuardWatchlistItem as addGuardWatchlistItemImpl,
   addGuardException as addGuardExceptionImpl,
+  fetchGuardAdvisories as fetchGuardAdvisoriesImpl,
+  fetchGuardPolicy as fetchGuardPolicyImpl,
   getGuardBillingBalance as getGuardBillingBalanceImpl,
+  getGuardFeed as getGuardFeedImpl,
+  getGuardOverview as getGuardOverviewImpl,
   getGuardReceiptHistory as getGuardReceiptHistoryImpl,
   getGuardArtifactTimeline as getGuardArtifactTimelineImpl,
   getGuardAlertPreferences as getGuardAlertPreferencesImpl,
@@ -284,14 +298,23 @@ import {
   getGuardExceptions as getGuardExceptionsImpl,
   getGuardInventoryDiff as getGuardInventoryDiffImpl,
   getGuardInventory as getGuardInventoryImpl,
+  getGuardPainSignals as getGuardPainSignalsImpl,
+  getGuardAggregatedPainSignals as getGuardAggregatedPainSignalsImpl,
+  getGuardPreExecutionVerdict as getGuardPreExecutionVerdictImpl,
+  getGuardPreInstallVerdict as getGuardPreInstallVerdictImpl,
   getGuardRevocations as getGuardRevocationsImpl,
   getGuardSession as getGuardSessionImpl,
   getGuardTeamPolicyPack as getGuardTeamPolicyPackImpl,
   getGuardTrustByHash as getGuardTrustByHashImpl,
   getGuardWatchlist as getGuardWatchlistImpl,
+  lookupGuardWatchlist as lookupGuardWatchlistImpl,
+  requestGuardException as requestGuardExceptionImpl,
   removeGuardException as removeGuardExceptionImpl,
   removeGuardWatchlistItem as removeGuardWatchlistItemImpl,
   resolveGuardTrust as resolveGuardTrustImpl,
+  ingestGuardPainSignals as ingestGuardPainSignalsImpl,
+  submitGuardReceipts as submitGuardReceiptsImpl,
+  syncGuardInventory as syncGuardInventoryImpl,
   syncGuardReceipts as syncGuardReceiptsImpl,
   updateGuardAlertPreferences as updateGuardAlertPreferencesImpl,
   updateGuardTeamPolicyPack as updateGuardTeamPolicyPackImpl,
@@ -1294,6 +1317,14 @@ export class RegistryBrokerClient {
     return getGuardBillingBalanceImpl(this);
   }
 
+  async getGuardFeed(limit?: number): Promise<GuardFeedResponse> {
+    return getGuardFeedImpl(this, limit);
+  }
+
+  async getGuardOverview(): Promise<GuardOverviewResponse> {
+    return getGuardOverviewImpl(this);
+  }
+
   async getGuardTrustByHash(sha256: string): Promise<GuardTrustByHashResponse> {
     return getGuardTrustByHashImpl(this, sha256);
   }
@@ -1306,6 +1337,14 @@ export class RegistryBrokerClient {
 
   async getGuardRevocations(): Promise<GuardRevocationResponse> {
     return getGuardRevocationsImpl(this);
+  }
+
+  async fetchGuardAdvisories(): Promise<GuardRevocationResponse> {
+    return fetchGuardAdvisoriesImpl(this);
+  }
+
+  async fetchGuardPolicy(): Promise<GuardPolicy> {
+    return fetchGuardPolicyImpl(this);
   }
 
   async getGuardInventory(): Promise<GuardInventoryResponse> {
@@ -1328,6 +1367,12 @@ export class RegistryBrokerClient {
 
   async exportGuardAbom(): Promise<GuardAbomResponse> {
     return exportGuardAbomImpl(this);
+  }
+
+  async exportGuardArtifactAbom(
+    artifactId: string,
+  ): Promise<GuardAbomResponse> {
+    return exportGuardArtifactAbomImpl(this, artifactId);
   }
 
   async exportGuardReceipts(): Promise<GuardReceiptExportResponse> {
@@ -1356,6 +1401,32 @@ export class RegistryBrokerClient {
     return getGuardWatchlistImpl(this);
   }
 
+  async lookupGuardWatchlist(
+    payload: GuardPreflightRequest,
+  ): Promise<GuardWatchlistLookupResponse> {
+    return lookupGuardWatchlistImpl(this, payload);
+  }
+
+  async getGuardPainSignals(): Promise<GuardPainSignalListResponse> {
+    return getGuardPainSignalsImpl(this);
+  }
+
+  async getGuardAggregatedPainSignals(): Promise<GuardPainSignalAggregateResponse> {
+    return getGuardAggregatedPainSignalsImpl(this);
+  }
+
+  async getGuardPreInstallVerdict(
+    payload: GuardPreflightRequest,
+  ): Promise<GuardPreflightVerdictResponse> {
+    return getGuardPreInstallVerdictImpl(this, payload);
+  }
+
+  async getGuardPreExecutionVerdict(
+    payload: GuardPreflightRequest,
+  ): Promise<GuardPreflightVerdictResponse> {
+    return getGuardPreExecutionVerdictImpl(this, payload);
+  }
+
   async addGuardWatchlistItem(
     payload: GuardWatchlistUpsert,
   ): Promise<GuardWatchlistResponse> {
@@ -1374,16 +1445,40 @@ export class RegistryBrokerClient {
     return addGuardExceptionImpl(this, payload);
   }
 
+  async requestGuardException(
+    payload: GuardExceptionUpsert,
+  ): Promise<GuardExceptionListResponse> {
+    return requestGuardExceptionImpl(this, payload);
+  }
+
   async removeGuardException(
     exceptionId: string,
   ): Promise<GuardExceptionListResponse> {
     return removeGuardExceptionImpl(this, exceptionId);
   }
 
+  async ingestGuardPainSignals(
+    items: GuardPainSignalIngestItem[],
+  ): Promise<GuardPainSignalListResponse> {
+    return ingestGuardPainSignalsImpl(this, items);
+  }
+
   async syncGuardReceipts(
     payload: GuardReceiptSyncPayload,
   ): Promise<GuardReceiptSyncResponse> {
     return syncGuardReceiptsImpl(this, payload);
+  }
+
+  async syncGuardInventory(
+    payload: GuardReceiptSyncPayload,
+  ): Promise<GuardReceiptSyncResponse> {
+    return syncGuardInventoryImpl(this, payload);
+  }
+
+  async submitGuardReceipts(
+    payload: GuardReceiptSyncPayload,
+  ): Promise<GuardReceiptSyncResponse> {
+    return submitGuardReceiptsImpl(this, payload);
   }
 
   async getGuardTeamPolicyPack(): Promise<GuardTeamPolicyPack> {

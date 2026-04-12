@@ -24,6 +24,11 @@ import {
   guardBalanceResponseSchema,
   guardBucketBalanceSchema,
   guardEntitlementsSchema,
+  guardFeedItemSchema,
+  guardFeedResponseSchema,
+  guardFeedSummarySchema,
+  guardOverviewResponseSchema,
+  guardPolicySchema,
   guardPlanIdSchema,
   guardPrincipalSchema,
   guardHistoryArtifactSchema,
@@ -41,11 +46,19 @@ import {
   guardReceiptExportResponseSchema,
   guardAlertPreferencesSchema,
   guardWatchlistItemSchema,
+  guardWatchlistLookupResponseSchema,
   guardWatchlistResponseSchema,
+  guardPainSignalSchema,
+  guardPainSignalListResponseSchema,
+  guardPainSignalAggregateSchema,
+  guardPainSignalAggregateResponseSchema,
   guardInventoryDiffEntrySchema,
   guardInventoryDiffResponseSchema,
   guardExceptionItemSchema,
   guardExceptionListResponseSchema,
+  guardPreflightEvidenceSchema,
+  guardPreflightRequestSchema,
+  guardPreflightVerdictResponseSchema,
   guardTeamPolicyAuditItemSchema,
   guardTeamPolicyPackSchema,
   guardDeviceSchema,
@@ -305,6 +318,16 @@ export type GuardSessionResponse = z.infer<typeof guardSessionResponseSchema>;
 
 export type GuardBalanceResponse = z.infer<typeof guardBalanceResponseSchema>;
 
+export type GuardFeedItem = z.infer<typeof guardFeedItemSchema>;
+
+export type GuardFeedSummary = z.infer<typeof guardFeedSummarySchema>;
+
+export type GuardFeedResponse = z.infer<typeof guardFeedResponseSchema>;
+
+export type GuardOverviewResponse = z.infer<typeof guardOverviewResponseSchema>;
+
+export type GuardPolicy = z.infer<typeof guardPolicySchema>;
+
 export type GuardTrustMatch = z.infer<typeof guardTrustMatchSchema>;
 
 export type GuardTrustByHashResponse = z.infer<
@@ -391,7 +414,51 @@ export interface GuardAlertPreferencesUpdate {
 
 export type GuardWatchlistItem = z.infer<typeof guardWatchlistItemSchema>;
 
-export type GuardWatchlistResponse = z.infer<typeof guardWatchlistResponseSchema>;
+export type GuardWatchlistResponse = z.infer<
+  typeof guardWatchlistResponseSchema
+>;
+
+export type GuardWatchlistLookupResponse = z.infer<
+  typeof guardWatchlistLookupResponseSchema
+>;
+
+export type GuardPainSignal = z.infer<typeof guardPainSignalSchema>;
+
+export type GuardPainSignalAggregate = z.infer<
+  typeof guardPainSignalAggregateSchema
+>;
+
+export type GuardPainSignalListResponse = z.infer<
+  typeof guardPainSignalListResponseSchema
+>;
+
+export type GuardPainSignalAggregateResponse = z.infer<
+  typeof guardPainSignalAggregateResponseSchema
+>;
+
+export type GuardPreflightEvidence = z.infer<
+  typeof guardPreflightEvidenceSchema
+>;
+
+export type GuardPreflightRequest = z.infer<typeof guardPreflightRequestSchema>;
+
+export type GuardPreflightVerdictResponse = z.infer<
+  typeof guardPreflightVerdictResponseSchema
+>;
+
+export interface GuardPainSignalIngestItem {
+  signalId: string;
+  signalName: string;
+  artifactId: string;
+  artifactName: string;
+  artifactType: GuardInventoryArtifact['artifactType'];
+  harness: string;
+  latestSummary: string;
+  occurredAt: string;
+  count?: number;
+  source?: 'scanner';
+  publisher?: string;
+}
 
 export interface GuardWatchlistUpsert {
   artifactId: string;
@@ -426,6 +493,8 @@ export interface GuardTeamPolicyPackUpdate {
   name?: string;
   sharedHarnessDefaults?: GuardTeamPolicyPack['sharedHarnessDefaults'];
   allowedPublishers?: string[];
+  blockedPublishers?: string[];
+  blockedDomains?: string[];
   blockedArtifacts?: string[];
   alertChannel?: GuardTeamPolicyPack['alertChannel'];
 }
