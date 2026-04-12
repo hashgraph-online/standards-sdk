@@ -1220,6 +1220,11 @@ export const guardReceiptSyncResponseSchema = z.object({
   receiptsStored: z.number(),
   inventoryStored: z.number().optional(),
   inventoryDiff: guardInventoryDiffResponseSchema.optional(),
+  advisories: z.array(guardRevocationSchema).optional(),
+  policy: guardPolicySchema.optional(),
+  alertPreferences: z.lazy(() => guardAlertPreferencesSchema).optional(),
+  exceptions: z.array(z.lazy(() => guardExceptionItemSchema)).optional(),
+  teamPolicyPack: z.lazy(() => guardTeamPolicyPackSchema).optional(),
 });
 
 export const guardInventoryResponseSchema = z.object({
@@ -1368,6 +1373,11 @@ export const guardPainSignalAggregateSchema = z.object({
 
 export const guardPainSignalAggregateResponseSchema = z.object({
   generatedAt: z.string(),
+  summary: z.object({
+    totalSignals: z.number(),
+    uniqueArtifacts: z.number(),
+    uniqueConsumers: z.number(),
+  }),
   items: z.array(guardPainSignalAggregateSchema),
 });
 

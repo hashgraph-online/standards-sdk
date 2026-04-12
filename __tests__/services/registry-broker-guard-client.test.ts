@@ -446,6 +446,7 @@ describe('RegistryBrokerClient guard helpers', () => {
     expect(painSignals.items[0]?.count).toBe(2);
     expect(updatedSignals.items[0]?.count).toBe(3);
     expect(aggregatedSignals.items[0]?.consumerCount).toBe(2);
+    expect(aggregatedSignals.summary.totalSignals).toBe(1);
     expect(aggregatedSignals.items[0]?.publishers).toContain(
       'hashgraph-online',
     );
@@ -687,6 +688,8 @@ describe('RegistryBrokerClient guard helpers', () => {
     expect(executionVerdict.decision).toBe('block');
     expect(executionVerdict.category).toBe('team-policy');
     expect(executionVerdict.evidenceSources).toContain('team-policy');
+    expect(submitted.policy?.mode).toBe('prompt');
+    expect(submitted.teamPolicyPack?.name).toBe('Default team policy');
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       1,
       'https://api.example.com/api/v1/guard/receipts/submit',
