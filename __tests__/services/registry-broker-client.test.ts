@@ -519,7 +519,9 @@ describe('RegistryBrokerClient', () => {
     expect(targetUrl).toBe('https://api.example.com/api/v1/delegate');
     expect(init?.method).toBe('POST');
     expect(init?.headers).toBeInstanceOf(Headers);
-    expect((init?.headers as Headers).get('content-type')).toBe('application/json');
+    expect((init?.headers as Headers).get('content-type')).toBe(
+      'application/json',
+    );
   });
 
   it('throws RegistryBrokerError on non-OK response', async () => {

@@ -963,10 +963,14 @@ export const guardBucketBalanceSchema = z.object({
 
 export const guardPrincipalSchema = z.object({
   signedIn: z.boolean(),
+  principalType: z.enum(['user', 'service']).default('user'),
   userId: z.string().optional(),
   email: z.string().optional(),
   accountId: z.string().optional(),
   stripeCustomerId: z.string().optional(),
+  serviceId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  serviceLabel: z.string().optional(),
   roles: z.array(z.string()),
 });
 
@@ -997,6 +1001,74 @@ export const guardBalanceResponseSchema = z.object({
   generatedAt: z.string(),
   bucketingMode: z.enum(['shared-ledger', 'product-bucketed']),
   buckets: z.array(guardBucketBalanceSchema),
+});
+
+export const guardFeedItemSchema = z.object({
+  id: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  slug: z.string(),
+  name: z.string(),
+  href: z.string(),
+  ecosystem: z.string().optional(),
+  safetyScore: z.number().nullable().optional(),
+  trustScore: z.number().nullable().optional(),
+  verified: z.boolean(),
+  recommendation: z.enum(['monitor', 'review', 'block']),
+  updatedAt: z.string(),
+});
+
+export const guardFeedSummarySchema = z.object({
+  total: z.number(),
+  monitorCount: z.number(),
+  reviewCount: z.number(),
+  blockCount: z.number(),
+});
+
+export const guardFeedResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardFeedItemSchema),
+  summary: guardFeedSummarySchema,
+});
+
+export const guardIntegrationSchema = z.object({
+  id: z.enum(['openclaw', 'hermes']),
+  name: z.string(),
+  status: z.enum(['available', 'planned']),
+  href: z.string().nullable(),
+  summary: z.string(),
+});
+
+export const guardActionItemSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  href: z.string(),
+});
+
+export const guardOverviewResponseSchema = z.object({
+  generatedAt: z.string(),
+  principal: guardPrincipalSchema,
+  entitlements: guardEntitlementsSchema,
+  balance: z
+    .object({
+      accountId: z.string(),
+      availableCredits: z.number(),
+    })
+    .nullable(),
+  trustFeed: guardFeedResponseSchema,
+  integrations: z.array(guardIntegrationSchema),
+  actionItems: z.array(guardActionItemSchema),
+});
+
+export const guardPolicySchema = z.object({
+  mode: z.enum(['observe', 'prompt', 'enforce']),
+  defaultAction: z.enum(['allow', 'warn', 'block']),
+  unknownPublisherAction: z.enum(['review', 'block', 'allow']),
+  changedHashAction: z.enum(['allow', 'warn', 'require-reapproval', 'block']),
+  newNetworkDomainAction: z.enum(['allow', 'warn', 'block']),
+  subprocessAction: z.enum(['allow', 'warn', 'block']),
+  telemetryEnabled: z.boolean(),
+  syncEnabled: z.boolean(),
+  updatedAt: z.string(),
 });
 
 export const guardTrustMatchSchema = z.object({
@@ -1038,6 +1110,14 @@ export const guardRevocationSchema = z.object({
   reason: z.string(),
   severity: z.enum(['low', 'medium', 'high']),
   publishedAt: z.string(),
+  confidence: z.number().optional(),
+  remediation: z.string().nullable().optional(),
+  scope: z
+    .enum(['artifact', 'publisher', 'domain', 'workspace', 'ecosystem'])
+    .optional(),
+  source: z.string().optional(),
+  firstSeenAt: z.string().optional(),
+  lastUpdatedAt: z.string().optional(),
 });
 
 export const guardRevocationResponseSchema = z.object({
@@ -1237,6 +1317,60 @@ export const guardWatchlistResponseSchema = z.object({
   items: z.array(guardWatchlistItemSchema),
 });
 
+export const guardWatchlistLookupMatchSchema = z.object({
+  artifactId: z.string().nullable(),
+  publisher: z.string().nullable(),
+  domain: z.string().nullable(),
+  source: z.enum(['watchlist', 'team-policy']),
+  reason: z.string(),
+});
+
+export const guardWatchlistLookupResponseSchema = z.object({
+  generatedAt: z.string(),
+  matched: z.boolean(),
+  scope: z.enum(['artifact', 'publisher', 'domain', 'none']),
+  item: guardWatchlistLookupMatchSchema.nullable(),
+});
+
+export const guardPainSignalSchema = z.object({
+  signalId: z.string(),
+  signalName: z.string(),
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  harness: z.string(),
+  latestSummary: z.string(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+  count: z.number(),
+  source: z.literal('scanner'),
+  publisher: z.string().optional(),
+});
+
+export const guardPainSignalListResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardPainSignalSchema),
+});
+
+export const guardPainSignalAggregateSchema = z.object({
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  signalName: z.string(),
+  latestSummary: z.string(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+  totalCount: z.number(),
+  consumerCount: z.number(),
+  harnesses: z.array(z.string()),
+  publishers: z.array(z.string()),
+});
+
+export const guardPainSignalAggregateResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardPainSignalAggregateSchema),
+});
+
 export const guardExceptionItemSchema = z.object({
   exceptionId: z.string(),
   scope: z.enum(['artifact', 'publisher', 'harness', 'global']),
@@ -1256,6 +1390,50 @@ export const guardExceptionListResponseSchema = z.object({
   items: z.array(guardExceptionItemSchema),
 });
 
+export const guardPreflightEvidenceSchema = z.object({
+  category: z.enum([
+    'policy',
+    'trust',
+    'watchlist',
+    'team-policy',
+    'exception',
+  ]),
+  source: z.string(),
+  detail: z.string(),
+});
+
+export const guardPreflightRequestSchema = z.object({
+  harness: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactId: z.string().optional(),
+  artifactSlug: z.string().optional(),
+  artifactHash: z.string().optional(),
+  publisher: z.string().optional(),
+  domain: z.string().optional(),
+  launchSummary: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
+  workspacePath: z.string().optional(),
+});
+
+export const guardPreflightVerdictResponseSchema = z.object({
+  generatedAt: z.string(),
+  principal: guardPrincipalSchema,
+  decision: z.enum(['allow', 'review', 'block']),
+  recommendation: z.enum(['monitor', 'review', 'block']),
+  rationale: z.string(),
+  category: z
+    .enum(['exception', 'team-policy', 'watchlist', 'trust', 'policy'])
+    .optional(),
+  confidence: z.number().optional(),
+  freshnessTimestamp: z.string().optional(),
+  evidenceSources: z.array(z.string()).optional(),
+  scope: z.enum(['artifact', 'publisher', 'domain', 'policy']),
+  matchedEvidence: z.array(guardPreflightEvidenceSchema),
+  matchedException: guardExceptionItemSchema.nullable(),
+  trustMatch: guardTrustMatchSchema.nullable(),
+});
+
 export const guardTeamPolicyAuditItemSchema = z.object({
   changedAt: z.string(),
   actor: z.string(),
@@ -1265,8 +1443,13 @@ export const guardTeamPolicyAuditItemSchema = z.object({
 
 export const guardTeamPolicyPackSchema = z.object({
   name: z.string(),
-  sharedHarnessDefaults: z.record(z.string(), z.enum(['observe', 'prompt', 'enforce'])),
+  sharedHarnessDefaults: z.record(
+    z.string(),
+    z.enum(['observe', 'prompt', 'enforce']),
+  ),
   allowedPublishers: z.array(z.string()),
+  blockedPublishers: z.array(z.string()),
+  blockedDomains: z.array(z.string()),
   blockedArtifacts: z.array(z.string()),
   alertChannel: z.enum(['email', 'slack', 'teams', 'webhook']),
   updatedAt: z.string(),
@@ -1794,15 +1977,12 @@ export const skillDeprecationsResponseSchema = z
   })
   .passthrough();
 
-const skillSecurityBreakdownFindingSchema = z.record(jsonValueSchema);
-const skillSecurityBreakdownSummarySchema = z.record(jsonValueSchema);
-
 export const skillSecurityBreakdownResponseSchema = z
   .object({
     jobId: z.string(),
     score: z.number().nullable().optional(),
-    findings: z.array(skillSecurityBreakdownFindingSchema).optional(),
-    summary: skillSecurityBreakdownSummarySchema.optional(),
+    findings: z.array(z.unknown()).optional(),
+    summary: z.unknown().optional(),
     generatedAt: z.string().nullable().optional(),
     scannerVersion: z.string().nullable().optional(),
   })
