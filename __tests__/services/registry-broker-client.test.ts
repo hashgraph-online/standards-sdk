@@ -29,14 +29,6 @@ const mockSearchResponse = {
       },
       metadata: {
         protocol: 'demo',
-        delegationRoles: ['implementation'],
-        delegationTaskTags: ['plugin', 'integration'],
-        delegationProtocols: ['mcp'],
-        delegationSummary:
-          'Implementation specialist for plugin integration work.',
-        delegationSignals: {
-          responseRate: 0.98,
-        },
       },
       profile: {
         version: '1.0',
@@ -209,68 +201,6 @@ const mockPopularResponse = {
 
 const mockResolveResponse = {
   agent: mockSearchResponse.hits[0],
-};
-
-const mockDelegationResponse = {
-  task: 'Implement the broker delegation client in the SDK.',
-  summary: 'implementation sdk broker delegation typescript mcp',
-  intents: ['implementation', 'verification'],
-  protocols: ['mcp'],
-  surfaces: ['sdk', 'plugin'],
-  languages: ['typescript'],
-  artifacts: ['implementation', 'bugfix'],
-  shouldDelegate: true,
-  opportunities: [
-    {
-      id: 'implementation-specialist',
-      title: 'Implementation specialist',
-      reason: 'Strongest fit for TypeScript SDK delegation work.',
-      role: 'implementation',
-      type: 'ai-agents',
-      suggestedMode: 'best-match',
-      searchQueries: ['typescript sdk delegation client'],
-      candidates: [
-        {
-          uaid: mockSearchResponse.hits[0].uaid,
-          label: mockSearchResponse.hits[0].name,
-          score: 188.4,
-          trustScore: 92,
-          verified: true,
-          communicationSupported: true,
-          availability: true,
-          explanation: 'Matched role, protocol, and task tags.',
-          matchedQueries: ['typescript sdk delegation client'],
-          matchedRoles: ['implementation'],
-          matchedProtocols: ['mcp'],
-          matchedSurfaces: ['sdk'],
-          matchedLanguages: ['typescript'],
-          matchedArtifacts: ['implementation'],
-          matchedTaskTags: ['plugin', 'integration'],
-          reasons: ['role match: implementation'],
-          suggestedMessage:
-            'Please respond with the strongest approach, the main risks, and the concrete next steps.',
-          agent: {
-            ...mockSearchResponse.hits[0],
-            extraAgentField: 'preserved',
-          },
-          extraCandidateField: 'preserved',
-        },
-      ],
-      extraOpportunityField: 'preserved',
-    },
-  ],
-  recommendation: {
-    action: 'delegate-now',
-    confidence: 0.93,
-    reason: 'Best overall fit.',
-    candidate: {
-      uaid: mockSearchResponse.hits[0].uaid,
-      label: mockSearchResponse.hits[0].name,
-      score: 188.4,
-      agent: mockSearchResponse.hits[0],
-    },
-  },
-  extraRootField: 'preserved',
 };
 
 const mockAdditionalRegistryCatalog = {
@@ -446,7 +376,6 @@ describe('RegistryBrokerClient', () => {
 
     const requiredClientMethods = [
       'search',
-      'delegate',
       'stats',
       'registries',
       'popularSearches',
@@ -457,12 +386,30 @@ describe('RegistryBrokerClient', () => {
       'resolveUaid',
       'registerAgent',
       'updateAgent',
+      'delegate',
       'validateUaid',
       'dashboardStats',
       'adapters',
       'adaptersDetailed',
       'adapterRegistryCategories',
       'adapterRegistryAdapters',
+      'getGuardInventory',
+      'getGuardReceiptHistory',
+      'getGuardArtifactTimeline',
+      'getGuardInventoryDiff',
+      'exportGuardAbom',
+      'exportGuardReceipts',
+      'getGuardDevices',
+      'getGuardAlertPreferences',
+      'updateGuardAlertPreferences',
+      'getGuardWatchlist',
+      'addGuardWatchlistItem',
+      'removeGuardWatchlistItem',
+      'getGuardExceptions',
+      'addGuardException',
+      'removeGuardException',
+      'getGuardTeamPolicyPack',
+      'updateGuardTeamPolicyPack',
       'purchaseCreditsWithHbar',
       'getX402Minimums',
       'buyCreditsWithX402',
@@ -543,6 +490,38 @@ describe('RegistryBrokerClient', () => {
     expect(targetUrl).toBe('https://api.example.com/api/v1/search?limit=1');
   });
 
+  it('calls the delegate endpoint', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          task: 'review this repo',
+          intents: ['delegate'],
+          protocols: ['registry-broker'],
+          surfaces: ['cli'],
+          shouldDelegate: true,
+          opportunities: [],
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await client.delegate({
+      task: 'review this repo',
+      limit: 1,
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    const [targetUrl, init] = fetchImplementation.mock.calls[0];
+    expect(targetUrl).toBe('https://api.example.com/api/v1/delegate');
+    expect(init?.method).toBe('POST');
+    expect(init?.headers).toBeInstanceOf(Headers);
+    expect((init?.headers as Headers).get('content-type')).toBe('application/json');
+  });
+
   it('throws RegistryBrokerError on non-OK response', async () => {
     fetchImplementation.mockResolvedValueOnce(
       createResponse({
@@ -560,6 +539,365 @@ describe('RegistryBrokerClient', () => {
 
     await expect(client.search({ limit: 1 })).rejects.toBeInstanceOf(
       RegistryBrokerError,
+    );
+  });
+
+  it('calls the expanded guard inventory and governance endpoints', async () => {
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            artifacts: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            artifactId: 'plugin:hol/hashnet-mcp',
+            artifactName: 'Hashnet MCP',
+            artifactType: 'plugin',
+            artifactSlug: 'hol/hashnet-mcp',
+            events: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [
+              {
+                artifactId: 'plugin:hol/hashnet-mcp',
+                artifactName: 'Hashnet MCP',
+                artifactType: 'plugin',
+                changeType: 'new',
+                previousHash: null,
+                currentHash: 'sha256-hashnet-mcp',
+              },
+            ],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            summary: {
+              totalArtifacts: 1,
+              totalDevices: 1,
+              totalHarnesses: 1,
+              blockedArtifacts: 0,
+              reviewArtifacts: 1,
+            },
+            items: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            summary: {
+              totalReceipts: 0,
+              blockedCount: 0,
+              reviewCount: 0,
+              approvedCount: 0,
+            },
+            provenanceSummary: [],
+            items: [],
+            signature: {
+              algorithm: 'none',
+              digest: 'abc123',
+            },
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [
+              {
+                deviceId: 'device-1',
+                deviceName: 'MacBook Pro',
+                harnesses: ['codex'],
+                receiptCount: 1,
+                lastSeenAt: '2026-04-11T00:00:00.000Z',
+              },
+            ],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            emailEnabled: true,
+            digestMode: 'daily',
+            watchlistEnabled: true,
+            advisoriesEnabled: true,
+            repeatedWarningsEnabled: true,
+            teamAlertsEnabled: false,
+            updatedAt: '2026-04-11T00:00:00.000Z',
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            emailEnabled: true,
+            digestMode: 'weekly',
+            watchlistEnabled: true,
+            advisoriesEnabled: true,
+            repeatedWarningsEnabled: true,
+            teamAlertsEnabled: true,
+            updatedAt: '2026-04-11T00:00:00.000Z',
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [
+              {
+                artifactId: 'plugin:hol/hashnet-mcp',
+                artifactName: 'Hashnet MCP',
+                artifactType: 'plugin',
+                artifactSlug: 'hol/hashnet-mcp',
+                reason: 'Critical dependency',
+                source: 'manual',
+                createdAt: '2026-04-11T00:00:00.000Z',
+              },
+            ],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [
+              {
+                exceptionId: 'artifact:hol/hashnet-mcp',
+                scope: 'artifact',
+                harness: 'codex',
+                artifactId: 'plugin:hol/hashnet-mcp',
+                publisher: 'HOL',
+                reason: 'temporary review hold',
+                owner: 'security@hol.org',
+                source: 'manual',
+                expiresAt: '2026-04-12T00:00:00.000Z',
+                createdAt: '2026-04-11T00:00:00.000Z',
+                updatedAt: '2026-04-11T00:00:00.000Z',
+              },
+            ],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            generatedAt: '2026-04-11T00:00:00.000Z',
+            items: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            name: 'Security team default',
+            sharedHarnessDefaults: { codex: 'prompt' },
+            allowedPublishers: ['hol'],
+            blockedArtifacts: ['plugin:forked/risky-tool'],
+            alertChannel: 'email',
+            updatedAt: '2026-04-11T00:00:00.000Z',
+            auditTrail: [],
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            name: 'Security team default',
+            sharedHarnessDefaults: { codex: 'prompt' },
+            allowedPublishers: ['hol'],
+            blockedArtifacts: ['plugin:forked/risky-tool'],
+            alertChannel: 'slack',
+            updatedAt: '2026-04-11T00:00:00.000Z',
+            auditTrail: [],
+          }),
+        }) as unknown as Response,
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await client.getGuardInventory();
+    await client.getGuardReceiptHistory();
+    await client.getGuardArtifactTimeline('plugin:hol/hashnet-mcp');
+    await client.getGuardInventoryDiff();
+    await client.exportGuardAbom();
+    await client.exportGuardReceipts();
+    await client.getGuardDevices();
+    await client.getGuardAlertPreferences();
+    await client.updateGuardAlertPreferences({
+      digestMode: 'weekly',
+      teamAlertsEnabled: true,
+    });
+    await client.getGuardWatchlist();
+    await client.addGuardWatchlistItem({
+      artifactId: 'plugin:hol/hashnet-mcp',
+      artifactName: 'Hashnet MCP',
+      artifactType: 'plugin',
+      artifactSlug: 'hol/hashnet-mcp',
+      reason: 'Critical dependency',
+      source: 'manual',
+    });
+    await client.removeGuardWatchlistItem('plugin:hol/hashnet-mcp');
+    await client.getGuardExceptions();
+    await client.addGuardException({
+      scope: 'artifact',
+      harness: 'codex',
+      artifactId: 'plugin:hol/hashnet-mcp',
+      publisher: 'HOL',
+      reason: 'temporary review hold',
+      owner: 'security@hol.org',
+      source: 'manual',
+      expiresAt: '2026-04-12T00:00:00.000Z',
+    });
+    await client.removeGuardException('artifact:hol/hashnet-mcp');
+    await client.getGuardTeamPolicyPack();
+    await client.updateGuardTeamPolicyPack({
+      name: 'Security team default',
+      sharedHarnessDefaults: { codex: 'prompt' },
+      allowedPublishers: ['hol'],
+      blockedArtifacts: ['plugin:forked/risky-tool'],
+      alertChannel: 'slack',
+    });
+
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/api/v1/guard/inventory',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/api/v1/guard/history',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      3,
+      'https://api.example.com/api/v1/guard/history/plugin%3Ahol%2Fhashnet-mcp',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      4,
+      'https://api.example.com/api/v1/guard/inventory/diff',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      5,
+      'https://api.example.com/api/v1/guard/abom',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      6,
+      'https://api.example.com/api/v1/guard/receipts/export',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      7,
+      'https://api.example.com/api/v1/guard/devices',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      8,
+      'https://api.example.com/api/v1/guard/alerts/preferences',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      9,
+      'https://api.example.com/api/v1/guard/alerts/preferences',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      10,
+      'https://api.example.com/api/v1/guard/watchlist',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      11,
+      'https://api.example.com/api/v1/guard/watchlist',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      12,
+      'https://api.example.com/api/v1/guard/watchlist/plugin%3Ahol%2Fhashnet-mcp',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      13,
+      'https://api.example.com/api/v1/guard/exceptions',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      14,
+      'https://api.example.com/api/v1/guard/exceptions',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      15,
+      'https://api.example.com/api/v1/guard/exceptions/artifact%3Ahol%2Fhashnet-mcp',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      16,
+      'https://api.example.com/api/v1/guard/team/policy-pack',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      17,
+      'https://api.example.com/api/v1/guard/team/policy-pack',
+      expect.objectContaining({ method: 'PUT' }),
     );
   });
 
@@ -1434,120 +1772,6 @@ describe('RegistryBrokerClient', () => {
     expect(targetUrl).toBe(
       'https://api.example.com/api/v1/search?q=demo&page=2&limit=5&registry=demo&minTrust=50&capabilities=text_generation&capabilities=knowledge_retrieval',
     );
-  });
-
-  it('calls the delegate endpoint and parses typed opportunities', async () => {
-    fetchImplementation.mockResolvedValueOnce(
-      createResponse({
-        json: async () => mockDelegationResponse,
-      }) as unknown as Response,
-    );
-
-    const client = new RegistryBrokerClient({
-      baseUrl: 'https://api.example.com',
-      fetchImplementation,
-    });
-
-    const result = await client.delegate({
-      task: 'Implement the broker delegation client in the SDK.',
-      context: 'Focus on the TypeScript SDK first.',
-      limit: 2,
-      filter: {
-        protocols: ['mcp'],
-        adapters: ['codex'],
-        type: 'ai-agents',
-      },
-    });
-
-    expect(result.shouldDelegate).toBe(true);
-    expect(result.opportunities[0]?.candidates[0]?.uaid).toBe(
-      mockSearchResponse.hits[0].uaid,
-    );
-    expect(fetchImplementation).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/delegate',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          task: 'Implement the broker delegation client in the SDK.',
-          context: 'Focus on the TypeScript SDK first.',
-          limit: 2,
-          filter: {
-            protocols: ['mcp'],
-            adapters: ['codex'],
-            type: 'ai-agents',
-          },
-        }),
-      }),
-    );
-  });
-
-  it('preserves additive delegation fields and typed search metadata', async () => {
-    fetchImplementation.mockResolvedValueOnce(
-      createResponse({
-        json: async () => mockDelegationResponse,
-      }) as unknown as Response,
-    );
-
-    const client = new RegistryBrokerClient({
-      baseUrl: 'https://api.example.com',
-      fetchImplementation,
-    });
-
-    const result = await client.delegate({
-      task: 'Implement the broker delegation client in the SDK.',
-    });
-
-    expect(result['extraRootField']).toBe('preserved');
-    expect(result.opportunities[0]?.['extraOpportunityField']).toBe(
-      'preserved',
-    );
-    expect(
-      result.opportunities[0]?.candidates[0]?.['extraCandidateField'],
-    ).toBe('preserved');
-    expect(
-      result.opportunities[0]?.candidates[0]?.agent.metadata?.delegationRoles,
-    ).toEqual(['implementation']);
-    expect(
-      result.opportunities[0]?.candidates[0]?.agent['extraAgentField'],
-    ).toBe('preserved');
-  });
-
-  it('keeps search metadata parsing permissive for legacy delegation keys', async () => {
-    fetchImplementation.mockResolvedValueOnce(
-      createResponse({
-        json: async () => ({
-          ...mockSearchResponse,
-          hits: [
-            {
-              ...mockSearchResponse.hits[0],
-              metadata: {
-                ...mockSearchResponse.hits[0].metadata,
-                delegationRoles: { legacy: true },
-                delegationTaskTags: 'docs',
-                delegationProtocols: [1, 2, 3],
-                delegationSummary: { text: 'not-a-string' },
-                delegationSignals: ['unexpected'],
-              },
-            },
-          ],
-        }),
-      }) as unknown as Response,
-    );
-
-    const client = new RegistryBrokerClient({
-      baseUrl: 'https://api.example.com',
-      fetchImplementation,
-    });
-
-    const result = await client.search({ q: 'docs', limit: 1 });
-
-    expect(result.hits[0]?.metadata?.delegationRoles).toEqual({ legacy: true });
-    expect(result.hits[0]?.metadata?.delegationTaskTags).toBe('docs');
-    expect(result.hits[0]?.metadata?.delegationProtocols).toEqual([1, 2, 3]);
-    expect(result.hits[0]?.metadata?.delegationSummary).toEqual({
-      text: 'not-a-string',
-    });
-    expect(result.hits[0]?.metadata?.delegationSignals).toEqual(['unexpected']);
   });
 
   it('retrieves stats, registries, popular searches, and resolves UAIDs', async () => {

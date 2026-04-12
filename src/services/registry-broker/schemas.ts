@@ -1071,9 +1071,219 @@ export const guardReceiptSchema = z.object({
   summary: z.string(),
 });
 
+export const guardHistoryArtifactSchema = z.object({
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactSlug: z.string(),
+  publisher: z.string().optional(),
+  harnesses: z.array(z.string()),
+  eventCount: z.number(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+  latestDecision: z.enum([
+    'allow',
+    'warn',
+    'block',
+    'review',
+    'require-reapproval',
+    'sandbox-required',
+  ]),
+  latestRecommendation: z.enum(['monitor', 'review', 'block']),
+});
+
+export const guardReceiptHistoryResponseSchema = z.object({
+  generatedAt: z.string(),
+  artifacts: z.array(guardHistoryArtifactSchema),
+});
+
+export const guardInventoryArtifactSchema = z.object({
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactSlug: z.string(),
+  publisher: z.string().optional(),
+  harnesses: z.array(z.string()),
+  devices: z.array(z.string()),
+  eventCount: z.number(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+  latestDecision: z.enum([
+    'allow',
+    'warn',
+    'block',
+    'review',
+    'require-reapproval',
+    'sandbox-required',
+  ]),
+  latestRecommendation: z.enum(['monitor', 'review', 'block']),
+  latestHash: z.string(),
+  latestSummary: z.string(),
+});
+
+export const guardInventoryDiffEntrySchema = z.object({
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  changeType: z.enum(['new', 'changed', 'removed']),
+  previousHash: z.string().nullable(),
+  currentHash: z.string().nullable(),
+});
+
+export const guardInventoryDiffResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardInventoryDiffEntrySchema),
+});
+
 export const guardReceiptSyncResponseSchema = z.object({
   syncedAt: z.string(),
   receiptsStored: z.number(),
+  inventoryStored: z.number().optional(),
+  inventoryDiff: guardInventoryDiffResponseSchema.optional(),
+});
+
+export const guardInventoryResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardInventoryArtifactSchema),
+});
+
+export const guardAbomSummarySchema = z.object({
+  totalArtifacts: z.number(),
+  totalDevices: z.number(),
+  totalHarnesses: z.number(),
+  blockedArtifacts: z.number(),
+  reviewArtifacts: z.number(),
+});
+
+export const guardAbomResponseSchema = z.object({
+  generatedAt: z.string(),
+  summary: guardAbomSummarySchema,
+  items: z.array(guardInventoryArtifactSchema),
+});
+
+export const guardTimelineEventSchema = z.object({
+  receiptId: z.string(),
+  capturedAt: z.string(),
+  harness: z.string(),
+  deviceId: z.string(),
+  deviceName: z.string(),
+  artifactHash: z.string(),
+  policyDecision: z.enum([
+    'allow',
+    'warn',
+    'block',
+    'review',
+    'require-reapproval',
+    'sandbox-required',
+  ]),
+  recommendation: z.enum(['monitor', 'review', 'block']),
+  changedSinceLastApproval: z.boolean(),
+  summary: z.string(),
+  capabilities: z.array(z.string()),
+  publisher: z.string().optional(),
+});
+
+export const guardArtifactTimelineResponseSchema = z.object({
+  generatedAt: z.string(),
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactSlug: z.string(),
+  events: z.array(guardTimelineEventSchema),
+});
+
+export const guardReceiptExportSummarySchema = z.object({
+  totalReceipts: z.number(),
+  blockedCount: z.number(),
+  reviewCount: z.number(),
+  approvedCount: z.number(),
+});
+
+export const guardExportSignatureSchema = z.object({
+  algorithm: z.enum(['hmac-sha256', 'none']),
+  digest: z.string(),
+});
+
+export const guardReceiptExportResponseSchema = z.object({
+  generatedAt: z.string(),
+  summary: guardReceiptExportSummarySchema,
+  provenanceSummary: z.array(z.string()),
+  items: z.array(guardReceiptSchema),
+  signature: guardExportSignatureSchema,
+});
+
+export const guardAlertPreferencesSchema = z.object({
+  emailEnabled: z.boolean(),
+  digestMode: z.enum(['immediate', 'daily', 'weekly']),
+  watchlistEnabled: z.boolean(),
+  advisoriesEnabled: z.boolean(),
+  repeatedWarningsEnabled: z.boolean(),
+  teamAlertsEnabled: z.boolean(),
+  updatedAt: z.string(),
+});
+
+export const guardWatchlistItemSchema = z.object({
+  artifactId: z.string(),
+  artifactName: z.string(),
+  artifactType: z.enum(['skill', 'plugin']),
+  artifactSlug: z.string(),
+  reason: z.string(),
+  source: z.enum(['manual', 'synced', 'team-policy']),
+  createdAt: z.string(),
+});
+
+export const guardWatchlistResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardWatchlistItemSchema),
+});
+
+export const guardExceptionItemSchema = z.object({
+  exceptionId: z.string(),
+  scope: z.enum(['artifact', 'publisher', 'harness', 'global']),
+  harness: z.string().nullable(),
+  artifactId: z.string().nullable(),
+  publisher: z.string().nullable(),
+  reason: z.string(),
+  owner: z.string(),
+  source: z.enum(['manual', 'team-policy']),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const guardExceptionListResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardExceptionItemSchema),
+});
+
+export const guardTeamPolicyAuditItemSchema = z.object({
+  changedAt: z.string(),
+  actor: z.string(),
+  change: z.enum(['created', 'updated']),
+  summary: z.string(),
+});
+
+export const guardTeamPolicyPackSchema = z.object({
+  name: z.string(),
+  sharedHarnessDefaults: z.record(z.string(), z.enum(['observe', 'prompt', 'enforce'])),
+  allowedPublishers: z.array(z.string()),
+  blockedArtifacts: z.array(z.string()),
+  alertChannel: z.enum(['email', 'slack', 'teams', 'webhook']),
+  updatedAt: z.string(),
+  auditTrail: z.array(guardTeamPolicyAuditItemSchema),
+});
+
+export const guardDeviceSchema = z.object({
+  deviceId: z.string(),
+  deviceName: z.string(),
+  harnesses: z.array(z.string()),
+  receiptCount: z.number(),
+  lastSeenAt: z.string(),
+});
+
+export const guardDeviceListResponseSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(guardDeviceSchema),
 });
 
 export const hbarPurchaseIntentResponseSchema = z.object({
