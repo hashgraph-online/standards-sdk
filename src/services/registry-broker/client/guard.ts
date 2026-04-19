@@ -73,22 +73,43 @@ function isStatusError(error: unknown): error is { status: number } {
 }
 
 function toPortalCanonicalGuardPath(path: string): string {
-  const legacyPrefixes = ['/registry/api/v1/guard', '/api/v1/guard', '/guard'];
-  for (const prefix of legacyPrefixes) {
-    if (path === prefix || path.startsWith(`${prefix}/`)) {
-      return `/api/guard${path.slice(prefix.length)}`;
+  const segments = path.split('/');
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const next = segments[index + 1];
+    const third = segments[index + 2];
+    const fourth = segments[index + 3];
+
+    if (
+      segment === 'registry' &&
+      next === 'api' &&
+      /^v\d+$/.test(third ?? '') &&
+      fourth === 'guard'
+    ) {
+      return [
+        ...segments.slice(0, index),
+        'api',
+        'guard',
+        ...segments.slice(index + 4),
+      ].join('/');
     }
-    const nestedPrefix = `${prefix}/`;
-    const nestedIndex = path.indexOf(nestedPrefix);
-    if (nestedIndex > 0) {
-      const preservedPrefix = path.slice(0, nestedIndex);
-      const suffix = path.slice(nestedIndex + prefix.length);
-      return `${preservedPrefix}/api/guard${suffix}`;
+
+    if (segment === 'api' && /^v\d+$/.test(next ?? '') && third === 'guard') {
+      return [
+        ...segments.slice(0, index),
+        'api',
+        'guard',
+        ...segments.slice(index + 3),
+      ].join('/');
     }
-    const terminalIndex = path.indexOf(prefix);
-    if (terminalIndex > 0 && terminalIndex + prefix.length === path.length) {
-      const preservedPrefix = path.slice(0, terminalIndex);
-      return `${preservedPrefix}/api/guard`;
+
+    if (segment === 'guard' && segments[index - 1] !== 'api') {
+      return [
+        ...segments.slice(0, index),
+        'api',
+        'guard',
+        ...segments.slice(index + 1),
+      ].join('/');
     }
   }
   return path;
