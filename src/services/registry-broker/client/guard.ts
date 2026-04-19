@@ -74,36 +74,55 @@ function isStatusError(error: unknown): error is { status: number } {
 
 function toPortalCanonicalGuardPath(path: string): string {
   const segments = path.split('/');
-  for (let index = 0; index < segments.length; index += 1) {
-    const segment = segments[index];
-    const next = segments[index + 1];
-    const third = segments[index + 2];
-    const fourth = segments[index + 3];
-
-    if (
-      segment === 'registry' &&
-      next === 'api' &&
-      /^v\d+$/.test(third ?? '') &&
-      fourth === 'guard'
+  const findPatternStart = (
+    size: number,
+    matcher: (startIndex: number) => boolean,
+  ): number => {
+    for (
+      let startIndex = segments.length - size;
+      startIndex >= 0;
+      startIndex -= 1
     ) {
-      return [
-        ...segments.slice(0, index),
-        'api',
-        'guard',
-        ...segments.slice(index + 4),
-      ].join('/');
+      if (matcher(startIndex)) {
+        return startIndex;
+      }
     }
+    return -1;
+  };
 
-    if (segment === 'api' && /^v\d+$/.test(next ?? '') && third === 'guard') {
-      return [
-        ...segments.slice(0, index),
-        'api',
-        'guard',
-        ...segments.slice(index + 3),
-      ].join('/');
-    }
+  const replaceAt = (startIndex: number, consumed: number): string =>
+    [
+      ...segments.slice(0, startIndex),
+      'api',
+      'guard',
+      ...segments.slice(startIndex + consumed),
+    ].join('/');
 
-    if (segment === 'guard' && segments[index - 1] !== 'api') {
+  const registryStart = findPatternStart(
+    4,
+    startIndex =>
+      segments[startIndex] === 'registry' &&
+      segments[startIndex + 1] === 'api' &&
+      /^v\d+$/.test(segments[startIndex + 2] ?? '') &&
+      segments[startIndex + 3] === 'guard',
+  );
+  if (registryStart >= 0) {
+    return replaceAt(registryStart, 4);
+  }
+
+  const apiVersionStart = findPatternStart(
+    3,
+    startIndex =>
+      segments[startIndex] === 'api' &&
+      /^v\d+$/.test(segments[startIndex + 1] ?? '') &&
+      segments[startIndex + 2] === 'guard',
+  );
+  if (apiVersionStart >= 0) {
+    return replaceAt(apiVersionStart, 3);
+  }
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    if (segments[index] === 'guard' && segments[index - 1] !== 'api') {
       return [
         ...segments.slice(0, index),
         'api',
