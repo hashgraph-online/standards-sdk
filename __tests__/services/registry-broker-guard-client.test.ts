@@ -164,6 +164,57 @@ describe('RegistryBrokerClient guard helpers', () => {
     );
   });
 
+  it('supports canonical fallback when baseUrl is relative', async () => {
+    const sessionPayload = {
+      principal: {
+        signedIn: true,
+        userId: 'user_123',
+        email: 'guard@example.com',
+        accountId: '0.0.1234',
+        stripeCustomerId: 'cus_123',
+        roles: ['user'],
+      },
+      entitlements: {
+        planId: 'pro',
+        includedMonthlyCredits: 500,
+        deviceLimit: 5,
+        retentionDays: 90,
+        syncEnabled: true,
+        premiumFeedsEnabled: true,
+        teamPolicyEnabled: false,
+      },
+      balance: null,
+      bucketingMode: 'shared-ledger',
+      buckets: [],
+    };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ status: 404, json: async () => ({}) }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => sessionPayload }),
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: '/registry',
+      fetchImplementation,
+    });
+
+    const session = await client.getGuardSession();
+
+    expect(session.entitlements.planId).toBe('pro');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      '/registry/api/v1/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      '/api/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('retrieves billing balance, trust, and revocation data', async () => {
     fetchImplementation
       .mockResolvedValueOnce(

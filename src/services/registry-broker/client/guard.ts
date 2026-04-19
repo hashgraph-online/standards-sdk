@@ -60,46 +60,38 @@ import {
   guardWatchlistResponseSchema,
 } from '../schemas';
 import type { RegistryBrokerClient, RequestConfig } from './base-client';
+import { RegistryBrokerError } from './errors';
 
 function isStatusError(error: unknown): error is { status: number } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof (error as { status?: unknown }).status === 'number'
-  );
+  if (error instanceof RegistryBrokerError) {
+    return true;
+  }
+  if (typeof error !== 'object' || error === null || !('status' in error)) {
+    return false;
+  }
+  return typeof Reflect.get(error, 'status') === 'number';
 }
 
 function toPortalCanonicalGuardPath(path: string): string {
-  if (path === '/guard') {
-    return '/api/guard';
-  }
-  if (path.startsWith('/guard/')) {
-    return `/api/guard/${path.slice('/guard/'.length)}`;
-  }
-  if (path === '/api/v1/guard') {
-    return '/api/guard';
-  }
-  if (path.startsWith('/api/v1/guard/')) {
-    return `/api/guard/${path.slice('/api/v1/guard/'.length)}`;
-  }
-  if (path === '/registry/api/v1/guard') {
-    return '/api/guard';
-  }
-  if (path.startsWith('/registry/api/v1/guard/')) {
-    return `/api/guard/${path.slice('/registry/api/v1/guard/'.length)}`;
-  }
-  if (path.startsWith('/api/guard/')) {
-    return path;
+  const legacyPrefixes = ['/registry/api/v1/guard', '/api/v1/guard', '/guard'];
+  for (const prefix of legacyPrefixes) {
+    if (path === prefix || path.startsWith(`${prefix}/`)) {
+      return `/api/guard${path.slice(prefix.length)}`;
+    }
   }
   return path;
 }
 
 function buildPortalCanonicalGuardUrl(baseUrl: string, path: string): string {
-  const base = new URL(baseUrl);
-  const target = new URL(path, `${base.origin}/`);
+  const target = new URL(path, 'https://guard.local');
   const canonicalPath = toPortalCanonicalGuardPath(target.pathname);
-  return `${base.origin}${canonicalPath}${target.search}`;
+  const canonicalRelativePath = `${canonicalPath}${target.search}`;
+  try {
+    const base = new URL(baseUrl);
+    return `${base.origin}${canonicalRelativePath}`;
+  } catch {
+    return canonicalRelativePath;
+  }
 }
 
 async function requestPortalFirstJson<T extends JsonValue>(
