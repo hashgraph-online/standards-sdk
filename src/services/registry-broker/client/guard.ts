@@ -78,13 +78,34 @@ function toPortalCanonicalGuardPath(path: string): string {
     if (path === prefix || path.startsWith(`${prefix}/`)) {
       return `/api/guard${path.slice(prefix.length)}`;
     }
+    const nestedPrefix = `${prefix}/`;
+    const nestedIndex = path.indexOf(nestedPrefix);
+    if (nestedIndex > 0) {
+      const preservedPrefix = path.slice(0, nestedIndex);
+      const suffix = path.slice(nestedIndex + prefix.length);
+      return `${preservedPrefix}/api/guard${suffix}`;
+    }
+    const terminalIndex = path.indexOf(prefix);
+    if (terminalIndex > 0 && terminalIndex + prefix.length === path.length) {
+      const preservedPrefix = path.slice(0, terminalIndex);
+      return `${preservedPrefix}/api/guard`;
+    }
   }
   return path;
 }
 
 function buildPortalCanonicalGuardUrl(baseUrl: string, path: string): string {
   const target = new URL(path, 'https://guard.local');
-  const canonicalPath = toPortalCanonicalGuardPath(target.pathname);
+  const normalizedBasePath = (() => {
+    try {
+      const base = new URL(baseUrl);
+      return base.pathname.replace(/\/+$/, '');
+    } catch {
+      return baseUrl.replace(/\/+$/, '');
+    }
+  })();
+  const requestedPath = `${normalizedBasePath}${target.pathname}`;
+  const canonicalPath = toPortalCanonicalGuardPath(requestedPath);
   const canonicalRelativePath = `${canonicalPath}${target.search}`;
   try {
     const base = new URL(baseUrl);
