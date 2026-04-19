@@ -584,7 +584,7 @@ export class RegistryBrokerClient {
     return `${this.baseUrl}${normalisedPath}`;
   }
 
-  async request(path: string, config: RequestConfig): Promise<Response> {
+  private buildRequestInit(config: RequestConfig): RequestInit {
     const headers = new Headers();
     Object.entries(this.defaultHeaders).forEach(([key, value]) => {
       headers.set(key, value);
@@ -613,7 +613,27 @@ export class RegistryBrokerClient {
       }
     }
 
+    return init;
+  }
+
+  async request(path: string, config: RequestConfig): Promise<Response> {
+    const init = this.buildRequestInit(config);
     const response = await this.fetchImpl(this.buildUrl(path), init);
+    if (response.ok) {
+      return response;
+    }
+    const errorBody = await this.extractErrorBody(response);
+    throw new RegistryBrokerError('Registry broker request failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorBody,
+    });
+  }
+
+  async requestAbsolute(url: string, config: RequestConfig): Promise<Response> {
+    const init = this.buildRequestInit(config);
+    const response = await this.fetchImpl(url, init);
+
     if (response.ok) {
       return response;
     }
@@ -630,6 +650,22 @@ export class RegistryBrokerClient {
     config: RequestConfig,
   ): Promise<T> {
     const response = await this.request(path, config);
+    const contentType = response.headers?.get('content-type') ?? '';
+    if (!JSON_CONTENT_TYPE.test(contentType)) {
+      const body = await response.text();
+      throw new RegistryBrokerParseError(
+        'Expected JSON response from registry broker',
+        body,
+      );
+    }
+    return (await response.json()) as T;
+  }
+
+  async requestAbsoluteJson<T extends JsonValue = JsonValue>(
+    url: string,
+    config: RequestConfig,
+  ): Promise<T> {
+    const response = await this.requestAbsolute(url, config);
     const contentType = response.headers?.get('content-type') ?? '';
     if (!JSON_CONTENT_TYPE.test(contentType)) {
       const body = await response.text();

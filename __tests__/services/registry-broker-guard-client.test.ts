@@ -86,6 +86,288 @@ describe('RegistryBrokerClient guard helpers', () => {
     );
   });
 
+  it('falls back to portal-canonical guard routes when legacy paths return 404', async () => {
+    const sessionPayload = {
+      principal: {
+        signedIn: true,
+        userId: 'user_123',
+        email: 'guard@example.com',
+        accountId: '0.0.1234',
+        stripeCustomerId: 'cus_123',
+        roles: ['user'],
+      },
+      entitlements: {
+        planId: 'pro',
+        includedMonthlyCredits: 500,
+        deviceLimit: 5,
+        retentionDays: 90,
+        syncEnabled: true,
+        premiumFeedsEnabled: true,
+        teamPolicyEnabled: false,
+      },
+      balance: {
+        accountId: '0.0.1234',
+        availableCredits: 212,
+      },
+      bucketingMode: 'product-bucketed',
+      buckets: [],
+    };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ status: 404, json: async () => ({}) }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => sessionPayload }),
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    const session = await client.getGuardSession();
+
+    expect(session.entitlements.planId).toBe('pro');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/api/v1/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/api/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('does not fallback to portal-canonical route on non-404/501 failures', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        status: 403,
+        json: async () => ({ error: 'forbidden' }),
+      }),
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await expect(client.getGuardSession()).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/api/v1/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('supports canonical fallback when baseUrl is relative', async () => {
+    const sessionPayload = {
+      principal: {
+        signedIn: true,
+        userId: 'user_123',
+        email: 'guard@example.com',
+        accountId: '0.0.1234',
+        stripeCustomerId: 'cus_123',
+        roles: ['user'],
+      },
+      entitlements: {
+        planId: 'pro',
+        includedMonthlyCredits: 500,
+        deviceLimit: 5,
+        retentionDays: 90,
+        syncEnabled: true,
+        premiumFeedsEnabled: true,
+        teamPolicyEnabled: false,
+      },
+      balance: null,
+      bucketingMode: 'shared-ledger',
+      buckets: [],
+    };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ status: 404, json: async () => ({}) }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => sessionPayload }),
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: '/registry',
+      fetchImplementation,
+    });
+
+    const session = await client.getGuardSession();
+
+    expect(session.entitlements.planId).toBe('pro');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      '/registry/api/v1/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      '/api/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('preserves proxy base path for canonical fallback retries', async () => {
+    const sessionPayload = {
+      principal: {
+        signedIn: true,
+        userId: 'user_123',
+        email: 'guard@example.com',
+        accountId: '0.0.1234',
+        stripeCustomerId: 'cus_123',
+        roles: ['user'],
+      },
+      entitlements: {
+        planId: 'pro',
+        includedMonthlyCredits: 500,
+        deviceLimit: 5,
+        retentionDays: 90,
+        syncEnabled: true,
+        premiumFeedsEnabled: true,
+        teamPolicyEnabled: false,
+      },
+      balance: null,
+      bucketingMode: 'shared-ledger',
+      buckets: [],
+    };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ status: 404, json: async () => ({}) }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => sessionPayload }),
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com/proxy/api/v1',
+      fetchImplementation,
+    });
+
+    const session = await client.getGuardSession();
+
+    expect(session.entitlements.planId).toBe('pro');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/proxy/api/v1/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/proxy/api/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('maps non-v1 base paths to canonical guard fallback routes', async () => {
+    const sessionPayload = {
+      principal: {
+        signedIn: true,
+        userId: 'user_123',
+        email: 'guard@example.com',
+        accountId: '0.0.1234',
+        stripeCustomerId: 'cus_123',
+        roles: ['user'],
+      },
+      entitlements: {
+        planId: 'pro',
+        includedMonthlyCredits: 500,
+        deviceLimit: 5,
+        retentionDays: 90,
+        syncEnabled: true,
+        premiumFeedsEnabled: true,
+        teamPolicyEnabled: false,
+      },
+      balance: null,
+      bucketingMode: 'shared-ledger',
+      buckets: [],
+    };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ status: 404, json: async () => ({}) }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => sessionPayload }),
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com/proxy/api/v2',
+      fetchImplementation,
+    });
+
+    const session = await client.getGuardSession();
+
+    expect(session.entitlements.planId).toBe('pro');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/proxy/api/v2/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/proxy/api/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('keeps guard segments in proxy base paths when retrying canonical routes', async () => {
+    const sessionPayload = {
+      principal: {
+        signedIn: true,
+        userId: 'user_123',
+        email: 'guard@example.com',
+        accountId: '0.0.1234',
+        stripeCustomerId: 'cus_123',
+        roles: ['user'],
+      },
+      entitlements: {
+        planId: 'pro',
+        includedMonthlyCredits: 500,
+        deviceLimit: 5,
+        retentionDays: 90,
+        syncEnabled: true,
+        premiumFeedsEnabled: true,
+        teamPolicyEnabled: false,
+      },
+      balance: null,
+      bucketingMode: 'shared-ledger',
+      buckets: [],
+    };
+    fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({ status: 404, json: async () => ({}) }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => sessionPayload }),
+      );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com/proxy/guard/api/v1',
+      fetchImplementation,
+    });
+
+    const session = await client.getGuardSession();
+
+    expect(session.entitlements.planId).toBe('pro');
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/proxy/guard/api/v1/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/proxy/guard/api/guard/auth/session',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('retrieves billing balance, trust, and revocation data', async () => {
     fetchImplementation
       .mockResolvedValueOnce(

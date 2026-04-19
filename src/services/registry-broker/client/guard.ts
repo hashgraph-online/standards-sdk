@@ -59,14 +59,133 @@ import {
   guardWatchlistLookupResponseSchema,
   guardWatchlistResponseSchema,
 } from '../schemas';
-import type { RegistryBrokerClient } from './base-client';
+import type { RegistryBrokerClient, RequestConfig } from './base-client';
+import { RegistryBrokerError } from './errors';
+
+function isStatusError(error: unknown): error is { status: number } {
+  if (error instanceof RegistryBrokerError) {
+    return true;
+  }
+  if (typeof error !== 'object' || error === null || !('status' in error)) {
+    return false;
+  }
+  return typeof Reflect.get(error, 'status') === 'number';
+}
+
+function toPortalCanonicalGuardPath(path: string): string {
+  const segments = path.split('/');
+  const findPatternStart = (
+    size: number,
+    matcher: (startIndex: number) => boolean,
+  ): number => {
+    for (
+      let startIndex = segments.length - size;
+      startIndex >= 0;
+      startIndex -= 1
+    ) {
+      if (matcher(startIndex)) {
+        return startIndex;
+      }
+    }
+    return -1;
+  };
+
+  const replaceAt = (startIndex: number, consumed: number): string =>
+    [
+      ...segments.slice(0, startIndex),
+      'api',
+      'guard',
+      ...segments.slice(startIndex + consumed),
+    ].join('/');
+
+  const registryStart = findPatternStart(
+    4,
+    startIndex =>
+      segments[startIndex] === 'registry' &&
+      segments[startIndex + 1] === 'api' &&
+      /^v\d+$/.test(segments[startIndex + 2] ?? '') &&
+      segments[startIndex + 3] === 'guard',
+  );
+  if (registryStart >= 0) {
+    return replaceAt(registryStart, 4);
+  }
+
+  const apiVersionStart = findPatternStart(
+    3,
+    startIndex =>
+      segments[startIndex] === 'api' &&
+      /^v\d+$/.test(segments[startIndex + 1] ?? '') &&
+      segments[startIndex + 2] === 'guard',
+  );
+  if (apiVersionStart >= 0) {
+    return replaceAt(apiVersionStart, 3);
+  }
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    if (segments[index] === 'guard' && segments[index - 1] !== 'api') {
+      return [
+        ...segments.slice(0, index),
+        'api',
+        'guard',
+        ...segments.slice(index + 1),
+      ].join('/');
+    }
+  }
+  return path;
+}
+
+function buildPortalCanonicalGuardUrl(baseUrl: string, path: string): string {
+  const target = new URL(path, 'https://guard.local');
+  const normalizedBasePath = (() => {
+    try {
+      const base = new URL(baseUrl);
+      return base.pathname.replace(/\/+$/, '');
+    } catch {
+      return baseUrl.replace(/\/+$/, '');
+    }
+  })();
+  const requestedPath = `${normalizedBasePath}${target.pathname}`;
+  const canonicalPath = toPortalCanonicalGuardPath(requestedPath);
+  const canonicalRelativePath = `${canonicalPath}${target.search}`;
+  try {
+    const base = new URL(baseUrl);
+    return `${base.origin}${canonicalRelativePath}`;
+  } catch {
+    return canonicalRelativePath;
+  }
+}
+
+async function requestPortalFirstJson<T extends JsonValue>(
+  client: RegistryBrokerClient,
+  path: string,
+  init: RequestConfig,
+): Promise<T> {
+  try {
+    return await client.requestJson<T>(path, init);
+  } catch (error) {
+    if (
+      isStatusError(error) &&
+      (error.status === 404 || error.status === 501)
+    ) {
+      return client.requestAbsoluteJson<T>(
+        buildPortalCanonicalGuardUrl(client.baseUrl, path),
+        init,
+      );
+    }
+    throw error;
+  }
+}
 
 export async function getGuardSession(
   client: RegistryBrokerClient,
 ): Promise<GuardSessionResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/auth/session', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/auth/session',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardSessionResponseSchema,
@@ -77,9 +196,13 @@ export async function getGuardSession(
 export async function getGuardEntitlements(
   client: RegistryBrokerClient,
 ): Promise<GuardSessionResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/entitlements', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/entitlements',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardSessionResponseSchema,
@@ -90,9 +213,13 @@ export async function getGuardEntitlements(
 export async function getGuardBillingBalance(
   client: RegistryBrokerClient,
 ): Promise<GuardBalanceResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/billing/balance', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/billing/balance',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardBalanceResponseSchema,
@@ -114,9 +241,13 @@ export async function getGuardFeed(
   }
   const query = params.toString();
   const suffix = query ? `?${query}` : '';
-  const raw = await client.requestJson<JsonValue>(`/guard/feed${suffix}`, {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    `/guard/feed${suffix}`,
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardFeedResponseSchema,
@@ -127,9 +258,13 @@ export async function getGuardFeed(
 export async function getGuardOverview(
   client: RegistryBrokerClient,
 ): Promise<GuardOverviewResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/overview', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/overview',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardOverviewResponseSchema,
@@ -145,7 +280,8 @@ export async function getGuardTrustByHash(
   if (!normalizedHash) {
     throw new Error('sha256 is required');
   }
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     `/guard/trust/by-hash/${encodeURIComponent(normalizedHash)}`,
     { method: 'GET' },
   );
@@ -171,7 +307,8 @@ export async function resolveGuardTrust(
     params.set('version', query.version.trim());
   }
   const suffix = params.size > 0 ? `?${params.toString()}` : '';
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     `/guard/trust/resolve${suffix}`,
     { method: 'GET' },
   );
@@ -185,9 +322,13 @@ export async function resolveGuardTrust(
 export async function getGuardRevocations(
   client: RegistryBrokerClient,
 ): Promise<GuardRevocationResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/revocations', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/revocations',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardRevocationResponseSchema,
@@ -198,9 +339,13 @@ export async function getGuardRevocations(
 export async function fetchGuardAdvisories(
   client: RegistryBrokerClient,
 ): Promise<GuardRevocationResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/advisories', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/advisories',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardRevocationResponseSchema,
@@ -211,9 +356,13 @@ export async function fetchGuardAdvisories(
 export async function fetchGuardPolicy(
   client: RegistryBrokerClient,
 ): Promise<GuardPolicy> {
-  const raw = await client.requestJson<JsonValue>('/guard/policy/fetch', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/policy/fetch',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardPolicySchema,
@@ -224,9 +373,13 @@ export async function fetchGuardPolicy(
 export async function getGuardInventory(
   client: RegistryBrokerClient,
 ): Promise<GuardInventoryResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/inventory', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/inventory',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardInventoryResponseSchema,
@@ -237,9 +390,13 @@ export async function getGuardInventory(
 export async function getGuardReceiptHistory(
   client: RegistryBrokerClient,
 ): Promise<GuardReceiptHistoryResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/history', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/history',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardReceiptHistoryResponseSchema,
@@ -255,7 +412,8 @@ export async function getGuardArtifactTimeline(
   if (!normalizedArtifactId) {
     throw new Error('artifactId is required');
   }
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     `/guard/history/${encodeURIComponent(normalizedArtifactId)}`,
     { method: 'GET' },
   );
@@ -269,7 +427,7 @@ export async function getGuardArtifactTimeline(
 export async function exportGuardAbom(
   client: RegistryBrokerClient,
 ): Promise<GuardAbomResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/abom', {
+  const raw = await requestPortalFirstJson<JsonValue>(client, '/guard/abom', {
     method: 'GET',
   });
   return client.parseWithSchema(
@@ -287,7 +445,8 @@ export async function exportGuardArtifactAbom(
   if (!normalizedArtifactId) {
     throw new Error('artifactId is required');
   }
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     `/guard/abom/${encodeURIComponent(normalizedArtifactId)}`,
     { method: 'GET' },
   );
@@ -301,9 +460,13 @@ export async function exportGuardArtifactAbom(
 export async function exportGuardReceipts(
   client: RegistryBrokerClient,
 ): Promise<GuardReceiptExportResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/receipts/export', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/receipts/export',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardReceiptExportResponseSchema,
@@ -314,9 +477,13 @@ export async function exportGuardReceipts(
 export async function getGuardInventoryDiff(
   client: RegistryBrokerClient,
 ): Promise<GuardInventoryDiffResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/inventory/diff', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/inventory/diff',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardInventoryDiffResponseSchema,
@@ -327,9 +494,13 @@ export async function getGuardInventoryDiff(
 export async function getGuardDevices(
   client: RegistryBrokerClient,
 ): Promise<GuardDeviceListResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/devices', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/devices',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardDeviceListResponseSchema,
@@ -340,9 +511,13 @@ export async function getGuardDevices(
 export async function getGuardAlertPreferences(
   client: RegistryBrokerClient,
 ): Promise<GuardAlertPreferences> {
-  const raw = await client.requestJson<JsonValue>('/guard/alerts/preferences', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/alerts/preferences',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardAlertPreferencesSchema,
@@ -354,10 +529,14 @@ export async function updateGuardAlertPreferences(
   client: RegistryBrokerClient,
   payload: GuardAlertPreferencesUpdate,
 ): Promise<GuardAlertPreferences> {
-  const raw = await client.requestJson<JsonValue>('/guard/alerts/preferences', {
-    method: 'PUT',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/alerts/preferences',
+    {
+      method: 'PUT',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardAlertPreferencesSchema,
@@ -368,9 +547,13 @@ export async function updateGuardAlertPreferences(
 export async function getGuardExceptions(
   client: RegistryBrokerClient,
 ): Promise<GuardExceptionListResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/exceptions', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/exceptions',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardExceptionListResponseSchema,
@@ -381,9 +564,13 @@ export async function getGuardExceptions(
 export async function getGuardWatchlist(
   client: RegistryBrokerClient,
 ): Promise<GuardWatchlistResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/watchlist', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/watchlist',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardWatchlistResponseSchema,
@@ -395,10 +582,14 @@ export async function lookupGuardWatchlist(
   client: RegistryBrokerClient,
   payload: GuardPreflightRequest,
 ): Promise<GuardWatchlistLookupResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/watchlist/lookup', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/watchlist/lookup',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardWatchlistLookupResponseSchema,
@@ -409,9 +600,13 @@ export async function lookupGuardWatchlist(
 export async function getGuardPainSignals(
   client: RegistryBrokerClient,
 ): Promise<GuardPainSignalListResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/signals/pain', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/signals/pain',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardPainSignalListResponseSchema,
@@ -422,7 +617,8 @@ export async function getGuardPainSignals(
 export async function getGuardAggregatedPainSignals(
   client: RegistryBrokerClient,
 ): Promise<GuardPainSignalAggregateResponse> {
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     '/guard/signals/pain/aggregate',
     {
       method: 'GET',
@@ -440,7 +636,7 @@ async function getGuardPreflightVerdict(
   path: '/guard/verdict/pre-install' | '/guard/verdict/pre-execution',
   payload: GuardPreflightRequest,
 ): Promise<GuardPreflightVerdictResponse> {
-  const raw = await client.requestJson<JsonValue>(path, {
+  const raw = await requestPortalFirstJson<JsonValue>(client, path, {
     method: 'POST',
     body: payload,
   });
@@ -477,10 +673,14 @@ export async function ingestGuardPainSignals(
   client: RegistryBrokerClient,
   items: GuardPainSignalIngestItem[],
 ): Promise<GuardPainSignalListResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/signals/pain', {
-    method: 'POST',
-    body: { items },
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/signals/pain',
+    {
+      method: 'POST',
+      body: { items },
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardPainSignalListResponseSchema,
@@ -492,10 +692,14 @@ export async function submitGuardReceipts(
   client: RegistryBrokerClient,
   payload: GuardReceiptSyncPayload,
 ): Promise<GuardReceiptSyncResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/receipts/submit', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/receipts/submit',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardReceiptSyncResponseSchema,
@@ -507,10 +711,14 @@ export async function addGuardWatchlistItem(
   client: RegistryBrokerClient,
   payload: GuardWatchlistUpsert,
 ): Promise<GuardWatchlistResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/watchlist', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/watchlist',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardWatchlistResponseSchema,
@@ -526,7 +734,8 @@ export async function removeGuardWatchlistItem(
   if (!normalizedArtifactId) {
     throw new Error('artifactId is required');
   }
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     `/guard/watchlist/${encodeURIComponent(normalizedArtifactId)}`,
     { method: 'DELETE' },
   );
@@ -541,10 +750,14 @@ export async function addGuardException(
   client: RegistryBrokerClient,
   payload: GuardExceptionUpsert,
 ): Promise<GuardExceptionListResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/exceptions', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/exceptions',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardExceptionListResponseSchema,
@@ -556,10 +769,14 @@ export async function requestGuardException(
   client: RegistryBrokerClient,
   payload: GuardExceptionUpsert,
 ): Promise<GuardExceptionListResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/exceptions/request', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/exceptions/request',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardExceptionListResponseSchema,
@@ -571,10 +788,14 @@ export async function syncGuardInventory(
   client: RegistryBrokerClient,
   payload: GuardReceiptSyncPayload,
 ): Promise<GuardReceiptSyncResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/inventory/sync', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/inventory/sync',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardReceiptSyncResponseSchema,
@@ -590,7 +811,8 @@ export async function removeGuardException(
   if (!normalizedExceptionId) {
     throw new Error('exceptionId is required');
   }
-  const raw = await client.requestJson<JsonValue>(
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
     `/guard/exceptions/${encodeURIComponent(normalizedExceptionId)}`,
     { method: 'DELETE' },
   );
@@ -604,9 +826,13 @@ export async function removeGuardException(
 export async function getGuardTeamPolicyPack(
   client: RegistryBrokerClient,
 ): Promise<GuardTeamPolicyPack> {
-  const raw = await client.requestJson<JsonValue>('/guard/team/policy-pack', {
-    method: 'GET',
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/team/policy-pack',
+    {
+      method: 'GET',
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardTeamPolicyPackSchema,
@@ -618,10 +844,14 @@ export async function updateGuardTeamPolicyPack(
   client: RegistryBrokerClient,
   payload: GuardTeamPolicyPackUpdate,
 ): Promise<GuardTeamPolicyPack> {
-  const raw = await client.requestJson<JsonValue>('/guard/team/policy-pack', {
-    method: 'PUT',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/team/policy-pack',
+    {
+      method: 'PUT',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardTeamPolicyPackSchema,
@@ -633,10 +863,14 @@ export async function syncGuardReceipts(
   client: RegistryBrokerClient,
   payload: GuardReceiptSyncPayload,
 ): Promise<GuardReceiptSyncResponse> {
-  const raw = await client.requestJson<JsonValue>('/guard/receipts/sync', {
-    method: 'POST',
-    body: payload,
-  });
+  const raw = await requestPortalFirstJson<JsonValue>(
+    client,
+    '/guard/receipts/sync',
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
   return client.parseWithSchema(
     raw,
     guardReceiptSyncResponseSchema,

@@ -306,6 +306,11 @@ export interface HistoryAutoTopUpOptions extends AutoTopUpOptions {
   hbarAmount?: number;
 }
 
+export type GuardContractVersion = 1;
+
+export const GUARD_CANONICAL_PATH_PREFIX = '/api/guard' as const;
+export const GUARD_COMPAT_PATH_PREFIX = '/guard' as const;
+
 export type GuardPlanId = z.infer<typeof guardPlanIdSchema>;
 
 export type GuardPrincipal = z.infer<typeof guardPrincipalSchema>;
