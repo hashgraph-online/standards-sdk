@@ -1,3 +1,11 @@
+
+import { RegistryBrokerClient } from '@hashgraphonline/standards-sdk';
+
+const client = new RegistryBrokerClient();
+const result = await client.search({ q: 'hcs', limit: 3 });
+console.log(result.total);
+
+
 # HOL Standards SDK
 
 | ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by HOL.<br><br>This SDK is built and maintained by [HOL](https://hol.org), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hol.org/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hol.org/docs/standards) |
