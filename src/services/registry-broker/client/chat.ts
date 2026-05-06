@@ -131,11 +131,16 @@ export async function checkChatReadiness(
   payload: ChatReadinessRequestPayload,
 ): Promise<ChatReadinessResponse> {
   const body: JsonObject = {};
-  if ('uaid' in payload && payload.uaid) {
-    body.uaid = payload.uaid;
+  const uaid = 'uaid' in payload ? payload.uaid?.trim() : undefined;
+  const agentUrl = 'agentUrl' in payload ? payload.agentUrl?.trim() : undefined;
+  if (!uaid && !agentUrl) {
+    throw new Error('uaid or agentUrl is required to check chat readiness');
   }
-  if ('agentUrl' in payload && payload.agentUrl) {
-    body.agentUrl = payload.agentUrl;
+  if (uaid) {
+    body.uaid = uaid;
+  }
+  if (agentUrl) {
+    body.agentUrl = agentUrl;
   }
   const raw = await client.requestJson<JsonValue>('/chat/readiness', {
     method: 'POST',
@@ -519,12 +524,22 @@ export async function endSession(
   client: RegistryBrokerClient,
   sessionId: string,
 ): Promise<ChatSessionEndResponse> {
-  const raw = await client.requestJson<JsonValue>(
-    `/chat/session/${encodeURIComponent(sessionId)}`,
-    {
-      method: 'DELETE',
-    },
+  const normalizedSessionId = sessionId?.trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required to end a chat session');
+  }
+  const response = await client.request(
+    `/chat/session/${encodeURIComponent(normalizedSessionId)}`,
+    { method: 'DELETE' },
   );
+  if (response.status === 204) {
+    return {
+      message: 'Session ended',
+      sessionId: normalizedSessionId,
+      state: 'ended',
+    };
+  }
+  const raw = (await response.json()) as JsonValue;
   return client.parseWithSchema(
     raw,
     chatSessionEndResponseSchema,
@@ -536,8 +551,12 @@ export async function cancelSession(
   client: RegistryBrokerClient,
   sessionId: string,
 ): Promise<ChatSessionEndResponse> {
+  const normalizedSessionId = sessionId?.trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required to cancel a chat session');
+  }
   const raw = await client.requestJson<JsonValue>(
-    `/chat/session/${encodeURIComponent(sessionId)}/cancel`,
+    `/chat/session/${encodeURIComponent(normalizedSessionId)}/cancel`,
     {
       method: 'POST',
     },
@@ -554,24 +573,43 @@ export async function retryMessage(
   messageId: string,
   payload: ChatRetryRequestPayload,
 ): Promise<ChatRetryResponse> {
+  const normalizedMessageId = messageId?.trim();
+  const normalizedSessionId = payload.sessionId?.trim();
+  const normalizedMessage = payload.message?.trim();
+  if (!normalizedMessageId) {
+    throw new Error('messageId is required to retry a message');
+  }
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required to retry a message');
+  }
+  if (!normalizedMessage) {
+    throw new Error('message is required to retry a message');
+  }
   const body: JsonObject = {
-    sessionId: payload.sessionId,
-    message: payload.message,
+    sessionId: normalizedSessionId,
+    message: normalizedMessage,
   };
-  if (payload.uaid) {
-    body.uaid = payload.uaid;
+  const uaid = payload.uaid?.trim();
+  const agentUrl = payload.agentUrl?.trim();
+  const idempotencyKey = payload.idempotencyKey?.trim();
+  const senderUaid = payload.senderUaid?.trim();
+  if (uaid) {
+    body.uaid = uaid;
   }
-  if (payload.agentUrl) {
-    body.agentUrl = payload.agentUrl;
+  if (agentUrl) {
+    body.agentUrl = agentUrl;
   }
-  if (payload.idempotencyKey) {
-    body.idempotencyKey = payload.idempotencyKey;
+  if (idempotencyKey) {
+    body.idempotencyKey = idempotencyKey;
+  }
+  if (senderUaid) {
+    body.senderUaid = senderUaid;
   }
   if (payload.auth) {
     body.auth = serialiseAuthConfig(payload.auth);
   }
   const raw = await client.requestJson<JsonValue>(
-    `/chat/message/${encodeURIComponent(messageId)}/retry`,
+    `/chat/message/${encodeURIComponent(normalizedMessageId)}/retry`,
     {
       method: 'POST',
       body,

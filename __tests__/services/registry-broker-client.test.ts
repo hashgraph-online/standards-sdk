@@ -1488,6 +1488,7 @@ describe('RegistryBrokerClient', () => {
     const retry = await client.chat.retryMessage('idem-1', {
       sessionId: 'session-1',
       message: 'Hi',
+      senderUaid: 'uaid:sender',
     });
     expect(retry.idempotent).toBe(true);
 
@@ -1537,6 +1538,13 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/message/idem-1/retry',
       expect.objectContaining({ method: 'POST' }),
     );
+    const retryRequestInit = fetchImplementation.mock
+      .calls[3][1] as RequestInit;
+    expect(JSON.parse(retryRequestInit.body as string)).toEqual({
+      message: 'Hi',
+      senderUaid: 'uaid:sender',
+      sessionId: 'session-1',
+    });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       5,
       'https://api.example.com/api/v1/chat/session/session-1/cancel',
@@ -1547,6 +1555,67 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/session/session-1',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('supports legacy empty end-session responses', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        status: 204,
+        statusText: 'No Content',
+        json: async () => {
+          throw new Error('No content');
+        },
+        text: async () => '',
+        headers: new Headers(),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await expect(client.chat.endSession('session-1')).resolves.toEqual({
+      message: 'Session ended',
+      sessionId: 'session-1',
+      state: 'ended',
+    });
+  });
+
+  it('validates required chat lifecycle inputs before making requests', async () => {
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await expect(client.chat.readiness({ agentUrl: '   ' })).rejects.toThrow(
+      'uaid or agentUrl is required',
+    );
+    await expect(client.chat.cancelSession('   ')).rejects.toThrow(
+      'sessionId is required',
+    );
+    await expect(client.chat.endSession('   ')).rejects.toThrow(
+      'sessionId is required',
+    );
+    await expect(
+      client.chat.retryMessage('   ', {
+        sessionId: 'session-1',
+        message: 'hello',
+      }),
+    ).rejects.toThrow('messageId is required');
+    await expect(
+      client.chat.retryMessage('message-1', {
+        sessionId: '   ',
+        message: 'hello',
+      }),
+    ).rejects.toThrow('sessionId is required');
+    await expect(
+      client.chat.retryMessage('message-1', {
+        sessionId: 'session-1',
+        message: '   ',
+      }),
+    ).rejects.toThrow('message is required');
+    expect(fetchImplementation).not.toHaveBeenCalled();
   });
 
   it('retrieves chat history snapshot for a session', async () => {
