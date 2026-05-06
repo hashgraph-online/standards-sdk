@@ -539,6 +539,15 @@ export async function endSession(
       state: 'ended',
     };
   }
+  const contentType = response.headers?.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('json')) {
+    await response.text();
+    return {
+      message: 'Session ended',
+      sessionId: normalizedSessionId,
+      state: 'ended',
+    };
+  }
   const raw = (await response.json()) as JsonValue;
   return client.parseWithSchema(
     raw,
@@ -589,6 +598,12 @@ export async function retryMessage(
     sessionId: normalizedSessionId,
     message: normalizedMessage,
   };
+  if (payload.streaming !== undefined) {
+    body.streaming = payload.streaming;
+  }
+  if (payload.transport) {
+    body.transport = payload.transport;
+  }
   const uaid = payload.uaid?.trim();
   const agentUrl = payload.agentUrl?.trim();
   const idempotencyKey = payload.idempotencyKey?.trim();
@@ -607,6 +622,19 @@ export async function retryMessage(
   }
   if (payload.auth) {
     body.auth = serialiseAuthConfig(payload.auth);
+  }
+  let cipherEnvelope = payload.cipherEnvelope ?? null;
+  if (payload.encryption) {
+    if (!payload.encryption.recipients?.length) {
+      throw new Error('recipients are required for encrypted chat payloads');
+    }
+    cipherEnvelope = client.encryption.encryptCipherEnvelope({
+      ...payload.encryption,
+      sessionId: payload.encryption.sessionId ?? normalizedSessionId,
+    });
+  }
+  if (cipherEnvelope) {
+    body.cipherEnvelope = toJsonObject(cipherEnvelope);
   }
   const raw = await client.requestJson<JsonValue>(
     `/chat/message/${encodeURIComponent(normalizedMessageId)}/retry`,
