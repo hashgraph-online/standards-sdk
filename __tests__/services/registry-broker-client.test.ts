@@ -65,6 +65,40 @@ const mockSessionResponse = {
   history: [],
   historyTtlSeconds: 900,
   encryption: null,
+  route: {
+    type: 'a2a',
+    replyMode: 'direct',
+    transport: 'a2a',
+    endpoint: 'https://demo.agent',
+  },
+  transport: 'a2a',
+  visibility: 'private',
+  payment: {
+    required: false,
+    status: 'not_required',
+  },
+  state: 'ready',
+};
+
+const mockReadinessResponse = {
+  status: 'responsive',
+  routeType: 'a2a',
+  replyMode: 'direct',
+  transport: 'a2a',
+  endpoint: 'https://demo.agent',
+  checkedAt: '2025-01-01T00:00:00.000Z',
+  cachedUntil: '2025-01-01T00:01:00.000Z',
+  latencyMs: null,
+  lastSuccessfulReplyAt: null,
+  lastDeliveryConfirmationAt: null,
+  lastFailureCode: null,
+  supportsStreaming: true,
+  supportsHistory: true,
+  supportsEncryption: true,
+  supportsPayments: false,
+  supportsAttachments: false,
+  requiresAuth: false,
+  operatorActionRequired: false,
 };
 
 const mockHistorySnapshot = {
@@ -171,12 +205,24 @@ const mockMessageResponse = {
   uaid: null,
   message: 'Hello',
   timestamp: '2025-01-01T00:00:00.000Z',
+  messageId: 'idem-1',
+  assistantMessageId: 'agent-1',
+  deliveryState: 'responded',
+  replyMode: 'direct',
+  deliveryConfirmation: false,
+  idempotent: false,
   rawResponse: {
     status: 200,
     headers: {
       'x-payment-status': 'SETTLED',
     },
   },
+};
+
+const mockEndSessionResponse = {
+  message: 'Session ended',
+  sessionId: 'session-1',
+  state: 'ended',
 };
 
 const mockStatsResponse = {
@@ -1373,8 +1419,13 @@ describe('RegistryBrokerClient', () => {
     keySpy.mockRestore();
   });
 
-  it('supports chat session flow and endSession', async () => {
+  it('supports chat readiness, session flow, retry, cancel, and endSession', async () => {
     fetchImplementation
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => mockReadinessResponse,
+        }) as unknown as Response,
+      )
       .mockResolvedValueOnce(
         createResponse({
           json: async () => mockSessionResponse,
@@ -1387,10 +1438,20 @@ describe('RegistryBrokerClient', () => {
       )
       .mockResolvedValueOnce(
         createResponse({
-          status: 204,
-          ok: true,
-          json: async () => undefined,
-          text: async () => '',
+          json: async () => ({ ...mockMessageResponse, idempotent: true }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({
+            ...mockEndSessionResponse,
+            message: 'Session cancelled',
+          }),
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => mockEndSessionResponse,
         }) as unknown as Response,
       );
 
@@ -1400,49 +1461,89 @@ describe('RegistryBrokerClient', () => {
     });
 
     const auth: AgentAuthConfig = { type: 'bearer', token: 'user-key' };
+    const readiness = await client.chat.readiness({
+      agentUrl: 'https://demo.agent',
+    });
+    expect(readiness.status).toBe('responsive');
+
     const session = await client.chat.createSession({
       agentUrl: 'https://demo.agent',
       auth,
+      visibility: 'private',
     });
     expect(session.sessionId).toBe('session-1');
+    expect(session.route?.type).toBe('a2a');
 
     const message = await client.chat.sendMessage({
       agentUrl: 'https://demo.agent',
       sessionId: 'session-1',
       message: 'Hi',
+      idempotencyKey: 'idem-1',
       auth,
     });
     expect(message.message).toBe('Hello');
     expect(message.rawResponse).toEqual(mockMessageResponse.rawResponse);
+    expect(message.deliveryState).toBe('responded');
 
-    await expect(client.chat.endSession('session-1')).resolves.toBeUndefined();
+    const retry = await client.chat.retryMessage('idem-1', {
+      sessionId: 'session-1',
+      message: 'Hi',
+    });
+    expect(retry.idempotent).toBe(true);
+
+    await expect(client.chat.cancelSession('session-1')).resolves.toMatchObject(
+      {
+        state: 'ended',
+      },
+    );
+
+    await expect(client.chat.endSession('session-1')).resolves.toEqual(
+      mockEndSessionResponse,
+    );
 
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       1,
+      'https://api.example.com/api/v1/chat/readiness',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      2,
       'https://api.example.com/api/v1/chat/session',
       expect.objectContaining({ method: 'POST' }),
     );
     const sessionRequestInit = fetchImplementation.mock
-      .calls[0][1] as RequestInit;
+      .calls[1][1] as RequestInit;
     expect(JSON.parse(sessionRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
+      visibility: 'private',
     });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
-      2,
+      3,
       'https://api.example.com/api/v1/chat/message',
       expect.objectContaining({ method: 'POST' }),
     );
     const messageRequestInit = fetchImplementation.mock
-      .calls[1][1] as RequestInit;
+      .calls[2][1] as RequestInit;
     expect(JSON.parse(messageRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
+      idempotencyKey: 'idem-1',
       message: 'Hi',
       sessionId: 'session-1',
     });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
-      3,
+      4,
+      'https://api.example.com/api/v1/chat/message/idem-1/retry',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      5,
+      'https://api.example.com/api/v1/chat/session/session-1/cancel',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      6,
       'https://api.example.com/api/v1/chat/session/session-1',
       expect.objectContaining({ method: 'DELETE' }),
     );

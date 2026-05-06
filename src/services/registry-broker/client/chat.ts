@@ -7,6 +7,11 @@ import type {
   ChatHistoryCompactionResponse,
   ChatHistoryFetchOptions,
   ChatHistorySnapshotWithDecryptedEntries,
+  ChatReadinessRequestPayload,
+  ChatReadinessResponse,
+  ChatRetryRequestPayload,
+  ChatRetryResponse,
+  ChatSessionEndResponse,
   CompactHistoryRequestPayload,
   CreateSessionRequestPayload,
   CreateSessionResponse,
@@ -25,6 +30,8 @@ import type {
 } from '../types';
 import {
   chatHistoryCompactionResponseSchema,
+  chatReadinessResponseSchema,
+  chatSessionEndResponseSchema,
   createSessionResponseSchema,
   encryptionHandshakeResponseSchema,
   sendMessageResponseSchema,
@@ -39,13 +46,21 @@ import {
 
 export interface RegistryBrokerChatApi {
   start: (options: StartChatOptions) => Promise<ChatConversationHandle>;
+  readiness: (
+    payload: ChatReadinessRequestPayload,
+  ) => Promise<ChatReadinessResponse>;
   createSession: (
     payload: CreateSessionRequestPayload,
   ) => Promise<CreateSessionResponse>;
   sendMessage: (
     payload: SendMessageRequestPayload,
   ) => Promise<SendMessageResponse>;
-  endSession: (sessionId: string) => Promise<void>;
+  retryMessage: (
+    messageId: string,
+    payload: ChatRetryRequestPayload,
+  ) => Promise<ChatRetryResponse>;
+  cancelSession: (sessionId: string) => Promise<ChatSessionEndResponse>;
+  endSession: (sessionId: string) => Promise<ChatSessionEndResponse>;
   getHistory: (
     sessionId: string,
     options?: ChatHistoryFetchOptions,
@@ -80,10 +95,15 @@ export function createChatApi(
 ): RegistryBrokerChatApi {
   return {
     start: (options: StartChatOptions) => client.startChat(options),
+    readiness: (payload: ChatReadinessRequestPayload) =>
+      client.checkChatReadiness(payload),
     createSession: (payload: CreateSessionRequestPayload) =>
       client.createSession(payload),
     sendMessage: (payload: SendMessageRequestPayload) =>
       client.sendMessage(payload),
+    retryMessage: (messageId: string, payload: ChatRetryRequestPayload) =>
+      client.retryMessage(messageId, payload),
+    cancelSession: (sessionId: string) => client.cancelSession(sessionId),
     endSession: (sessionId: string) => client.endSession(sessionId),
     getHistory: (sessionId: string, options?: ChatHistoryFetchOptions) =>
       client.fetchHistorySnapshot(sessionId, options),
@@ -104,6 +124,29 @@ export function createChatApi(
     acceptEncryptedSession: (options: AcceptEncryptedChatSessionOptions) =>
       encryptedManager.acceptSession(options),
   };
+}
+
+export async function checkChatReadiness(
+  client: RegistryBrokerClient,
+  payload: ChatReadinessRequestPayload,
+): Promise<ChatReadinessResponse> {
+  const body: JsonObject = {};
+  if ('uaid' in payload && payload.uaid) {
+    body.uaid = payload.uaid;
+  }
+  if ('agentUrl' in payload && payload.agentUrl) {
+    body.agentUrl = payload.agentUrl;
+  }
+  const raw = await client.requestJson<JsonValue>('/chat/readiness', {
+    method: 'POST',
+    body,
+    headers: { 'content-type': 'application/json' },
+  });
+  return client.parseWithSchema(
+    raw,
+    chatReadinessResponseSchema,
+    'chat readiness response',
+  );
 }
 
 export async function createSession(
@@ -129,6 +172,9 @@ export async function createSession(
   }
   if (payload.senderUaid) {
     body.senderUaid = payload.senderUaid;
+  }
+  if (payload.visibility) {
+    body.visibility = payload.visibility;
   }
   try {
     const raw = await client.requestJson<JsonValue>('/chat/session', {
@@ -415,6 +461,15 @@ export async function sendMessage(
   if (payload.streaming !== undefined) {
     body.streaming = payload.streaming;
   }
+  if (payload.idempotencyKey) {
+    body.idempotencyKey = payload.idempotencyKey;
+  }
+  if (payload.senderUaid) {
+    body.senderUaid = payload.senderUaid;
+  }
+  if (payload.transport) {
+    body.transport = payload.transport;
+  }
   if (payload.auth) {
     body.auth = serialiseAuthConfig(payload.auth);
   }
@@ -463,8 +518,69 @@ export async function sendMessage(
 export async function endSession(
   client: RegistryBrokerClient,
   sessionId: string,
-): Promise<void> {
-  await client.request(`/chat/session/${encodeURIComponent(sessionId)}`, {
-    method: 'DELETE',
-  });
+): Promise<ChatSessionEndResponse> {
+  const raw = await client.requestJson<JsonValue>(
+    `/chat/session/${encodeURIComponent(sessionId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    chatSessionEndResponseSchema,
+    'chat session end response',
+  );
+}
+
+export async function cancelSession(
+  client: RegistryBrokerClient,
+  sessionId: string,
+): Promise<ChatSessionEndResponse> {
+  const raw = await client.requestJson<JsonValue>(
+    `/chat/session/${encodeURIComponent(sessionId)}/cancel`,
+    {
+      method: 'POST',
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    chatSessionEndResponseSchema,
+    'chat session cancel response',
+  );
+}
+
+export async function retryMessage(
+  client: RegistryBrokerClient,
+  messageId: string,
+  payload: ChatRetryRequestPayload,
+): Promise<ChatRetryResponse> {
+  const body: JsonObject = {
+    sessionId: payload.sessionId,
+    message: payload.message,
+  };
+  if (payload.uaid) {
+    body.uaid = payload.uaid;
+  }
+  if (payload.agentUrl) {
+    body.agentUrl = payload.agentUrl;
+  }
+  if (payload.idempotencyKey) {
+    body.idempotencyKey = payload.idempotencyKey;
+  }
+  if (payload.auth) {
+    body.auth = serialiseAuthConfig(payload.auth);
+  }
+  const raw = await client.requestJson<JsonValue>(
+    `/chat/message/${encodeURIComponent(messageId)}/retry`,
+    {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    sendMessageResponseSchema,
+    'chat retry response',
+  );
 }

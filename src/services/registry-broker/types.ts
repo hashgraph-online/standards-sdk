@@ -91,6 +91,10 @@ import {
   resolveResponseSchema,
   searchResponseSchema,
   sendMessageResponseSchema,
+  chatReadinessResponseSchema,
+  chatSessionEndResponseSchema,
+  chatRouteSummarySchema,
+  chatPaymentStateSchema,
   chatHistorySnapshotResponseSchema,
   chatHistoryCompactionResponseSchema,
   statsResponseSchema,
@@ -614,6 +618,13 @@ export type ResolvedAgentResponse = z.infer<typeof resolveResponseSchema>;
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
+export type ChatReadinessResponse = z.infer<typeof chatReadinessResponseSchema>;
+export type ChatSessionEndResponse = z.infer<
+  typeof chatSessionEndResponseSchema
+>;
+export type ChatRouteSummary = z.infer<typeof chatRouteSummarySchema>;
+export type ChatPaymentState = z.infer<typeof chatPaymentStateSchema>;
+export type ChatRetryResponse = SendMessageResponse;
 export type SkillSecurityBreakdownResponse = z.infer<
   typeof skillSecurityBreakdownResponseSchema
 >;
@@ -1134,11 +1145,22 @@ type CreateSessionBasePayload = {
   historyTtlSeconds?: number;
   encryptionRequested?: boolean;
   senderUaid?: string;
+  visibility?: 'private' | 'public';
 };
 
 export type CreateSessionRequestPayload =
   | (CreateSessionBasePayload & { uaid: string })
   | (CreateSessionBasePayload & { agentUrl: string });
+
+export type ChatReadinessRequestPayload =
+  | { uaid: string; agentUrl?: never }
+  | { agentUrl: string; uaid?: never };
+
+export interface ChatRetryRequestPayload extends SendMessageBasePayload {
+  sessionId: string;
+  uaid?: string;
+  agentUrl?: string;
+}
 
 export interface CompactHistoryRequestPayload {
   sessionId: string;
@@ -1156,6 +1178,9 @@ export interface SendMessageBasePayload {
   auth?: AgentAuthConfig;
   cipherEnvelope?: CipherEnvelope;
   encryption?: SendMessageEncryptionOptions;
+  idempotencyKey?: string;
+  senderUaid?: string;
+  transport?: 'xmtp' | 'moltbook' | 'http' | 'a2a' | 'acp';
 }
 
 export interface StartEncryptedChatSessionOptions {

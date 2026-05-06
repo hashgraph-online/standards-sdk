@@ -139,11 +139,138 @@ const sessionEncryptionSummarySchema = z.object({
 
 const chatHistoryEntrySchema = z.object({
   messageId: z.string(),
-  role: z.enum(['user', 'agent']),
+  role: z.enum([
+    'user',
+    'agent',
+    'system',
+    'tool',
+    'payment',
+    'delivery',
+    'error',
+  ]),
   content: z.string(),
   timestamp: z.string(),
   cipherEnvelope: cipherEnvelopeSchema.optional(),
   metadata: z.record(jsonValueSchema).optional(),
+});
+
+const chatDeliveryStateSchema = z.enum([
+  'draft',
+  'queued',
+  'persisted',
+  'delivered',
+  'streaming',
+  'responded',
+  'failed',
+  'timeout',
+  'cancelled',
+]);
+
+const chatReadinessStatusSchema = z.enum([
+  'responsive',
+  'delivery_only',
+  'degraded',
+  'blocked',
+  'unknown',
+]);
+
+const chatReplyModeSchema = z.enum([
+  'direct',
+  'stream',
+  'poll',
+  'delivery_only',
+  'none',
+]);
+
+const chatRouteTypeSchema = z.enum([
+  'a2a',
+  'hcs-10',
+  'mcp',
+  'openrouter',
+  'acp',
+  'xmtp',
+  'moltbook',
+  'agentverse',
+  'nanda',
+  'http',
+  'erc-8004',
+  'x402',
+  'unknown',
+]);
+
+const chatSessionStateSchema = z.enum([
+  'connecting',
+  'ready',
+  'blocked',
+  'ended',
+  'expired',
+]);
+
+const chatErrorCodeSchema = z.enum([
+  'AUTH_REQUIRED',
+  'CREDITS_REQUIRED',
+  'PAYMENT_REQUIRED',
+  'AGENT_UNRESPONSIVE',
+  'ROUTE_UNAVAILABLE',
+  'PROTOCOL_UNSUPPORTED',
+  'BROKER_NOT_EXECUTABLE',
+  'NETWORK_TIMEOUT',
+  'STREAM_STALLED',
+  'HISTORY_UNAVAILABLE',
+  'ENCRYPTION_REQUIRED',
+  'RATE_LIMITED',
+  'VALIDATION_ERROR',
+  'UNKNOWN_ERROR',
+]);
+
+export const chatRouteSummarySchema = z.object({
+  type: chatRouteTypeSchema,
+  replyMode: chatReplyModeSchema,
+  transport: z.string(),
+  endpoint: z.string().optional(),
+});
+
+export const chatPaymentStateSchema = z.object({
+  required: z.boolean(),
+  provider: z.enum(['credits', 'x402', 'acp', 'openrouter']).optional(),
+  status: z.enum([
+    'not_required',
+    'preflight',
+    'required',
+    'approved',
+    'paid',
+    'failed',
+  ]),
+  estimatedCredits: z.number().nullable().optional(),
+  estimatedUsd: z.number().nullable().optional(),
+});
+
+export const chatReadinessResponseSchema = z.object({
+  status: chatReadinessStatusSchema,
+  routeType: chatRouteTypeSchema,
+  replyMode: chatReplyModeSchema,
+  transport: z.string(),
+  endpoint: z.string().optional(),
+  checkedAt: z.string(),
+  cachedUntil: z.string(),
+  latencyMs: z.number().nullable().optional(),
+  lastSuccessfulReplyAt: z.string().nullable().optional(),
+  lastDeliveryConfirmationAt: z.string().nullable().optional(),
+  lastFailureCode: chatErrorCodeSchema.nullable().optional(),
+  supportsStreaming: z.boolean(),
+  supportsHistory: z.boolean(),
+  supportsEncryption: z.boolean(),
+  supportsPayments: z.boolean(),
+  supportsAttachments: z.boolean(),
+  requiresAuth: z.boolean(),
+  operatorActionRequired: z.boolean(),
+  issue: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      details: z.string().optional(),
+    })
+    .optional(),
 });
 
 const metadataFacetSchema = z
@@ -380,6 +507,15 @@ export const createSessionResponseSchema = z.object({
   history: z.array(chatHistoryEntrySchema).optional().default([]),
   historyTtlSeconds: z.number().nullable().optional(),
   encryption: sessionEncryptionSummarySchema.nullable().optional(),
+  route: chatRouteSummarySchema.optional(),
+  transport: z.string().optional(),
+  senderUaid: z.string().nullable().optional(),
+  visibility: z.enum(['private', 'public']).optional(),
+  payment: chatPaymentStateSchema.optional(),
+  readiness: chatReadinessResponseSchema.optional(),
+  state: chatSessionStateSchema.optional(),
+  traceId: z.string().optional(),
+  expiresAt: z.string().nullable().optional(),
 });
 
 export const sendMessageResponseSchema = z.object({
@@ -393,6 +529,20 @@ export const sendMessageResponseSchema = z.object({
   history: z.array(chatHistoryEntrySchema).optional(),
   historyTtlSeconds: z.number().nullable().optional(),
   encrypted: z.boolean().optional(),
+  messageId: z.string().optional(),
+  assistantMessageId: z.string().nullable().optional(),
+  deliveryState: chatDeliveryStateSchema.optional(),
+  replyMode: chatReplyModeSchema.optional(),
+  deliveryConfirmation: z.boolean().optional(),
+  idempotent: z.boolean().optional(),
+  metadata: z.record(jsonValueSchema).optional(),
+  errorCode: chatErrorCodeSchema.optional(),
+});
+
+export const chatSessionEndResponseSchema = z.object({
+  message: z.string(),
+  sessionId: z.string(),
+  state: chatSessionStateSchema.optional(),
 });
 
 export const chatHistorySnapshotResponseSchema = z.object({
