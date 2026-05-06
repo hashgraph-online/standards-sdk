@@ -1452,6 +1452,7 @@ describe('RegistryBrokerClient', () => {
       .mockResolvedValueOnce(
         createResponse({
           json: async () => mockEndSessionResponse,
+          text: async () => JSON.stringify(mockEndSessionResponse),
         }) as unknown as Response,
       );
 
@@ -1487,7 +1488,7 @@ describe('RegistryBrokerClient', () => {
 
     const retry = await client.chat.retryMessage('idem-1', {
       sessionId: 'session-1',
-      message: 'Hi',
+      message: ' Hi ',
       senderUaid: 'uaid:sender',
       cipherEnvelope: {
         algorithm: 'aes-256-gcm',
@@ -1553,7 +1554,7 @@ describe('RegistryBrokerClient', () => {
         nonce: 'nonce',
         recipients: [{ uaid: 'uaid:agent', encryptedShare: 'share' }],
       },
-      message: 'Hi',
+      message: ' Hi ',
       senderUaid: 'uaid:sender',
       sessionId: 'session-1',
     });
@@ -1602,6 +1603,29 @@ describe('RegistryBrokerClient', () => {
         },
         text: async () => 'OK',
         headers: new Headers({ 'content-type': 'text/plain' }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await expect(client.chat.endSession('session-1')).resolves.toEqual({
+      message: 'Session ended',
+      sessionId: 'session-1',
+      state: 'ended',
+    });
+  });
+
+  it('supports empty json end-session responses', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => {
+          throw new Error('Expected no JSON parsing');
+        },
+        text: async () => '',
+        headers: new Headers({ 'content-type': 'application/json' }),
       }) as unknown as Response,
     );
 

@@ -548,7 +548,15 @@ export async function endSession(
       state: 'ended',
     };
   }
-  const raw = (await response.json()) as JsonValue;
+  const responseBody = await response.text();
+  if (responseBody.trim().length === 0) {
+    return {
+      message: 'Session ended',
+      sessionId: normalizedSessionId,
+      state: 'ended',
+    };
+  }
+  const raw = JSON.parse(responseBody) as JsonValue;
   return client.parseWithSchema(
     raw,
     chatSessionEndResponseSchema,
@@ -596,7 +604,7 @@ export async function retryMessage(
   }
   const body: JsonObject = {
     sessionId: normalizedSessionId,
-    message: normalizedMessage,
+    message: payload.message,
   };
   if (payload.streaming !== undefined) {
     body.streaming = payload.streaming;
