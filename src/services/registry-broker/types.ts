@@ -92,7 +92,9 @@ import {
   searchResponseSchema,
   sendMessageResponseSchema,
   chatReadinessResponseSchema,
+  chatSessionResumeResponseSchema,
   chatSessionEndResponseSchema,
+  chatTimelineEntrySchema,
   chatRouteSummarySchema,
   chatPaymentStateSchema,
   chatHistorySnapshotResponseSchema,
@@ -209,6 +211,8 @@ export interface RegistryBrokerClientOptions {
 export type ChatHistoryEntry = z.infer<
   typeof createSessionResponseSchema
 >['history'][number];
+
+export type ChatTimelineEntry = z.infer<typeof chatTimelineEntrySchema>;
 
 export type CipherEnvelope = NonNullable<ChatHistoryEntry['cipherEnvelope']>;
 
@@ -616,6 +620,10 @@ export type PopularSearchesResponse = z.infer<typeof popularResponseSchema>;
 export type ResolvedAgentResponse = z.infer<typeof resolveResponseSchema>;
 
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
+
+export type ChatSessionResumeResponse = z.infer<
+  typeof chatSessionResumeResponseSchema
+>;
 
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 export type ChatReadinessResponse = z.infer<typeof chatReadinessResponseSchema>;
@@ -1146,6 +1154,7 @@ type CreateSessionBasePayload = {
   encryptionRequested?: boolean;
   senderUaid?: string;
   visibility?: 'private' | 'public';
+  idempotencyKey?: string;
 };
 
 export type CreateSessionRequestPayload =
@@ -1153,8 +1162,8 @@ export type CreateSessionRequestPayload =
   | (CreateSessionBasePayload & { agentUrl: string });
 
 export type ChatReadinessRequestPayload =
-  | { uaid: string; agentUrl?: never }
-  | { agentUrl: string; uaid?: never };
+  | { uaid: string; agentUrl?: never; forceRefresh?: boolean }
+  | { agentUrl: string; uaid?: never; forceRefresh?: boolean };
 
 export interface ChatRetryRequestPayload extends SendMessageBasePayload {
   sessionId: string;

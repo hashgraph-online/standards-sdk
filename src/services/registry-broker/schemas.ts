@@ -166,6 +166,42 @@ const chatDeliveryStateSchema = z.enum([
   'cancelled',
 ]);
 
+const chatAttachmentStateSchema = z.object({
+  supported: z.boolean(),
+  status: z.enum([
+    'unsupported',
+    'available',
+    'selected',
+    'uploading',
+    'scanning',
+    'ready',
+    'failed',
+    'rejected',
+  ]),
+  maxBytes: z.number().nullable().optional(),
+  acceptedMimeTypes: z.array(z.string()).optional(),
+  reason: z.string().optional(),
+});
+
+export const chatTimelineEntrySchema = z.object({
+  messageId: z.string(),
+  kind: z.enum([
+    'user',
+    'assistant',
+    'system',
+    'tool',
+    'payment',
+    'delivery',
+    'error',
+  ]),
+  content: z.string(),
+  timestamp: z.string(),
+  deliveryState: chatDeliveryStateSchema.optional(),
+  errorCode: z.string().optional(),
+  metadata: z.record(jsonValueSchema).optional(),
+  attachment: chatAttachmentStateSchema.optional(),
+});
+
 const chatReadinessStatusSchema = z.enum([
   'responsive',
   'delivery_only',
@@ -271,6 +307,18 @@ export const chatReadinessResponseSchema = z.object({
       details: z.string().optional(),
     })
     .optional(),
+});
+
+export const chatSessionResumeResponseSchema = z.object({
+  sessionId: z.string(),
+  uaid: z.string().nullable().optional(),
+  agentUrl: z.string().nullable().optional(),
+  route: chatRouteSummarySchema,
+  transport: z.string(),
+  history: z.array(chatHistoryEntrySchema),
+  historyTtlSeconds: z.number().optional(),
+  visibility: z.enum(['private', 'public']).optional(),
+  state: chatSessionStateSchema,
 });
 
 const metadataFacetSchema = z

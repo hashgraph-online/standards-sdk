@@ -51,6 +51,7 @@ import type {
   ChatRetryRequestPayload,
   ChatRetryResponse,
   ChatSessionEndResponse,
+  ChatSessionResumeResponse,
   CipherEnvelope,
   CompactHistoryRequestPayload,
   CreateAdapterRegistryCategoryRequest,
@@ -230,6 +231,7 @@ import {
   fetchEncryptionStatus as fetchEncryptionStatusImpl,
   postEncryptionHandshake as postEncryptionHandshakeImpl,
   retryMessage as retryMessageImpl,
+  resumeSession as resumeSessionImpl,
   sendMessage as sendMessageImpl,
   startChat as startChatImpl,
   startConversation as startConversationImpl,
@@ -1712,6 +1714,10 @@ export class RegistryBrokerClient {
     allowHistoryAutoTopUp = true,
   ): Promise<CreateSessionResponse> {
     return createSessionImpl(this, payload, allowHistoryAutoTopUp);
+  }
+
+  async resumeSession(sessionId: string): Promise<ChatSessionResumeResponse> {
+    return resumeSessionImpl(this, sessionId);
   }
 
   async checkChatReadiness(
