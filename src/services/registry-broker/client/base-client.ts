@@ -46,6 +46,11 @@ import type {
   ChatHistoryFetchOptions,
   ChatHistorySnapshotResponse,
   ChatHistorySnapshotWithDecryptedEntries,
+  ChatReadinessRequestPayload,
+  ChatReadinessResponse,
+  ChatRetryRequestPayload,
+  ChatRetryResponse,
+  ChatSessionEndResponse,
   CipherEnvelope,
   CompactHistoryRequestPayload,
   CreateAdapterRegistryCategoryRequest,
@@ -215,6 +220,8 @@ import {
 import type { RegistryBrokerChatApi } from './chat';
 import {
   acceptConversation as acceptConversationImpl,
+  cancelSession as cancelSessionImpl,
+  checkChatReadiness as checkChatReadinessImpl,
   compactHistory as compactHistoryImpl,
   createChatApi,
   createPlaintextConversationHandle as createPlaintextConversationHandleImpl,
@@ -222,6 +229,7 @@ import {
   endSession as endSessionImpl,
   fetchEncryptionStatus as fetchEncryptionStatusImpl,
   postEncryptionHandshake as postEncryptionHandshakeImpl,
+  retryMessage as retryMessageImpl,
   sendMessage as sendMessageImpl,
   startChat as startChatImpl,
   startConversation as startConversationImpl,
@@ -1706,6 +1714,12 @@ export class RegistryBrokerClient {
     return createSessionImpl(this, payload, allowHistoryAutoTopUp);
   }
 
+  async checkChatReadiness(
+    payload: ChatReadinessRequestPayload,
+  ): Promise<ChatReadinessResponse> {
+    return checkChatReadinessImpl(this, payload);
+  }
+
   async startChat(options: StartChatOptions): Promise<ChatConversationHandle> {
     return startChatImpl(this, this.getEncryptedChatManager(), options);
   }
@@ -1751,7 +1765,18 @@ export class RegistryBrokerClient {
     return sendMessageImpl(this, payload);
   }
 
-  endSession(sessionId: string): Promise<void> {
+  retryMessage(
+    messageId: string,
+    payload: ChatRetryRequestPayload,
+  ): Promise<ChatRetryResponse> {
+    return retryMessageImpl(this, messageId, payload);
+  }
+
+  cancelSession(sessionId: string): Promise<ChatSessionEndResponse> {
+    return cancelSessionImpl(this, sessionId);
+  }
+
+  endSession(sessionId: string): Promise<ChatSessionEndResponse> {
     return endSessionImpl(this, sessionId);
   }
 

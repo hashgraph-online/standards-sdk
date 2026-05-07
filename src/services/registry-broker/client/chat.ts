@@ -7,6 +7,11 @@ import type {
   ChatHistoryCompactionResponse,
   ChatHistoryFetchOptions,
   ChatHistorySnapshotWithDecryptedEntries,
+  ChatReadinessRequestPayload,
+  ChatReadinessResponse,
+  ChatRetryRequestPayload,
+  ChatRetryResponse,
+  ChatSessionEndResponse,
   CompactHistoryRequestPayload,
   CreateSessionRequestPayload,
   CreateSessionResponse,
@@ -25,6 +30,8 @@ import type {
 } from '../types';
 import {
   chatHistoryCompactionResponseSchema,
+  chatReadinessResponseSchema,
+  chatSessionEndResponseSchema,
   createSessionResponseSchema,
   encryptionHandshakeResponseSchema,
   sendMessageResponseSchema,
@@ -39,13 +46,21 @@ import {
 
 export interface RegistryBrokerChatApi {
   start: (options: StartChatOptions) => Promise<ChatConversationHandle>;
+  readiness: (
+    payload: ChatReadinessRequestPayload,
+  ) => Promise<ChatReadinessResponse>;
   createSession: (
     payload: CreateSessionRequestPayload,
   ) => Promise<CreateSessionResponse>;
   sendMessage: (
     payload: SendMessageRequestPayload,
   ) => Promise<SendMessageResponse>;
-  endSession: (sessionId: string) => Promise<void>;
+  retryMessage: (
+    messageId: string,
+    payload: ChatRetryRequestPayload,
+  ) => Promise<ChatRetryResponse>;
+  cancelSession: (sessionId: string) => Promise<ChatSessionEndResponse>;
+  endSession: (sessionId: string) => Promise<ChatSessionEndResponse>;
   getHistory: (
     sessionId: string,
     options?: ChatHistoryFetchOptions,
@@ -80,10 +95,15 @@ export function createChatApi(
 ): RegistryBrokerChatApi {
   return {
     start: (options: StartChatOptions) => client.startChat(options),
+    readiness: (payload: ChatReadinessRequestPayload) =>
+      client.checkChatReadiness(payload),
     createSession: (payload: CreateSessionRequestPayload) =>
       client.createSession(payload),
     sendMessage: (payload: SendMessageRequestPayload) =>
       client.sendMessage(payload),
+    retryMessage: (messageId: string, payload: ChatRetryRequestPayload) =>
+      client.retryMessage(messageId, payload),
+    cancelSession: (sessionId: string) => client.cancelSession(sessionId),
     endSession: (sessionId: string) => client.endSession(sessionId),
     getHistory: (sessionId: string, options?: ChatHistoryFetchOptions) =>
       client.fetchHistorySnapshot(sessionId, options),
@@ -104,6 +124,34 @@ export function createChatApi(
     acceptEncryptedSession: (options: AcceptEncryptedChatSessionOptions) =>
       encryptedManager.acceptSession(options),
   };
+}
+
+export async function checkChatReadiness(
+  client: RegistryBrokerClient,
+  payload: ChatReadinessRequestPayload,
+): Promise<ChatReadinessResponse> {
+  const body: JsonObject = {};
+  const uaid = 'uaid' in payload ? payload.uaid?.trim() : undefined;
+  const agentUrl = 'agentUrl' in payload ? payload.agentUrl?.trim() : undefined;
+  if (!uaid && !agentUrl) {
+    throw new Error('uaid or agentUrl is required to check chat readiness');
+  }
+  if (uaid) {
+    body.uaid = uaid;
+  }
+  if (agentUrl) {
+    body.agentUrl = agentUrl;
+  }
+  const raw = await client.requestJson<JsonValue>('/chat/readiness', {
+    method: 'POST',
+    body,
+    headers: { 'content-type': 'application/json' },
+  });
+  return client.parseWithSchema(
+    raw,
+    chatReadinessResponseSchema,
+    'chat readiness response',
+  );
 }
 
 export async function createSession(
@@ -129,6 +177,9 @@ export async function createSession(
   }
   if (payload.senderUaid) {
     body.senderUaid = payload.senderUaid;
+  }
+  if (payload.visibility) {
+    body.visibility = payload.visibility;
   }
   try {
     const raw = await client.requestJson<JsonValue>('/chat/session', {
@@ -415,6 +466,15 @@ export async function sendMessage(
   if (payload.streaming !== undefined) {
     body.streaming = payload.streaming;
   }
+  if (payload.idempotencyKey) {
+    body.idempotencyKey = payload.idempotencyKey;
+  }
+  if (payload.senderUaid) {
+    body.senderUaid = payload.senderUaid;
+  }
+  if (payload.transport) {
+    body.transport = payload.transport;
+  }
   if (payload.auth) {
     body.auth = serialiseAuthConfig(payload.auth);
   }
@@ -463,8 +523,138 @@ export async function sendMessage(
 export async function endSession(
   client: RegistryBrokerClient,
   sessionId: string,
-): Promise<void> {
-  await client.request(`/chat/session/${encodeURIComponent(sessionId)}`, {
-    method: 'DELETE',
-  });
+): Promise<ChatSessionEndResponse> {
+  const normalizedSessionId = sessionId?.trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required to end a chat session');
+  }
+  const response = await client.request(
+    `/chat/session/${encodeURIComponent(normalizedSessionId)}`,
+    { method: 'DELETE' },
+  );
+  if (response.status === 204) {
+    return {
+      message: 'Session ended',
+      sessionId: normalizedSessionId,
+      state: 'ended',
+    };
+  }
+  const contentType = response.headers?.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('json')) {
+    await response.text();
+    return {
+      message: 'Session ended',
+      sessionId: normalizedSessionId,
+      state: 'ended',
+    };
+  }
+  const responseBody = await response.text();
+  if (responseBody.trim().length === 0) {
+    return {
+      message: 'Session ended',
+      sessionId: normalizedSessionId,
+      state: 'ended',
+    };
+  }
+  const raw = JSON.parse(responseBody) as JsonValue;
+  return client.parseWithSchema(
+    raw,
+    chatSessionEndResponseSchema,
+    'chat session end response',
+  );
+}
+
+export async function cancelSession(
+  client: RegistryBrokerClient,
+  sessionId: string,
+): Promise<ChatSessionEndResponse> {
+  const normalizedSessionId = sessionId?.trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required to cancel a chat session');
+  }
+  const raw = await client.requestJson<JsonValue>(
+    `/chat/session/${encodeURIComponent(normalizedSessionId)}/cancel`,
+    {
+      method: 'POST',
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    chatSessionEndResponseSchema,
+    'chat session cancel response',
+  );
+}
+
+export async function retryMessage(
+  client: RegistryBrokerClient,
+  messageId: string,
+  payload: ChatRetryRequestPayload,
+): Promise<ChatRetryResponse> {
+  const normalizedMessageId = messageId?.trim();
+  const normalizedSessionId = payload.sessionId?.trim();
+  const normalizedMessage = payload.message?.trim();
+  if (!normalizedMessageId) {
+    throw new Error('messageId is required to retry a message');
+  }
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required to retry a message');
+  }
+  if (!normalizedMessage) {
+    throw new Error('message is required to retry a message');
+  }
+  const body: JsonObject = {
+    sessionId: normalizedSessionId,
+    message: payload.message,
+  };
+  if (payload.streaming !== undefined) {
+    body.streaming = payload.streaming;
+  }
+  if (payload.transport) {
+    body.transport = payload.transport;
+  }
+  const uaid = payload.uaid?.trim();
+  const agentUrl = payload.agentUrl?.trim();
+  const idempotencyKey = payload.idempotencyKey?.trim();
+  const senderUaid = payload.senderUaid?.trim();
+  if (uaid) {
+    body.uaid = uaid;
+  }
+  if (agentUrl) {
+    body.agentUrl = agentUrl;
+  }
+  if (idempotencyKey) {
+    body.idempotencyKey = idempotencyKey;
+  }
+  if (senderUaid) {
+    body.senderUaid = senderUaid;
+  }
+  if (payload.auth) {
+    body.auth = serialiseAuthConfig(payload.auth);
+  }
+  let cipherEnvelope = payload.cipherEnvelope ?? null;
+  if (payload.encryption) {
+    if (!payload.encryption.recipients?.length) {
+      throw new Error('recipients are required for encrypted chat payloads');
+    }
+    cipherEnvelope = client.encryption.encryptCipherEnvelope({
+      ...payload.encryption,
+      sessionId: payload.encryption.sessionId ?? normalizedSessionId,
+    });
+  }
+  if (cipherEnvelope) {
+    body.cipherEnvelope = toJsonObject(cipherEnvelope);
+  }
+  const raw = await client.requestJson<JsonValue>(
+    `/chat/message/${encodeURIComponent(normalizedMessageId)}/retry`,
+    {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+  return client.parseWithSchema(
+    raw,
+    sendMessageResponseSchema,
+    'chat retry response',
+  );
 }
