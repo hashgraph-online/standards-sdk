@@ -114,6 +114,23 @@ const mockHistorySnapshot = {
   historyTtlSeconds: 900,
 };
 
+const mockResumeResponse = {
+  sessionId: 'session-1',
+  uaid: null,
+  agentUrl: 'https://demo.agent',
+  route: {
+    type: 'a2a',
+    replyMode: 'direct',
+    transport: 'a2a',
+    endpoint: 'https://demo.agent',
+  },
+  transport: 'a2a',
+  history: mockHistorySnapshot.history,
+  historyTtlSeconds: 900,
+  visibility: 'private',
+  state: 'ready',
+};
+
 const mockCompactionResponse = {
   sessionId: 'session-1',
   summaryEntry: {
@@ -478,6 +495,7 @@ describe('RegistryBrokerClient', () => {
     const requiredChatMethods = [
       'start',
       'createSession',
+      'resumeSession',
       'sendMessage',
       'getHistory',
     ] as const;
@@ -1433,6 +1451,11 @@ describe('RegistryBrokerClient', () => {
       )
       .mockResolvedValueOnce(
         createResponse({
+          json: async () => mockResumeResponse,
+        }) as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        createResponse({
           json: async () => mockMessageResponse,
         }) as unknown as Response,
       )
@@ -1464,6 +1487,7 @@ describe('RegistryBrokerClient', () => {
     const auth: AgentAuthConfig = { type: 'bearer', token: 'user-key' };
     const readiness = await client.chat.readiness({
       agentUrl: 'https://demo.agent',
+      forceRefresh: true,
     });
     expect(readiness.status).toBe('responsive');
 
@@ -1471,9 +1495,13 @@ describe('RegistryBrokerClient', () => {
       agentUrl: 'https://demo.agent',
       auth,
       visibility: 'private',
+      idempotencyKey: 'session-idem-1',
     });
     expect(session.sessionId).toBe('session-1');
     expect(session.route?.type).toBe('a2a');
+
+    const resumed = await client.chat.resumeSession('session-1');
+    expect(resumed.history).toEqual(mockHistorySnapshot.history);
 
     const message = await client.chat.sendMessage({
       agentUrl: 'https://demo.agent',
@@ -1514,6 +1542,12 @@ describe('RegistryBrokerClient', () => {
       'https://api.example.com/api/v1/chat/readiness',
       expect.objectContaining({ method: 'POST' }),
     );
+    const readinessRequestInit = fetchImplementation.mock
+      .calls[0][1] as RequestInit;
+    expect(JSON.parse(readinessRequestInit.body as string)).toEqual({
+      agentUrl: 'https://demo.agent',
+      forceRefresh: true,
+    });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       2,
       'https://api.example.com/api/v1/chat/session',
@@ -1524,15 +1558,21 @@ describe('RegistryBrokerClient', () => {
     expect(JSON.parse(sessionRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
+      idempotencyKey: 'session-idem-1',
       visibility: 'private',
     });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
       3,
+      'https://api.example.com/api/v1/chat/session/session-1/resume',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImplementation).toHaveBeenNthCalledWith(
+      4,
       'https://api.example.com/api/v1/chat/message',
       expect.objectContaining({ method: 'POST' }),
     );
     const messageRequestInit = fetchImplementation.mock
-      .calls[2][1] as RequestInit;
+      .calls[3][1] as RequestInit;
     expect(JSON.parse(messageRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
@@ -1541,12 +1581,12 @@ describe('RegistryBrokerClient', () => {
       sessionId: 'session-1',
     });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
-      4,
+      5,
       'https://api.example.com/api/v1/chat/message/idem-1/retry',
       expect.objectContaining({ method: 'POST' }),
     );
     const retryRequestInit = fetchImplementation.mock
-      .calls[3][1] as RequestInit;
+      .calls[4][1] as RequestInit;
     expect(JSON.parse(retryRequestInit.body as string)).toEqual({
       cipherEnvelope: {
         algorithm: 'aes-256-gcm',
@@ -1559,12 +1599,12 @@ describe('RegistryBrokerClient', () => {
       sessionId: 'session-1',
     });
     expect(fetchImplementation).toHaveBeenNthCalledWith(
-      5,
+      6,
       'https://api.example.com/api/v1/chat/session/session-1/cancel',
       expect.objectContaining({ method: 'POST' }),
     );
     expect(fetchImplementation).toHaveBeenNthCalledWith(
-      6,
+      7,
       'https://api.example.com/api/v1/chat/session/session-1',
       expect.objectContaining({ method: 'DELETE' }),
     );
@@ -1654,6 +1694,9 @@ describe('RegistryBrokerClient', () => {
       'sessionId is required',
     );
     await expect(client.chat.endSession('   ')).rejects.toThrow(
+      'sessionId is required',
+    );
+    await expect(client.chat.resumeSession('   ')).rejects.toThrow(
       'sessionId is required',
     );
     await expect(

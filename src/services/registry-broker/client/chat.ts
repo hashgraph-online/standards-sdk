@@ -12,6 +12,7 @@ import type {
   ChatRetryRequestPayload,
   ChatRetryResponse,
   ChatSessionEndResponse,
+  ChatSessionResumeResponse,
   CompactHistoryRequestPayload,
   CreateSessionRequestPayload,
   CreateSessionResponse,
@@ -32,6 +33,7 @@ import {
   chatHistoryCompactionResponseSchema,
   chatReadinessResponseSchema,
   chatSessionEndResponseSchema,
+  chatSessionResumeResponseSchema,
   createSessionResponseSchema,
   encryptionHandshakeResponseSchema,
   sendMessageResponseSchema,
@@ -52,6 +54,7 @@ export interface RegistryBrokerChatApi {
   createSession: (
     payload: CreateSessionRequestPayload,
   ) => Promise<CreateSessionResponse>;
+  resumeSession: (sessionId: string) => Promise<ChatSessionResumeResponse>;
   sendMessage: (
     payload: SendMessageRequestPayload,
   ) => Promise<SendMessageResponse>;
@@ -99,6 +102,7 @@ export function createChatApi(
       client.checkChatReadiness(payload),
     createSession: (payload: CreateSessionRequestPayload) =>
       client.createSession(payload),
+    resumeSession: (sessionId: string) => client.resumeSession(sessionId),
     sendMessage: (payload: SendMessageRequestPayload) =>
       client.sendMessage(payload),
     retryMessage: (messageId: string, payload: ChatRetryRequestPayload) =>
@@ -142,6 +146,9 @@ export async function checkChatReadiness(
   if (agentUrl) {
     body.agentUrl = agentUrl;
   }
+  if (payload.forceRefresh !== undefined) {
+    body.forceRefresh = payload.forceRefresh;
+  }
   const raw = await client.requestJson<JsonValue>('/chat/readiness', {
     method: 'POST',
     body,
@@ -181,6 +188,9 @@ export async function createSession(
   if (payload.visibility) {
     body.visibility = payload.visibility;
   }
+  if (payload.idempotencyKey) {
+    body.idempotencyKey = payload.idempotencyKey;
+  }
   try {
     const raw = await client.requestJson<JsonValue>('/chat/session', {
       method: 'POST',
@@ -203,6 +213,25 @@ export async function createSession(
     }
     throw error;
   }
+}
+
+export async function resumeSession(
+  client: RegistryBrokerClient,
+  sessionId: string,
+): Promise<ChatSessionResumeResponse> {
+  const normalized = sessionId.trim();
+  if (!normalized) {
+    throw new Error('sessionId is required to resume a chat session');
+  }
+  const raw = await client.requestJson<JsonValue>(
+    `/chat/session/${encodeURIComponent(normalized)}/resume`,
+    { method: 'GET' },
+  );
+  return client.parseWithSchema(
+    raw,
+    chatSessionResumeResponseSchema,
+    'chat session resume response',
+  );
 }
 
 export async function startChat(
