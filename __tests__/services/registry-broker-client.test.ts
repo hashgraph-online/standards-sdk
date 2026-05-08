@@ -519,7 +519,59 @@ describe('RegistryBrokerClient', () => {
     expect(targetUrl).toBe('https://api.example.com/api/v1/delegate');
     expect(init?.method).toBe('POST');
     expect(init?.headers).toBeInstanceOf(Headers);
-    expect((init?.headers as Headers).get('content-type')).toBe('application/json');
+    expect((init?.headers as Headers).get('content-type')).toBe(
+      'application/json',
+    );
+  });
+
+  it('calls the delegate endpoint with payload and options overload', async () => {
+    fetchImplementation.mockResolvedValueOnce(
+      createResponse({
+        json: async () => ({
+          task: 'review this repo',
+          intents: ['delegate'],
+          protocols: ['registry-broker'],
+          surfaces: ['cli'],
+          shouldDelegate: true,
+          opportunities: [],
+        }),
+      }) as unknown as Response,
+    );
+
+    const client = new RegistryBrokerClient({
+      baseUrl: 'https://api.example.com',
+      fetchImplementation,
+    });
+
+    await client.delegate(
+      {
+        task: 'review this repo',
+        context: 'focus on broker chat parity',
+      },
+      {
+        limit: 2,
+        filter: {
+          protocols: ['mcp'],
+        },
+        workspace: {
+          openFiles: ['src/api/chat/contract.ts'],
+        },
+      },
+    );
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    const [, init] = fetchImplementation.mock.calls[0];
+    expect(JSON.parse(init?.body as string)).toEqual({
+      task: 'review this repo',
+      context: 'focus on broker chat parity',
+      limit: 2,
+      filter: {
+        protocols: ['mcp'],
+      },
+      workspace: {
+        openFiles: ['src/api/chat/contract.ts'],
+      },
+    });
   });
 
   it('throws RegistryBrokerError on non-OK response', async () => {
@@ -743,6 +795,8 @@ describe('RegistryBrokerClient', () => {
             name: 'Security team default',
             sharedHarnessDefaults: { codex: 'prompt' },
             allowedPublishers: ['hol'],
+            blockedPublishers: [],
+            blockedDomains: [],
             blockedArtifacts: ['plugin:forked/risky-tool'],
             alertChannel: 'email',
             updatedAt: '2026-04-11T00:00:00.000Z',
@@ -756,6 +810,8 @@ describe('RegistryBrokerClient', () => {
             name: 'Security team default',
             sharedHarnessDefaults: { codex: 'prompt' },
             allowedPublishers: ['hol'],
+            blockedPublishers: [],
+            blockedDomains: [],
             blockedArtifacts: ['plugin:forked/risky-tool'],
             alertChannel: 'slack',
             updatedAt: '2026-04-11T00:00:00.000Z',
@@ -1408,6 +1464,7 @@ describe('RegistryBrokerClient', () => {
       agentUrl: 'https://demo.agent',
       sessionId: 'session-1',
       message: 'Hi',
+      idempotencyKey: 'chat-send-1',
       auth,
     });
     expect(message.message).toBe('Hello');
@@ -1436,6 +1493,7 @@ describe('RegistryBrokerClient', () => {
     expect(JSON.parse(messageRequestInit.body as string)).toEqual({
       agentUrl: 'https://demo.agent',
       auth: { type: 'bearer', token: 'user-key' },
+      idempotencyKey: 'chat-send-1',
       message: 'Hi',
       sessionId: 'session-1',
     });
