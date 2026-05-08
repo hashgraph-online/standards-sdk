@@ -155,6 +155,7 @@ const chatHistoryEntrySchema = z.object({
 });
 
 export const chatDeliveryStateSchema = z.enum([
+  'draft',
   'queued',
   'persisted',
   'delivered',
