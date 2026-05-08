@@ -97,6 +97,12 @@ import {
   chatTimelineEntrySchema,
   chatRouteSummarySchema,
   chatPaymentStateSchema,
+  chatDeliveryStateSchema,
+  chatReadinessStatusSchema,
+  chatReplyModeSchema,
+  chatRouteTypeSchema,
+  chatSessionStateSchema,
+  chatErrorCodeSchema,
   chatHistorySnapshotResponseSchema,
   chatHistoryCompactionResponseSchema,
   statsResponseSchema,
@@ -632,6 +638,12 @@ export type ChatSessionEndResponse = z.infer<
 >;
 export type ChatRouteSummary = z.infer<typeof chatRouteSummarySchema>;
 export type ChatPaymentState = z.infer<typeof chatPaymentStateSchema>;
+export type ChatDeliveryState = z.infer<typeof chatDeliveryStateSchema>;
+export type ChatReadinessStatus = z.infer<typeof chatReadinessStatusSchema>;
+export type ChatReplyMode = z.infer<typeof chatReplyModeSchema>;
+export type ChatRouteType = z.infer<typeof chatRouteTypeSchema>;
+export type ChatSessionState = z.infer<typeof chatSessionStateSchema>;
+export type ChatErrorCode = z.infer<typeof chatErrorCodeSchema>;
 export type ChatRetryResponse = SendMessageResponse;
 export type SkillSecurityBreakdownResponse = z.infer<
   typeof skillSecurityBreakdownResponseSchema

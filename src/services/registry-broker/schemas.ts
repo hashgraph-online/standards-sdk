@@ -154,7 +154,7 @@ const chatHistoryEntrySchema = z.object({
   metadata: z.record(jsonValueSchema).optional(),
 });
 
-const chatDeliveryStateSchema = z.enum([
+export const chatDeliveryStateSchema = z.enum([
   'draft',
   'queued',
   'persisted',
@@ -202,7 +202,7 @@ export const chatTimelineEntrySchema = z.object({
   attachment: chatAttachmentStateSchema.optional(),
 });
 
-const chatReadinessStatusSchema = z.enum([
+export const chatReadinessStatusSchema = z.enum([
   'responsive',
   'delivery_only',
   'degraded',
@@ -210,7 +210,7 @@ const chatReadinessStatusSchema = z.enum([
   'unknown',
 ]);
 
-const chatReplyModeSchema = z.enum([
+export const chatReplyModeSchema = z.enum([
   'direct',
   'stream',
   'poll',
@@ -218,7 +218,7 @@ const chatReplyModeSchema = z.enum([
   'none',
 ]);
 
-const chatRouteTypeSchema = z.enum([
+export const chatRouteTypeSchema = z.enum([
   'a2a',
   'hcs-10',
   'mcp',
@@ -234,7 +234,7 @@ const chatRouteTypeSchema = z.enum([
   'unknown',
 ]);
 
-const chatSessionStateSchema = z.enum([
+export const chatSessionStateSchema = z.enum([
   'connecting',
   'ready',
   'blocked',
@@ -242,7 +242,7 @@ const chatSessionStateSchema = z.enum([
   'expired',
 ]);
 
-const chatErrorCodeSchema = z.enum([
+export const chatErrorCodeSchema = z.enum([
   'AUTH_REQUIRED',
   'CREDITS_REQUIRED',
   'PAYMENT_REQUIRED',
