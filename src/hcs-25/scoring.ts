@@ -20,6 +20,7 @@ import type {
   Hcs25ScoringConfig,
   Hcs25ScoringConfigInput,
   Hcs25SignalSnapshot,
+  Hcs25SignalStatus,
   Hcs25Subject,
   Hcs25TrustScoreRecord,
 } from './types';
@@ -273,30 +274,31 @@ function scoreAdapter(
   if (applicable) {
     for (const component of adapter.components) {
       const key = `${adapter.id}.${component.name}`;
-      const normalized = normalizeComponent(component.normalize(context));
+      const normalized = component.normalize(context);
+      const unavailableStatus = unavailableSignalStatus(normalized);
 
-      if (normalized === null) {
+      if (unavailableStatus !== null) {
         if (component.nonScorableWhenUnavailable) {
           unavailable.push(key);
         } else {
           components.push({
             key,
             value: 0,
-            status: 'missing',
+            status: unavailableStatus,
             weight: resolveWeight(component.weight),
           });
         }
         continue;
       }
 
-      const value =
+      const clamped =
         normalized.status === 'stale'
           ? clampScore(normalized.value * config.staleMultiplier)
           : clampScore(normalized.value);
 
       components.push({
         key,
-        value,
+        value: roundScore(clamped, config.roundingDecimals),
         status: normalized.status,
         weight: resolveWeight(component.weight),
       });
@@ -337,11 +339,11 @@ function scoreAdapter(
   };
 }
 
-function normalizeComponent(
+function unavailableSignalStatus(
   normalized: Hcs25NormalizedValue,
-): Hcs25NormalizedValue | null {
+): Hcs25SignalStatus | null {
   if (!Number.isFinite(normalized.value)) {
-    return null;
+    return 'missing';
   }
 
   if (
@@ -349,10 +351,10 @@ function normalizeComponent(
     normalized.status === 'timeout' ||
     normalized.status === 'error'
   ) {
-    return null;
+    return normalized.status;
   }
 
-  return normalized;
+  return null;
 }
 
 function resolveWeight(weight: number | undefined): number {
