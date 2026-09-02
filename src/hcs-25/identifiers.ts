@@ -25,9 +25,11 @@ const HCS25_SIGNAL_ID_PATTERN = /^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+$/;
 const HCS25_COMPONENT_KEY_PATTERN = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/i;
 
 /**
- * Component name pattern for a single segment of a component key.
+ * Component name pattern: one or more dot-separated key segments, so names
+ * like `jobs.successRate` produce namespaced component keys such as
+ * `acp.jobs.successRate`.
  */
-const HCS25_COMPONENT_NAME_PATTERN = /^[a-z0-9_-]+$/i;
+const HCS25_COMPONENT_NAME_PATTERN = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/i;
 
 /**
  * Checks whether an adapter identifier satisfies HCS-25 namespacing.
@@ -52,8 +54,8 @@ export function isValidComponentKey(componentKey: string): boolean {
 }
 
 /**
- * Checks whether a component name is a valid single segment of a component
- * key.
+ * Checks whether a component name forms valid key segments when prefixed
+ * with an adapter identifier.
  */
 export function isValidComponentName(componentName: string): boolean {
   return HCS25_COMPONENT_NAME_PATTERN.test(componentName);
