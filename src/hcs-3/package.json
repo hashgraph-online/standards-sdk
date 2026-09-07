@@ -36,7 +36,7 @@
     "webpack-dev-server": "^5.0.4"
   },
   "dependencies": {
-    "@google/model-viewer": "^4.0.0",
+    "@google/model-viewer": "^4.1.0",
     "open": "^9.1.0",
     "serve-handler": "^6.1.5"
   }
