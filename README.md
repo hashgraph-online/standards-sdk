@@ -254,6 +254,9 @@ See [MAINTAINERS.md](MAINTAINERS.md) for a list of project maintainers.
 - [Discovering NANDA Agents with Registry Broker](https://hol.org/blog/discovering-nanda-agents-registry-broker)
 - [ERC-8004: Trustless Agent Registry](https://hol.org/blog/erc-8004-trustless-agent-registry)
 
+<!-- hol-sponsors:start -->
+<!-- hol-sponsors:end -->
+
 ## License
 
 Apache-2.0
