@@ -17,6 +17,7 @@ import {
   applyCollectedFields,
   collectAndScoreTrustScore,
   collectHcs25Signals,
+  createAgentverseInsightsSignalAdapter,
   createAvailabilitySignalAdapter,
   createErc8004SignalAdapter,
   createEthosSignalAdapter,
@@ -104,6 +105,37 @@ describe('requestJson', () => {
     await expect(
       requestJson('https://example.com/x', { fetch: never, timeoutMs: 5 }),
     ).rejects.toBeInstanceOf(Error);
+  });
+
+  test('retries transient 5xx then succeeds; never retries 4xx', async () => {
+    let calls = 0;
+    const flaky: Hcs25Fetch = async () => {
+      calls += 1;
+      return calls < 3
+        ? { ok: false, status: 503, json: async () => ({}) }
+        : okResponse({ done: true });
+    };
+    const data = await requestJson<{ done: boolean }>('https://e.com/x', {
+      fetch: flaky,
+      maxRetries: 3,
+      retryDelayMs: 1,
+    });
+    expect(data.done).toBe(true);
+    expect(calls).toBe(3);
+
+    let calls4xx = 0;
+    const failing: Hcs25Fetch = async () => {
+      calls4xx += 1;
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+    await expect(
+      requestJson('https://e.com/y', {
+        fetch: failing,
+        maxRetries: 3,
+        retryDelayMs: 1,
+      }),
+    ).rejects.toBeInstanceOf(Hcs25CollectorHttpError);
+    expect(calls4xx).toBe(1);
   });
 });
 
@@ -253,6 +285,35 @@ describe('collectHcs25Signals runner', () => {
       }),
     ).rejects.toBeInstanceOf(TypeError);
   });
+
+  test('later adapters see metadata collected by earlier adapters', async () => {
+    const first: Hcs25SignalAdapter = {
+      id: 'producer',
+      produces: ['producer.field'],
+      collect: async () => [
+        {
+          signalId: 'producer.field',
+          status: 'ok',
+          fields: [{ scope: 'root', values: { upstreamValue: 'hello' } }],
+        },
+      ],
+    };
+    let observed: unknown;
+    const second: Hcs25SignalAdapter = {
+      id: 'consumer',
+      produces: ['consumer.field'],
+      collect: async subject => {
+        observed = subject.metadata?.upstreamValue;
+        return [{ signalId: 'consumer.field', status: 'ok' }];
+      },
+    };
+    const out = await collectHcs25Signals(baseSubject, {
+      adapters: [first, second],
+      fetch: fetchReturning({}),
+    });
+    expect(observed).toBe('hello');
+    expect(out.subject.metadata?.upstreamValue).toBe('hello');
+  });
 });
 
 describe('availability signal adapter', () => {
@@ -308,7 +369,7 @@ describe('ethos signal adapter', () => {
       id: 'a4',
       metadata: { ethosUserkey: 'service:x.com:username:someone' },
     };
-    const fetch = fetchReturning({ score: 1600 });
+    const fetch = fetchReturning({ ok: true, data: { score: 1600 } });
     const out = await collectHcs25Signals(subject, {
       adapters: [adapter],
       fetch,
@@ -332,12 +393,110 @@ describe('ethos signal adapter', () => {
     expect(out.snapshot['ethos.score'].status).toBe('missing');
     expect(out.subject.metadata?.ethosScoreStatus).toBe('missing');
   });
+
+  test('hits /api/v1/score/{userkey} and tolerates flat {score} payloads', async () => {
+    const adapter = createEthosSignalAdapter();
+    const urls: string[] = [];
+    const fetch: Hcs25Fetch = async url => {
+      urls.push(String(url));
+      return okResponse({ score: 1234 });
+    };
+    const out = await collectHcs25Signals(
+      {
+        id: 'a4b',
+        metadata: { ethosUserkey: 'service:x.com:username:flat' },
+      },
+      { adapters: [adapter], fetch },
+    );
+    expect(out.snapshot['ethos.score'].status).toBe('ok');
+    expect(out.subject.metadata?.ethosScore).toBe(1234);
+    expect(urls[0]).toContain('/api/v1/score/service%3Ax.com');
+  });
+
+  test('envelope {ok:false} marks the source missing', async () => {
+    const adapter = createEthosSignalAdapter();
+    const out = await collectHcs25Signals(
+      {
+        id: 'a4c',
+        metadata: { ethosUserkey: 'service:x.com:username:none' },
+      },
+      {
+        adapters: [adapter],
+        fetch: fetchReturning({ ok: false, data: null }),
+      },
+    );
+    expect(out.snapshot['ethos.score'].status).toBe('missing');
+    expect(out.subject.metadata?.ethosScoreStatus).toBe('missing');
+  });
+
+  test('merges x + address sources with production weights (virtuals)', async () => {
+    const adapter = createEthosSignalAdapter();
+    const subject: Hcs25Subject = {
+      id: 'a4d',
+      registry: 'virtuals-protocol',
+      metadata: {
+        profile: { socials: [{ platform: 'x', handle: '@agent' }] },
+        agentAddress: '0x' + 'ab'.repeat(20),
+      },
+    };
+    const fetch: Hcs25Fetch = async url => {
+      const score = String(url).includes('address') ? 800 : 2000;
+      return okResponse({ ok: true, data: { score } });
+    };
+    const out = await collectHcs25Signals(subject, {
+      adapters: [adapter],
+      fetch,
+    });
+    const sources = out.subject.metadata?.ethosSources as Array<
+      Record<string, unknown>
+    >;
+    expect(sources).toHaveLength(2);
+    const xSource = sources.find(s => s.kind === 'x');
+    const addrSource = sources.find(s => s.kind === 'address');
+    expect(xSource?.weight).toBe(0.7);
+    expect(addrSource?.weight).toBe(0.3);
+    // weighted composite: (2000*0.7 + 800*0.3) / 1.0 = 1640
+    expect(out.subject.metadata?.ethosScore).toBe(1640);
+  });
+
+  test('skips fresh ok sources within TTL (no upstream call)', async () => {
+    const adapter = createEthosSignalAdapter({ ttlMs: 60_000 });
+    const now = new Date('2026-06-01T00:00:00Z');
+    const subject: Hcs25Subject = {
+      id: 'a4e',
+      metadata: {
+        ethosUserkey: 'service:x.com:username:cached',
+        ethosSources: [
+          {
+            userkey: 'service:x.com:username:cached',
+            kind: 'x',
+            weight: 1,
+            status: 'ok',
+            score: 1500,
+            updatedAt: '2026-05-31T23:59:59Z',
+          },
+        ],
+      },
+    };
+    let calls = 0;
+    const fetch: Hcs25Fetch = async () => {
+      calls += 1;
+      return okResponse({ ok: true, data: { score: 9999 } });
+    };
+    const out = await collectHcs25Signals(subject, {
+      adapters: [adapter],
+      fetch,
+      now,
+    });
+    expect(calls).toBe(0);
+    expect(out.subject.metadata?.ethosScore).toBe(1500);
+  });
 });
 
 describe('x402 signal adapter', () => {
   test('stores usage summary from indexer response', async () => {
     const adapter = createX402SignalAdapter({
-      endpoint: 'https://indexer.example.com/x402/{payTo}',
+      source: 'https://indexer.example.com/x402/{payTo}',
     });
     const subject: Hcs25Subject = {
       id: 'a6',
@@ -362,6 +521,74 @@ describe('x402 signal adapter', () => {
     >;
     expect(summary.volume7dUsd).toBe(12.5);
     expect(out.subject.metadata?.x402UsageCursor).toEqual({ cursor: 'c1' });
+  });
+
+  test('default onchain source uses injected fetchUsageState', async () => {
+    let calls = 0;
+    const adapter = createX402SignalAdapter({
+      fetchUsageState: async params => {
+        calls += 1;
+        expect(params.payTo).toBe('0xabc');
+        return {
+          summary: {
+            volume7dUsd: 42,
+            volume24hUsd: 6,
+            inboundTrades7d: 5,
+            outboundTrades7d: 1,
+          },
+          cursor: {
+            network: 'base',
+            asset: '0xusdc',
+            payTo: '0xabc',
+            lastScannedBlock: 100,
+            daily: [],
+          },
+        };
+      },
+    });
+    const subject: Hcs25Subject = {
+      id: 'a6b',
+      metadata: { payTo: '0xabc', asset: '0xusdc', network: 'base' },
+    };
+    const out = await collectHcs25Signals(subject, { adapters: [adapter] });
+    expect(calls).toBe(1);
+    expect(out.snapshot['x402.usage'].status).toBe('ok');
+    const summary = out.subject.metadata?.x402UsageSummary as Record<
+      string,
+      unknown
+    >;
+    expect(summary.volume7dUsd).toBe(42);
+    expect(out.subject.metadata?.x402UsageSource).toBe('onchain');
+  });
+
+  test('fresh ok state within TTL skips the scan entirely', async () => {
+    let calls = 0;
+    const adapter = createX402SignalAdapter({
+      ttlMs: 60_000,
+      fetchUsageState: async () => {
+        calls += 1;
+        return { summary: null, cursor: null };
+      },
+    });
+    const now = new Date('2026-06-01T00:00:00Z');
+    const subject: Hcs25Subject = {
+      id: 'a6c',
+      metadata: {
+        payTo: '0xabc',
+        asset: '0xusdc',
+        network: 'base',
+        x402UsageStatus: 'ok',
+        x402UsageUpdatedAt: '2026-05-31T23:59:59Z',
+        x402UsageSummary: { volume7dUsd: 9 },
+      },
+    };
+    const out = await collectHcs25Signals(subject, {
+      adapters: [adapter],
+      now,
+    });
+    expect(calls).toBe(0);
+    expect(out.snapshot['x402.usage'].status).toBe('ok');
+    expect(out.snapshot['x402.usage'].value).toBe(9);
   });
 });
 
@@ -401,6 +628,98 @@ describe('erc8004 signal adapter', () => {
       { adapters: [adapter], fetch: fetchReturning({}) },
     );
     expect(out.snapshot['erc8004.feedback'].status).toBe('missing');
+  });
+});
+
+describe('agentverse signal adapter', () => {
+  const agentAddress = `agent1${'q'.repeat(59)}`;
+
+  test('falls back from mainnet to testnet on 404', async () => {
+    const adapter = createAgentverseInsightsSignalAdapter();
+    const urls: string[] = [];
+    const fetch: Hcs25Fetch = async url => {
+      const u = String(url);
+      urls.push(u);
+      if (u.includes('contract=testnet')) {
+        return okResponse({ rating: 4.2, asi1_total_interactions: 3 });
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+    const out = await collectHcs25Signals(
+      {
+        id: 'av1',
+        registry: 'agentverse',
+        metadata: { nativeId: agentAddress },
+      },
+      { adapters: [adapter], fetch },
+    );
+    expect(urls.some(u => u.includes('contract=mainnet'))).toBe(true);
+    expect(urls.some(u => u.includes('contract=testnet'))).toBe(true);
+    const additional = out.subject.metadata?.additional as Record<
+      string,
+      unknown
+    >;
+    expect(out.snapshot['agentverse.insights'].status).toBe('ok');
+    expect(additional.agentverseInsightsContract).toBe('testnet');
+    expect(additional.agentverseInsightsRating).toBe(4.2);
+  });
+
+  test('all-empty payloads on both contracts → missing', async () => {
+    const adapter = createAgentverseInsightsSignalAdapter();
+    const out = await collectHcs25Signals(
+      {
+        id: 'av2',
+        registry: 'agentverse',
+        metadata: { nativeId: agentAddress },
+      },
+      { adapters: [adapter], fetch: fetchReturning({}) },
+    );
+    expect(out.snapshot['agentverse.insights'].status).toBe('missing');
+    const additional = out.subject.metadata?.additional as Record<
+      string,
+      unknown
+    >;
+    expect(additional.agentverseInsightsStatus).toBe('missing');
+  });
+
+  test('422 on one contract still probes the other', async () => {
+    const adapter = createAgentverseInsightsSignalAdapter();
+    const fetch: Hcs25Fetch = async url => {
+      const u = String(url);
+      if (u.includes('contract=mainnet')) {
+        return { ok: false, status: 422, json: async () => ({}) };
+      }
+      return okResponse({ readme_quality_score: 0.8 });
+    };
+    const out = await collectHcs25Signals(
+      {
+        id: 'av3',
+        registry: 'agentverse',
+        metadata: { nativeId: agentAddress },
+      },
+      { adapters: [adapter], fetch },
+    );
+    expect(out.snapshot['agentverse.insights'].status).toBe('ok');
+    const additional = out.subject.metadata?.additional as Record<
+      string,
+      unknown
+    >;
+    expect(additional.agentverseInsightsContract).toBe('testnet');
+  });
+
+  test('non-bech32 id and no resolvable address → missing without fetch', async () => {
+    const adapter = createAgentverseInsightsSignalAdapter();
+    let calls = 0;
+    const fetch: Hcs25Fetch = async url => {
+      calls += 1;
+      return okResponse({});
+    };
+    const out = await collectHcs25Signals(
+      { id: 'not-an-agent-address', registry: 'agentverse', metadata: {} },
+      { adapters: [adapter], fetch },
+    );
+    expect(out.snapshot['agentverse.insights'].status).toBe('missing');
+    expect(calls).toBe(0);
   });
 });
 
@@ -496,7 +815,7 @@ describe('createHcs25SignalAdapters catalog', () => {
     const adapters = createHcs25SignalAdapters({
       availability: true,
       ethos: { client: 'test' },
-      x402: { endpoint: 'https://x.example/{payTo}' },
+      x402: { source: 'https://x.example/{payTo}' },
     });
     expect(adapters.map(a => a.id)).toEqual(['availability', 'ethos', 'x402']);
   });

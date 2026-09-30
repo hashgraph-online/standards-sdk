@@ -178,13 +178,13 @@ export async function collectHcs25Signals(
   const fetch = resolveFetch(options.fetch);
   const now = options.now ?? new Date();
   const snapshot: Hcs25SignalSnapshot = { ...(options.previousSnapshot ?? {}) };
-  const collectedFields: Hcs25CollectedFields[] = [];
   const results: Hcs25SignalAdapterRunReport[] = [];
+  let current = subject;
 
   for (const adapter of options.adapters) {
     validateSignalAdapter(adapter);
 
-    if (!isSignalAdapterApplicable(adapter, subject)) {
+    if (!isSignalAdapterApplicable(adapter, current)) {
       results.push({
         adapterId: adapter.id,
         applicable: false,
@@ -204,12 +204,13 @@ export async function collectHcs25Signals(
 
     try {
       adapterResults = await Promise.race([
-        adapter.collect(subject, {
-          subject,
+        adapter.collect(current, {
+          subject: current,
           fetch,
           timeoutMs,
           now,
           signal: controller.signal,
+          force: options.force === true,
         }),
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => {
@@ -220,10 +221,12 @@ export async function collectHcs25Signals(
       ]);
       clearTimeout(timer);
       if (adapterResults.length === 0) {
-        adapterResults = adapter.produces.map(signalId => ({
-          signalId,
-          status: 'missing' as const,
-        }));
+        // An adapter returning no results means "no changes" (e.g. a
+        // TTL-gated skip): carry over any existing snapshot entries and emit
+        // `missing` placeholders only for signals never produced before.
+        adapterResults = adapter.produces
+          .filter(signalId => !(signalId in snapshot))
+          .map(signalId => ({ signalId, status: 'missing' as const }));
       }
     } catch (error) {
       const status: Hcs25SignalStatus = isTimeoutError(error)
@@ -239,6 +242,7 @@ export async function collectHcs25Signals(
 
     const emitted = new Set<string>();
     const statusCounts = new Map<Hcs25SignalStatus, number>();
+    const adapterFields: Hcs25CollectedFields[] = [];
     for (const raw of adapterResults) {
       if (!isValidSignalId(raw.signalId)) {
         continue;
@@ -251,8 +255,14 @@ export async function collectHcs25Signals(
       );
       snapshot[result.signalId] = toSignal(result, now);
       if (result.fields) {
-        collectedFields.push(...result.fields);
+        adapterFields.push(...result.fields);
       }
+    }
+    // Merge each adapter's fields before the next adapter runs so later
+    // adapters can consume metadata produced earlier in the same run
+    // (e.g. an id resolved by one collector feeding a downstream source).
+    if (adapterFields.length > 0) {
+      current = applyCollectedFields(current, adapterFields);
     }
 
     results.push({
@@ -276,7 +286,7 @@ export async function collectHcs25Signals(
   }
 
   return {
-    subject: applyCollectedFields(subject, collectedFields),
+    subject: current,
     snapshot,
     results,
   };

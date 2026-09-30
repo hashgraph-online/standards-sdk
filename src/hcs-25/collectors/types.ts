@@ -61,6 +61,11 @@ export interface Hcs25CollectContext {
   timeoutMs: number;
   now: Date;
   signal?: AbortSignal;
+  /**
+   * When true, adapters bypass their freshness/refresh gating and collect
+   * unconditionally (matching Registry Broker's `force` refresh option).
+   */
+  force?: boolean;
 }
 
 /**
@@ -121,6 +126,8 @@ export interface Hcs25CollectSignalsOptions {
   staleAfterMs?: number;
   /** A previously stored snapshot to carry forward unrefreshed signals. */
   previousSnapshot?: Hcs25SignalSnapshot;
+  /** Bypass adapter freshness gating and collect unconditionally. */
+  force?: boolean;
   /** Clock override for deterministic tests. */
   now?: Date;
 }

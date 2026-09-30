@@ -59,10 +59,11 @@ type OmitRequired<TOptions, TKey extends keyof TOptions> = Enable<
 /**
  * Per-family configuration for {@link createHcs25SignalAdapters}. Each key
  * accepts `true` (enable with defaults) or an options object; keys omitted
- * entirely are disabled. Families requiring external configuration
- * (`x402`, `acp`, `erc8004`, `openrouterEvals`, `chatbotArena`, `openLlm`,
- * `outputVerification`, `simpleEvals`) still require their mandatory
- * options before the adapter is enabled — pass the options object.
+ * entirely are disabled. `x402` scans on-chain usage by default (viem);
+ * `openrouterEvals`, `chatbotArena`, and `openLlm` ship with the
+ * production-shaped sources. Families still requiring configuration:
+ * `acp`, `erc8004`, `outputVerification`, `simpleEvals` — pass the options
+ * object.
  */
 export interface Hcs25SignalAdaptersOptions {
   availability?: Enable<Hcs25AvailabilitySignalAdapterOptions>;
@@ -71,12 +72,12 @@ export interface Hcs25SignalAdaptersOptions {
   ossPopularity?: Enable<Hcs25OssPopularitySignalAdapterOptions>;
   agentverse?: Enable<Hcs25AgentverseSignalAdapterOptions>;
   huggingFace?: Enable<Hcs25HuggingFaceSignalAdapterOptions>;
-  x402?: Hcs25X402SignalAdapterOptions;
+  x402?: Enable<Hcs25X402SignalAdapterOptions>;
   acp?: Hcs25AcpSignalAdapterOptions;
   erc8004?: Hcs25Erc8004SignalAdapterOptions;
-  openrouterEvals?: Hcs25OpenRouterEvalsSignalAdapterOptions;
-  chatbotArena?: Hcs25ChatbotArenaSignalAdapterOptions;
-  openLlm?: Hcs25OpenLlmSignalAdapterOptions;
+  openrouterEvals?: Enable<Hcs25OpenRouterEvalsSignalAdapterOptions>;
+  chatbotArena?: Enable<Hcs25ChatbotArenaSignalAdapterOptions>;
+  openLlm?: Enable<Hcs25OpenLlmSignalAdapterOptions>;
   outputVerification?: Hcs25OutputVerificationSignalAdapterOptions;
   /**
    * Simple-evals adapters per subject family. `a2a` covers A2A/HTTP
@@ -135,8 +136,9 @@ export function createHcs25SignalAdapters(
     adapters.push(createHuggingFaceSignalAdapter(huggingFace));
   }
 
-  if (options.x402) {
-    adapters.push(createX402SignalAdapter(options.x402));
+  const x402 = optionsOf(options.x402);
+  if (x402) {
+    adapters.push(createX402SignalAdapter(x402));
   }
   if (options.acp) {
     adapters.push(createAcpSignalAdapter(options.acp));
@@ -144,14 +146,17 @@ export function createHcs25SignalAdapters(
   if (options.erc8004) {
     adapters.push(createErc8004SignalAdapter(options.erc8004));
   }
-  if (options.openrouterEvals) {
-    adapters.push(createOpenRouterEvalsSignalAdapter(options.openrouterEvals));
+  const openrouterEvals = optionsOf(options.openrouterEvals);
+  if (openrouterEvals) {
+    adapters.push(createOpenRouterEvalsSignalAdapter(openrouterEvals));
   }
-  if (options.chatbotArena) {
-    adapters.push(createChatbotArenaSignalAdapter(options.chatbotArena));
+  const chatbotArena = optionsOf(options.chatbotArena);
+  if (chatbotArena) {
+    adapters.push(createChatbotArenaSignalAdapter(chatbotArena));
   }
-  if (options.openLlm) {
-    adapters.push(createOpenLlmSignalAdapter(options.openLlm));
+  const openLlm = optionsOf(options.openLlm);
+  if (openLlm) {
+    adapters.push(createOpenLlmSignalAdapter(openLlm));
   }
   if (options.outputVerification) {
     adapters.push(
