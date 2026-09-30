@@ -30,28 +30,108 @@ export interface Hcs25Erc8004FeedbackSource {
   ): Promise<Hcs25Erc8004FeedbackSummary | null>;
 }
 
+const parsePositiveInt = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const normalized = Math.floor(value);
+    return normalized > 0 ? normalized : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+};
+
+const parseNonNegativeInt = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const normalized = Math.floor(value);
+    return normalized >= 0 ? normalized : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+  return null;
+};
+
+const parseChainIdFromNetworkKey = (networkKey: unknown): number | null => {
+  if (typeof networkKey !== 'string') {
+    return null;
+  }
+  const trimmed = networkKey.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const match = /^eip155:(\d+)(?::|$)/i.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const parseIdParts = (
+  value: unknown,
+): { chainId: number; agentId: string } | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const separator = trimmed.indexOf(':');
+  if (separator <= 0 || separator !== trimmed.lastIndexOf(':')) {
+    return null;
+  }
+  const chainId = Number.parseInt(trimmed.slice(0, separator), 10);
+  const agentId = trimmed.slice(separator + 1);
+  if (!Number.isFinite(chainId) || chainId <= 0 || !agentId) {
+    return null;
+  }
+  return { chainId, agentId };
+};
+
 /**
- * Resolves the `chainId:agentId` native identifier from subject metadata
- * (`nativeId`, `uid`, or `metadata.additional.agentId`).
+ * Resolves the ERC-8004 `{chainId, agentId}` identity from subject metadata,
+ * mirroring the registry-broker production adapter:
+ *
+ * 1. Explicit `metadata.agentId` + `metadata.chainId` (or
+ *    `metadata.networkKey` such as `eip155:8453`).
+ * 2. `metadata.originalId` / `metadata.nativeId` / `metadata.uid` in
+ *    `{chainId}:{agentId}` form.
  */
 export function parseErc8004NativeId(
   subject: Hcs25Subject,
 ): { chainId: number; agentId: string } | null {
   const metadata = subject.metadata ?? {};
-  const candidates = [
-    readString(metadata, 'nativeId'),
-    readString(metadata, 'uid'),
-  ];
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-    const match = candidate.match(/^(\d+):(.+)$/);
-    if (match) {
-      return { chainId: Number.parseInt(match[1], 10), agentId: match[2] };
-    }
+
+  const idParts =
+    parseIdParts(readString(metadata, 'originalId')) ??
+    parseIdParts(readString(metadata, 'nativeId')) ??
+    parseIdParts(readString(metadata, 'uid'));
+
+  const agentId =
+    parseNonNegativeInt(metadata['agentId']) ??
+    (idParts ? parseNonNegativeInt(idParts.agentId) : null);
+  const chainId =
+    parsePositiveInt(metadata['chainId']) ??
+    parseChainIdFromNetworkKey(metadata['networkKey']) ??
+    idParts?.chainId ??
+    null;
+
+  if (agentId === null || chainId === null) {
+    return null;
   }
-  return null;
+  return { chainId, agentId: String(agentId) };
 }
 
 /**
@@ -274,9 +354,17 @@ export function createErc8004SignalAdapter(
         if (!summary) {
           continue;
         }
+        const averageScore = Math.min(
+          100,
+          Math.max(0, Number(summary.averageScore) || 0),
+        );
+        const totalFeedbacks = Math.max(
+          0,
+          Math.floor(Number(summary.totalFeedbacks) || 0),
+        );
         const record: Record<string, Hcs25JsonValue> = {
-          averageScore: summary.averageScore,
-          totalFeedbacks: summary.totalFeedbacks,
+          averageScore,
+          totalFeedbacks,
           registry: summary.registry ?? subject.registry ?? 'erc-8004',
           network: summary.network ?? String(nativeId.chainId),
           updatedAt: summary.updatedAt ?? now,
@@ -285,7 +373,7 @@ export function createErc8004SignalAdapter(
           {
             signalId: 'erc8004.feedback',
             status: 'ok',
-            value: summary.averageScore,
+            value: averageScore,
             fields: [{ scope: 'erc8004FeedbackSummary', values: record }],
             provenance: {
               source: 'erc8004',

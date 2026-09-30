@@ -5,6 +5,7 @@ import {
   createAvailabilityAdapter,
   createConnectivityAdapter,
   createEthosAdapter,
+  createHcs25AdapterCatalog,
   createSimpleMathAdapter,
   createX402Adapter,
 } from '../../src/hcs-25/adapters';
@@ -1007,5 +1008,84 @@ describe('isTimeoutError', () => {
     err.name = 'TimeoutError';
     expect(isTimeoutError(err)).toBe(true);
     expect(isTimeoutError(new Error('x'))).toBe(false);
+  });
+});
+
+describe('adapter coverage mapping', () => {
+  test('every scoring adapter has at least one signal collector', () => {
+    const transport = {
+      sendPrompt: async () => '42',
+    };
+    const collectors = createHcs25SignalAdapters({
+      availability: true,
+      connectivity: true,
+      ethos: true,
+      ossPopularity: true,
+      agentverse: true,
+      huggingFace: true,
+      x402: true,
+      acp: { endpoint: 'https://acp.example.com/{address}' },
+      erc8004: {
+        sources: [{ getFeedbackSummary: async () => null }],
+      },
+      openrouterEvals: true,
+      chatbotArena: true,
+      openLlm: true,
+      outputVerification: {
+        providers: [{ id: 'test', baseUrl: 'https://verify.example.com' }],
+      },
+      simpleEvals: {
+        a2a: { transport },
+        agentverse: { transport },
+        nanda: { transport },
+      },
+    });
+    const collectorIds = new Set(collectors.map(adapter => adapter.id));
+
+    // scoring adapter id -> acceptable collector id(s)
+    const coverage: Record<string, readonly string[]> = {
+      availability: ['availability'],
+      ethos: ['ethos'],
+      acp: ['acp'],
+      'erc8004-feedback': ['erc8004-feedback'],
+      x402: ['x402'],
+      'oss-popularity': ['oss-popularity'],
+      'simple-math': [
+        'a2a-simple-evals',
+        'agentverse-simple-evals',
+        'nanda-simple-evals',
+      ],
+      'simple-science': [
+        'a2a-simple-evals',
+        'agentverse-simple-evals',
+        'nanda-simple-evals',
+      ],
+      'agentverse-insights': ['agentverse-insights'],
+      'agentverse-verifier': ['agentverse-insights'],
+      'openrouter-evals': ['openrouter-evals'],
+      'chatbot-arena': ['chatbot-arena'],
+      'huggingface-model-index': ['huggingface-model-index'],
+      'openllm-leaderboard': ['openllm-leaderboard'],
+      'model-tier': [
+        'openrouter-evals',
+        'chatbot-arena',
+        'huggingface-model-index',
+        'openllm-leaderboard',
+      ],
+      'output-verification': ['output-verification'],
+      connectivity: ['connectivity'],
+    };
+
+    const scoringAdapters = createHcs25AdapterCatalog();
+    expect(scoringAdapters.length).toBeGreaterThan(0);
+    for (const adapter of scoringAdapters) {
+      const candidates = coverage[adapter.id];
+      expect(candidates).toBeDefined();
+      const covered = candidates.some(id => collectorIds.has(id));
+      expect({ adapterId: adapter.id, covered }).toEqual({
+        adapterId: adapter.id,
+        covered: true,
+      });
+    }
   });
 });
