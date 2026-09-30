@@ -979,7 +979,18 @@ export function createJsonLeaderboardSource(options: {
   };
 }
 
-const stripHtmlTags = (html: string): string => html.replace(/<[^<>]*>/g, '');
+const stripHtmlTags = (html: string): string => {
+  // Loop until stable: a single pass over `<<script>` leaves a residual
+  // tag fragment behind.
+  let current = html;
+  for (;;) {
+    const next = current.replace(/<[^<>]*>/g, '');
+    if (next === current) {
+      return next;
+    }
+    current = next;
+  }
+};
 
 const decodeHtmlEntities = (html: string): string =>
   html
@@ -1020,11 +1031,16 @@ const normalizeArenaLabel = (value: string): string => {
     (/^20\d{2}-\d{2}-\d{2}$/.test(suffix) ||
       /^20\d{2}\d{2}\d{2}$/.test(compactSuffix));
   const combined = !isDate && suffix ? `${base} ${suffix}` : base;
-  return combined
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
+  const slugged = combined.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  let start = 0;
+  let end = slugged.length;
+  while (start < end && slugged.charCodeAt(start) === 45) {
+    start += 1;
+  }
+  while (end > start && slugged.charCodeAt(end - 1) === 45) {
+    end -= 1;
+  }
+  return slugged.slice(start, end);
 };
 
 const normalizeAlphaNum = (value: string): string =>
