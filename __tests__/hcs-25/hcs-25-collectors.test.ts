@@ -1,7 +1,18 @@
 import { describe, expect, test } from '@jest/globals';
 
+import { computeTrustScore } from '../../src/hcs-25/scoring';
+import {
+  createAvailabilityAdapter,
+  createConnectivityAdapter,
+  createEthosAdapter,
+  createSimpleMathAdapter,
+  createX402Adapter,
+} from '../../src/hcs-25/adapters';
 import { SIMPLE_SCIENCE_QUESTION_BANK } from '../../src/hcs-25/signals/simple-evals';
-import type { Hcs25Subject } from '../../src/hcs-25/types';
+import type {
+  Hcs25ComponentDefinition,
+  Hcs25Subject,
+} from '../../src/hcs-25/types';
 import {
   applyCollectedFields,
   collectAndScoreTrustScore,
@@ -530,6 +541,143 @@ describe('collectAndScoreTrustScore pipeline', () => {
     expect(collection.subject.metadata?.availabilityScore).toBe(1);
     expect(record.trustScores['availability.score']).toBe(100);
     expect(record.trustScores.total).toBe(100);
+  });
+});
+
+describe('stale threading: stored status fields → normalized stale → multiplier', () => {
+  const scoreWith = (
+    subject: Hcs25Subject,
+    adapterId: string,
+    component: string,
+    normalize: Hcs25ComponentDefinition['normalize'],
+  ) => {
+    const config = {
+      version: 1,
+      staleMultiplier: 0.5,
+      adapters: [
+        {
+          id: adapterId,
+          weight: 1,
+          contributionMode: 'universal' as const,
+          components: [{ name: component, normalize }],
+        },
+      ],
+    };
+    return computeTrustScore({ subject, snapshot: {}, config }).trustScores;
+  };
+
+  test('availability: stale probe status downgrades stored score', () => {
+    const adapter = createAvailabilityAdapter();
+    const normalize = adapter.components[0].normalize;
+    const scores = scoreWith(
+      {
+        id: 's',
+        metadata: { availabilityScore: 0.8, availabilityStatus: 'stale' },
+      },
+      'availability',
+      'uptime',
+      normalize,
+    );
+    // 80 * 0.5 stale multiplier
+    expect(scores['availability.uptime']).toBe(40);
+  });
+
+  test('availability: timeout status without score surfaces as timeout', () => {
+    const adapter = createAvailabilityAdapter();
+    const result = adapter.components[0].normalize({
+      subject: {
+        id: 's',
+        metadata: { availabilityStatus: 'timeout' },
+      },
+      snapshot: {},
+      config: {
+        version: 1,
+        adapters: [adapter],
+        staleMultiplier: 1,
+        roundingDecimals: 2,
+        computeConfidence: false,
+      },
+    });
+    expect(result.status).toBe('timeout');
+    expect(result.value).toBe(0);
+  });
+
+  test('ethos: stale composite keeps value, marks stale', () => {
+    const adapter = createEthosAdapter();
+    const normalize = adapter.components[0].normalize;
+    const scores = scoreWith(
+      {
+        id: 's',
+        metadata: { ethosScore: 1600, ethosScoreStatus: 'stale' },
+      },
+      'ethos',
+      'score',
+      normalize,
+    );
+    // raw 1600 → (1600-1200)/(2000-1200)=0.5 → 50; stale ×0.5 → 25
+    expect(scores['ethos.score']).toBe(25);
+  });
+
+  test('x402: stale usage status keeps log-scaled value, marks stale', () => {
+    const adapter = createX402Adapter();
+    const normalize = adapter.components[0].normalize;
+    const subject: Hcs25Subject = {
+      id: 's',
+      metadata: {
+        x402UsageStatus: 'stale',
+        x402UsageSummary: { volume7dUsd: 10000 },
+      },
+    };
+    const result = normalize({
+      subject,
+      snapshot: {},
+      config: {
+        version: 1,
+        adapters: [adapter],
+        staleMultiplier: 0.5,
+        roundingDecimals: 2,
+        computeConfidence: false,
+      },
+    });
+    expect(result.status).toBe('stale');
+    expect(result.value).toBe(100); // volume == cap → logScale 100 pre-multiplier
+  });
+
+  test('connectivity: stale status downgrades stored score', () => {
+    const adapter = createConnectivityAdapter();
+    const normalize = adapter.components[0].normalize;
+    const scores = scoreWith(
+      {
+        id: 's',
+        metadata: {
+          additional: { connectivityScore: 80, connectivityStatus: 'stale' },
+        },
+      },
+      'connectivity',
+      'score',
+      normalize,
+    );
+    expect(scores['connectivity.score']).toBe(40);
+  });
+
+  test('simple-evals: stale stored status preserves score for multiplier', () => {
+    const adapter = createSimpleMathAdapter();
+    const normalize = adapter.components[0].normalize;
+    const scores = scoreWith(
+      {
+        id: 's',
+        metadata: {
+          additional: {
+            a2aSimpleMathScore: 100,
+            a2aSimpleMathStatus: 'stale',
+          },
+        },
+      },
+      'simple-math',
+      'score',
+      normalize,
+    );
+    expect(scores['simple-math.score']).toBe(50);
   });
 });
 

@@ -125,12 +125,18 @@ export function createOpenRouterEvalsAdapter(
           const status = readString(additional, 'openrouterEvalStatus');
 
           if (score === null || status === 'missing') {
+            if (status === 'timeout' || status === 'error') {
+              return { value: 0, status };
+            }
             return MISSING;
           }
 
           const multiplier =
             status === 'low-coverage' ? lowCoverageMultiplier : 1;
-          return { value: clampScore(score * multiplier), status: 'ok' };
+          return {
+            value: clampScore(score * multiplier),
+            status: status === 'stale' ? 'stale' : 'ok',
+          };
         },
       },
     ],
@@ -158,10 +164,19 @@ export function createChatbotArenaAdapter(
           const score = readNumber(additional, 'chatbotArenaEvalScore');
           const status = readString(additional, 'chatbotArenaEvalStatus');
 
-          if (score === null || status !== 'ok') {
+          if (score === null) {
+            if (status === 'timeout' || status === 'error') {
+              return { value: 0, status };
+            }
             return MISSING;
           }
-          return { value: clampScore(score), status: 'ok' };
+          if (status === 'missing') {
+            return MISSING;
+          }
+          return {
+            value: clampScore(score),
+            status: status === 'stale' ? 'stale' : 'ok',
+          };
         },
       },
     ],
@@ -194,10 +209,16 @@ export function createHuggingFaceModelIndexAdapter(
           const status = readString(additional, 'huggingFaceEvalStatus');
           const mode = readString(additional, 'huggingFaceEvalMode');
 
-          if (score === null || status !== 'ok' || mode === 'missing') {
+          if (score === null || mode === 'missing' || status === 'missing') {
+            if (status === 'timeout' || status === 'error') {
+              return { value: 0, status };
+            }
             return MISSING;
           }
-          return { value: clampScore(score), status: 'ok' };
+          return {
+            value: clampScore(score),
+            status: status === 'stale' ? 'stale' : 'ok',
+          };
         },
       },
     ],
@@ -226,10 +247,16 @@ export function createOpenLlmLeaderboardAdapter(
           const score = readNumber(additional, 'openLlmEvalScore');
           const status = readString(additional, 'openLlmEvalStatus');
 
-          if (score === null || status !== 'ok') {
+          if (score === null || status === 'missing') {
+            if (status === 'timeout' || status === 'error') {
+              return { value: 0, status };
+            }
             return MISSING;
           }
-          return { value: clampScore(score), status: 'ok' };
+          return {
+            value: clampScore(score),
+            status: status === 'stale' ? 'stale' : 'ok',
+          };
         },
       },
     ],
