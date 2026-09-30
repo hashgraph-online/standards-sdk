@@ -1,7 +1,12 @@
 import type { Hcs25JsonValue, Hcs25Subject } from '../types';
 import { isJsonObject, readString, readSubjectAdditional } from '../signals';
 import { parseTimestampMs } from './freshness';
-import { Hcs25CollectorHttpError, isTimeoutError, requestJson } from './http';
+import {
+  Hcs25CollectorHttpError,
+  isTimeoutError,
+  requestJson,
+  stripTrailingSlashes,
+} from './http';
 import type {
   Hcs25CollectContext,
   Hcs25SignalAdapter,
@@ -368,7 +373,7 @@ function readStoredSources(subject: Hcs25Subject): Hcs25EthosSource[] {
 export function createEthosSignalAdapter(
   options: Hcs25EthosSignalAdapterOptions = {},
 ): Hcs25SignalAdapter {
-  const baseUrl = (options.baseUrl ?? ETHOS_API_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = stripTrailingSlashes(options.baseUrl ?? ETHOS_API_BASE_URL);
   const resolveSources = options.sources ?? deriveEthosSources;
   const ttlMs = options.ttlMs ?? 12 * 60 * 60 * 1000;
   const failureTtlMs = options.failureTtlMs ?? 6 * 60 * 60 * 1000;

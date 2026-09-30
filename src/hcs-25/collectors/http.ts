@@ -90,6 +90,18 @@ export interface Hcs25RequestJsonOptions {
 const sleep = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Strips trailing `/` characters from a base URL without regex (avoids
+ * polynomial-backtracking warnings on anchored quantifiers).
+ */
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 async function requestOnce<T>(
   url: string,
   options: Hcs25RequestJsonOptions,

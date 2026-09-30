@@ -5,6 +5,7 @@ import {
   isTimeoutError,
   requestJson,
   requestText,
+  stripTrailingSlashes,
 } from './http';
 import type {
   Hcs25CollectContext,
@@ -517,16 +518,14 @@ export function createOpenRouterBenchmarksSource(
     preferHuggingFace?: boolean;
   } = {},
 ): Hcs25OpenRouterEvalsSource {
-  const frontendBase = (
-    options.openrouterFrontendBaseUrl ?? OPENROUTER_FRONTEND_BASE
-  ).replace(/\/+$/, '');
-  const apiBase = (options.openrouterApiBaseUrl ?? OPENROUTER_API_BASE).replace(
-    /\/+$/,
-    '',
+  const frontendBase = stripTrailingSlashes(
+    options.openrouterFrontendBaseUrl ?? OPENROUTER_FRONTEND_BASE,
   );
-  const hfBase = (options.huggingFaceApiBase ?? HF_API_BASE).replace(
-    /\/+$/,
-    '',
+  const apiBase = stripTrailingSlashes(
+    options.openrouterApiBaseUrl ?? OPENROUTER_API_BASE,
+  );
+  const hfBase = stripTrailingSlashes(
+    options.huggingFaceApiBase ?? HF_API_BASE,
   );
   const cacheTtlMs = options.cacheTtlMs ?? 24 * 60 * 60 * 1000;
   const preferHuggingFace = options.preferHuggingFace ?? true;
@@ -980,12 +979,11 @@ export function createJsonLeaderboardSource(options: {
   };
 }
 
-const stripHtmlTags = (html: string): string => html.replace(/<[^>]*>/g, '');
+const stripHtmlTags = (html: string): string => html.replace(/<[^<>]*>/g, '');
 
 const decodeHtmlEntities = (html: string): string =>
   html
     .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
@@ -1000,22 +998,33 @@ const decodeHtmlEntities = (html: string): string =>
       } catch {
         return '';
       }
-    });
+    })
+    // `&amp;` decodes last so double-escaped sequences (`&amp;lt;`) resolve
+    // to the literal text `&lt;`, not `<`.
+    .replace(/&amp;/gi, '&');
 
 const normalizeArenaLabel = (value: string): string => {
   const trimmed = value.trim();
-  const match = trimmed.match(/^(.*)\(([^)]+)\)\s*$/);
-  const base = match?.[1]?.trim() ?? trimmed;
-  const suffix = match?.[2]?.trim() ?? null;
+  // `Name (suffix)` — take the final parenthesized group without a
+  // backtracking-prone `.*` scan.
+  const open = trimmed.lastIndexOf('(');
+  const base =
+    open > 0 && trimmed.endsWith(')') ? trimmed.slice(0, open).trim() : trimmed;
+  const suffix =
+    open > 0 && trimmed.endsWith(')')
+      ? trimmed.slice(open + 1, -1).trim()
+      : null;
+  const compactSuffix = suffix?.split(/\s+/).join('') ?? '';
   const isDate =
     suffix !== null &&
     (/^20\d{2}-\d{2}-\d{2}$/.test(suffix) ||
-      /^20\d{2}\d{2}\d{2}$/.test(suffix.replace(/\s+/g, '')));
+      /^20\d{2}\d{2}\d{2}$/.test(compactSuffix));
   const combined = !isDate && suffix ? `${base} ${suffix}` : base;
   return combined
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
 };
 
 const normalizeAlphaNum = (value: string): string =>
@@ -1366,7 +1375,7 @@ export interface Hcs25HuggingFaceSignalAdapterOptions {
 export function createHuggingFaceSignalAdapter(
   options: Hcs25HuggingFaceSignalAdapterOptions = {},
 ): Hcs25SignalAdapter {
-  const apiBase = (options.apiBase ?? HF_API_BASE).replace(/\/+$/, '');
+  const apiBase = stripTrailingSlashes(options.apiBase ?? HF_API_BASE);
 
   const collect = async (
     subject: Hcs25Subject,
@@ -1648,13 +1657,12 @@ export function createOpenLlmHuggingFaceSource(
     minSimilarity?: number;
   } = {},
 ): Hcs25OpenLlmSource {
-  const apiBase = (options.huggingFaceApiBase ?? HF_API_BASE).replace(
-    /\/+$/,
-    '',
+  const apiBase = stripTrailingSlashes(
+    options.huggingFaceApiBase ?? HF_API_BASE,
   );
-  const datasetsBase = (
-    options.huggingFaceDatasetsBase ?? HF_DATASETS_BASE
-  ).replace(/\/+$/, '');
+  const datasetsBase = stripTrailingSlashes(
+    options.huggingFaceDatasetsBase ?? HF_DATASETS_BASE,
+  );
   const datasetId = options.datasetId ?? OPENLLM_DATASET_ID;
   const branch = options.datasetBranch ?? OPENLLM_DATASET_BRANCH;
   const cacheTtlMs = options.cacheTtlMs ?? 24 * 60 * 60 * 1000;
