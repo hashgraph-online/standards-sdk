@@ -4,6 +4,7 @@ import {
   createAgentverseInsightsAdapter,
   createAgentverseVerifierAdapter,
 } from './agentverse';
+import { createAnsTrustDiscoveryAdapter } from './ans-trust-discovery';
 import { createAvailabilityAdapter } from './availability';
 import { createConnectivityAdapter } from './connectivity';
 import { createErc8004FeedbackAdapter } from './erc8004-feedback';
@@ -35,6 +36,7 @@ export * from './agentverse';
 export * from './model-evals';
 export * from './output-verification';
 export * from './connectivity';
+export * from './ans-trust-discovery';
 
 /**
  * Creates the full HCS-25 adapter catalog documented in the specification,
@@ -61,5 +63,6 @@ export function createHcs25AdapterCatalog(): Hcs25AdapterDefinition[] {
     createModelTierAdapter(),
     createOutputVerificationAdapter(),
     createConnectivityAdapter(),
+    createAnsTrustDiscoveryAdapter(),
   ];
 }

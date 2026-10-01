@@ -30,6 +30,7 @@ describe('HCS-25 adapter catalog', () => {
         'model-tier',
         'output-verification',
         'connectivity',
+        'ans-trust-discovery',
       ].sort(),
     );
   });
@@ -55,6 +56,7 @@ describe('HCS-25 adapter catalog', () => {
       'model-tier': ['conditional', 2],
       'output-verification': ['scoped', 1],
       connectivity: ['conditional', 1],
+      'ans-trust-discovery': ['scoped', 1],
     };
 
     for (const adapter of catalog) {
