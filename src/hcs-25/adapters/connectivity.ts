@@ -1,6 +1,11 @@
 import { clampScore } from '../scoring';
 import type { Hcs25AdapterDefinition, Hcs25NormalizedValue } from '../types';
-import { isJsonObject, readNumber, readSubjectAdditional } from '../signals';
+import {
+  isJsonObject,
+  readNumber,
+  readString,
+  readSubjectAdditional,
+} from '../signals';
 
 /**
  * Options for the connectivity probe adapter. The adapter is
@@ -28,6 +33,26 @@ const DEFAULT_EXCLUDED_REGISTRIES: readonly string[] = [
 const MISSING: Hcs25NormalizedValue = { value: 0, status: 'missing' };
 
 /**
+ * Maps a stored `connectivityStatus` onto the normalized result: `stale`
+ * keeps the stored score with a stale status (the scoring layer applies the
+ * stale multiplier), `timeout`/`error` without a score surface as those
+ * statuses, and anything else falls back to ok/missing.
+ */
+function connectivityStatus(
+  status: string | null,
+  score: number | null,
+  ok: Hcs25NormalizedValue,
+): Hcs25NormalizedValue {
+  if (score !== null) {
+    return status === 'stale' ? { value: ok.value, status: 'stale' } : ok;
+  }
+  if (status === 'timeout' || status === 'error') {
+    return { value: 0, status };
+  }
+  return MISSING;
+}
+
+/**
  * Creates the `connectivity` adapter: scores stored connectivity probe
  * results. Contribution is conditional, so subjects without probe results
  * stay out of the denominator.
@@ -51,13 +76,13 @@ export function createConnectivityAdapter(
           name: 'score',
           nonScorableWhenUnavailable: true,
           normalize: ({ subject }): Hcs25NormalizedValue => {
-            const score = readNumber(
-              readSubjectAdditional(subject),
-              'connectivityScore',
-            );
-            return score === null
-              ? MISSING
-              : { value: clampScore(score), status: 'ok' };
+            const additional = readSubjectAdditional(subject);
+            const score = readNumber(additional, 'connectivityScore');
+            const status = readString(additional, 'connectivityStatus');
+            return connectivityStatus(status, score, {
+              value: clampScore(score ?? 0),
+              status: 'ok',
+            });
           },
         },
       ],
@@ -73,14 +98,17 @@ export function createConnectivityAdapter(
       name: target,
       nonScorableWhenUnavailable: true,
       normalize: ({ subject }): Hcs25NormalizedValue => {
-        const stored = readSubjectAdditional(subject).connectivityTargets;
+        const additional = readSubjectAdditional(subject);
+        const status = readString(additional, 'connectivityStatus');
+        const stored = additional.connectivityTargets;
         if (!isJsonObject(stored)) {
-          return MISSING;
+          return connectivityStatus(status, null, MISSING);
         }
         const score = readNumber(stored, target);
-        return score === null
-          ? MISSING
-          : { value: clampScore(score), status: 'ok' };
+        return connectivityStatus(status, score, {
+          value: clampScore(score ?? 0),
+          status: 'ok',
+        });
       },
     })),
   };

@@ -15,6 +15,7 @@ export type Hcs25SimpleEvalStatus =
   | 'empty'
   | 'skipped'
   | 'upstream-error'
+  | 'stale'
   | 'error';
 
 /**
@@ -49,6 +50,8 @@ export function mapSimpleEvalStatus(token: string | null): Hcs25SignalStatus {
   switch (token) {
     case 'timeout':
       return 'timeout';
+    case 'stale':
+      return 'stale';
     case 'missing':
     case 'skipped':
       return 'missing';

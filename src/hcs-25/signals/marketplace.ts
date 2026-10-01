@@ -55,7 +55,9 @@ export const hcs25X402UsageSummarySchema = z
  */
 export const hcs25X402UsageFieldsSchema = z
   .object({
-    x402UsageStatus: z.enum(['ok', 'missing', 'error']).nullish(),
+    x402UsageStatus: z
+      .enum(['ok', 'missing', 'timeout', 'error', 'stale'])
+      .nullish(),
     x402UsageUpdatedAt: z.string().nullish(),
     x402UsageSource: z.string().nullish(),
     x402UsageSummary: hcs25X402UsageSummarySchema.nullish(),
@@ -71,7 +73,7 @@ export const hcs25AgentverseInsightsSchema = z
     agentverseInsightsUpdatedAt: z.string().nullish(),
     agentverseInsightsSources: z.array(z.string()).nullish(),
     agentverseInsightsStatus: z
-      .enum(['ok', 'missing', 'upstream-error'])
+      .enum(['ok', 'missing', 'timeout', 'error', 'upstream-error', 'stale'])
       .nullish(),
     agentverseInsightsAddress: z.string().nullish(),
     agentverseInsightsContract: z.enum(['mainnet', 'testnet']).nullish(),

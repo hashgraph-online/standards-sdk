@@ -4,7 +4,12 @@ import type {
   Hcs25NormalizedValue,
   Hcs25Subject,
 } from '../types';
-import { readBoolean, readNumber, readSubjectMetrics } from '../signals';
+import {
+  readBoolean,
+  readNumber,
+  readString,
+  readSubjectMetrics,
+} from '../signals';
 
 /**
  * Options for the availability adapter.
@@ -33,6 +38,10 @@ function normalizeAvailability(
   recencyWindowMinutes: number,
 ): Hcs25NormalizedValue {
   const metadata = subject.metadata;
+  const probeStatus = metadata
+    ? readString(metadata, 'availabilityStatus')
+    : null;
+  const stale = probeStatus === 'stale';
   const rawScore = metadata ? readNumber(metadata, 'availabilityScore') : null;
   if (rawScore !== null) {
     const ratio =
@@ -43,7 +52,10 @@ function normalizeAvailability(
           : rawScore > 1
             ? rawScore / 100
             : rawScore;
-    return { value: clampScore(ratio * 100), status: 'ok' };
+    return {
+      value: clampScore(ratio * 100),
+      status: stale ? 'stale' : 'ok',
+    };
   }
 
   const metrics = readSubjectMetrics(subject);
@@ -58,6 +70,10 @@ function normalizeAvailability(
   const isOnline = readBoolean(metrics, 'isOnline');
   if (isOnline !== null) {
     return { value: isOnline ? 100 : 0, status: 'ok' };
+  }
+
+  if (probeStatus === 'timeout' || probeStatus === 'error') {
+    return { value: 0, status: probeStatus };
   }
 
   return { value: 0, status: 'missing' };

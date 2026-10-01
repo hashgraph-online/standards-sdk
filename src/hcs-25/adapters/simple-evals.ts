@@ -42,6 +42,9 @@ function normalizeSimpleEval(
   }
 
   const status = mapSimpleEvalStatus(statusToken);
+  if (status === 'stale') {
+    return { value: clampScore(score ?? 0), status: 'stale' };
+  }
   if (status !== 'ok') {
     return { value: 0, status };
   }

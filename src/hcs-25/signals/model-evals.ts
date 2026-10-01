@@ -7,7 +7,9 @@ import { z } from 'zod';
 export const hcs25OpenRouterEvalFieldsSchema = z
   .object({
     openrouterEvalScore: z.number().nullish(),
-    openrouterEvalStatus: z.enum(['ok', 'missing', 'low-coverage']).nullish(),
+    openrouterEvalStatus: z
+      .enum(['ok', 'missing', 'timeout', 'error', 'low-coverage', 'stale'])
+      .nullish(),
     openrouterEvalUpdatedAt: z.string().nullish(),
     openrouterEvalSources: z.array(z.string()).nullish(),
     openrouterEvalMetricsCount: z.number().int().min(0).nullish(),
@@ -26,7 +28,9 @@ export const hcs25ChatbotArenaFieldsSchema = z
     chatbotArenaEvalScore: z.number().nullish(),
     chatbotArenaEvalElo: z.number().nullish(),
     chatbotArenaEvalVotes: z.number().nullish(),
-    chatbotArenaEvalStatus: z.enum(['ok', 'missing']).nullish(),
+    chatbotArenaEvalStatus: z
+      .enum(['ok', 'missing', 'timeout', 'error', 'stale'])
+      .nullish(),
     chatbotArenaEvalUpdatedAt: z.string().nullish(),
     chatbotArenaEvalSources: z.array(z.string()).nullish(),
   })
@@ -48,7 +52,9 @@ export const hcs25HuggingFaceEvalFieldsSchema = z
     huggingFaceEvalMode: z
       .enum(['model-index', 'popularity', 'mixed', 'missing'])
       .nullish(),
-    huggingFaceEvalStatus: z.enum(['ok', 'missing', 'error']).nullish(),
+    huggingFaceEvalStatus: z
+      .enum(['ok', 'missing', 'timeout', 'error', 'stale'])
+      .nullish(),
     huggingFaceEvalUpdatedAt: z.string().nullish(),
     huggingFaceEvalSources: z.array(z.string()).nullish(),
   })
@@ -62,7 +68,9 @@ export const hcs25OpenLlmEvalFieldsSchema = z
   .object({
     openLlmEvalScore: z.number().nullish(),
     openLlmEvalMetricsCount: z.number().int().min(0).nullish(),
-    openLlmEvalStatus: z.enum(['ok', 'missing', 'error']).nullish(),
+    openLlmEvalStatus: z
+      .enum(['ok', 'missing', 'timeout', 'error', 'stale'])
+      .nullish(),
     openLlmEvalUpdatedAt: z.string().nullish(),
     openLlmEvalSources: z.array(z.string()).nullish(),
     openrouterHuggingFaceId: z.string().nullish(),
