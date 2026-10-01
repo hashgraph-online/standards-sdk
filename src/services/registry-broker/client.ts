@@ -30,7 +30,11 @@ export {
   agentConversationViewSchema,
   agentReplyResultSchema,
   agentRuntimeRegistrationResultSchema,
+  agentRegistrationResultStateSchema,
   agentProbeResultSchema,
+  agentSubscriptionEventTypeSchema,
+  agentSubscriptionViewSchema,
+  agentSubscriptionListSchema,
   type RegistryBrokerAgentNetworkApi,
   type AgentNetworkProvider,
   type AgentRequestState,
@@ -55,6 +59,9 @@ export {
   type AgentLeaseRef,
   type ReplyToAgentMessageInput,
   type AgentInboxQuery,
+  type AgentSubscriptionEventType,
+  type AgentSubscriptionView,
+  type CreateAgentSubscriptionInput,
   type WaitForAgentReplyOptions,
 } from './client/agent-network';
 export {

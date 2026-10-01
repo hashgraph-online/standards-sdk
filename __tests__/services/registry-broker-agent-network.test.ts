@@ -11,6 +11,7 @@ const MESSAGE_ID = '11111111-1111-4111-8111-111111111111';
 const CONVERSATION_ID = '22222222-2222-4222-8222-222222222222';
 const LEASE_ID = '33333333-3333-4333-8333-333333333333';
 const GRANT_ID = '44444444-4444-4444-8444-444444444444';
+const SUBSCRIPTION_ID = '66666666-6666-4666-8666-666666666666';
 
 const runtimeView = {
   runtimeId: RUNTIME_ID,
@@ -33,6 +34,7 @@ const runtimeView = {
 const messageView = (overrides: Record<string, unknown> = {}) => ({
   messageId: MESSAGE_ID,
   conversationId: CONVERSATION_ID,
+  schemaVersion: 'hol-agent-message/1' as const,
   kind: 'request',
   senderUaid: 'uaid:aid:sender',
   recipientUaid: 'uaid:aid:recipient',
@@ -182,6 +184,130 @@ describe('RegistryBrokerClient agentNetwork', () => {
       expect(req.method).toBe('DELETE');
       expect(req.url).toBe(
         `https://broker.test/api/v1/agent-connections/${GRANT_ID}`,
+      );
+    });
+
+    it('reads the owner inbox without a grant token', async () => {
+      fetchImplementation.mockResolvedValueOnce(
+        createResponse({
+          body: {
+            items: [
+              {
+                messageId: MESSAGE_ID,
+                conversationId: CONVERSATION_ID,
+                kind: 'request',
+                senderUaid: 'uaid:aid:sender',
+                content: { type: 'text', text: 'nonce-123 compute 37 + 58' },
+                requestState: 'completed',
+                deliveryState: 'acknowledged',
+                acknowledged: true,
+                leaseId: null,
+                fencingToken: null,
+                createdAt: '2026-10-01T00:00:00.000Z',
+                expiresAt: '2026-10-01T01:00:00.000Z',
+              },
+            ],
+            nextCursor: 'next-1',
+          },
+        }),
+      );
+      const inbox = await client.agentNetwork.listRuntimeInbox(RUNTIME_ID, {
+        cursor: 'c0',
+        limit: 5,
+        includeAcknowledged: true,
+      });
+      expect(inbox.items).toHaveLength(1);
+      expect(inbox.nextCursor).toBe('next-1');
+      const req = lastRequest();
+      expect(req.url).toBe(
+        `https://broker.test/api/v1/agent-runtimes/${RUNTIME_ID}/inbox?cursor=c0&limit=5&includeAcknowledged=true`,
+      );
+      expect(req.headers.get('x-api-key')).toBe('owner-key');
+    });
+
+    it('reads an owner-scoped conversation', async () => {
+      fetchImplementation.mockResolvedValueOnce(
+        createResponse({
+          body: {
+            conversationId: CONVERSATION_ID,
+            state: 'active',
+            participants: [
+              { uaid: 'uaid:aid:recipient' },
+              { uaid: 'uaid:aid:sender' },
+            ],
+            messages: [messageView()],
+            nextCursor: null,
+          },
+        }),
+      );
+      const view = await client.agentNetwork.getRuntimeConversation(
+        RUNTIME_ID,
+        CONVERSATION_ID,
+      );
+      expect(view.messages).toHaveLength(1);
+      const req = lastRequest();
+      expect(req.url).toBe(
+        `https://broker.test/api/v1/agent-runtimes/${RUNTIME_ID}/conversations/${CONVERSATION_ID}`,
+      );
+      expect(req.headers.get('x-api-key')).toBe('owner-key');
+    });
+
+    it('creates, lists, and revokes push subscriptions', async () => {
+      const subscription = {
+        subscriptionId: SUBSCRIPTION_ID,
+        runtimeId: RUNTIME_ID,
+        eventType: 'notify_request',
+        callbackUrl: 'https://hooks.example.net/agent',
+        state: 'active',
+        expiresAt: null,
+        createdAt: '2026-10-01T00:00:00.000Z',
+      };
+      fetchImplementation
+        .mockResolvedValueOnce(createResponse({ body: { subscription } }))
+        .mockResolvedValueOnce(
+          createResponse({ body: { subscriptions: [subscription] } }),
+        )
+        .mockResolvedValueOnce(createResponse({ status: 204 }));
+
+      const created = await client.agentNetwork.createAgentSubscription(
+        RUNTIME_ID,
+        {
+          eventType: 'notify_request',
+          callbackUrl: 'https://hooks.example.net/agent',
+          signingSecret: 'whsec_test_secret',
+        },
+      );
+      expect(created.subscriptionId).toBe(SUBSCRIPTION_ID);
+      let req = lastRequest();
+      expect(req.url).toBe(
+        `https://broker.test/api/v1/agent-runtimes/${RUNTIME_ID}/subscriptions`,
+      );
+      expect(req.method).toBe('POST');
+      expect(req.body).toMatchObject({
+        callbackUrl: 'https://hooks.example.net/agent',
+      });
+      // the client must be able to send the secret — server never returns it
+      expect(req.body).toHaveProperty('signingSecret', 'whsec_test_secret');
+      expect(JSON.stringify(created)).not.toContain('whsec_test_secret');
+
+      const listed =
+        await client.agentNetwork.listAgentSubscriptions(RUNTIME_ID);
+      expect(listed).toHaveLength(1);
+      expect(JSON.stringify(listed)).not.toContain('whsec_test_secret');
+      req = lastRequest();
+      expect(req.method).toBe('GET');
+      expect(req.url).toBe(
+        `https://broker.test/api/v1/agent-runtimes/${RUNTIME_ID}/subscriptions`,
+      );
+
+      await client.agentNetwork.revokeAgentSubscription(
+        RUNTIME_ID,
+        SUBSCRIPTION_ID,
+      );
+      req = lastRequest();
+      expect(req.method).toBe('DELETE');
+      expect(req.url).toBe(
+        `https://broker.test/api/v1/agent-runtimes/${RUNTIME_ID}/subscriptions/${SUBSCRIPTION_ID}`,
       );
     });
   });

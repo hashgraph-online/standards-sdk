@@ -21,10 +21,11 @@ import type { JsonValue } from '../types';
 
 export const agentNetworkProviderSchema = z.enum([
   'openclaw',
-  'dot',
   'grok',
+  'dot',
   'muse',
-  'generic',
+  'api',
+  'other',
 ]);
 export type AgentNetworkProvider = z.infer<typeof agentNetworkProviderSchema>;
 
@@ -32,22 +33,34 @@ export const agentConnectionStateSchema = z.enum([
   'unavailable',
   'pending_pairing',
   'interactive_verified',
-  'receive_unverified',
-  'receive_verified',
-  'paused',
-  'revoked',
+  'polling_verified',
+  'push_verified',
   'needs_reconnect',
+  'paused',
+  'degraded',
 ]);
 
 export const agentRegistrationStateSchema = z.enum([
   'unregistered',
+  'quote_issued',
   'pending',
   'registered',
-  'linked',
   'failed',
 ]);
 
-export const agentReceiveModeSchema = z.enum(['none', 'poll', 'push', 'events']);
+/**
+ * The registration *result* enum is distinct from the persisted lifecycle
+ * state — a register call resolves to one of these, including `linked` for
+ * owners attaching an existing UAID.
+ */
+export const agentRegistrationResultStateSchema = z.enum([
+  'registered',
+  'pending',
+  'linked',
+  'unregistered',
+]);
+
+export const agentReceiveModeSchema = z.enum(['none', 'poll', 'push']);
 
 export const agentRequestStateSchema = z.enum([
   'accepted',
@@ -122,7 +135,7 @@ export type AgentPairingComplete = z.infer<typeof agentPairingCompleteSchema>;
 export const agentMessageViewSchema = z.object({
   messageId: z.string().uuid(),
   conversationId: z.string().uuid(),
-  schemaVersion: z.number().optional(),
+  schemaVersion: z.literal('hol-agent-message/1'),
   kind: agentMessageKindSchema,
   senderUaid: z.string(),
   recipientUaid: z.string(),
@@ -198,7 +211,7 @@ export type AgentReplyResult = z.infer<typeof agentReplyResultSchema>;
 
 export const agentRuntimeRegistrationResultSchema = z.object({
   runtime: agentRuntimeViewSchema,
-  registration: agentRegistrationStateSchema,
+  registration: agentRegistrationResultStateSchema,
 });
 export type AgentRuntimeRegistrationResult = z.infer<
   typeof agentRuntimeRegistrationResultSchema
@@ -207,6 +220,34 @@ export type AgentRuntimeRegistrationResult = z.infer<
 export const agentProbeResultSchema = z.object({
   nonce: z.string(),
   issuedAt: isoDate,
+});
+
+export const agentSubscriptionEventTypeSchema = z.enum([
+  'notify_request',
+  'notify_event',
+  'notify_response',
+]);
+export type AgentSubscriptionEventType = z.infer<
+  typeof agentSubscriptionEventTypeSchema
+>;
+
+export const agentSubscriptionViewSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  runtimeId: z.string().uuid(),
+  eventType: agentSubscriptionEventTypeSchema,
+  callbackUrl: z.string().nullable(),
+  state: z.string(),
+  expiresAt: isoDate.nullable(),
+  createdAt: isoDate,
+});
+export type AgentSubscriptionView = z.infer<typeof agentSubscriptionViewSchema>;
+
+export const agentSubscriptionListSchema = z.object({
+  subscriptions: z.array(agentSubscriptionViewSchema),
+});
+
+export const agentSubscriptionCreatedSchema = z.object({
+  subscription: agentSubscriptionViewSchema,
 });
 
 // ---------------------------------------------------------------------------
@@ -219,8 +260,7 @@ export interface RegisterAgentRuntimeInput {
   description?: string;
   capabilities?: string[];
   linkExistingUaid?: string;
-  preferredReceiveMode?: 'poll' | 'push' | 'events';
-  callbackUrl?: string;
+  preferredReceiveMode?: 'poll' | 'push';
 }
 
 export interface UpdateAgentRuntimePolicyInput {
@@ -228,7 +268,7 @@ export interface UpdateAgentRuntimePolicyInput {
   allowedPeerUaids?: string[];
   maxOutboundPerMinute?: number;
   maxPendingMessages?: number;
-  receiveMode?: 'poll' | 'push' | 'events' | 'none';
+  receiveMode?: 'poll' | 'push';
 }
 
 export interface SendAgentMessageInput {
@@ -249,13 +289,21 @@ export interface AgentLeaseRef {
 export interface ReplyToAgentMessageInput extends AgentLeaseRef {
   content: { type: 'text'; text: string };
   idempotencyKey: string;
-  outcome: 'answered' | 'failed' | 'refused' | 'canceled';
+  outcome?: 'answered' | 'partial' | 'refused';
 }
 
 export interface AgentInboxQuery {
   cursor?: string;
   limit?: number;
   includeAcknowledged?: boolean;
+}
+
+export interface CreateAgentSubscriptionInput {
+  eventType?: AgentSubscriptionEventType;
+  /** Public HTTPS webhook target — validated for safety server-side. */
+  callbackUrl: string;
+  signingSecret?: string;
+  expiresAt?: string;
 }
 
 export interface WaitForAgentReplyOptions {
@@ -297,6 +345,28 @@ export interface RegistryBrokerAgentNetworkApi {
   startAgentConnection(runtimeId: string): Promise<AgentPairingStart>;
   completeAgentPairing(pairingCode: string): Promise<AgentPairingComplete>;
   revokeAgentConnection(grantId: string): Promise<void>;
+  /** Owner-scoped inbox read — no bot grant token required. */
+  listRuntimeInbox(
+    runtimeId: string,
+    query?: AgentInboxQuery,
+  ): Promise<AgentInboxList>;
+  /** Owner-scoped conversation read scoped to an owned runtime. */
+  getRuntimeConversation(
+    runtimeId: string,
+    conversationId: string,
+    query?: { cursor?: string; limit?: number },
+  ): Promise<AgentConversationView>;
+  createAgentSubscription(
+    runtimeId: string,
+    input: CreateAgentSubscriptionInput,
+  ): Promise<AgentSubscriptionView>;
+  listAgentSubscriptions(
+    runtimeId: string,
+  ): Promise<AgentSubscriptionView[]>;
+  revokeAgentSubscription(
+    runtimeId: string,
+    subscriptionId: string,
+  ): Promise<void>;
 
   // --- bot plane (grant bearer token) ---
   agentMe(token: string): Promise<AgentRuntimeView>;
@@ -359,7 +429,9 @@ const encodePath = (value: string): string => encodeURIComponent(value);
 const qs = (params: Record<string, string | number | boolean | undefined>) => {
   const query = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined) query.set(k, String(v));
+    if (v !== undefined) {
+      query.set(k, String(v));
+    }
   }
   const s = query.toString();
   return s ? `?${s}` : '';
@@ -453,6 +525,53 @@ export function createAgentNetworkApi(
       await client.request(`/agent-connections/${encodePath(grantId)}`, {
         method: 'DELETE',
       });
+    },
+
+    listRuntimeInbox: (runtimeId, query) =>
+      json(
+        `/agent-runtimes/${encodePath(runtimeId)}/inbox${qs({
+          cursor: query?.cursor,
+          limit: query?.limit,
+          includeAcknowledged: query?.includeAcknowledged,
+        })}`,
+        agentInboxListSchema,
+        {},
+      ),
+
+    getRuntimeConversation: (runtimeId, conversationId, query) =>
+      json(
+        `/agent-runtimes/${encodePath(runtimeId)}/conversations/${encodePath(
+          conversationId,
+        )}${qs({ cursor: query?.cursor, limit: query?.limit })}`,
+        agentConversationViewSchema,
+        {},
+      ),
+
+    createAgentSubscription: async (runtimeId, input) =>
+      (
+        await json(
+          `/agent-runtimes/${encodePath(runtimeId)}/subscriptions`,
+          agentSubscriptionCreatedSchema,
+          { method: 'POST', body: input },
+        )
+      ).subscription,
+
+    listAgentSubscriptions: async (runtimeId) =>
+      (
+        await json(
+          `/agent-runtimes/${encodePath(runtimeId)}/subscriptions`,
+          agentSubscriptionListSchema,
+          {},
+        )
+      ).subscriptions,
+
+    revokeAgentSubscription: async (runtimeId, subscriptionId) => {
+      await client.request(
+        `/agent-runtimes/${encodePath(runtimeId)}/subscriptions/${encodePath(
+          subscriptionId,
+        )}`,
+        { method: 'DELETE' },
+      );
     },
 
     agentMe: async (token) => {
