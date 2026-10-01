@@ -220,6 +220,10 @@ import {
 } from './chat-history';
 import type { RegistryBrokerChatApi } from './chat';
 import {
+  createAgentNetworkApi,
+  type RegistryBrokerAgentNetworkApi,
+} from './agent-network';
+import {
   acceptConversation as acceptConversationImpl,
   cancelSession as cancelSessionImpl,
   checkChatReadiness as checkChatReadinessImpl,
@@ -477,6 +481,7 @@ export class RegistryBrokerClient {
   readonly encryptionOptions?: ClientEncryptionOptions;
   encryptionBootstrapPromise: Promise<void> | null = null;
   private chatApi: RegistryBrokerChatApi | null = null;
+  private agentNetworkApi: RegistryBrokerAgentNetworkApi | null = null;
   private encryptedChatManager: EncryptedChatManager | null = null;
   private encryptionApi: RegistryBrokerEncryptionApi | null = null;
   private conversationContexts = new Map<string, ConversationContextState[]>();
@@ -546,6 +551,14 @@ export class RegistryBrokerClient {
     const api = createChatApi(this, this.getEncryptedChatManager());
     this.chatApi = api;
     return api;
+  }
+
+  /** Owner + bot mailbox surface; see ./agent-network.ts. */
+  get agentNetwork(): RegistryBrokerAgentNetworkApi {
+    if (!this.agentNetworkApi) {
+      this.agentNetworkApi = createAgentNetworkApi(this);
+    }
+    return this.agentNetworkApi;
   }
 
   get encryption(): RegistryBrokerEncryptionApi {
