@@ -14,6 +14,9 @@ export const hcs25AvailabilityFieldsSchema = z
     availabilityLatencyMs: z.number().nullish(),
     availabilityReason: z.string().nullish(),
     availabilitySource: z.string().nullish(),
+    availabilityStatus: z
+      .enum(['ok', 'missing', 'timeout', 'error', 'stale'])
+      .nullish(),
     metrics: z
       .object({
         isOnline: z.boolean().nullish(),
@@ -26,7 +29,13 @@ export const hcs25AvailabilityFieldsSchema = z
   .passthrough();
 
 const ethosSourceKindSchema = z.enum(['explicit', 'x', 'address']);
-const ethosSignalStatusSchema = z.enum(['ok', 'missing', 'error']);
+const ethosSignalStatusSchema = z.enum([
+  'ok',
+  'missing',
+  'timeout',
+  'error',
+  'stale',
+]);
 
 /**
  * Stored-field schema for Ethos reputation signals, per `subject.metadata`,

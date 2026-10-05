@@ -44,8 +44,8 @@ function normalizeEthos(
 
   const rawScore = compositeScore ?? flatScore;
   if (rawScore === null) {
-    if (status === 'error') {
-      return { value: 0, status: 'error' };
+    if (status === 'error' || status === 'timeout') {
+      return { value: 0, status };
     }
     if (status === 'ok') {
       return { value: 0, status: 'missing' };
@@ -55,11 +55,17 @@ function normalizeEthos(
 
   const denominator = maxScore - baselineScore;
   if (denominator <= 0) {
-    return { value: clampScore(maxContribution), status: 'ok' };
+    return {
+      value: clampScore(maxContribution),
+      status: status === 'stale' ? 'stale' : 'ok',
+    };
   }
 
   const normalized = clampUnit((rawScore - baselineScore) / denominator);
-  return { value: clampScore(maxContribution * normalized), status: 'ok' };
+  return {
+    value: clampScore(maxContribution * normalized),
+    status: status === 'stale' ? 'stale' : 'ok',
+  };
 }
 
 /**

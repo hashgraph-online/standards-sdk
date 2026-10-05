@@ -6,6 +6,7 @@ import type {
 } from '../types';
 import {
   readNumber,
+  readString,
   readSubjectAdditional,
   type Hcs25JsonObject,
 } from '../signals';
@@ -35,11 +36,39 @@ const DEFAULT_INCLUDED_REGISTRIES: readonly string[] = ['agentverse', 'uagent'];
 
 const MISSING: Hcs25NormalizedValue = { value: 0, status: 'missing' };
 
+/**
+ * Threads the stored `agentverseInsightsStatus` through a computed result:
+ * `stale` keeps the value with a stale status, `upstream-error`/`error`
+ * without usable data surface as `error`, `timeout` surfaces as `timeout`.
+ */
+function withInsightsStatus(
+  additional: Hcs25JsonObject,
+  result: Hcs25NormalizedValue,
+): Hcs25NormalizedValue {
+  const status = readString(additional, 'agentverseInsightsStatus');
+  if (result.status === 'ok' && status === 'stale') {
+    return { value: result.value, status: 'stale' };
+  }
+  if (
+    result.status !== 'ok' &&
+    (status === 'upstream-error' || status === 'error')
+  ) {
+    return { value: 0, status: 'error' };
+  }
+  if (result.status !== 'ok' && status === 'timeout') {
+    return { value: 0, status: 'timeout' };
+  }
+  return result;
+}
+
 function normalizeInsights(subject: Hcs25Subject): Hcs25NormalizedValue {
   const additional: Hcs25JsonObject = readSubjectAdditional(subject);
   const rating = readNumber(additional, 'agentverseInsightsRating');
   if (rating !== null) {
-    return { value: clampScore((rating / 5) * 100), status: 'ok' };
+    return withInsightsStatus(additional, {
+      value: clampScore((rating / 5) * 100),
+      status: 'ok',
+    });
   }
 
   const proxies = [
@@ -49,11 +78,14 @@ function normalizeInsights(subject: Hcs25Subject): Hcs25NormalizedValue {
   ].filter((value): value is number => value !== null);
 
   if (proxies.length === 0) {
-    return MISSING;
+    return withInsightsStatus(additional, MISSING);
   }
 
   const mean = proxies.reduce((sum, value) => sum + value, 0) / proxies.length;
-  return { value: clampScore(mean * 100), status: 'ok' };
+  return withInsightsStatus(additional, {
+    value: clampScore(mean * 100),
+    status: 'ok',
+  });
 }
 
 /**
@@ -129,7 +161,7 @@ export function createAgentverseVerifierAdapter(
           const successes = useRecent ? recentSuccesses : totalSuccesses;
 
           if (interactions <= 0) {
-            return MISSING;
+            return withInsightsStatus(additional, MISSING);
           }
 
           const successRate = clampUnit(successes / interactions) * 100;
@@ -145,10 +177,10 @@ export function createAgentverseVerifierAdapter(
             Math.log1p(interactions) / Math.log1p(interactionCap),
           );
 
-          return {
+          return withInsightsStatus(additional, {
             value: clampScore(successRate * responseFactor * volumeFactor),
             status: 'ok',
-          };
+          });
         },
       },
     ],
