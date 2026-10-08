@@ -57,7 +57,7 @@ describe('HCS-25 ANS trust discovery adapter', () => {
     expect(adapter.id).toBe('ans-trust-discovery');
     expect(adapter.contributionMode).toBe('scoped');
     expect(adapter.weight).toBe(1);
-    expect(adapter.includeRegistries).toEqual(['ans']);
+    expect(adapter.includeRegistries).toEqual(['ans', 'godaddy-ans']);
     expect(adapter.defaultComponentKey).toBe('ans-trust-discovery.certtype');
     expect(adapter.components.map(component => component.name)).toEqual([
       'certtype',
@@ -194,7 +194,14 @@ describe('HCS-25 ANS trust discovery adapter', () => {
     }
   });
 
-  test('applies only to subjects in the ans registry', () => {
+  test('applies only to subjects in the ans and godaddy-ans registries', () => {
+    const broker = scoreOne(
+      createAnsTrustDiscoveryAdapter(),
+      ansSubject(FULL_SIGNALS, 'godaddy-ans'),
+    );
+    expect(broker.breakdown.adapters[0]?.applicable).toBe(true);
+    expect(broker.trustScores['ans-trust-discovery.certtype']).toBe(100);
+
     const other = scoreOne(
       createAnsTrustDiscoveryAdapter(),
       ansSubject(FULL_SIGNALS, 'agentverse'),

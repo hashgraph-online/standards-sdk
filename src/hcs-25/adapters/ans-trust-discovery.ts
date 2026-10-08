@@ -17,13 +17,17 @@ import {
  * Options for the ANS Trust Discovery adapter.
  */
 export interface Hcs25AnsTrustDiscoveryAdapterOptions {
-  /** Registries whose subjects carry ANS Trust Index signals. */
+  /**
+   * Registries whose subjects carry ANS Trust Index signals. Default
+   * `['ans', 'godaddy-ans']`: `ans` is the HCS-14 registry value and
+   * `godaddy-ans` is the Registry Broker namespace for the same agents.
+   */
   includeRegistries?: readonly string[];
 }
 
 const ADAPTER_ID = 'ans-trust-discovery';
 
-const DEFAULT_INCLUDED_REGISTRIES: readonly string[] = ['ans'];
+const DEFAULT_INCLUDED_REGISTRIES: readonly string[] = ['ans', 'godaddy-ans'];
 
 const MISSING: Hcs25NormalizedValue = { value: 0, status: 'missing' };
 
@@ -76,8 +80,9 @@ function normalizeAnsTrustSignal(
  * signals the provider could not compute are excluded from the adapter
  * total, which is the mean of the remaining components.
  *
- * Applies to subjects whose `registry` is `ans` (the UAID `registry`
- * parameter); callers set `subject.registry` when building the subject.
+ * Applies to subjects whose `registry` is `ans` (the HCS-14 UAID `registry`
+ * value) or `godaddy-ans` (the Registry Broker namespace); callers set
+ * `subject.registry` when building the subject.
  */
 export function createAnsTrustDiscoveryAdapter(
   options: Hcs25AnsTrustDiscoveryAdapterOptions = {},
