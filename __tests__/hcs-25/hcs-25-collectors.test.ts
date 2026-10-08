@@ -1084,9 +1084,12 @@ describe('ans trust discovery signal adapter', () => {
         fetch: fetchReturning({}),
       },
     );
-    expect(collection.snapshot['ans-trust-discovery.certtype'].status).toBe(
-      'missing',
-    );
+    for (const signalId of [
+      'ans-trust-discovery.certtype',
+      'ans-trust-discovery.certificatehygiene',
+    ]) {
+      expect(collection.snapshot[signalId].status).toBe('missing');
+    }
     expect(collection.subject.metadata?.ansTrustDiscovery).toBeUndefined();
   });
 
@@ -1098,9 +1101,13 @@ describe('ans trust discovery signal adapter', () => {
         fetch: fetchWithStatus(404),
       },
     );
-    expect(collection.snapshot['ans-trust-discovery.certtype'].status).toBe(
-      'missing',
-    );
+    for (const signalId of [
+      'ans-trust-discovery.certtype',
+      'ans-trust-discovery.dnssecurity',
+      'ans-trust-discovery.certificatehygiene',
+    ]) {
+      expect(collection.snapshot[signalId].status).toBe('missing');
+    }
     expect(collection.results[0]?.status).toBe('missing');
   });
 
@@ -1126,9 +1133,13 @@ describe('ans trust discovery signal adapter', () => {
         unknown
       >;
       expect(stored.ansTrustDiscoveryStatus).toBe(status);
-      expect(collection.snapshot['ans-trust-discovery.certtype'].status).toBe(
-        status,
-      );
+      for (const signalId of [
+        'ans-trust-discovery.certtype',
+        'ans-trust-discovery.dnssecurity',
+        'ans-trust-discovery.certificatehygiene',
+      ]) {
+        expect(collection.snapshot[signalId].status).toBe(status);
+      }
     }
   });
 

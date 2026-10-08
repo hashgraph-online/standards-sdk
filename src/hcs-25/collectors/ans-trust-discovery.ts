@@ -100,30 +100,30 @@ function statusResult(
   url: string | undefined,
   agentId: string | undefined,
 ): Hcs25SignalAdapterResult[] {
-  return [
-    {
-      signalId: SIGNAL_IDS[0],
-      status,
-      fields:
-        status === 'missing'
-          ? undefined
-          : [
-              {
-                scope: 'ansTrustDiscovery',
-                values: {
-                  ansTrustDiscoveryStatus: status,
-                  ansTrustDiscoveryUpdatedAt: now,
-                },
-              },
-            ],
-      provenance: {
-        source: 'ans-trust-discovery',
-        sourceUrl: url,
-        subjectId: agentId,
-        fetchedAt: now,
-      },
-    },
-  ];
+  const provenance = {
+    source: 'ans-trust-discovery',
+    sourceUrl: url,
+    subjectId: agentId,
+    fetchedAt: now,
+  };
+  const fields =
+    status === 'missing'
+      ? undefined
+      : [
+          {
+            scope: 'ansTrustDiscovery',
+            values: {
+              ansTrustDiscoveryStatus: status,
+              ansTrustDiscoveryUpdatedAt: now,
+            },
+          },
+        ];
+  return SIGNAL_IDS.map((signalId, index) => ({
+    signalId,
+    status,
+    fields: index === 0 ? fields : undefined,
+    provenance,
+  }));
 }
 
 /**
