@@ -32,6 +32,7 @@ import {
   Hcs25CollectorHttpError,
   isTimeoutError,
   requestJson,
+  type Hcs25AnsTrustDiscoverySignalAdapterOptions,
   type Hcs25Fetch,
   type Hcs25SignalAdapter,
 } from '../../src/hcs-25/collectors';
@@ -1014,8 +1015,12 @@ describe('isTimeoutError', () => {
 });
 
 describe('ans trust discovery signal adapter', () => {
-  const UAID =
-    'uaid:aid:7bU8xK;uid=b8d9425f-fd9f-47a5-ae5d-8ab51bda04c9;registry=ans;proto=a2a;nativeId=support-agent.example.com;version=v1.0.0';
+  const AGENT_ID = 'b8d9425f-fd9f-47a5-ae5d-8ab51bda04c9';
+  const UAID = `uaid:aid:7bU8xK;uid=${AGENT_ID};registry=ans;proto=a2a;nativeId=support-agent.example.com;version=v1.0.0`;
+  const NOW = new Date('2026-08-18T01:58:17.623Z');
+  const HOUR = 60 * 60 * 1000;
+  const hoursAgo = (hours: number): string =>
+    new Date(NOW.getTime() - hours * HOUR).toISOString();
 
   const providerResponse = {
     signals: {
@@ -1029,6 +1034,57 @@ describe('ans trust discovery signal adapter', () => {
       certificatehygiene: { score: 95, missing: false },
     },
   };
+
+  interface RecordedCall {
+    url: string;
+    headers?: Record<string, string>;
+  }
+
+  const recordingFetch = (
+    respond: () => ReturnType<Hcs25Fetch>,
+  ): { fetch: Hcs25Fetch; calls: RecordedCall[] } => {
+    const calls: RecordedCall[] = [];
+    return {
+      calls,
+      fetch: async (url, init) => {
+        calls.push({ url, headers: init?.headers });
+        return respond();
+      },
+    };
+  };
+
+  const collectAns = (
+    subject: Hcs25Subject,
+    fetchImpl: Hcs25Fetch,
+    options: Hcs25AnsTrustDiscoverySignalAdapterOptions = {},
+    force?: boolean,
+  ) =>
+    collectHcs25Signals(subject, {
+      adapters: [createAnsTrustDiscoverySignalAdapter(options)],
+      fetch: fetchImpl,
+      now: NOW,
+      force,
+    });
+
+  const storedFields = (subject: Hcs25Subject): Record<string, unknown> =>
+    subject.metadata?.ansTrustDiscovery as Record<string, unknown>;
+
+  const withStored = (
+    updatedAt: string,
+    status = 'ok',
+    registry = 'ans',
+  ): Hcs25Subject => ({
+    id: UAID,
+    registry,
+    metadata: {
+      ansTrustDiscovery: {
+        'ans-trust-discovery.certtype': 60,
+        'ans-trust-discovery.dnssecurity': 100,
+        ansTrustDiscoveryStatus: status,
+        ansTrustDiscoveryUpdatedAt: updatedAt,
+      },
+    },
+  });
 
   test('stores provider scores and the scoring adapter consumes them', async () => {
     let requested = '';
@@ -1050,7 +1106,7 @@ describe('ans trust discovery signal adapter', () => {
     );
 
     expect(requested).toBe(
-      'https://ans.example.com/v1/ans/registered-agents/support-agent.example.com',
+      `https://ans.example.com/v1/ans/registered-agents/${AGENT_ID}`,
     );
     const stored = collection.subject.metadata?.ansTrustDiscovery as Record<
       string,
@@ -1074,6 +1130,134 @@ describe('ans trust discovery signal adapter', () => {
     expect(record.trustScores['ans-trust-discovery.httpsrecord']).toBe(100);
     expect(record.trustScores['ans-trust-discovery.agentcard']).toBeUndefined();
     expect(record.trustScores.total).toBe(86.43);
+  });
+
+  test('resolves the agent id from metadata.uid before UAID parameters', async () => {
+    const { fetch, calls } = recordingFetch(async () =>
+      okResponse(providerResponse),
+    );
+    await collectAns(
+      {
+        id: 'uaid:aid:Qx7Lm2',
+        registry: 'godaddy-ans',
+        metadata: {
+          uid: AGENT_ID,
+          uaidFull:
+            'uaid:aid:Qx7Lm2;uid=11111111-1111-4111-8111-111111111111;registry=godaddy-ans',
+          nativeId: 'ans://v1.0.0.support-agent.example.com',
+        },
+      },
+      fetch,
+    );
+    expect(calls.map(call => call.url)).toEqual([
+      `https://api.godaddy.com/v1/ans/registered-agents/${AGENT_ID}`,
+    ]);
+  });
+
+  test('falls back to the uid of metadata.uaidFull, then of the subject id', async () => {
+    for (const subject of [
+      {
+        id: 'uaid:aid:Qx7Lm2',
+        registry: 'godaddy-ans',
+        metadata: {
+          uaidFull: `uaid:aid:Qx7Lm2;uid=${AGENT_ID};registry=godaddy-ans`,
+        },
+      },
+      { id: UAID, registry: 'ans' },
+    ]) {
+      const { fetch, calls } = recordingFetch(async () =>
+        okResponse(providerResponse),
+      );
+      await collectAns(subject, fetch);
+      expect(calls.map(call => call.url)).toEqual([
+        `https://api.godaddy.com/v1/ans/registered-agents/${AGENT_ID}`,
+      ]);
+    }
+  });
+
+  test('never uses nativeId as the agent id', async () => {
+    const { fetch, calls } = recordingFetch(async () =>
+      okResponse(providerResponse),
+    );
+    const collection = await collectAns(
+      {
+        id: 'uaid:aid:7bU8xK;registry=ans;nativeId=support-agent.example.com',
+        registry: 'ans',
+        metadata: { nativeId: 'support-agent.example.com' },
+      },
+      fetch,
+    );
+    expect(calls).toHaveLength(0);
+    expect(collection.snapshot['ans-trust-discovery.certtype'].status).toBe(
+      'missing',
+    );
+    expect(collection.subject.metadata?.ansTrustDiscovery).toBeUndefined();
+  });
+
+  test('treats an empty or unspecified uid as absent', async () => {
+    for (const subject of [
+      { id: 'uaid:aid:x;uid=0;registry=ans', registry: 'ans' },
+      { id: 'uaid:aid:x;uid=;registry=ans', registry: 'ans' },
+      { id: 'uaid:aid:x', registry: 'ans', metadata: { uid: '0' } },
+    ]) {
+      const { fetch, calls } = recordingFetch(async () =>
+        okResponse(providerResponse),
+      );
+      await collectAns(subject, fetch);
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  test('encodes the agent id and passes request options through', async () => {
+    const { fetch, calls } = recordingFetch(async () =>
+      okResponse(providerResponse),
+    );
+    const adapter = createAnsTrustDiscoverySignalAdapter({ timeoutMs: 5000 });
+    expect(adapter.timeoutMs).toBe(5000);
+
+    await collectAns({ id: 'agent:a', registry: 'ans' }, fetch, {
+      resolveAgentId: () => 'a/b c',
+      headers: { Authorization: 'Bearer token' },
+    });
+    expect(calls[0]?.url).toBe(
+      'https://api.godaddy.com/v1/ans/registered-agents/a%2Fb%20c',
+    );
+    expect(calls[0]?.headers?.Authorization).toBe('Bearer token');
+  });
+
+  test('stores null for missing, absent, and non-numeric signals and ignores unlisted ones', async () => {
+    const { fetch } = recordingFetch(async () =>
+      okResponse({
+        signals: {
+          certtype: { score: 25, missing: false },
+          agentcard: { score: 0, missing: true },
+          httpsrecord: { score: 'present', missing: false },
+          domainvalidation: { score: 100, missing: false },
+        },
+      }),
+    );
+    const collection = await collectAns({ id: UAID, registry: 'ans' }, fetch);
+    const stored = storedFields(collection.subject);
+
+    expect(stored['ans-trust-discovery.certtype']).toBe(25);
+    expect(stored['ans-trust-discovery.agentcard']).toBeNull();
+    expect(stored['ans-trust-discovery.dnssecurity']).toBeNull();
+    expect(stored['ans-trust-discovery.httpsrecord']).toBeNull();
+    expect(stored).not.toHaveProperty('ans-trust-discovery.domainvalidation');
+    expect(
+      collection.snapshot['ans-trust-discovery.domainvalidation'],
+    ).toBeUndefined();
+    expect(stored.ansTrustDiscoveryStatus).toBe('ok');
+  });
+
+  test('is missing when the provider returns no signals', async () => {
+    const { fetch } = recordingFetch(async () => okResponse({}));
+    const collection = await collectAns({ id: UAID, registry: 'ans' }, fetch);
+    const stored = storedFields(collection.subject);
+
+    expect(stored['ans-trust-discovery.certtype']).toBeNull();
+    expect(stored['ans-trust-discovery.certificatehygiene']).toBeNull();
+    expect(stored.ansTrustDiscoveryStatus).toBe('missing');
   });
 
   test('is missing when the subject has no ANS agent id', async () => {
@@ -1111,6 +1295,27 @@ describe('ans trust discovery signal adapter', () => {
     expect(collection.results[0]?.status).toBe('missing');
   });
 
+  test('clears stored scores when the provider no longer knows the agent', async () => {
+    const collection = await collectAns(
+      withStored(hoursAgo(48)),
+      fetchWithStatus(404),
+    );
+    const stored = storedFields(collection.subject);
+
+    expect(stored['ans-trust-discovery.certtype']).toBeNull();
+    expect(stored['ans-trust-discovery.dnssecurity']).toBeNull();
+    expect(stored.ansTrustDiscoveryStatus).toBe('missing');
+    expect(stored.ansTrustDiscoveryUpdatedAt).toBe(NOW.toISOString());
+
+    const record = computeTrustScore({
+      subject: collection.subject,
+      snapshot: collection.snapshot,
+      config: { version: 1, adapters: [createAnsTrustDiscoveryAdapter()] },
+    });
+    expect(record.breakdown.adapters[0]?.unavailable).toHaveLength(8);
+    expect(record.trustScores.total).toBe(0);
+  });
+
   test('stores timeout and error without a score', async () => {
     for (const [name, status] of [
       ['TimeoutError', 'timeout'],
@@ -1124,7 +1329,7 @@ describe('ans trust discovery signal adapter', () => {
       const collection = await collectHcs25Signals(
         { id: UAID, registry: 'ans' },
         {
-          adapters: [createAnsTrustDiscoverySignalAdapter()],
+          adapters: [createAnsTrustDiscoverySignalAdapter({ maxRetries: 0 })],
           fetch: fetchImpl,
         },
       );
@@ -1143,6 +1348,103 @@ describe('ans trust discovery signal adapter', () => {
     }
   });
 
+  test('retries server errors, then keeps earlier scores with an error status', async () => {
+    const { fetch, calls } = recordingFetch(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    }));
+    const collection = await collectAns(withStored(hoursAgo(48)), fetch);
+    const stored = storedFields(collection.subject);
+
+    expect(calls).toHaveLength(3);
+    expect(stored['ans-trust-discovery.certtype']).toBe(60);
+    expect(stored.ansTrustDiscoveryStatus).toBe('error');
+    expect(stored.ansTrustDiscoveryUpdatedAt).toBe(NOW.toISOString());
+  });
+
+  test('does not retry rate-limited requests', async () => {
+    const { fetch, calls } = recordingFetch(async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({}),
+    }));
+    const collection = await collectAns({ id: UAID, registry: 'ans' }, fetch);
+
+    expect(calls).toHaveLength(1);
+    expect(storedFields(collection.subject).ansTrustDiscoveryStatus).toBe(
+      'error',
+    );
+  });
+
+  test('skips the request while stored signals are within their interval', async () => {
+    const fresh = recordingFetch(async () => okResponse(providerResponse));
+    const updatedAt = hoursAgo(23);
+    const collection = await collectAns(withStored(updatedAt), fresh.fetch);
+
+    expect(fresh.calls).toHaveLength(0);
+    const certtype = collection.snapshot['ans-trust-discovery.certtype'];
+    expect(certtype.status).toBe('ok');
+    expect(certtype.value).toBe(60);
+    expect(certtype.fetchedAt).toBe(updatedAt);
+    expect(collection.snapshot['ans-trust-discovery.agentage'].status).toBe(
+      'missing',
+    );
+    expect(storedFields(collection.subject).ansTrustDiscoveryUpdatedAt).toBe(
+      updatedAt,
+    );
+
+    const failed = recordingFetch(async () => okResponse(providerResponse));
+    const afterFailure = await collectAns(
+      withStored(
+        new Date(NOW.getTime() - 30 * 60 * 1000).toISOString(),
+        'error',
+      ),
+      failed.fetch,
+    );
+    expect(failed.calls).toHaveLength(0);
+    expect(afterFailure.snapshot['ans-trust-discovery.certtype'].status).toBe(
+      'error',
+    );
+  });
+
+  test('refreshes once the interval elapses or when forced', async () => {
+    const cases: Array<{
+      subject: Hcs25Subject;
+      options?: Hcs25AnsTrustDiscoverySignalAdapterOptions;
+      force?: boolean;
+    }> = [
+      { subject: withStored(hoursAgo(25)) },
+      { subject: withStored(hoursAgo(2), 'error') },
+      { subject: withStored(hoursAgo(1)), force: true },
+      { subject: withStored(hoursAgo(2)), options: { ttlMs: HOUR } },
+    ];
+    for (const { subject, options, force } of cases) {
+      const { fetch, calls } = recordingFetch(async () =>
+        okResponse(providerResponse),
+      );
+      const collection = await collectAns(subject, fetch, options, force);
+      expect(calls).toHaveLength(1);
+      expect(storedFields(collection.subject).ansTrustDiscoveryUpdatedAt).toBe(
+        NOW.toISOString(),
+      );
+    }
+  });
+
+  test('applies to the ans and godaddy-ans registries only', async () => {
+    for (const [registry, applicable] of [
+      ['ans', true],
+      ['godaddy-ans', true],
+      ['agentverse', false],
+    ] as const) {
+      const collection = await collectAns(
+        { id: UAID, registry },
+        fetchReturning(providerResponse),
+      );
+      expect(collection.results[0]?.applicable).toBe(applicable);
+    }
+  });
+
   test('does not apply outside the ans registry', async () => {
     const collection = await collectHcs25Signals(
       { id: UAID, registry: 'agentverse' },
@@ -1153,6 +1455,34 @@ describe('ans trust discovery signal adapter', () => {
     );
     expect(collection.results[0]?.applicable).toBe(false);
     expect(collection.snapshot['ans-trust-discovery.certtype']).toBeUndefined();
+  });
+
+  test('scores a Registry Broker subject end to end', async () => {
+    const { fetch, calls } = recordingFetch(async () =>
+      okResponse(providerResponse),
+    );
+    const { record } = await collectAndScoreTrustScore(
+      {
+        id: 'uaid:aid:Qx7Lm2',
+        registry: 'godaddy-ans',
+        metadata: {
+          uid: AGENT_ID,
+          nativeId: 'ans://v1.0.0.support-agent.example.com',
+        },
+      },
+      {
+        adapters: [createAnsTrustDiscoverySignalAdapter()],
+        fetch,
+        now: NOW,
+        config: { version: 1, adapters: [createAnsTrustDiscoveryAdapter()] },
+      },
+    );
+
+    expect(calls.map(call => call.url)).toEqual([
+      `https://api.godaddy.com/v1/ans/registered-agents/${AGENT_ID}`,
+    ]);
+    expect(record.trustScores['ans-trust-discovery.certtype']).toBe(100);
+    expect(record.trustScores.total).toBe(86.43);
   });
 });
 
