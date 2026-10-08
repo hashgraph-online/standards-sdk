@@ -1,7 +1,11 @@
-# HOL Standards SDK
+# Hashgraph Online Standards SDK
 
-| ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by HOL.<br><br>This SDK is built and maintained by [HOL](https://hol.org), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hol.org/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hol.org/docs/standards) |
-| :-------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![](./Hashgraph-Online.png) | A lightweight SDK providing reference implementations for Hashgraph Consensus Standards (HCS) created by Hashgraph Online (HOL).<br><br>This SDK is built and maintained by [Hashgraph Online](https://hol.org), a consortium of leading Hedera Organizations within the Hedera ecosystem.<br><br>[📚 Standards SDK Documentation](https://hol.org/docs/libraries/standards-sdk/)<br>[📖 HCS Standards Documentation](https://hol.org/docs/standards)<br>[🧠 DeepWiki](https://deepwiki.com/hashgraph-online/standards-sdk) |
+| :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+
+[![Standards SDK Docs](https://img.shields.io/badge/HOL-Standards_SDK-5599FE?style=for-the-badge)](https://hol.org/docs/libraries/standards-sdk/)
+[![HCS Standards](https://img.shields.io/badge/HOL-HCS_Standards-6BA539?style=for-the-badge)](https://hol.org/docs/standards)
+[![DeepWiki](https://img.shields.io/badge/DeepWiki-Repository-0F172A?style=for-the-badge&logo=bookstack&logoColor=white)](https://deepwiki.com/hashgraph-online/standards-sdk)
 
 ## Quick Start
 
