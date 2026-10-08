@@ -3,6 +3,7 @@ import { describe, expect, test } from '@jest/globals';
 import {
   HCS25_SIGNAL_CATALOG,
   hcs25AcpMetricsSchema,
+  hcs25AnsTrustDiscoveryFieldsSchema,
   hcs25AgentverseInsightsSchema,
   hcs25AvailabilityFieldsSchema,
   hcs25ChatbotArenaFieldsSchema,
@@ -36,6 +37,7 @@ describe('HCS-25 signal catalog coverage', () => {
       'huggingface-model-index',
       'openllm-leaderboard',
       'output-verification',
+      'ans-trust-discovery',
     ];
 
     expect(Object.keys(HCS25_SIGNAL_CATALOG).sort()).toEqual(
@@ -248,5 +250,32 @@ describe('HCS-25 signal schemas', () => {
       totalChecks: -3,
     });
     expect(invalid.success).toBe(false);
+  });
+
+  test('validates ANS trust discovery signals with missing values', () => {
+    const parsed = hcs25AnsTrustDiscoveryFieldsSchema.safeParse({
+      'ans-trust-discovery.certtype': 100,
+      'ans-trust-discovery.dnssecurity': 80,
+      'ans-trust-discovery.agentage': 60,
+      'ans-trust-discovery.versionstability': 100,
+      'ans-trust-discovery.dnsconsistency': 70,
+      'ans-trust-discovery.httpsrecord': 0,
+      'ans-trust-discovery.agentcard': null,
+      'ans-trust-discovery.certificatehygiene': 95,
+      ansTrustDiscoveryStatus: 'ok',
+      ansTrustDiscoveryUpdatedAt: '2026-08-18T01:58:17.623Z',
+    });
+    expect(parsed.success).toBe(true);
+
+    expect(
+      hcs25AnsTrustDiscoveryFieldsSchema.safeParse({
+        'ans-trust-discovery.certtype': 140,
+      }).success,
+    ).toBe(false);
+    expect(
+      hcs25AnsTrustDiscoveryFieldsSchema.safeParse({
+        ansTrustDiscoveryStatus: 'unknown',
+      }).success,
+    ).toBe(false);
   });
 });

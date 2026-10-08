@@ -2,6 +2,7 @@ import { describe, expect, test } from '@jest/globals';
 
 import { computeTrustScore } from '../../src/hcs-25/scoring';
 import {
+  createAnsTrustDiscoveryAdapter,
   createAvailabilityAdapter,
   createConnectivityAdapter,
   createEthosAdapter,
@@ -19,6 +20,7 @@ import {
   collectAndScoreTrustScore,
   collectHcs25Signals,
   createAgentverseInsightsSignalAdapter,
+  createAnsTrustDiscoverySignalAdapter,
   createAvailabilitySignalAdapter,
   createErc8004SignalAdapter,
   createEthosSignalAdapter,
@@ -1011,6 +1013,149 @@ describe('isTimeoutError', () => {
   });
 });
 
+describe('ans trust discovery signal adapter', () => {
+  const UAID =
+    'uaid:aid:7bU8xK;uid=b8d9425f-fd9f-47a5-ae5d-8ab51bda04c9;registry=ans;proto=a2a;nativeId=support-agent.example.com;version=v1.0.0';
+
+  const providerResponse = {
+    signals: {
+      certtype: { score: 100, missing: false },
+      dnssecurity: { score: 80, missing: false },
+      agentage: { score: 60, missing: false },
+      versionstability: { score: 100, missing: false },
+      dnsconsistency: { score: 70, missing: false },
+      httpsrecord: { score: 140, missing: false },
+      agentcard: { score: 100, missing: true },
+      certificatehygiene: { score: 95, missing: false },
+    },
+  };
+
+  test('stores provider scores and the scoring adapter consumes them', async () => {
+    let requested = '';
+    const fetchImpl: Hcs25Fetch = async url => {
+      requested = url;
+      return okResponse(providerResponse);
+    };
+    const collection = await collectHcs25Signals(
+      { id: UAID, registry: 'ans' },
+      {
+        adapters: [
+          createAnsTrustDiscoverySignalAdapter({
+            baseUrl: 'https://ans.example.com/',
+          }),
+        ],
+        fetch: fetchImpl,
+        now: new Date('2026-08-18T01:58:17.623Z'),
+      },
+    );
+
+    expect(requested).toBe(
+      'https://ans.example.com/v1/ans/registered-agents/support-agent.example.com',
+    );
+    const stored = collection.subject.metadata?.ansTrustDiscovery as Record<
+      string,
+      unknown
+    >;
+    expect(stored['ans-trust-discovery.certtype']).toBe(100);
+    expect(stored['ans-trust-discovery.httpsrecord']).toBe(100);
+    expect(stored['ans-trust-discovery.agentcard']).toBeNull();
+    expect(stored.ansTrustDiscoveryStatus).toBe('ok');
+    expect(stored.ansTrustDiscoveryUpdatedAt).toBe('2026-08-18T01:58:17.623Z');
+    expect(collection.snapshot['ans-trust-discovery.agentcard'].status).toBe(
+      'missing',
+    );
+
+    const record = computeTrustScore({
+      subject: collection.subject,
+      snapshot: collection.snapshot,
+      config: { version: 1, adapters: [createAnsTrustDiscoveryAdapter()] },
+    });
+    expect(record.trustScores['ans-trust-discovery.certtype']).toBe(100);
+    expect(record.trustScores['ans-trust-discovery.httpsrecord']).toBe(100);
+    expect(record.trustScores['ans-trust-discovery.agentcard']).toBeUndefined();
+    expect(record.trustScores.total).toBe(86.43);
+  });
+
+  test('is missing when the subject has no ANS agent id', async () => {
+    const collection = await collectHcs25Signals(
+      { id: 'agent:plain', registry: 'ans' },
+      {
+        adapters: [createAnsTrustDiscoverySignalAdapter()],
+        fetch: fetchReturning({}),
+      },
+    );
+    for (const signalId of [
+      'ans-trust-discovery.certtype',
+      'ans-trust-discovery.certificatehygiene',
+    ]) {
+      expect(collection.snapshot[signalId].status).toBe('missing');
+    }
+    expect(collection.subject.metadata?.ansTrustDiscovery).toBeUndefined();
+  });
+
+  test('treats HTTP 404 as missing', async () => {
+    const collection = await collectHcs25Signals(
+      { id: UAID, registry: 'ans' },
+      {
+        adapters: [createAnsTrustDiscoverySignalAdapter()],
+        fetch: fetchWithStatus(404),
+      },
+    );
+    for (const signalId of [
+      'ans-trust-discovery.certtype',
+      'ans-trust-discovery.dnssecurity',
+      'ans-trust-discovery.certificatehygiene',
+    ]) {
+      expect(collection.snapshot[signalId].status).toBe('missing');
+    }
+    expect(collection.results[0]?.status).toBe('missing');
+  });
+
+  test('stores timeout and error without a score', async () => {
+    for (const [name, status] of [
+      ['TimeoutError', 'timeout'],
+      ['Error', 'error'],
+    ] as const) {
+      const fetchImpl: Hcs25Fetch = async () => {
+        const error = new Error('upstream failed');
+        error.name = name;
+        throw error;
+      };
+      const collection = await collectHcs25Signals(
+        { id: UAID, registry: 'ans' },
+        {
+          adapters: [createAnsTrustDiscoverySignalAdapter()],
+          fetch: fetchImpl,
+        },
+      );
+      const stored = collection.subject.metadata?.ansTrustDiscovery as Record<
+        string,
+        unknown
+      >;
+      expect(stored.ansTrustDiscoveryStatus).toBe(status);
+      for (const signalId of [
+        'ans-trust-discovery.certtype',
+        'ans-trust-discovery.dnssecurity',
+        'ans-trust-discovery.certificatehygiene',
+      ]) {
+        expect(collection.snapshot[signalId].status).toBe(status);
+      }
+    }
+  });
+
+  test('does not apply outside the ans registry', async () => {
+    const collection = await collectHcs25Signals(
+      { id: UAID, registry: 'agentverse' },
+      {
+        adapters: [createAnsTrustDiscoverySignalAdapter()],
+        fetch: fetchReturning(providerResponse),
+      },
+    );
+    expect(collection.results[0]?.applicable).toBe(false);
+    expect(collection.snapshot['ans-trust-discovery.certtype']).toBeUndefined();
+  });
+});
+
 describe('adapter coverage mapping', () => {
   test('every scoring adapter has at least one signal collector', () => {
     const transport = {
@@ -1034,6 +1179,7 @@ describe('adapter coverage mapping', () => {
       outputVerification: {
         providers: [{ id: 'test', baseUrl: 'https://verify.example.com' }],
       },
+      ansTrustDiscovery: true,
       simpleEvals: {
         a2a: { transport },
         agentverse: { transport },
@@ -1074,6 +1220,7 @@ describe('adapter coverage mapping', () => {
       ],
       'output-verification': ['output-verification'],
       connectivity: ['connectivity'],
+      'ans-trust-discovery': ['ans-trust-discovery'],
     };
 
     const scoringAdapters = createHcs25AdapterCatalog();

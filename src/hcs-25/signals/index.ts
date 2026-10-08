@@ -3,6 +3,7 @@ export * from './simple-evals';
 export * from './marketplace';
 export * from './operational';
 export * from './model-evals';
+export * from './ans-trust-discovery';
 
 /**
  * Documentation for one published signal family: where it is stored on the
@@ -218,6 +219,21 @@ export const HCS25_SIGNAL_CATALOG: Readonly<
       'windowDays',
       'providers',
       'updatedAt',
+    ],
+  },
+  'ans-trust-discovery': {
+    storage: 'metadata.ansTrustDiscovery',
+    fields: [
+      'ans-trust-discovery.certtype',
+      'ans-trust-discovery.dnssecurity',
+      'ans-trust-discovery.agentage',
+      'ans-trust-discovery.versionstability',
+      'ans-trust-discovery.dnsconsistency',
+      'ans-trust-discovery.httpsrecord',
+      'ans-trust-discovery.agentcard',
+      'ans-trust-discovery.certificatehygiene',
+      'ansTrustDiscoveryStatus',
+      'ansTrustDiscoveryUpdatedAt',
     ],
   },
 };
