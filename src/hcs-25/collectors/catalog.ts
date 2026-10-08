@@ -8,6 +8,10 @@ import {
   type Hcs25AgentverseSignalAdapterOptions,
 } from './agentverse';
 import {
+  createAnsTrustDiscoverySignalAdapter,
+  type Hcs25AnsTrustDiscoverySignalAdapterOptions,
+} from './ans-trust-discovery';
+import {
   createAvailabilitySignalAdapter,
   type Hcs25AvailabilitySignalAdapterOptions,
 } from './availability';
@@ -60,8 +64,9 @@ type OmitRequired<TOptions, TKey extends keyof TOptions> = Enable<
  * Per-family configuration for {@link createHcs25SignalAdapters}. Each key
  * accepts `true` (enable with defaults) or an options object; keys omitted
  * entirely are disabled. `x402` scans on-chain usage by default (viem);
- * `openrouterEvals`, `chatbotArena`, and `openLlm` ship with the
- * production-shaped sources. Families still requiring configuration:
+ * `openrouterEvals`, `chatbotArena`, `openLlm`, and `ansTrustDiscovery`
+ * ship with the production-shaped sources. Families still requiring
+ * configuration:
  * `acp`, `erc8004`, `outputVerification`, `simpleEvals` — pass the options
  * object.
  */
@@ -79,6 +84,11 @@ export interface Hcs25SignalAdaptersOptions {
   chatbotArena?: Enable<Hcs25ChatbotArenaSignalAdapterOptions>;
   openLlm?: Enable<Hcs25OpenLlmSignalAdapterOptions>;
   outputVerification?: Hcs25OutputVerificationSignalAdapterOptions;
+  /**
+   * ANS Trust Index collector. `true` uses `https://api.godaddy.com`;
+   * pass `baseUrl` for another provider.
+   */
+  ansTrustDiscovery?: Enable<Hcs25AnsTrustDiscoverySignalAdapterOptions>;
   /**
    * Simple-evals adapters per subject family. `a2a` covers A2A/HTTP
    * subjects, `agentverse` is the same schema scoped to AgentVerse/uAgent
@@ -162,6 +172,10 @@ export function createHcs25SignalAdapters(
     adapters.push(
       createOutputVerificationSignalAdapter(options.outputVerification),
     );
+  }
+  const ansTrustDiscovery = optionsOf(options.ansTrustDiscovery);
+  if (ansTrustDiscovery) {
+    adapters.push(createAnsTrustDiscoverySignalAdapter(ansTrustDiscovery));
   }
 
   if (options.simpleEvals) {

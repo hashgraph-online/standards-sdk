@@ -5,6 +5,7 @@ export * from './merge';
 export * from './runner';
 export * from './pipeline';
 export * from './endpoints';
+export * from './ans-trust-discovery';
 export * from './availability';
 export * from './connectivity';
 export * from './ethos';
