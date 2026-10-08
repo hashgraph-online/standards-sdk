@@ -242,6 +242,39 @@ describe('HCS-25 ANS trust discovery adapter', () => {
     expect(result.breakdown.adapters[0]?.components[0]?.status).toBe('stale');
   });
 
+  test('surfaces error and timeout when no score was stored', () => {
+    const adapter = createAnsTrustDiscoveryAdapter();
+    const config = compileScoringConfig({ version: 1, adapters: [adapter] });
+
+    for (const status of ['error', 'timeout'] as const) {
+      for (const component of adapter.components) {
+        expect(
+          component.normalize({
+            subject: ansSubject({ ansTrustDiscoveryStatus: status }),
+            snapshot: {},
+            config,
+          }),
+        ).toEqual({ value: 0, status });
+      }
+    }
+  });
+
+  test('treats a stale record with no score as missing', () => {
+    const adapter = createAnsTrustDiscoveryAdapter();
+    const config = compileScoringConfig({ version: 1, adapters: [adapter] });
+    const certtype = adapter.components.find(
+      component => component.name === 'certtype',
+    );
+
+    expect(
+      certtype?.normalize({
+        subject: ansSubject({ ansTrustDiscoveryStatus: 'stale' }),
+        snapshot: {},
+        config,
+      }),
+    ).toEqual({ value: 0, status: 'missing' });
+  });
+
   test('keeps present scores when the collection status is error or timeout', () => {
     for (const status of ['error', 'timeout']) {
       const result = scoreOne(

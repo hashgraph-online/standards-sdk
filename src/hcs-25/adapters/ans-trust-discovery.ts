@@ -28,9 +28,29 @@ const DEFAULT_INCLUDED_REGISTRIES: readonly string[] = ['ans'];
 const MISSING: Hcs25NormalizedValue = { value: 0, status: 'missing' };
 
 /**
- * Reads one stored signal score. A null or absent score is missing; a present
- * score keeps the record-level `ansTrustDiscoveryStatus` of `stale` so the
- * scoring layer applies the stale multiplier.
+ * Maps a stored `ansTrustDiscoveryStatus` onto one signal. A present score
+ * keeps `stale` so the scoring layer applies the stale multiplier, and
+ * otherwise passes through as ok. `timeout` or `error` with no score surfaces
+ * as that status. Anything else without a score is missing.
+ */
+function ansTrustStatus(
+  status: string | null,
+  score: number | null,
+): Hcs25NormalizedValue {
+  if (score !== null) {
+    return {
+      value: clampScore(score),
+      status: status === 'stale' ? 'stale' : 'ok',
+    };
+  }
+  if (status === 'timeout' || status === 'error') {
+    return { value: 0, status };
+  }
+  return MISSING;
+}
+
+/**
+ * Reads one stored signal score from `metadata.ansTrustDiscovery`.
  */
 function normalizeAnsTrustSignal(
   subject: Hcs25Subject,
@@ -41,16 +61,10 @@ function normalizeAnsTrustSignal(
     return MISSING;
   }
 
-  const score = readNumber(record, `${ADAPTER_ID}.${signal}`);
-  if (score === null) {
-    return MISSING;
-  }
-
-  const status = readString(record, 'ansTrustDiscoveryStatus');
-  return {
-    value: clampScore(score),
-    status: status === 'stale' ? 'stale' : 'ok',
-  };
+  return ansTrustStatus(
+    readString(record, 'ansTrustDiscoveryStatus'),
+    readNumber(record, `${ADAPTER_ID}.${signal}`),
+  );
 }
 
 /**
