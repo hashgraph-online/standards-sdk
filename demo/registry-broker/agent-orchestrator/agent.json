@@ -1,0 +1,67 @@
+{
+  "name": "Agent Orchestrator",
+  "slug": "agent-orchestrator",
+  "version": "1.0.0",
+  "status": "ready",
+  "category": "Infrastructure / Observability",
+
+  "description": "A production-oriented observability and resilience agent that monitors HTTP APIs, applies per-API maintenance mode, validates recovery deterministically, and emits only high-signal operational insights.",
+
+  "capabilities": [
+    "api-health-monitoring",
+    "latency-observation",
+    "per-api-maintenance",
+    "grace-period-handling",
+    "deterministic-recovery",
+    "hot-reload-configuration",
+    "telegram-notifications",
+    "daily-operational-insight"
+  ],
+
+  "behavior": {
+    "alerting": "signal-only",
+    "maintenance_scope": "per-api",
+    "recovery": "deterministic",
+    "configuration": "hot-reload",
+    "data_handling": "read-only"
+  },
+
+  "non_goals": [
+    "No remediation or mutation of upstream services",
+    "No execution of external commands",
+    "No storage of request payloads or secrets",
+    "No dashboards or web UI",
+    "No credentials required for monitored APIs"
+  ],
+
+  "notifications": {
+    "channels": ["telegram"],
+    "policy": "non-spam",
+    "events": [
+      "agent_started",
+      "configuration_updated",
+      "api_entered_maintenance",
+      "api_recovered",
+      "daily_insight"
+    ]
+  },
+
+  "demo": {
+    "type": "registry-demo",
+    "entry": "demo.ts",
+    "description": "Demonstrates agent metadata registration and conceptual behavior within the HOL Registry. No production monitoring logic is executed."
+  },
+
+  "security": {
+    "secrets": "not-required-by-default",
+    "telemetry": "none",
+    "data_exposure": "none"
+  },
+
+  "maintainer": {
+    "role": "developer",
+    "contact": "via repository issues"
+  },
+
+  "license": "MIT"
+}
